@@ -1,0 +1,65 @@
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only.
+ * See the file usr/src/LICENSING.NOTICE in this distribution or
+ * http://www.opensolaris.org/license/ for details.
+ */
+
+#pragma ident	"@(#)regs.sed.in	1.1	04/09/28 SMI"
+
+/*
+ * This file is a sed script which is first preprocessed by cpp or cc -E to
+ * define a set of sed directives which replace #define tokens with their
+ * values.  After preprocessing, whitespace is eliminated, and any @ symbols
+ * are translated into single space.  The resulting sed script is then run
+ * over regs.d.in to replace the #define tokens listed below to create the
+ * finished regs.d.  Refer to the rules in libdtrace/i386/Makefile for more
+ * information.
+ */
+
+#include <sys/regset.h>
+
+#define	SED_REPLACE(x)		s/#x/x/g
+#define	SED_REPLACE64(x)	s/#x/SS @+@1@+@ x/g
+
+SED_REPLACE(GS)
+SED_REPLACE(FS)
+SED_REPLACE(ES)
+SED_REPLACE(DS)
+SED_REPLACE(EDI)
+SED_REPLACE(ESI)
+SED_REPLACE(EBP)
+SED_REPLACE(ESP)
+SED_REPLACE(EBX)
+SED_REPLACE(EDX)
+SED_REPLACE(ECX)
+SED_REPLACE(EAX)
+SED_REPLACE(TRAPNO)
+SED_REPLACE(ERR)
+SED_REPLACE(EIP)
+SED_REPLACE(CS)
+SED_REPLACE(EFL)
+SED_REPLACE(UESP)
+SED_REPLACE(SS)
+
+SED_REPLACE64(REG_RSP)
+SED_REPLACE64(REG_RFL)
+SED_REPLACE64(REG_RIP)
+SED_REPLACE64(REG_RAX)
+SED_REPLACE64(REG_RCX)
+SED_REPLACE64(REG_RDX)
+SED_REPLACE64(REG_RBX)
+SED_REPLACE64(REG_RBP)
+SED_REPLACE64(REG_RSI)
+SED_REPLACE64(REG_RDI)
+SED_REPLACE64(REG_R8)
+SED_REPLACE64(REG_R9)
+SED_REPLACE64(REG_R10)
+SED_REPLACE64(REG_R11)
+SED_REPLACE64(REG_R12)
+SED_REPLACE64(REG_R13)
+SED_REPLACE64(REG_R14)
+SED_REPLACE64(REG_R15)
+

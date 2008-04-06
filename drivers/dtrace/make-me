@@ -1,0 +1,2 @@
+#! /bin/sh
+exec warn make $@ -C /usr/src/linux M=`pwd` modules

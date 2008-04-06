@@ -1,0 +1,47 @@
+Linux port of DTrace
+
+April 2008
+Paul D. Fox
+fox@crisp.demon.co.uk
+
+This is a pre-alpha, work-in-progress port of Sun's DTrace kernel
+debugging tool for Linux. It is not prime-time and much of it
+doesnt compile.
+
+I have taken a variety of approaches to get where I am:
+
+custom include dir: 
+
+	- <linux> for user land tools which front-ends /usr/include and
+	  /usr/include/sys
+	- <sys> for the kernel drivers.
+
+makefiles are incomplete - I use 'makefile' and will clean up Suns
+Makefile and Makefile.targ and other extraneous subdirs to simplify things.
+
+make-me is a temporary script to build the kernel drivers.
+
+No top-level makefile at present. In cmd/dtrace/dtrace is a 64-bit dtrace
+binary built on RedHat FC8. Will remove that and make it buildable.
+
+Kernel drivers assume access to /usr/src/linux -- needs to be fixed.
+kernel drivers dont compile yet. Lots of use of 
+
+	# if defined(sun)
+	...
+	# endif
+
+for bits we wont want (much cribbed from the FreeBSD port).
+
+Some code has
+
+	# if linux
+	...
+	#endif
+
+where its definitely Linux time.
+
+No GPL code in here at present; all CDDL.
+
+'tags' files are CRiSP format cross-reference files. If you dont have
+CRiSP, delete them and build your own !

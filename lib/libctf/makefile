@@ -1,7 +1,7 @@
 CC=gcc -g
 COMMON = ../../common/ctf
 CPPFLAGS += -I../common -I../../common/ctf -I../../uts/common/ \
-	-I$(COMMON) \
+	-I$(COMMON) -I. \
 	-I../../linux -DCTF_OLD_VERSIONS
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 

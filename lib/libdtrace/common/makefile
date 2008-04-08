@@ -49,5 +49,5 @@ $(LIB): $(LIB)(dt_aggregate.o) \
 dt_errtags.c: dt_errtags.h mkerrtags.sh
 	mkerrtags.sh <dt_errtags.h > dt_errtags.c
 
-#dt_lex.c: dt_lex.l dt_grammar.h
-#	lex -l -t -v dt_lex.l > dt_lex.c
+dt_lex.c: dt_lex.l dt_grammar.h
+	lex -l -t -v dt_lex.l > dt_lex.c

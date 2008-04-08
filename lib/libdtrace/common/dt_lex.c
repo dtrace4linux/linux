@@ -978,12 +978,34 @@ char *yytext_ptr;
  * We need to undefine lex's input and unput macros so that references to these
  * call the functions provided at the end of this source file.
  */
+#if defined(sun)
 #undef input
 #undef unput
+#else
+/* 
+ * Define YY_INPUT for flex since input() can't be re-defined.
+ */
+#define YY_INPUT(buf,result,max_size) \
+	if (yypcb->pcb_fileptr != NULL) { \
+		if (((result = fread(buf, 1, max_size, yypcb->pcb_fileptr)) == 0) \
+		    && ferror(yypcb->pcb_fileptr)) \
+			longjmp(yypcb->pcb_jmpbuf, EDT_FIO); \
+	} else { \
+		int n; \
+		for (n = 0; n < max_size && \
+		    yypcb->pcb_strptr < yypcb->pcb_string + yypcb->pcb_strlen; n++) \
+			buf[n] = *yypcb->pcb_strptr++; \
+		result = n; \
+	}
+#endif
 
 static int id_or_type(const char *);
+#if 1 || defined(sun)
+# undef input
+# undef unput
 static int input(void);
 static void unput(int);
+#endif
 
 /*
  * We first define a set of labeled states for use in the D lexer and then a
@@ -995,7 +1017,7 @@ static void unput(int);
  * S3 - D control line parsing (i.e. after ^# is seen but before \n)
  */
 
-#line 999 "<stdout>"
+#line 1021 "<stdout>"
 
 #define INITIAL 0
 #define S0 1
@@ -1184,7 +1206,7 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 63 "dt_lex.l"
+#line 85 "dt_lex.l"
 
 
 
@@ -1204,7 +1226,7 @@ if (yypcb->pcb_token != 0) {
 
 
 
-#line 1208 "<stdout>"
+#line 1230 "<stdout>"
 
 	if ( !(yy_init) )
 		{
@@ -1330,372 +1352,372 @@ do_action:	/* This label is used only to access EOF actions. */
 	{ /* beginning of action switch */
 case 1:
 YY_RULE_SETUP
-#line 82 "dt_lex.l"
+#line 104 "dt_lex.l"
 return (DT_KEY_AUTO);
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 83 "dt_lex.l"
+#line 105 "dt_lex.l"
 return (DT_KEY_BREAK);
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 84 "dt_lex.l"
+#line 106 "dt_lex.l"
 return (DT_KEY_CASE);
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 85 "dt_lex.l"
+#line 107 "dt_lex.l"
 return (DT_KEY_CHAR);
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 86 "dt_lex.l"
+#line 108 "dt_lex.l"
 return (DT_KEY_CONST);
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 87 "dt_lex.l"
+#line 109 "dt_lex.l"
 return (DT_KEY_CONTINUE);
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 88 "dt_lex.l"
+#line 110 "dt_lex.l"
 return (DT_KEY_COUNTER);
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 89 "dt_lex.l"
+#line 111 "dt_lex.l"
 return (DT_KEY_DEFAULT);
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 90 "dt_lex.l"
+#line 112 "dt_lex.l"
 return (DT_KEY_DO);
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 91 "dt_lex.l"
+#line 113 "dt_lex.l"
 return (DT_KEY_DOUBLE);
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 92 "dt_lex.l"
+#line 114 "dt_lex.l"
 return (DT_KEY_ELSE);
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 93 "dt_lex.l"
+#line 115 "dt_lex.l"
 return (DT_KEY_ENUM);
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 94 "dt_lex.l"
+#line 116 "dt_lex.l"
 return (DT_KEY_EXTERN);
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 95 "dt_lex.l"
+#line 117 "dt_lex.l"
 return (DT_KEY_FLOAT);
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 96 "dt_lex.l"
+#line 118 "dt_lex.l"
 return (DT_KEY_FOR);
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 97 "dt_lex.l"
+#line 119 "dt_lex.l"
 return (DT_KEY_GOTO);
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 98 "dt_lex.l"
+#line 120 "dt_lex.l"
 return (DT_KEY_IF);
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 99 "dt_lex.l"
+#line 121 "dt_lex.l"
 return (DT_KEY_IMPORT);
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 100 "dt_lex.l"
+#line 122 "dt_lex.l"
 return (DT_KEY_INLINE);
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 101 "dt_lex.l"
+#line 123 "dt_lex.l"
 return (DT_KEY_INT);
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 102 "dt_lex.l"
+#line 124 "dt_lex.l"
 return (DT_KEY_LONG);
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 103 "dt_lex.l"
+#line 125 "dt_lex.l"
 return (DT_TOK_OFFSETOF);
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 104 "dt_lex.l"
+#line 126 "dt_lex.l"
 return (DT_KEY_PROBE);
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 105 "dt_lex.l"
+#line 127 "dt_lex.l"
 return (DT_KEY_PROVIDER);
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 106 "dt_lex.l"
+#line 128 "dt_lex.l"
 return (DT_KEY_REGISTER);
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 107 "dt_lex.l"
+#line 129 "dt_lex.l"
 return (DT_KEY_RESTRICT);
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 108 "dt_lex.l"
+#line 130 "dt_lex.l"
 return (DT_KEY_RETURN);
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 109 "dt_lex.l"
+#line 131 "dt_lex.l"
 return (DT_KEY_SELF);
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 110 "dt_lex.l"
+#line 132 "dt_lex.l"
 return (DT_KEY_SHORT);
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 111 "dt_lex.l"
+#line 133 "dt_lex.l"
 return (DT_KEY_SIGNED);
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 112 "dt_lex.l"
+#line 134 "dt_lex.l"
 return (DT_TOK_SIZEOF);
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 113 "dt_lex.l"
+#line 135 "dt_lex.l"
 return (DT_KEY_STATIC);
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 114 "dt_lex.l"
+#line 136 "dt_lex.l"
 return (DT_KEY_STRING);
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 115 "dt_lex.l"
+#line 137 "dt_lex.l"
 return (DT_TOK_STRINGOF);
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 116 "dt_lex.l"
+#line 138 "dt_lex.l"
 return (DT_KEY_STRUCT);
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 117 "dt_lex.l"
+#line 139 "dt_lex.l"
 return (DT_KEY_SWITCH);
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 118 "dt_lex.l"
+#line 140 "dt_lex.l"
 return (DT_KEY_THIS);
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 119 "dt_lex.l"
+#line 141 "dt_lex.l"
 return (DT_KEY_XLATOR);
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 120 "dt_lex.l"
+#line 142 "dt_lex.l"
 return (DT_KEY_TYPEDEF);
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 121 "dt_lex.l"
+#line 143 "dt_lex.l"
 return (DT_KEY_UNION);
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 122 "dt_lex.l"
+#line 144 "dt_lex.l"
 return (DT_KEY_UNSIGNED);
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 123 "dt_lex.l"
+#line 145 "dt_lex.l"
 return (DT_KEY_VOID);
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 124 "dt_lex.l"
+#line 146 "dt_lex.l"
 return (DT_KEY_VOLATILE);
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 125 "dt_lex.l"
+#line 147 "dt_lex.l"
 return (DT_KEY_WHILE);
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 126 "dt_lex.l"
+#line 148 "dt_lex.l"
 return (DT_TOK_XLATE);
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 128 "dt_lex.l"
+#line 150 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_AUTO); }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 129 "dt_lex.l"
+#line 151 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_CHAR); }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 130 "dt_lex.l"
+#line 152 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_CONST); }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 131 "dt_lex.l"
+#line 153 "dt_lex.l"
 { yybegin(YYS_DEFINE);	return (DT_KEY_COUNTER); }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 132 "dt_lex.l"
+#line 154 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_DOUBLE); }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 133 "dt_lex.l"
+#line 155 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_ENUM); }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 134 "dt_lex.l"
+#line 156 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_EXTERN); }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 135 "dt_lex.l"
+#line 157 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_FLOAT); }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 136 "dt_lex.l"
+#line 158 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_IMPORT); }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 137 "dt_lex.l"
+#line 159 "dt_lex.l"
 { yybegin(YYS_DEFINE);	return (DT_KEY_INLINE); }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 138 "dt_lex.l"
+#line 160 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_INT); }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 139 "dt_lex.l"
+#line 161 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_LONG); }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 140 "dt_lex.l"
+#line 162 "dt_lex.l"
 { yybegin(YYS_DEFINE);	return (DT_KEY_PROVIDER); }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 141 "dt_lex.l"
+#line 163 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_REGISTER); }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 142 "dt_lex.l"
+#line 164 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_RESTRICT); }
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 143 "dt_lex.l"
+#line 165 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_SELF); }
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 144 "dt_lex.l"
+#line 166 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_SHORT); }
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 145 "dt_lex.l"
+#line 167 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_SIGNED); }
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 146 "dt_lex.l"
+#line 168 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_STATIC); }
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 147 "dt_lex.l"
+#line 169 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_STRING); }
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 148 "dt_lex.l"
+#line 170 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_STRUCT); }
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 149 "dt_lex.l"
+#line 171 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_THIS); }
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 150 "dt_lex.l"
+#line 172 "dt_lex.l"
 { yybegin(YYS_DEFINE);	return (DT_KEY_XLATOR); }
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 151 "dt_lex.l"
+#line 173 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_TYPEDEF); }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 152 "dt_lex.l"
+#line 174 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_UNION); }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 153 "dt_lex.l"
+#line 175 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_UNSIGNED); }
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 154 "dt_lex.l"
+#line 176 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_VOID); }
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 155 "dt_lex.l"
+#line 177 "dt_lex.l"
 { yybegin(YYS_EXPR);	return (DT_KEY_VOLATILE); }
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 157 "dt_lex.l"
+#line 179 "dt_lex.l"
 {
 			int i = atoi(yytext + 2);
 			char *v = "";
@@ -1728,7 +1750,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 75:
 YY_RULE_SETUP
-#line 187 "dt_lex.l"
+#line 209 "dt_lex.l"
 {
 			int i = atoi(yytext + 1);
 			char *p, *v = "0";
@@ -1802,7 +1824,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 76:
 YY_RULE_SETUP
-#line 258 "dt_lex.l"
+#line 280 "dt_lex.l"
 {
 			dt_ident_t *idp = dt_idhash_lookup(
 			    yypcb->pcb_hdl->dt_macros, yytext + 2);
@@ -1827,7 +1849,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 77:
 YY_RULE_SETUP
-#line 280 "dt_lex.l"
+#line 302 "dt_lex.l"
 {
 			dt_ident_t *idp = dt_idhash_lookup(
 			    yypcb->pcb_hdl->dt_macros, yytext + 1);
@@ -1851,14 +1873,14 @@ YY_RULE_SETUP
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
-#line 301 "dt_lex.l"
+#line 323 "dt_lex.l"
 {
 			return (id_or_type(yytext));
 		}
 	YY_BREAK
 case 79:
 YY_RULE_SETUP
-#line 305 "dt_lex.l"
+#line 327 "dt_lex.l"
 {
 			if ((yylval.l_str = strdup(yytext)) == NULL)
 				longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
@@ -1867,7 +1889,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 80:
 YY_RULE_SETUP
-#line 311 "dt_lex.l"
+#line 333 "dt_lex.l"
 {
 			if ((yylval.l_str = strdup("@_")) == NULL)
 				longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
@@ -1875,12 +1897,12 @@ YY_RULE_SETUP
 		}
 	YY_BREAK
 case 81:
-#line 318 "dt_lex.l"
+#line 340 "dt_lex.l"
 case 82:
-#line 319 "dt_lex.l"
+#line 341 "dt_lex.l"
 case 83:
 YY_RULE_SETUP
-#line 319 "dt_lex.l"
+#line 341 "dt_lex.l"
 {
 			char *p;
 
@@ -1909,21 +1931,21 @@ YY_RULE_SETUP
 	YY_BREAK
 case 84:
 YY_RULE_SETUP
-#line 345 "dt_lex.l"
+#line 367 "dt_lex.l"
 yyerror("floating-point constants are not permitted\n");
 	YY_BREAK
 case 85:
 YY_RULE_SETUP
-#line 347 "dt_lex.l"
+#line 369 "dt_lex.l"
 case 86:
-#line 348 "dt_lex.l"
+#line 370 "dt_lex.l"
 xyerror(D_STR_NL, "newline encountered in string literal");
 	YY_BREAK
 case 87:
-#line 351 "dt_lex.l"
+#line 373 "dt_lex.l"
 case 88:
 YY_RULE_SETUP
-#line 351 "dt_lex.l"
+#line 373 "dt_lex.l"
 {
 			/*
 			 * Quoted string -- convert C escape sequences and
@@ -1944,12 +1966,12 @@ YY_RULE_SETUP
 	YY_BREAK
 case 89:
 YY_RULE_SETUP
-#line 369 "dt_lex.l"
+#line 391 "dt_lex.l"
 xyerror(D_CHR_NL, "newline encountered in character constant");
 	YY_BREAK
 case 90:
 YY_RULE_SETUP
-#line 371 "dt_lex.l"
+#line 393 "dt_lex.l"
 {
 			char *s, *p, *q;
 			size_t nbytes;
@@ -1985,27 +2007,27 @@ YY_RULE_SETUP
 		}
 	YY_BREAK
 case 91:
-#line 406 "dt_lex.l"
+#line 428 "dt_lex.l"
 case 92:
 YY_RULE_SETUP
-#line 406 "dt_lex.l"
+#line 428 "dt_lex.l"
 {
 			yypcb->pcb_cstate = (YYSTATE);
 			BEGIN(S1);
 		}
 	YY_BREAK
 case 93:
-#line 412 "dt_lex.l"
+#line 434 "dt_lex.l"
 case 94:
 YY_RULE_SETUP
-#line 412 "dt_lex.l"
+#line 434 "dt_lex.l"
 ; /* discard any #! lines */
 	YY_BREAK
 case 95:
-#line 415 "dt_lex.l"
+#line 437 "dt_lex.l"
 case 96:
 YY_RULE_SETUP
-#line 415 "dt_lex.l"
+#line 437 "dt_lex.l"
 {
 			assert(yypragma == NULL);
 			yypcb->pcb_cstate = (YYSTATE);
@@ -2014,7 +2036,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 97:
 YY_RULE_SETUP
-#line 421 "dt_lex.l"
+#line 443 "dt_lex.l"
 {
 			int c, tok;
 
@@ -2051,7 +2073,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 98:
 YY_RULE_SETUP
-#line 455 "dt_lex.l"
+#line 477 "dt_lex.l"
 {
 			yypcb->pcb_parens++;
 			return (DT_TOK_LPAR);
@@ -2059,7 +2081,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 99:
 YY_RULE_SETUP
-#line 460 "dt_lex.l"
+#line 482 "dt_lex.l"
 {
 			if (--yypcb->pcb_parens < 0)
 				yyerror("extra ) in input stream\n");
@@ -2068,7 +2090,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 100:
 YY_RULE_SETUP
-#line 466 "dt_lex.l"
+#line 488 "dt_lex.l"
 {
 			yypcb->pcb_brackets++;
 			return (DT_TOK_LBRAC);
@@ -2076,7 +2098,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 101:
 YY_RULE_SETUP
-#line 471 "dt_lex.l"
+#line 493 "dt_lex.l"
 {
 			if (--yypcb->pcb_brackets < 0)
 				yyerror("extra ] in input stream\n");
@@ -2084,10 +2106,10 @@ YY_RULE_SETUP
 		}
 	YY_BREAK
 case 102:
-#line 478 "dt_lex.l"
+#line 500 "dt_lex.l"
 case 103:
 YY_RULE_SETUP
-#line 478 "dt_lex.l"
+#line 500 "dt_lex.l"
 {
 			yypcb->pcb_braces++;
 			return ('{');
@@ -2095,7 +2117,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 104:
 YY_RULE_SETUP
-#line 483 "dt_lex.l"
+#line 505 "dt_lex.l"
 {
 			if (--yypcb->pcb_braces < 0)
 				yyerror("extra } in input stream\n");
@@ -2104,235 +2126,235 @@ YY_RULE_SETUP
 	YY_BREAK
 case 105:
 YY_RULE_SETUP
-#line 489 "dt_lex.l"
+#line 511 "dt_lex.l"
 return (DT_TOK_BOR);
 	YY_BREAK
 case 106:
 YY_RULE_SETUP
-#line 490 "dt_lex.l"
+#line 512 "dt_lex.l"
 return (DT_TOK_XOR);
 	YY_BREAK
 case 107:
 YY_RULE_SETUP
-#line 491 "dt_lex.l"
+#line 513 "dt_lex.l"
 return (DT_TOK_BAND);
 	YY_BREAK
 case 108:
 YY_RULE_SETUP
-#line 492 "dt_lex.l"
+#line 514 "dt_lex.l"
 return (DT_TOK_LAND);
 	YY_BREAK
 case 109:
 YY_RULE_SETUP
-#line 493 "dt_lex.l"
+#line 515 "dt_lex.l"
 return (DT_TOK_LXOR);
 	YY_BREAK
 case 110:
 YY_RULE_SETUP
-#line 494 "dt_lex.l"
+#line 516 "dt_lex.l"
 return (DT_TOK_LOR);
 	YY_BREAK
 case 111:
 YY_RULE_SETUP
-#line 495 "dt_lex.l"
+#line 517 "dt_lex.l"
 return (DT_TOK_EQU);
 	YY_BREAK
 case 112:
 YY_RULE_SETUP
-#line 496 "dt_lex.l"
+#line 518 "dt_lex.l"
 return (DT_TOK_NEQ);
 	YY_BREAK
 case 113:
 YY_RULE_SETUP
-#line 497 "dt_lex.l"
+#line 519 "dt_lex.l"
 return (DT_TOK_LT);
 	YY_BREAK
 case 114:
 YY_RULE_SETUP
-#line 498 "dt_lex.l"
+#line 520 "dt_lex.l"
 return (DT_TOK_LE);
 	YY_BREAK
 case 115:
 YY_RULE_SETUP
-#line 499 "dt_lex.l"
+#line 521 "dt_lex.l"
 return (DT_TOK_GT);
 	YY_BREAK
 case 116:
 YY_RULE_SETUP
-#line 500 "dt_lex.l"
+#line 522 "dt_lex.l"
 return (DT_TOK_GE);
 	YY_BREAK
 case 117:
 YY_RULE_SETUP
-#line 501 "dt_lex.l"
+#line 523 "dt_lex.l"
 return (DT_TOK_LSH);
 	YY_BREAK
 case 118:
 YY_RULE_SETUP
-#line 502 "dt_lex.l"
+#line 524 "dt_lex.l"
 return (DT_TOK_RSH);
 	YY_BREAK
 case 119:
 YY_RULE_SETUP
-#line 503 "dt_lex.l"
+#line 525 "dt_lex.l"
 return (DT_TOK_ADD);
 	YY_BREAK
 case 120:
 YY_RULE_SETUP
-#line 504 "dt_lex.l"
+#line 526 "dt_lex.l"
 return (DT_TOK_SUB);
 	YY_BREAK
 case 121:
 YY_RULE_SETUP
-#line 505 "dt_lex.l"
+#line 527 "dt_lex.l"
 return (DT_TOK_MUL);
 	YY_BREAK
 case 122:
 YY_RULE_SETUP
-#line 506 "dt_lex.l"
+#line 528 "dt_lex.l"
 return (DT_TOK_MOD);
 	YY_BREAK
 case 123:
 YY_RULE_SETUP
-#line 507 "dt_lex.l"
+#line 529 "dt_lex.l"
 return (DT_TOK_BNEG);
 	YY_BREAK
 case 124:
 YY_RULE_SETUP
-#line 508 "dt_lex.l"
+#line 530 "dt_lex.l"
 return (DT_TOK_LNEG);
 	YY_BREAK
 case 125:
 YY_RULE_SETUP
-#line 509 "dt_lex.l"
+#line 531 "dt_lex.l"
 return (DT_TOK_QUESTION);
 	YY_BREAK
 case 126:
 YY_RULE_SETUP
-#line 510 "dt_lex.l"
+#line 532 "dt_lex.l"
 return (DT_TOK_COLON);
 	YY_BREAK
 case 127:
 YY_RULE_SETUP
-#line 511 "dt_lex.l"
+#line 533 "dt_lex.l"
 return (DT_TOK_DOT);
 	YY_BREAK
 case 128:
 YY_RULE_SETUP
-#line 512 "dt_lex.l"
+#line 534 "dt_lex.l"
 return (DT_TOK_PTR);
 	YY_BREAK
 case 129:
 YY_RULE_SETUP
-#line 513 "dt_lex.l"
+#line 535 "dt_lex.l"
 return (DT_TOK_ASGN);
 	YY_BREAK
 case 130:
 YY_RULE_SETUP
-#line 514 "dt_lex.l"
+#line 536 "dt_lex.l"
 return (DT_TOK_ADD_EQ);
 	YY_BREAK
 case 131:
 YY_RULE_SETUP
-#line 515 "dt_lex.l"
+#line 537 "dt_lex.l"
 return (DT_TOK_SUB_EQ);
 	YY_BREAK
 case 132:
 YY_RULE_SETUP
-#line 516 "dt_lex.l"
+#line 538 "dt_lex.l"
 return (DT_TOK_MUL_EQ);
 	YY_BREAK
 case 133:
 YY_RULE_SETUP
-#line 517 "dt_lex.l"
+#line 539 "dt_lex.l"
 return (DT_TOK_DIV_EQ);
 	YY_BREAK
 case 134:
 YY_RULE_SETUP
-#line 518 "dt_lex.l"
+#line 540 "dt_lex.l"
 return (DT_TOK_MOD_EQ);
 	YY_BREAK
 case 135:
 YY_RULE_SETUP
-#line 519 "dt_lex.l"
+#line 541 "dt_lex.l"
 return (DT_TOK_AND_EQ);
 	YY_BREAK
 case 136:
 YY_RULE_SETUP
-#line 520 "dt_lex.l"
+#line 542 "dt_lex.l"
 return (DT_TOK_XOR_EQ);
 	YY_BREAK
 case 137:
 YY_RULE_SETUP
-#line 521 "dt_lex.l"
+#line 543 "dt_lex.l"
 return (DT_TOK_OR_EQ);
 	YY_BREAK
 case 138:
 YY_RULE_SETUP
-#line 522 "dt_lex.l"
+#line 544 "dt_lex.l"
 return (DT_TOK_LSH_EQ);
 	YY_BREAK
 case 139:
 YY_RULE_SETUP
-#line 523 "dt_lex.l"
+#line 545 "dt_lex.l"
 return (DT_TOK_RSH_EQ);
 	YY_BREAK
 case 140:
 YY_RULE_SETUP
-#line 524 "dt_lex.l"
+#line 546 "dt_lex.l"
 return (DT_TOK_ADDADD);
 	YY_BREAK
 case 141:
 YY_RULE_SETUP
-#line 525 "dt_lex.l"
+#line 547 "dt_lex.l"
 return (DT_TOK_SUBSUB);
 	YY_BREAK
 case 142:
 YY_RULE_SETUP
-#line 526 "dt_lex.l"
+#line 548 "dt_lex.l"
 return (DT_TOK_ELLIPSIS);
 	YY_BREAK
 case 143:
 YY_RULE_SETUP
-#line 527 "dt_lex.l"
+#line 549 "dt_lex.l"
 return (DT_TOK_COMMA);
 	YY_BREAK
 case 144:
 YY_RULE_SETUP
-#line 528 "dt_lex.l"
+#line 550 "dt_lex.l"
 return (';');
 	YY_BREAK
 case 145:
 /* rule 145 can match eol */
 YY_RULE_SETUP
-#line 529 "dt_lex.l"
+#line 551 "dt_lex.l"
 ; /* discard */
 	YY_BREAK
 case 146:
 /* rule 146 can match eol */
 YY_RULE_SETUP
-#line 530 "dt_lex.l"
+#line 552 "dt_lex.l"
 ; /* discard */
 	YY_BREAK
 case 147:
 YY_RULE_SETUP
-#line 531 "dt_lex.l"
+#line 553 "dt_lex.l"
 yyerror("syntax error near \"%c\"\n", yytext[0]);
 	YY_BREAK
 case 148:
 YY_RULE_SETUP
-#line 533 "dt_lex.l"
+#line 555 "dt_lex.l"
 BEGIN(yypcb->pcb_cstate);
 	YY_BREAK
 case 149:
 /* rule 149 can match eol */
 YY_RULE_SETUP
-#line 534 "dt_lex.l"
+#line 556 "dt_lex.l"
 ; /* discard */
 	YY_BREAK
 case 150:
 YY_RULE_SETUP
-#line 536 "dt_lex.l"
+#line 558 "dt_lex.l"
 {
 			/*
 			 * S2 has an ambiguity because RGX_PSPEC includes '*'
@@ -2388,29 +2410,29 @@ YY_RULE_SETUP
 	YY_BREAK
 case 151:
 YY_RULE_SETUP
-#line 589 "dt_lex.l"
+#line 611 "dt_lex.l"
 return (DT_TOK_DIV);
 	YY_BREAK
 case 152:
 YY_RULE_SETUP
-#line 590 "dt_lex.l"
+#line 612 "dt_lex.l"
 return (DT_TOK_COMMA);
 	YY_BREAK
 case 153:
 /* rule 153 can match eol */
 YY_RULE_SETUP
-#line 592 "dt_lex.l"
+#line 614 "dt_lex.l"
 ; /* discard */
 	YY_BREAK
 case 154:
 YY_RULE_SETUP
-#line 593 "dt_lex.l"
+#line 615 "dt_lex.l"
 yyerror("syntax error near \"%c\"\n", yytext[0]);
 	YY_BREAK
 case 155:
 /* rule 155 can match eol */
 YY_RULE_SETUP
-#line 595 "dt_lex.l"
+#line 617 "dt_lex.l"
 {
 			dt_pragma(yypragma);
 			yypragma = NULL;
@@ -2419,12 +2441,12 @@ YY_RULE_SETUP
 	YY_BREAK
 case 156:
 YY_RULE_SETUP
-#line 601 "dt_lex.l"
+#line 623 "dt_lex.l"
 ; /* discard */
 	YY_BREAK
 case 157:
 YY_RULE_SETUP
-#line 603 "dt_lex.l"
+#line 625 "dt_lex.l"
 {
 			dt_node_t *dnp;
 
@@ -2446,15 +2468,15 @@ YY_RULE_SETUP
 	YY_BREAK
 case 158:
 YY_RULE_SETUP
-#line 622 "dt_lex.l"
+#line 644 "dt_lex.l"
 yyerror("syntax error near \"%c\"\n", yytext[0]);
 	YY_BREAK
 case 159:
 YY_RULE_SETUP
-#line 624 "dt_lex.l"
+#line 646 "dt_lex.l"
 ECHO;
 	YY_BREAK
-#line 2458 "<stdout>"
+#line 2480 "<stdout>"
 			case YY_STATE_EOF(INITIAL):
 			case YY_STATE_EOF(S0):
 			case YY_STATE_EOF(S1):
@@ -3432,7 +3454,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 624 "dt_lex.l"
+#line 646 "dt_lex.l"
 
 
 
@@ -3485,10 +3507,17 @@ yybegin(yystate_t state)
 void
 yyinit(dt_pcb_t *pcb)
 {
+# if 0 && linux
+	yy_switch_to_buffer(yy_create_buffer(yyin,YY_BUF_SIZE));
+# endif
+
 	yypcb = pcb;
 	yylineno = 1;
 	yypragma = NULL;
+
+#if 1 || defined(sun)
 	yysptr = yysbuf;
+# endif
 }
 
 /*
@@ -3568,6 +3597,7 @@ id_or_type(const char *s)
 	return (ttok);
 }
 
+# if 1 || defined(sun)
 static int
 input(void)
 {
@@ -3607,8 +3637,10 @@ unput(int c)
 		yylineno--;
 
 	*yysptr++ = c;
-# if !linux
+# if defined(sun)
 	yytchar = c;
 # endif
 }
+#endif
+
 

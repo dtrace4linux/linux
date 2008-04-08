@@ -1,0 +1,7 @@
+Wed Apr  9 21:56:09 2008  fox
+
+       1* dt_lex.l: Fix flex/lex issues - now parses strings properly and
+           dtrace -x nolibs -n BEGIN -e -S
+	   seems to work - or at least it doesnt core dump or generate
+	   a diagnostic.
+

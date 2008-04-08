@@ -85,6 +85,12 @@ extern int pwrite();
 
 #define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
 
+typedef unsigned long long hrtime_t;
+
+/**********************************************************************/
+/*   Typedefs for kernel driver building.			      */
+/**********************************************************************/
+typedef unsigned int mutex_t;
 # if __KERNEL__
 # include <sys/cpuvar_defs.h>
 # include <asm/signal.h>
@@ -98,12 +104,12 @@ typedef int cred_t;
 typedef struct	proc *proc_t;
 typedef int *greg_t;
 typedef struct __dev_info *dev_info_t;
-typedef int 	processorid_t;
+//typedef int 	processorid_t;
 typedef int 	model_t;
 typedef void	*vmem_t;
 typedef int	cyclic_id_t;
 typedef long	intptr_t;
-typedef unsigned long uintptr_t;
+//typedef unsigned long uintptr_t;
 typedef unsigned long long off64_t;
 typedef void *taskq_t;
 typedef void *kmem_cache_t;
@@ -120,6 +126,8 @@ typedef struct mutex kmutex_t;
 #define	CE_NOTE	1
 
 #define	NCPU NR_CPUS
+
+# include	<sys/cpuvar.h>
 
 # endif
 //typedef unsigned int *uintptr_t;
@@ -140,7 +148,6 @@ typedef unsigned int ulong_t;
 typedef unsigned long long u_longlong_t;
 typedef long long longlong_t;
 typedef long long offset_t;
-typedef unsigned long long hrtime_t;
 typedef unsigned long long rd_agent_t;
 typedef unsigned long pc_t;
 typedef ulong_t          Lmid_t;
@@ -261,8 +268,6 @@ typedef ulong_t minor_t;        /* minor part of device number */
 typedef uint_t major_t;
 typedef uint_t minor_t;
 #endif
-
-typedef unsigned int mutex_t;
 
 typedef struct flock64_32 {
         int16_t l_type;

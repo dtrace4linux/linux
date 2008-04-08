@@ -1,8 +1,9 @@
 #! /bin/make
 
-rel=20080407
+rel=`date +%Y%m%d`
 
 notice:
+	echo rel=$(rel)
 	@echo "make release    - create a new tarball for distribution"
 	@echo "make all        - build everything (which builds!)"
 

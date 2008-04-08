@@ -61,6 +61,11 @@
 #include <sys/strsubr.h>
 #include <sys/sysmacros.h>
 # endif
+# if linux
+#include <linux_types.h>
+#include <smp.h>
+#include <gfp.h>
+# endif
 #include <sys/dtrace_impl.h>
 #include <sys/atomic.h>
 #include <sys/cmn_err.h>
@@ -125,6 +130,9 @@ hrtime_t	dtrace_deadman_interval = NANOSEC;
 hrtime_t	dtrace_deadman_timeout = (hrtime_t)10 * NANOSEC;
 hrtime_t	dtrace_deadman_user = (hrtime_t)30 * NANOSEC;
 
+# if linux
+cpu_core_t cpu_core[CONFIG_NR_CPUS];
+# endif
 /*
  * DTrace External Variables
  *
@@ -397,7 +405,7 @@ static int
 cpu_get_id()
 {
 # if linux
-	return CPU->cpu_id;
+	return smp_processor_id();
 # else
 	return CPU->cpu_id;
 # endif

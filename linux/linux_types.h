@@ -8,6 +8,8 @@
 # include	<sys/time.h>
 # include	<sys/processor.h>
 # include	<sys/systm.h>
+# include 	<sys/vmem.h>
+# include 	<sys/cred.h>
 
 # define	_LARGEFILE_SOURCE	1
 # define	_FILE_OFFSET_BITS	64
@@ -94,19 +96,26 @@ typedef unsigned int mutex_t;
 # if __KERNEL__
 # include <sys/cpuvar_defs.h>
 # include <asm/signal.h>
+# include <sys/sched.h>
+//# include <sys/current.h>
+# define	SNOCD	0
+
+# define	t_did pid
+# define	p_parent parent
+
+#define        MIN(a,b) (((a)<(b))?(a):(b))
 #define	USHRT_MAX	0xffff
 #define	UINT16_MAX	0xffff
 #define	INT32_MAX	0x7fffffff
 #define	UINT32_MAX	0xffffffff
 #define	INT64_MAX	0x7fffffffffffffff
 #define	UINT64_MAX	0xffffffffffffffff
-typedef int cred_t;
-typedef struct	proc *proc_t;
+# define	p_flag flags
+typedef struct	task_struct proc_t;
 typedef int *greg_t;
 typedef struct __dev_info *dev_info_t;
 //typedef int 	processorid_t;
 typedef int 	model_t;
-typedef void	*vmem_t;
 typedef int	cyclic_id_t;
 typedef long	intptr_t;
 //typedef unsigned long uintptr_t;
@@ -129,7 +138,13 @@ typedef struct mutex kmutex_t;
 
 # include	<sys/cpuvar.h>
 
-# endif
+/**********************************************************************/
+/*   Protoypes.							      */
+/**********************************************************************/
+void cmn_err(int ce, const char *fmt, ...);
+
+# endif /* __KERNEL__ */
+
 //typedef unsigned int *uintptr_t;
 typedef short   o_dev_t;                /* old device type      */
 //typedef int     processorid_t;

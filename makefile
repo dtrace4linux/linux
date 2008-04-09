@@ -14,7 +14,7 @@ release:
 	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/dtrace
 
 all:
-	cd lib/libctf ; $(MAKE)
-	cd lib/libdtrace/common ; $(MAKE)
-	cd lib/liblinux ; $(MAKE)
+	cd libctf ; $(MAKE)
+	cd libdtrace/common ; $(MAKE)
+	cd liblinux ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)

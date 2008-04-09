@@ -45,3 +45,9 @@ No GPL code in here at present; all CDDL.
 
 'tags' files are CRiSP format cross-reference files. If you dont have
 CRiSP, delete them and build your own !
+
+If you see 'warn' in a makefile, its a tool which color codes gcc
+warnings and errors and makes it easier to read the output. It also
+knows how to hide the exceptionally annoying non-warning output lines
+which are impossible to fix in real life code without a gazillion
+of compiler flags.

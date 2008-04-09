@@ -1,21 +1,22 @@
 CFLAGS=-g
-dtrace: dtrace.o ../../lib/libctf/libctf.a \
-	../../lib/liblinux/liblinux.a \
-	../../lib/libdtrace/common/libdtrace.a \
-	../../lib/libproc/common/libproc.a
+dtrace: dtrace.o \
+	../../libctf/libctf.a \
+	../../liblinux/liblinux.a \
+	../../libdtrace/common/libdtrace.a \
+	../../libproc/common/libproc.a
 	$(CC) $(CFLAGS) -o dtrace \
-		-L../../lib/libctf \
-		-L../../lib/libdtrace/common \
-		-L../../lib/libproc/common \
-		-L../../lib/liblinux \
+		-L../../libctf \
+		-L../../libdtrace/common \
+		-L../../libproc/common \
+		-L../../liblinux \
 		dtrace.o -ldtrace -lctf -llinux -lpthread -lelf -ldl
 
 dtrace.o: dtrace.c
 	$(CC) $(CFLAGS) -c \
 		-I../../uts/common \
-		-I../../lib/libctf \
-		-I../../lib/libdtrace/common \
-		-I../../lib/libproc/common \
+		-I..//libctf \
+		-I..//libdtrace/common \
+		-I..//libproc/common \
 		-I../../linux \
 		dtrace.c
 

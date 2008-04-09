@@ -61,11 +61,21 @@
 #include <sys/strsubr.h>
 #include <sys/sysmacros.h>
 # endif
+
 # if linux
 #include <linux_types.h>
 #include <smp.h>
 #include <gfp.h>
+#define	current	_current /* is a macro in <current.h> */
+#define PRIV_EFFECTIVE          (1 << 0)
+#define PRIV_DTRACE_KERNEL      (1 << 1)
+#define PRIV_DTRACE_PROC        (1 << 2)
+#define PRIV_DTRACE_USER        (1 << 3)
+#define PRIV_PROC_OWNER         (1 << 4)
+#define PRIV_PROC_ZONE          (1 << 5)
+#define PRIV_ALL                ~0
 # endif
+
 #include <sys/dtrace_impl.h>
 #include <sys/atomic.h>
 #include <sys/cmn_err.h>
@@ -2074,6 +2084,7 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 		return (mstate->dtms_arg[i]);
 
 	case DIF_VAR_UREGS: {
+# if TODO
 		klwp_t *lwp;
 
 		if (!dtrace_priv_proc(state))
@@ -2086,6 +2097,10 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 		}
 
 		return (dtrace_getreg(lwp->lwp_regs, i));
+# else
+printk("%s(%d): TODO!!\n", __func__, __LINE__);
+		return 0;
+# endif
 	}
 
 	case DIF_VAR_CURTHREAD:
@@ -2431,6 +2446,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		break;
 	}
 
+# if defined(sun)
 	case DIF_SUBR_MSGSIZE:
 	case DIF_SUBR_MSGDSIZE: {
 		uintptr_t baddr = tupregs[0].dttk_value, daddr;
@@ -2481,6 +2497,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 
 		break;
 	}
+# endif
 
 	case DIF_SUBR_PROGENYOF: {
 		pid_t pid = tupregs[0].dttk_value;
@@ -2542,6 +2559,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		    state->dts_options[DTRACEOPT_STRSIZE]);
 		break;
 
+# if defined(sun)
 	case DIF_SUBR_GETMAJOR:
 #ifdef _LP64
 		regs[rd] = (tupregs[0].dttk_value >> NBITSMINOR64) & MAXMAJ64;
@@ -2740,6 +2758,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 
 		break;
 	}
+# endif
 
 	case DIF_SUBR_STRJOIN: {
 		char *d = (char *)mstate->dtms_scratch_ptr;
@@ -4117,6 +4136,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 			    probe->dtpr_id, probe->dtpr_arg) == 0)
 				continue;
 
+# if defined(sun)
 			/*
 			 * This is more subtle than it looks. We have to be
 			 * absolutely certain that CRED() isn't going to
@@ -4147,6 +4167,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 					continue;
 
 			}
+# endif
 		}
 
 		if (now - state->dts_alive > dtrace_deadman_timeout) {
@@ -8222,6 +8243,7 @@ static int
 dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
     processorid_t cpu)
 {
+# if defined(sun) || 1
 	cpu_t *cp;
 	dtrace_buffer_t *buf;
 
@@ -8292,7 +8314,11 @@ err:
 		buf->dtb_xamot = NULL;
 		buf->dtb_size = 0;
 	} while ((cp = cp->cpu_next) != cpu_list);
+# endif
 
+# if linux
+
+# endif
 	return (ENOMEM);
 }
 

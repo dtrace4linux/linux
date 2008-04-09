@@ -16,7 +16,7 @@
                                 sizeof (kmutex_t))
 #define CPUC_PADSIZE            CPU_CACHE_COHERENCE_SIZE - CPUC_SIZE
 
-typedef struct {
+typedef struct cpu_t {
         int             cpuid;
         struct cyc_cpu *cpu_cyclic;
         unsigned	cpu_flags;
@@ -26,6 +26,7 @@ typedef struct {
         uintptr_t       cpu_dtrace_caller;      /* DTrace: caller, if any */
         hrtime_t        cpu_dtrace_chillmark;   /* DTrace: chill mark time */
         hrtime_t        cpu_dtrace_chilled;     /* DTrace: total chill time */
+	struct cpu_t *cpu_next;
 } cpu_t;
 
 typedef struct cpu_core {
@@ -34,5 +35,9 @@ typedef struct cpu_core {
         uintptr_t       cpuc_dtrace_illval;     /* DTrace illegal value */
         kmutex_t        cpuc_pid_lock;          /* DTrace pid provider lock */
 } cpu_core_t;
+
+extern cpu_t	*cpu_list;
+
+# define	cpu_id	cpuid
 
 # endif

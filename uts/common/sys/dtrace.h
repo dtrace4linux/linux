@@ -2097,13 +2097,13 @@ extern void dtrace_getfsr(uint64_t *);
 #endif
 
 #define	DTRACE_CPUFLAG_ISSET(flag) \
-	(cpu_core[CPU->cpu_id].cpuc_dtrace_flags & (flag))
+	(cpu_core[cpu_get_id()].cpuc_dtrace_flags & (flag))
 
 #define	DTRACE_CPUFLAG_SET(flag) \
-	(cpu_core[CPU->cpu_id].cpuc_dtrace_flags |= (flag))
+	(cpu_core[cpu_get_id()].cpuc_dtrace_flags |= (flag))
 
 #define	DTRACE_CPUFLAG_CLEAR(flag) \
-	(cpu_core[CPU->cpu_id].cpuc_dtrace_flags &= ~(flag))
+	(cpu_core[cpu_get_id()].cpuc_dtrace_flags &= ~(flag))
 
 #endif /* _KERNEL */
 

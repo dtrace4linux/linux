@@ -1,0 +1,10 @@
+Some notes on mappings between linux and solaris kernels:
+
+current.h
+	current or get_current()
+		return struct task_struct *
+asm/percpu.h
+	probably useful
+
+<sys/sched.h> -- instead of <sys/proc.h>
+

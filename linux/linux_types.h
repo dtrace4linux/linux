@@ -110,13 +110,10 @@ typedef unsigned int mutex_t;
 #define	UINT32_MAX	0xffffffff
 #define	INT64_MAX	0x7fffffffffffffff
 #define	UINT64_MAX	0xffffffffffffffff
-# define	p_flag flags
-typedef struct	task_struct proc_t;
 typedef int *greg_t;
 typedef struct __dev_info *dev_info_t;
 //typedef int 	processorid_t;
 typedef int 	model_t;
-typedef int	cyclic_id_t;
 typedef long	intptr_t;
 //typedef unsigned long uintptr_t;
 typedef unsigned long long off64_t;
@@ -142,6 +139,7 @@ typedef struct mutex kmutex_t;
 /*   Protoypes.							      */
 /**********************************************************************/
 void cmn_err(int ce, const char *fmt, ...);
+void	*kmem_alloc(size_t, int);
 
 # endif /* __KERNEL__ */
 

@@ -18,3 +18,4 @@ all:
 	cd libdtrace/common ; $(MAKE)
 	cd liblinux ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
+	cd drivers/dtrace ; ./make-me

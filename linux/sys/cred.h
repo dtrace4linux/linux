@@ -11,7 +11,9 @@ typedef struct cred {
 	} cred_t;
 
 cred_t *CRED();
+#define crgetgid(cred)  ((cred)->cr_gid)
+#define crgetuid(cred)  ((cred)->cr_uid)
 
-# define	curthread current_thread_info()->task
+//# define	curthread current_thread_info()->task
 
 # endif

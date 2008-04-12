@@ -1,9 +1,20 @@
-# if !SYS_CPUVAR_H
+# if !defined(SYS_CPUVAR_H)
 # define	SYS_CPUVAR_H
 
 #define CPU_CACHE_COHERENCE_SIZE        64
 
 # define	kmutex_t mutex_t
+
+
+typedef enum {
+        CPU_INIT,
+        CPU_CONFIG,
+        CPU_UNCONFIG,
+        CPU_ON,
+        CPU_OFF,
+        CPU_CPUPART_IN,
+        CPU_CPUPART_OUT
+} cpu_setup_t;
 
 /*
  * The cpu_core structure consists of per-CPU state available in any context.
@@ -37,7 +48,10 @@ typedef struct cpu_core {
 } cpu_core_t;
 
 extern cpu_t	*cpu_list;
+extern mutex_t	cpu_lock;
 
 # define	cpu_id	cpuid
+# define	CPU	smp_processor_id()
+# define	CPU_ON_INTR(cpup) cpup->cpu_intr_actv
 
 # endif

@@ -2246,6 +2246,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 	volatile uint16_t *flags = &cpu_core[CPU->cpu_id].cpuc_dtrace_flags;
 	volatile uintptr_t *illval = &cpu_core[CPU->cpu_id].cpuc_dtrace_illval;
 
+# if defined(sun)
 	union {
 		mutex_impl_t mi;
 		uint64_t mx;
@@ -2255,12 +2256,14 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		krwlock_t ri;
 		uintptr_t rw;
 	} r;
+# endif
 
 	switch (subr) {
 	case DIF_SUBR_RAND:
 		regs[rd] = (dtrace_gethrtime() * 2416 + 374441) % 1771875;
 		break;
 
+# if defined(sun)
 	case DIF_SUBR_MUTEX_OWNED:
 		m.mx = dtrace_load64(tupregs[0].dttk_value);
 		if (MUTEX_TYPE_ADAPTIVE(&m.mi))
@@ -2305,6 +2308,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		r.rw = dtrace_loadptr(tupregs[0].dttk_value);
 		regs[rd] = _RW_ISWRITER(&r.ri);
 		break;
+# endif
 
 	case DIF_SUBR_BCOPY: {
 		/*
@@ -10817,6 +10821,7 @@ dtrace_helper_trace(dtrace_helper_action_t *helper, dtrace_vstate_t *vstate,
 		ent->dtht_locals[i] = vstate->dtvs_locals[CPU->cpu_id][i];
 }
 
+# if defined(sun)
 static uint64_t
 dtrace_helper(int which, dtrace_mstate_t *mstate,
     dtrace_state_t *state, uint64_t arg0, uint64_t arg1)
@@ -11777,6 +11782,7 @@ dtrace_resume(void)
 {
 	dtrace_probe_foreach(offsetof(dtrace_pops_t, dtps_resume));
 }
+# endif
 
 static int
 dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)

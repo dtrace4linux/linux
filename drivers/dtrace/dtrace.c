@@ -48,6 +48,10 @@
  * [Group] Functions", allowing one to find each block by searching forward
  * on capital-f functions.
  */
+# if linux
+#include "dtrace_linux.h"
+# endif
+
 #include <sys/errno.h>
 #include <sys/stat.h>
 # if defined(sun)
@@ -60,20 +64,6 @@
 #include <sys/kmem.h>
 #include <sys/strsubr.h>
 #include <sys/sysmacros.h>
-# endif
-
-# if linux
-#include <linux_types.h>
-#include <smp.h>
-#include <gfp.h>
-#define	current	_current /* is a macro in <current.h> */
-#define PRIV_EFFECTIVE          (1 << 0)
-#define PRIV_DTRACE_KERNEL      (1 << 1)
-#define PRIV_DTRACE_PROC        (1 << 2)
-#define PRIV_DTRACE_USER        (1 << 3)
-#define PRIV_PROC_OWNER         (1 << 4)
-#define PRIV_PROC_ZONE          (1 << 5)
-#define PRIV_ALL                ~0
 # endif
 
 #include <sys/dtrace_impl.h>
@@ -142,6 +132,8 @@ hrtime_t	dtrace_deadman_user = (hrtime_t)30 * NANOSEC;
 
 # if linux
 cpu_core_t cpu_core[CONFIG_NR_CPUS];
+mutex_t	mod_lock;
+
 # endif
 /*
  * DTrace External Variables
@@ -2203,6 +2195,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		if (!dtrace_priv_proc(state))
 			return (0);
 
+# if defined(sun)
 		/*
 		 * Note that we are assuming that an unanchored probe is
 		 * always due to a high-level interrupt.  (And we're assuming
@@ -2220,20 +2213,25 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 * they leave that task to whomever reaps them.)
 		 */
 		return ((uint64_t)curthread->t_procp->p_pidp->pid_id);
+# else
+		return curthread->pid;
+# endif
 
 	case DIF_VAR_TID:
+# if defined(sun)
 		/*
 		 * See comment in DIF_VAR_PID.
 		 */
 		if (DTRACE_ANCHORED(mstate->dtms_probe) && CPU_ON_INTR(CPU))
 			return (0);
+# endif
 
 		return ((uint64_t)curthread->t_tid);
 
 	case DIF_VAR_EXECNAME:
 		if (!dtrace_priv_proc(state))
 			return (0);
-
+# if defined(sun)
 		/*
 		 * See comment in DIF_VAR_PID.
 		 */
@@ -2248,8 +2246,13 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)(uintptr_t)
 		    curthread->t_procp->p_user.u_comm);
+# else
+		return ((uint64_t)(uintptr_t)
+		    curthread->comm);
+# endif
 
 	case DIF_VAR_ZONENAME:
+# if defined(sun)
 		if (!dtrace_priv_proc(state))
 			return (0);
 
@@ -2267,6 +2270,9 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)(uintptr_t)
 		    curthread->t_procp->p_zone->zone_name);
+# else
+		return 0;
+# endif
 
 	default:
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_ILLOP);
@@ -2288,6 +2294,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 	volatile uint16_t *flags = &cpu_core[cpu_get_id()].cpuc_dtrace_flags;
 	volatile uintptr_t *illval = &cpu_core[cpu_get_id()].cpuc_dtrace_illval;
 
+# if defined(sun)
 	union {
 		mutex_impl_t mi;
 		uint64_t mx;
@@ -2297,6 +2304,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		krwlock_t ri;
 		uintptr_t rw;
 	} r;
+# endif
 
 	switch (subr) {
 	case DIF_SUBR_RAND:
@@ -5399,7 +5407,9 @@ dtrace_unregister(dtrace_provider_id_t id)
 		 * already held.
 		 */
 		ASSERT(old == dtrace_provider);
+# if defined(sun)
 		ASSERT(dtrace_devi != NULL);
+# endif
 		ASSERT(MUTEX_HELD(&dtrace_provider_lock));
 		ASSERT(MUTEX_HELD(&dtrace_lock));
 		self = 1;
@@ -8871,6 +8881,40 @@ dtrace_dof_copyin(uintptr_t uarg, int *errp)
 
 	return (dof);
 }
+#if !defined(sun)
+static __inline uchar_t
+dtrace_dof_char(char c) {
+        switch (c) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+                return (c - '0');
+        case 'A':
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'F':
+                return (c - 'A' + 10);
+        case 'a':
+        case 'b':
+        case 'c':
+        case 'd':
+        case 'e':
+        case 'f':
+                return (c - 'a' + 10);
+        }
+        /* Should not reach here. */
+        return (0);
+}
+#endif
 
 static dof_hdr_t *
 dtrace_dof_property(const char *name)
@@ -9951,8 +9995,11 @@ dtrace_state_deadman(dtrace_state_t *state)
 dtrace_state_t *
 dtrace_state_create(dev_t *devp, cred_t *cr)
 {
+# if defined(sun)
 	minor_t minor;
 	major_t major;
+# endif
+	int	m = 0;
 	char c[30];
 	dtrace_state_t *state;
 	dtrace_optval_t *opt;
@@ -9971,18 +10018,22 @@ dtrace_state_create(dev_t *devp, cred_t *cr)
 	}
 
 	state = ddi_get_soft_state(dtrace_softstate, minor);
+	m = minor;
 # else
-        if (dev != NULL) {
-                cr = dev->si_cred;
-                m = minor(dev);
+        if (devp != NULL) {
+                cr = devp->si_cred;
+                m = minor(devp);
                 }
 
         /* Allocate memory for the state. */
         state = kmem_zalloc(sizeof(dtrace_state_t), KM_SLEEP);
-# endif
+#endif
+
 	state->dts_epid = DTRACE_EPIDNONE + 1;
 
-	(void) snprintf(c, sizeof (c), "dtrace_aggid_%d", minor);
+	(void) snprintf(c, sizeof (c), "dtrace_aggid_%d", m);
+
+# if defined(sun)
 	state->dts_aggid_arena = vmem_create(c, (void *)1, UINT32_MAX, 1,
 	    NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
 
@@ -9996,6 +10047,10 @@ dtrace_state_create(dev_t *devp, cred_t *cr)
 
 	if (devp != NULL)
 		*devp = state->dts_dev;
+# else
+        state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);
+        state->dts_dev = devp;
+# endif
 
 	/*
 	 * We allocate NCPU buffers.  On the one hand, this can be quite
@@ -10623,9 +10678,14 @@ dtrace_state_destroy(dtrace_state_t *state)
 
 	dtrace_format_destroy(state);
 
-	vmem_destroy(state->dts_aggid_arena);
+	if (state->dts_aggid_arena) {
+		vmem_destroy(state->dts_aggid_arena);
+	}
+
+# if defined(sun)
 	ddi_soft_state_free(dtrace_softstate, minor);
 	vmem_free(dtrace_minor, (void *)(uintptr_t)minor, 1);
+# endif
 }
 
 /*
@@ -10935,6 +10995,7 @@ dtrace_helper_trace(dtrace_helper_action_t *helper, dtrace_vstate_t *vstate,
 		ent->dtht_locals[i] = vstate->dtvs_locals[cpu_get_id()][i];
 }
 
+# if defined(sun)
 static uint64_t
 dtrace_helper(int which, dtrace_mstate_t *mstate,
     dtrace_state_t *state, uint64_t arg0, uint64_t arg1)
@@ -11093,7 +11154,6 @@ dtrace_helper_validate(dtrace_helper_action_t *helper)
 	return (err == 0);
 }
 
-# if defined(sun)
 static int
 dtrace_helper_action_add(int which, dtrace_ecbdesc_t *ep)
 {
@@ -12229,6 +12289,7 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 	dtrace_opens++;
 	dtrace_membar_producer();
 
+# if defined(sun)
 	/*
 	 * If the kernel debugger is active (that is, if the kernel debugger
 	 * modified text in some way), we won't allow the open.
@@ -12241,11 +12302,20 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 	}
 
 	state = dtrace_state_create(devp, cred_p);
+# else
+        state = dtrace_state_create(dev, NULL);
+        dev->si_drv1 = state;
+# endif
+
 	mutex_exit(&cpu_lock);
 
 	if (state == NULL) {
+# if defined(sun)
 		if (--dtrace_opens == 0)
 			(void) kdi_dtrace_set(KDI_DTSET_DTRACE_DEACTIVATE);
+# else
+		--dtrace_opens;
+# endif
 		mutex_exit(&dtrace_lock);
 		return (EAGAIN);
 	}
@@ -12259,6 +12329,7 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 static int
 dtrace_close(dev_t dev, int flag, int otyp, cred_t *cred_p)
 {
+# if defined(sun)
 	minor_t minor = getminor(dev);
 	dtrace_state_t *state;
 
@@ -12266,7 +12337,13 @@ dtrace_close(dev_t dev, int flag, int otyp, cred_t *cred_p)
 		return (0);
 
 	state = ddi_get_soft_state(dtrace_softstate, minor);
+# else
+        dtrace_state_t *state = dev->si_drv1;
 
+        /* Check if this is not a cloned device. */
+        if (minor(dev) == 0)
+                return (0);
+# endif
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);
 
@@ -12280,8 +12357,12 @@ dtrace_close(dev_t dev, int flag, int otyp, cred_t *cred_p)
 
 	dtrace_state_destroy(state);
 	ASSERT(dtrace_opens > 0);
+#if defined(sun)
 	if (--dtrace_opens == 0)
 		(void) kdi_dtrace_set(KDI_DTSET_DTRACE_DEACTIVATE);
+#else
+	--dtrace_opens;
+#endif
 
 	mutex_exit(&dtrace_lock);
 	mutex_exit(&cpu_lock);

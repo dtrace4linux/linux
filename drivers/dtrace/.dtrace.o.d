@@ -82,6 +82,7 @@ dtrace.o: /home/fox/src/dtrace/drivers/dtrace/dtrace.c \
   /home/fox/src/dtrace/drivers/dtrace/../../sys/kdev_t.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/cyclic.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/cpupart.h \
+  include/linux/sched.h \
   /home/fox/src/dtrace/drivers/dtrace/../../sys/errno.h \
   /home/fox/src/dtrace/drivers/dtrace/../../sys/stat.h include/asm/stat.h \
   /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/dtrace_impl.h \

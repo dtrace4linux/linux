@@ -134,6 +134,7 @@ hrtime_t	dtrace_deadman_user = (hrtime_t)30 * NANOSEC;
 cpu_core_t cpu_core[CONFIG_NR_CPUS];
 mutex_t	mod_lock;
 
+static void dtrace_action_chill(dtrace_mstate_t *mstate, hrtime_t val);
 # endif
 /*
  * DTrace External Variables
@@ -2247,8 +2248,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		return ((uint64_t)(uintptr_t)
 		    curthread->t_procp->p_user.u_comm);
 # else
-		return ((uint64_t)(uintptr_t)
-		    curthread->comm);
+		return ((uint64_t)(uintptr_t) curthread->comm);
 # endif
 
 	case DIF_VAR_ZONENAME:
@@ -2515,7 +2515,11 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 
 		for (p = curthread->t_procp; p != NULL; p = p->p_parent) {
+# if defined(sun)
 			if (p->p_pidp->pid_id == pid) {
+# else
+			if (p->p_pid == pid) {
+# endif
 				rval = 1;
 				break;
 			}
@@ -3836,6 +3840,7 @@ dtrace_action_raise(uint64_t sig)
 		return;
 	}
 
+#if defined(sun)
 	/*
 	 * raise() has a queue depth of 1 -- we ignore all subsequent
 	 * invocations of the raise() action.
@@ -3845,6 +3850,9 @@ dtrace_action_raise(uint64_t sig)
 
 	curthread->t_sig_check = 1;
 	aston(curthread);
+#else
+	kill_pid(curproc, sig, 0);
+#endif
 }
 
 static void
@@ -3853,11 +3861,15 @@ dtrace_action_stop(void)
 	if (dtrace_destructive_disallow)
 		return;
 
+#if defined(sun)
 	if (!curthread->t_dtrace_stop) {
 		curthread->t_dtrace_stop = 1;
 		curthread->t_sig_check = 1;
 		aston(curthread);
 	}
+#else
+	kill_pid(curproc->p_pid, SIGSTOP, 0);
+#endif
 }
 
 static void
@@ -3909,6 +3921,8 @@ static void
 dtrace_action_ustack(dtrace_mstate_t *mstate, dtrace_state_t *state,
     uint64_t *buf, uint64_t arg)
 {
+	TODO();
+# if 0
 	int nframes = DTRACE_USTACK_NFRAMES(arg);
 	int strsize = DTRACE_USTACK_STRSIZE(arg);
 	uint64_t *pcs = &buf[1], *fps;
@@ -4014,6 +4028,8 @@ dtrace_action_ustack(dtrace_mstate_t *mstate, dtrace_state_t *state,
 
 out:
 	mstate->dtms_scratch_ptr = old;
+# endif
+	TODO_END();
 }
 
 /*
@@ -5836,6 +5852,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc)
 	 * prevents the mod_busy bits from changing.  (mod_busy can only be
 	 * changed with mod_lock held.)
 	 */
+# if defined(sun)
 	mutex_enter(&mod_lock);
 
 	ctl = &modules;
@@ -5849,6 +5866,9 @@ dtrace_probe_provide(dtrace_probedesc_t *desc)
 	} while ((ctl = ctl->mod_next) != &modules);
 
 	mutex_exit(&mod_lock);
+# else
+	TODO();
+# endif
 }
 
 # if defined(sun)
@@ -10020,11 +10040,13 @@ dtrace_state_create(dev_t *devp, cred_t *cr)
 	state = ddi_get_soft_state(dtrace_softstate, minor);
 	m = minor;
 # else
+	TODO();
+# if TODO
         if (devp != NULL) {
                 cr = devp->si_cred;
                 m = minor(devp);
                 }
-
+# endif
         /* Allocate memory for the state. */
         state = kmem_zalloc(sizeof(dtrace_state_t), KM_SLEEP);
 #endif
@@ -10048,7 +10070,9 @@ dtrace_state_create(dev_t *devp, cred_t *cr)
 	if (devp != NULL)
 		*devp = state->dts_dev;
 # else
-        state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);
+	TODO();
+        /*state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);*/
+
         state->dts_dev = devp;
 # endif
 
@@ -12303,8 +12327,10 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 
 	state = dtrace_state_create(devp, cred_p);
 # else
-        state = dtrace_state_create(dev, NULL);
-        dev->si_drv1 = state;
+        state = dtrace_state_create(devp, NULL);
+	TODO();
+        /* dev->si_drv1 = state; */
+	TODO_END();
 # endif
 
 	mutex_exit(&cpu_lock);
@@ -12338,11 +12364,14 @@ dtrace_close(dev_t dev, int flag, int otyp, cred_t *cred_p)
 
 	state = ddi_get_soft_state(dtrace_softstate, minor);
 # else
-        dtrace_state_t *state = dev->si_drv1;
+        dtrace_state_t *state;
 
         /* Check if this is not a cloned device. */
         if (minor(dev) == 0)
                 return (0);
+	TODO();
+	/*state = dev->si_drv1;*/
+	TODO_END();
 # endif
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);

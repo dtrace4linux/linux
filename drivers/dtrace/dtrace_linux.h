@@ -30,6 +30,10 @@
 #include <gfp.h>
 #include <sys/kdev_t.h>
 #include <sys/cyclic.h>
+#include <linux/sched.h>
+
+# define TODO()	printk("%s:%d: please fill me in\n", __func__, __LINE__)
+# define TODO_END()
 
 #define	current	_current /* is a macro in <current.h> */
 #define PRIV_EFFECTIVE          (1 << 0)
@@ -42,10 +46,14 @@
 
 #define LOCK_LEVEL      10
 
+//#define ttoproc(x)      ((x)->t_procp)
+#define ttoproc(x)      ((x))
 #define	makedevice	MKDEV
 #define	getminor(x)	MINOR(x)
 #define	minor(x)	MINOR(x)
 #define	getmajor(x)	MAJOR(x)
+#define	uprintf		printk
+#define	vuprintf	vprintk
 
 #define	mutex_enter(x)	mutex_lock(x)
 
@@ -58,7 +66,7 @@ typedef int	minor_t;
  * Macro for checking power of 2 address alignment.
  */
 #define IS_P2ALIGNED(v, a) ((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
-
+#define NSIG _NSIG
 
 /**********************************************************************/
 /*   File  based  on  code  from  FreeBSD  to  support  the  missing  */
@@ -78,25 +86,68 @@ typedef struct	sol_proc_t {
         uint8_t         t_dtrace_stop;  /* indicates a DTrace-desired stop */
         uint8_t         t_dtrace_sig;   /* signal sent via DTrace's raise() */
 
+	struct sol_proc *parent;
+	int		p_pid;
+	int		t_sig_check;
 	struct task_struct *t_proc;
+	void            *p_dtrace_helpers; /* DTrace helpers, if any */
+	struct sol_proc_t *t_procp;
 	} sol_proc_t;
 
 typedef sol_proc_t proc_t;
 # define task_struct sol_proc_t
-proc_t	*curthread;
+# define	curthread curproc
+sol_proc_t	*curthread;
 
 # define	td_tid	pid
 # define	t_tid   td_tid
 # define	comm t_proc->comm
+
+int priv_policy(const cred_t *, int, int, int, const char *);
+int priv_policy_only(const cred_t *, int, int);
+int priv_policy_choice(const cred_t *, int, int);
+
+/*
+ * Test privilege. Audit success or failure, allow privilege debugging.
+ * Returns 0 for success, err for failure.
+ */
+#define PRIV_POLICY(cred, priv, all, err, reason) \
+                priv_policy((cred), (priv), (all), (err), (reason))
+
+/*
+ * Test privilege. Audit success only, no privilege debugging.
+ * Returns 1 for success, and 0 for failure.
+ */
+#define PRIV_POLICY_CHOICE(cred, priv, all) \
+                priv_policy_choice((cred), (priv), (all))
+
+/*
+ * Test privilege. No priv_debugging, no auditing.
+ * Returns 1 for success, and 0 for failure.
+ */
+
+#define PRIV_POLICY_ONLY(cred, priv, all) \
+                priv_policy_only((cred), (priv), (all))
 
 void	freeenv(char *);
 void *kmem_cache_alloc(kmem_cache_t *cache, int flags);
 int	copyin(void *, void *, int);
 char	*getenv(char *);
 void *vmem_alloc(vmem_t *, size_t, int);
+void *vmem_zalloc(vmem_t *, size_t, int);
 void kmem_cache_free(kmem_cache_t *, void *);
 void vmem_destroy(vmem_t *);
+void vmem_free(vmem_t *, void *, size_t);
+void kmem_free(vm_map_t, vm_offset_t, vm_size_t);
 void	bzero(void *, int);
 void	bcopy(void *, void *, int);
+void    mutex_exit(kmutex_t *);;
+void *new_unr(struct unrhdr *uh, void **p1, void **p2);
+void	debug_enter(int);
+void dtrace_vtime_enable(void);
+void dtrace_vtime_disable(void);
+int kill_pid(struct pid *pid, int sig, int priv);
+
+extern int panic_quiesce;
 
 # endif

@@ -127,10 +127,10 @@ b43bc101 size=2692    mtime=1106592645 ./common/ctf/ctf_util.c
 f1591f15 size=1567    mtime=1207386346 ./drivers/ctf/ctf_subr.c
 dbf672d7 size=63      mtime=1207426157 ./drivers/ctf/make-me
 340ba4c1 size=1430    mtime=1207386346 ./drivers/ctf/mapfile
-71daff9f size=6624    mtime=1208118456 ./drivers/dtrace/.dtrace.o.d
+71daff9f size=6624    mtime=1208206879 ./drivers/dtrace/.dtrace.o.d
 c62d8402 size=236     mtime=1207776788 ./drivers/dtrace/Makefile
-929f4714 size=337250  mtime=1208118370 ./drivers/dtrace/dtrace.c
-2a7e9862 size=2879    mtime=1208118454 ./drivers/dtrace/dtrace_linux.h
+e66a20b9 size=337673  mtime=1208206812 ./drivers/dtrace/dtrace.c
+82ce900f size=3476    mtime=1208206878 ./drivers/dtrace/dtrace_linux.h
 af5919a9 size=121     mtime=1207987951 ./drivers/dtrace/make-me
 00000000 size=0       mtime=1207475588 ./drivers/include/features.h
 00000000 size=0       mtime=1207475603 ./drivers/include/stdint.h
@@ -387,7 +387,7 @@ ae3945f7 size=533     mtime=1207987898 ./makefile
 41fa1a58 size=3412    mtime=1106592659 ./uts/common/ctf/ctf_mod.c
 f1591f15 size=1567    mtime=1106592659 ./uts/common/ctf/ctf_subr.c
 340ba4c1 size=1430    mtime=1106592659 ./uts/common/ctf/mapfile
-de553066 size=333654  mtime=1208039943 ./uts/common/dtrace/dtrace.c
+5bbbf322 size=333706  mtime=1208119208 ./uts/common/dtrace/dtrace.c
 88a166ca size=393     mtime=1106592660 ./uts/common/dtrace/dtrace.conf
 c9e83bce size=62324   mtime=1106592695 ./uts/common/dtrace/fasttrap.c
 7e72c839 size=8261    mtime=1106592660 ./uts/common/dtrace/lockstat.c

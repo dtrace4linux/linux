@@ -1804,7 +1804,7 @@ dtrace_speculation_discard(dtrace_state_t *state, processorid_t cpu,
     dtrace_specid_t which)
 {
 	dtrace_speculation_t *spec;
-	dtrace_speculation_state_t current, new;
+	dtrace_speculation_state_t current, new = 0;
 	dtrace_buffer_t *buf;
 
 	if (which == 0)
@@ -7760,7 +7760,7 @@ dtrace_ecb_action_add(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 	uint16_t format = 0;
 	dtrace_recdesc_t *rec;
 	dtrace_state_t *state = ecb->dte_state;
-	dtrace_optval_t *opt = state->dts_options, nframes, strsize;
+	dtrace_optval_t *opt = state->dts_options, nframes = 0, strsize;
 	uint64_t arg = desc->dtad_arg;
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));

@@ -49,9 +49,10 @@ typedef struct cpu_core {
 
 extern cpu_t	*cpu_list;
 extern mutex_t	cpu_lock;
+extern cpu_t *curcpu(void);
 
 # define	cpu_id	cpuid
-# define	CPU	smp_processor_id()
+# define	CPU	curcpu() //smp_processor_id()
 # define	CPU_ON_INTR(cpup) cpup->cpu_intr_actv
 
 # endif

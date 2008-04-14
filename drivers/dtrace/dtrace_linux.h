@@ -30,7 +30,7 @@
 #include <gfp.h>
 #include <sys/kdev_t.h>
 #include <sys/cyclic.h>
-#include <linux/sched.h>
+#include <sched.h>
 
 # define TODO()	printk("%s:%d: please fill me in\n", __func__, __LINE__)
 # define TODO_END()
@@ -129,24 +129,25 @@ int priv_policy_choice(const cred_t *, int, int);
 #define PRIV_POLICY_ONLY(cred, priv, all) \
                 priv_policy_only((cred), (priv), (all))
 
-void	freeenv(char *);
-void *kmem_cache_alloc(kmem_cache_t *cache, int flags);
-int	copyin(void *, void *, int);
 char	*getenv(char *);
-void *vmem_alloc(vmem_t *, size_t, int);
-void *vmem_zalloc(vmem_t *, size_t, int);
-void kmem_cache_free(kmem_cache_t *, void *);
-void vmem_destroy(vmem_t *);
-void vmem_free(vmem_t *, void *, size_t);
-void kmem_free(vm_map_t, vm_offset_t, vm_size_t);
-void	bzero(void *, int);
-void	bcopy(void *, void *, int);
-void    mutex_exit(kmutex_t *);;
-void *new_unr(struct unrhdr *uh, void **p1, void **p2);
-void	debug_enter(int);
-void dtrace_vtime_enable(void);
-void dtrace_vtime_disable(void);
+int	copyin(void *, void *, int);
 int kill_pid(struct pid *pid, int sig, int priv);
+//void	*kmem_cache_alloc(kmem_cache_t *cache, int flags);
+void	*new_unr(struct unrhdr *uh, void **p1, void **p2);
+void	*vmem_alloc(vmem_t *, size_t, int);
+void	*vmem_zalloc(vmem_t *, size_t, int);
+# define	bcopy(a, b, c) memcpy(b, a, c)
+# define	bzero(a, b) memset(a, 0, b)
+void	debug_enter(int);
+void	dtrace_vtime_disable(void);
+void	dtrace_vtime_enable(void);
+void	freeenv(char *);
+//void	kmem_cache_free(kmem_cache_t *, void *);
+void	kmem_free(void *, int);
+void	vmem_destroy(vmem_t *);
+void	vmem_free(vmem_t *, void *, size_t);
+void	*kmem_zalloc(size_t size, int kmflags);
+void    mutex_exit(kmutex_t *);;
 
 extern int panic_quiesce;
 

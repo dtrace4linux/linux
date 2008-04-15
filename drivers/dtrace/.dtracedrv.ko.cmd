@@ -1,0 +1,1 @@
+cmd_/home/fox/src/dtrace/drivers/dtrace/dtracedrv.ko := ld -r -m elf_x86_64  --build-id -o /home/fox/src/dtrace/drivers/dtrace/dtracedrv.ko /home/fox/src/dtrace/drivers/dtrace/dtracedrv.o /home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o

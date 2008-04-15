@@ -31,6 +31,7 @@
 #include <sys/kdev_t.h>
 #include <sys/cyclic.h>
 #include <sched.h>
+#include <linux/hardirq.h>
 
 # define TODO()	printk("%s:%d: please fill me in\n", __func__, __LINE__)
 # define TODO_END()
@@ -97,7 +98,7 @@ typedef struct	sol_proc_t {
 typedef sol_proc_t proc_t;
 # define task_struct sol_proc_t
 # define	curthread curproc
-sol_proc_t	*curthread;
+extern sol_proc_t	*curthread;
 
 # define	td_tid	pid
 # define	t_tid   td_tid

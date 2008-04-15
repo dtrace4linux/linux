@@ -3,4 +3,4 @@ warn=warn
 if [ ! -f /home/fox/bin/warn ]; then
 	warn=
 fi
-exec $warn make $@ -C /usr/src/linux M=`pwd` modules
+exec $warn make $@ -C /lib/modules/`uname -r`/build M=`pwd` modules

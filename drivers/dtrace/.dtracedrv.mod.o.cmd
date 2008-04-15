@@ -1,7 +1,7 @@
-cmd_/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o := gcc -Wp,-MD,/home/fox/src/dtrace/drivers/dtrace/.dtrace.mod.o.d  -nostdinc -isystem /usr/local/lib/gcc/x86_64-unknown-linux-gnu/4.2.0/include -D__KERNEL__ -Iinclude  -include include/linux/autoconf.h -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Os  -mtune=generic -m64 -mno-red-zone -mcmodel=kernel -pipe -Wno-sign-compare -fno-asynchronous-unwind-tables -funit-at-a-time -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -maccumulate-outgoing-args -DCONFIG_AS_CFI=1 -DCONFIG_AS_CFI_SIGNAL_FRAME=1 -fomit-frame-pointer -g  -fno-stack-protector -Wdeclaration-after-statement -Wno-pointer-sign    -D"KBUILD_STR(s)=\#s" -D"KBUILD_BASENAME=KBUILD_STR(dtrace.mod)"  -D"KBUILD_MODNAME=KBUILD_STR(dtrace)" -DMODULE -c -o /home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o /home/fox/src/dtrace/drivers/dtrace/dtrace.mod.c
+cmd_/home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o := gcc -Wp,-MD,/home/fox/src/dtrace/drivers/dtrace/.dtracedrv.mod.o.d  -nostdinc -isystem /usr/local/lib/gcc/x86_64-unknown-linux-gnu/4.2.0/include -D__KERNEL__ -Iinclude  -include include/linux/autoconf.h -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Os  -mtune=generic -m64 -mno-red-zone -mcmodel=kernel -pipe -Wno-sign-compare -fno-asynchronous-unwind-tables -funit-at-a-time -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -maccumulate-outgoing-args -DCONFIG_AS_CFI=1 -DCONFIG_AS_CFI_SIGNAL_FRAME=1 -fstack-protector -fomit-frame-pointer -g  -fno-stack-protector -Wdeclaration-after-statement -Wno-pointer-sign    -D"KBUILD_STR(s)=\#s" -D"KBUILD_BASENAME=KBUILD_STR(dtracedrv.mod)"  -D"KBUILD_MODNAME=KBUILD_STR(dtracedrv)" -DMODULE -c -o /home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o /home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.c
 
-deps_/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o := \
-  /home/fox/src/dtrace/drivers/dtrace/dtrace.mod.c \
+deps_/home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o := \
+  /home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.c \
   include/linux/module.h \
     $(wildcard include/config/modules.h) \
     $(wildcard include/config/modversions.h) \
@@ -61,8 +61,7 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o := \
   include/asm-generic/page.h \
   include/asm/sigcontext.h \
   include/asm/cpufeature.h \
-  include/asm/cpufeature_64.h \
-  include/asm/cpufeature_32.h \
+    $(wildcard include/config/x86/invlpg.h) \
   include/linux/bitops.h \
   include/asm/bitops.h \
   include/asm/bitops_64.h \
@@ -284,6 +283,6 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o := \
   include/linux/vermagic.h \
   include/linux/utsrelease.h \
 
-/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o)
+/home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o)
 
-$(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace.mod.o):
+$(deps_/home/fox/src/dtrace/drivers/dtrace/dtracedrv.mod.o):

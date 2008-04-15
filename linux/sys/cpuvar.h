@@ -47,12 +47,13 @@ typedef struct cpu_core {
         kmutex_t        cpuc_pid_lock;          /* DTrace pid provider lock */
 } cpu_core_t;
 
+extern cpu_core_t cpu_core[NCPU];
 extern cpu_t	*cpu_list;
 extern mutex_t	cpu_lock;
 extern cpu_t *curcpu(void);
 
 # define	cpu_id	cpuid
 # define	CPU	curcpu() //smp_processor_id()
-# define	CPU_ON_INTR(cpup) cpup->cpu_intr_actv
+# define	CPU_ON_INTR(x) in_interrupt()
 
 # endif

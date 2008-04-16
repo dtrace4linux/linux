@@ -1,7 +1,7 @@
-cmd_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := gcc -Wp,-MD,/home/fox/src/dtrace/drivers/dtrace/.dtrace_linux.o.d  -nostdinc -isystem /usr/local/lib/gcc/x86_64-unknown-linux-gnu/4.2.0/include -D__KERNEL__ -Iinclude  -include include/linux/autoconf.h -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Os  -mtune=generic -m64 -mno-red-zone -mcmodel=kernel -pipe -Wno-sign-compare -fno-asynchronous-unwind-tables -funit-at-a-time -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -maccumulate-outgoing-args -DCONFIG_AS_CFI=1 -DCONFIG_AS_CFI_SIGNAL_FRAME=1 -fstack-protector -fomit-frame-pointer -g  -fno-stack-protector -Wdeclaration-after-statement -Wno-pointer-sign   -I/home/fox/src/dtrace/drivers/dtrace/../.. -I/home/fox/src/dtrace/drivers/dtrace/../../sys -I/home/fox/src/dtrace/drivers/dtrace/../../linux -I/home/fox/src/dtrace/drivers/dtrace/../../common/ctf -I/home/fox/src/dtrace/drivers/dtrace/../../uts/common -I/home/fox/src/dtrace/drivers/dtrace/../include -D_KERNEL  -DMODULE -D"KBUILD_STR(s)=\#s" -D"KBUILD_BASENAME=KBUILD_STR(dtrace_linux)"  -D"KBUILD_MODNAME=KBUILD_STR(dtracedrv)" -c -o /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.c
+cmd_/home/fox/src/dtrace/drivers/dtrace/dtrace_isa.o := gcc -Wp,-MD,/home/fox/src/dtrace/drivers/dtrace/.dtrace_isa.o.d  -nostdinc -isystem /usr/local/lib/gcc/x86_64-unknown-linux-gnu/4.2.0/include -D__KERNEL__ -Iinclude  -include include/linux/autoconf.h -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Os  -mtune=generic -m64 -mno-red-zone -mcmodel=kernel -pipe -Wno-sign-compare -fno-asynchronous-unwind-tables -funit-at-a-time -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -maccumulate-outgoing-args -DCONFIG_AS_CFI=1 -DCONFIG_AS_CFI_SIGNAL_FRAME=1 -fstack-protector -fomit-frame-pointer -g  -fno-stack-protector -Wdeclaration-after-statement -Wno-pointer-sign   -I/home/fox/src/dtrace/drivers/dtrace/../.. -I/home/fox/src/dtrace/drivers/dtrace/../../sys -I/home/fox/src/dtrace/drivers/dtrace/../../linux -I/home/fox/src/dtrace/drivers/dtrace/../../common/ctf -I/home/fox/src/dtrace/drivers/dtrace/../../uts/common -I/home/fox/src/dtrace/drivers/dtrace/../include -D_KERNEL  -DMODULE -D"KBUILD_STR(s)=\#s" -D"KBUILD_BASENAME=KBUILD_STR(dtrace_isa)"  -D"KBUILD_MODNAME=KBUILD_STR(dtracedrv)" -c -o /home/fox/src/dtrace/drivers/dtrace/dtrace_isa.o /home/fox/src/dtrace/drivers/dtrace/dtrace_isa.c
 
-deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
-  /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.c \
+deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_isa.o := \
+  /home/fox/src/dtrace/drivers/dtrace/dtrace_isa.c \
   /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/linux_types.h \
   /home/fox/src/dtrace/drivers/dtrace/../include/features.h \
@@ -384,6 +384,7 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
   include/asm/hw_irq_64.h \
   include/linux/profile.h \
     $(wildcard include/config/profiling.h) \
+  /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/dtrace_impl.h \
   /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/dtrace.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/stdint.h \
   /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/ctf_api.h \
@@ -395,7 +396,8 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
   include/asm/user_64.h \
   /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/ctf.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/int_limits.h \
+  /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/stack.h \
 
-/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o)
+/home/fox/src/dtrace/drivers/dtrace/dtrace_isa.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_isa.o)
 
-$(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o):
+$(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_isa.o):

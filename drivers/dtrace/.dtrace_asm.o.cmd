@@ -1,8 +1,7 @@
-cmd_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := gcc -Wp,-MD,/home/fox/src/dtrace/drivers/dtrace/.dtrace_linux.o.d  -nostdinc -isystem /usr/local/lib/gcc/x86_64-unknown-linux-gnu/4.2.0/include -D__KERNEL__ -Iinclude  -include include/linux/autoconf.h -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Os  -mtune=generic -m64 -mno-red-zone -mcmodel=kernel -pipe -Wno-sign-compare -fno-asynchronous-unwind-tables -funit-at-a-time -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -maccumulate-outgoing-args -DCONFIG_AS_CFI=1 -DCONFIG_AS_CFI_SIGNAL_FRAME=1 -fstack-protector -fomit-frame-pointer -g  -fno-stack-protector -Wdeclaration-after-statement -Wno-pointer-sign   -I/home/fox/src/dtrace/drivers/dtrace/../.. -I/home/fox/src/dtrace/drivers/dtrace/../../sys -I/home/fox/src/dtrace/drivers/dtrace/../../linux -I/home/fox/src/dtrace/drivers/dtrace/../../common/ctf -I/home/fox/src/dtrace/drivers/dtrace/../../uts/common -I/home/fox/src/dtrace/drivers/dtrace/../include -D_KERNEL  -DMODULE -D"KBUILD_STR(s)=\#s" -D"KBUILD_BASENAME=KBUILD_STR(dtrace_linux)"  -D"KBUILD_MODNAME=KBUILD_STR(dtracedrv)" -c -o /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.c
+cmd_/home/fox/src/dtrace/drivers/dtrace/dtrace_asm.o := gcc -Wp,-MD,/home/fox/src/dtrace/drivers/dtrace/.dtrace_asm.o.d  -nostdinc -isystem /usr/local/lib/gcc/x86_64-unknown-linux-gnu/4.2.0/include -D__KERNEL__ -Iinclude  -include include/linux/autoconf.h -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Os  -mtune=generic -m64 -mno-red-zone -mcmodel=kernel -pipe -Wno-sign-compare -fno-asynchronous-unwind-tables -funit-at-a-time -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -maccumulate-outgoing-args -DCONFIG_AS_CFI=1 -DCONFIG_AS_CFI_SIGNAL_FRAME=1 -fstack-protector -fomit-frame-pointer -g  -fno-stack-protector -Wdeclaration-after-statement -Wno-pointer-sign   -I/home/fox/src/dtrace/drivers/dtrace/../.. -I/home/fox/src/dtrace/drivers/dtrace/../../sys -I/home/fox/src/dtrace/drivers/dtrace/../../linux -I/home/fox/src/dtrace/drivers/dtrace/../../common/ctf -I/home/fox/src/dtrace/drivers/dtrace/../../uts/common -I/home/fox/src/dtrace/drivers/dtrace/../include -D_KERNEL  -DMODULE -D"KBUILD_STR(s)=\#s" -D"KBUILD_BASENAME=KBUILD_STR(dtrace_asm)"  -D"KBUILD_MODNAME=KBUILD_STR(dtracedrv)" -c -o /home/fox/src/dtrace/drivers/dtrace/dtrace_asm.o /home/fox/src/dtrace/drivers/dtrace/dtrace_asm.c
 
-deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
-  /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.c \
-  /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.h \
+deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_asm.o := \
+  /home/fox/src/dtrace/drivers/dtrace/dtrace_asm.c \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/linux_types.h \
   /home/fox/src/dtrace/drivers/dtrace/../include/features.h \
   /home/fox/src/dtrace/drivers/dtrace/../../sys/time.h \
@@ -352,50 +351,7 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/cpuvar.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/types32.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/int_types.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../sys/smp.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../sys/gfp.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../sys/kdev_t.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/cyclic.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/cpupart.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../sys/sched.h \
-  include/linux/hardirq.h \
-    $(wildcard include/config/preempt/bkl.h) \
-    $(wildcard include/config/virt/cpu/accounting.h) \
-  include/linux/smp_lock.h \
-    $(wildcard include/config/lock/kernel.h) \
-  include/asm/hardirq.h \
-  include/asm/hardirq_64.h \
-  include/linux/irq.h \
-    $(wildcard include/config/s390.h) \
-    $(wildcard include/config/irq/per/cpu.h) \
-    $(wildcard include/config/irq/release/method.h) \
-    $(wildcard include/config/generic/pending/irq.h) \
-    $(wildcard include/config/irqbalance.h) \
-    $(wildcard include/config/proc/fs.h) \
-    $(wildcard include/config/auto/irq/affinity.h) \
-    $(wildcard include/config/generic/hardirqs/no//do/irq.h) \
-  include/linux/irqreturn.h \
-  include/asm/irq.h \
-  include/asm/irq_64.h \
-  include/asm/irq_regs.h \
-  include/asm/irq_regs_64.h \
-  include/asm-generic/irq_regs.h \
-  include/asm/hw_irq.h \
-  include/asm/hw_irq_64.h \
-  include/linux/profile.h \
-    $(wildcard include/config/profiling.h) \
-  /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/dtrace.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/stdint.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/ctf_api.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../sys/param.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../sys/elf.h \
-  include/linux/elf-em.h \
-  include/asm/elf.h \
-  include/asm/user.h \
-  include/asm/user_64.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/ctf.h \
-  /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/int_limits.h \
 
-/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o)
+/home/fox/src/dtrace/drivers/dtrace/dtrace_asm.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_asm.o)
 
-$(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o):
+$(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_asm.o):

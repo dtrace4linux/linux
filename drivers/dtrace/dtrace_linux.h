@@ -151,5 +151,11 @@ void	*kmem_zalloc(size_t size, int kmflags);
 void    mutex_exit(kmutex_t *);;
 
 extern int panic_quiesce;
+extern uintptr_t	_userlimit;
+# if linux
+#	define	cpu_get_id()	smp_processor_id()
+# else
+#	define	cpu_get_id()	CPU->cpu_id
+# endif
 
 # endif

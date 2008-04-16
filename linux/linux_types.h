@@ -130,6 +130,9 @@ typedef struct mutex kmutex_t;
 
 #define	CE_WARN	0
 #define	CE_NOTE	1
+#define	CE_CONT	2
+#define	CE_PANIC	3
+#define	CE_IGNORE	4
 
 #define	NCPU NR_CPUS
 

@@ -404,15 +404,6 @@ static int dtrace_state_option(dtrace_state_t *, dtrace_optid_t,
     dtrace_optval_t);
 static int dtrace_ecb_create_enable(dtrace_probe_t *, void *);
 
-static int
-cpu_get_id()
-{
-# if linux
-	return smp_processor_id();
-# else
-	return CPU->cpu_id;
-# endif
-}
 /*
  * DTrace Probe Context Functions
  *

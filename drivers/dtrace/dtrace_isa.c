@@ -35,7 +35,6 @@ extern size_t _allsyscalls_size;
 
 extern uintptr_t kernelbase;
 
-# if TODOXXX
 /*ARGSUSED*/
 void
 dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
@@ -49,6 +48,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	uintptr_t pc;
 	uintptr_t caller = CPU->cpu_dtrace_caller;
 
+# if TODOXXX
 	if ((on_intr = CPU_ON_INTR(CPU)) != 0)
 		stacktop = (struct frame *)(CPU->cpu_intr_stack + SA(MINFRAME));
 	else
@@ -117,11 +117,13 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 		fp = nextfp;
 		minfp = fp;
 	}
+# endif
 }
 
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {
+# if 0
 	klwp_t *lwp = ttolwp(curthread);
 	proc_t *p = ttoproc(curthread);
 	struct regs *rp;
@@ -220,12 +222,14 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 
 	while (pcstack_limit-- > 0)
 		*pcstack++ = NULL;
+# endif
 }
 
 /*ARGSUSED*/
 void
 dtrace_getufpstack(uint64_t *pcstack, uint64_t *fpstack, int pcstack_limit)
 {
+# if 0
 	klwp_t *lwp = ttolwp(curthread);
 	proc_t *p = ttoproc(curthread);
 	struct regs *rp;
@@ -326,12 +330,14 @@ dtrace_getufpstack(uint64_t *pcstack, uint64_t *fpstack, int pcstack_limit)
 
 	while (pcstack_limit-- > 0)
 		*pcstack++ = NULL;
+# endif
 }
 
 /*ARGSUSED*/
 uint64_t
 dtrace_getarg(int arg, int aframes)
 {
+# if 0
 	uintptr_t val;
 	struct frame *fp = (struct frame *)dtrace_getfp();
 	uintptr_t *stack;
@@ -414,12 +420,14 @@ load:
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
 
 	return (val);
+# endif
 }
 
 /*ARGSUSED*/
 int
 dtrace_getstackdepth(int aframes)
 {
+# if 0
 	struct frame *fp = (struct frame *)dtrace_getfp();
 	struct frame *nextfp, *minfp, *stacktop;
 	int depth = 0;
@@ -472,11 +480,13 @@ dtrace_getstackdepth(int aframes)
 		return (0);
 
 	return (depth - aframes);
+# endif
 }
 
 ulong_t
 dtrace_getreg(struct regs *rp, uint_t reg)
 {
+# if 0
 #if defined(__amd64)
 	int regmap[] = {
 		REG_GS,		/* GS */
@@ -577,8 +587,9 @@ dtrace_getreg(struct regs *rp, uint_t reg)
 
 	return ((&rp->r_gs)[reg]);
 #endif
+
+# endif
 }
-# endif /* TODO */
 
 static int
 dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)

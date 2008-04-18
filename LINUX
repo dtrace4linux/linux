@@ -8,3 +8,6 @@ asm/percpu.h
 
 <sys/sched.h> -- instead of <sys/proc.h>
 
+kernel_text_address
+kernel/kprobes.c
+./arch/i386/kernel/kprobes.c

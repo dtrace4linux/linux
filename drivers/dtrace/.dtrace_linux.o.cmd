@@ -2,6 +2,7 @@ cmd_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := gcc -Wp,-MD,/home/fox/
 
 deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
   /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.c \
+    $(wildcard include/config/nr/cpus.h) \
   /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/linux_types.h \
   /home/fox/src/dtrace/drivers/dtrace/../include/features.h \
@@ -109,7 +110,6 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
   include/asm/segment_64.h \
   include/asm/sigcontext.h \
   include/linux/threads.h \
-    $(wildcard include/config/nr/cpus.h) \
     $(wildcard include/config/base/small.h) \
   include/asm/msr.h \
   include/asm/msr-index.h \
@@ -395,6 +395,7 @@ deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o := \
   include/asm/user_64.h \
   /home/fox/src/dtrace/drivers/dtrace/../../uts/common/sys/ctf.h \
   /home/fox/src/dtrace/drivers/dtrace/../../linux/sys/int_limits.h \
+  /home/fox/src/dtrace/drivers/dtrace/../../sys/cpumask.h \
 
 /home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o: $(deps_/home/fox/src/dtrace/drivers/dtrace/dtrace_linux.o)
 

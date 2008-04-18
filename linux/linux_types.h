@@ -189,6 +189,10 @@ typedef union {
 
 # define	B_TRUE	1
 # define	B_FALSE	0
+# if !defined(TRUE)
+#	define	TRUE	1
+#	define	FALSE	0
+# endif
 
 #define SI_SYSNAME              1       /* return name of operating system */
 #define SI_RELEASE              3       /* return release of operating system */

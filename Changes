@@ -1,3 +1,9 @@
+Sat Apr 19 23:08:09 2008  fox
+
+       2* drivers/dtracedrv.ko finally links correctly. However theres still
+          quite a few stubs and broken definitions, so be careful - will
+	  likely crash your kernel.
+
 Wed Apr  9 21:56:09 2008  fox
 
        1* dt_lex.l: Fix flex/lex issues - now parses strings properly and

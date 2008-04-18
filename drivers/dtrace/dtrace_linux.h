@@ -57,6 +57,7 @@
 #define	vuprintf	vprintk
 
 #define	mutex_enter(x)	mutex_lock(x)
+#define	mutex_exit(x)	mutex_unlock(x)
 
 /*
 typedef int	major_t;
@@ -148,10 +149,11 @@ void	kmem_free(void *, int);
 void	vmem_destroy(vmem_t *);
 void	vmem_free(vmem_t *, void *, size_t);
 void	*kmem_zalloc(size_t size, int kmflags);
-void    mutex_exit(kmutex_t *);;
 
 extern int panic_quiesce;
 extern uintptr_t	_userlimit;
+# define	dtrace_panic	panic
+
 # if linux
 #	define	cpu_get_id()	smp_processor_id()
 # else

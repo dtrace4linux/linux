@@ -305,6 +305,19 @@ dtrace_fuword64_nocheck(void *addr)
 #endif	/* __i386 */
 		);
 }
+void
+dtrace_interrupt_enable()
+{
+	__asm(
+#if defined(__amd64)
+	        "pushq   %rdi\n"
+	        "popfq\n"
+
+#elif defined(__i386)
+		UNIMPLEMENTED
+#endif
+	);
+}
 
 typedef int dtrace_state_t;
 typedef int dtrace_epid_t;

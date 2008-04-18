@@ -48,12 +48,25 @@ typedef struct cpu_core {
 } cpu_core_t;
 
 extern cpu_core_t cpu_core[NCPU];
+extern cpu_t cpu_table[NCPU];
 extern cpu_t	*cpu_list;
 extern mutex_t	cpu_lock;
+extern mutex_t	mod_lock;
 extern cpu_t *curcpu(void);
+typedef intptr_t xc_arg_t;
+typedef int (*xc_func_t)(xc_arg_t, xc_arg_t, xc_arg_t);
+
 
 # define	cpu_id	cpuid
-# define	CPU	curcpu() //smp_processor_id()
+//# define	CPU	smp_processor_id()
+# define	CPU	(&cpu_table[smp_processor_id()])
 # define	CPU_ON_INTR(x) in_interrupt()
 
+# define	cpuset_t	cpumask_t
+# define	CPUSET_ZERO(s) memset(&s, 0, sizeof s)
+# define	CPUSET_ALL(s)	cpus_setall(s)
+# define	CPUSET_ADD(s, cpu) cpu_set(cpu, s)
+# define	kpreempt_disable	preempt_disable
+# define	kpreempt_enable	preempt_enable
+# define	X_CALL_HIPRI	0
 # endif

@@ -20,5 +20,7 @@ EXTRA_CFLAGS += \
 dtracedrv.o: $(dtracedrv-objs)
 	$(LD) -r -o $@ $(dtrace-objs)
 
+$(dtracedrv-objs): dtrace_linux.h $(M)/../../linux/linux_types.h
+
 clean:
 	rm -f *.o *.ko *.bak .*.cmd *.mod.c

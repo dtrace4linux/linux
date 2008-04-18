@@ -131,9 +131,6 @@ hrtime_t	dtrace_deadman_timeout = (hrtime_t)10 * NANOSEC;
 hrtime_t	dtrace_deadman_user = (hrtime_t)30 * NANOSEC;
 
 # if linux
-cpu_core_t cpu_core[CONFIG_NR_CPUS];
-mutex_t	mod_lock;
-
 static void dtrace_action_chill(dtrace_mstate_t *mstate, hrtime_t val);
 # endif
 /*
@@ -421,6 +418,7 @@ static int dtrace_ecb_create_enable(dtrace_probe_t *, void *);
  * for these functions, there will be a comment above the function reading
  * "Note:  not called from probe context."
  */
+# if 0
  void dtrace_vpanic(const char *format, void *);
 void
 dtrace_panic(const char *format, ...)
@@ -431,6 +429,7 @@ dtrace_panic(const char *format, ...)
 	dtrace_vpanic(format, alist);
 	va_end(alist);
 }
+# endif
 
 int
 dtrace_assfail(const char *a, const char *f, int l)

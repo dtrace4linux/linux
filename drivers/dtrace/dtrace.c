@@ -52,9 +52,9 @@
 #include "dtrace_linux.h"
 # endif
 
+# if defined(sun)
 #include <sys/errno.h>
 #include <sys/stat.h>
-# if defined(sun)
 #include <sys/modctl.h>
 #include <sys/conf.h>
 #include <sys/systm.h>
@@ -2506,10 +2506,11 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 
 		for (p = curthread->t_procp; p != NULL; p = p->p_parent) {
 # if defined(sun)
-			if (p->p_pidp->pid_id == pid) {
+			if (p->p_pidp->pid_id == pid)
 # else
-			if (p->p_pid == pid) {
+			if (p->p_pid == pid)
 # endif
+				{
 				rval = 1;
 				break;
 			}
@@ -5822,7 +5823,11 @@ dtrace_probe_description(const dtrace_probe_t *prp, dtrace_probedesc_t *pdp)
  * dtps_provide() operation will need to grab the dtrace_lock when it reenters
  * the framework through dtrace_probe_lookup(), dtrace_probe_create(), etc.
  */
+# if linux
+void
+# else
 static void
+# endif
 dtrace_probe_provide(dtrace_probedesc_t *desc)
 {
 	dtrace_provider_t *prv;

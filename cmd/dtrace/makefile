@@ -22,3 +22,7 @@ dtrace.o: dtrace.c
 
 test:
 	./dtrace -x nolibs -n BEGIN -e -S
+
+clean:
+	-rm -f *.o dtrace
+

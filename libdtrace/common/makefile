@@ -51,3 +51,7 @@ dt_errtags.c: dt_errtags.h mkerrtags.sh
 
 dt_lex.c: dt_lex.l dt_grammar.h
 	lex -l -t -v dt_lex.l > dt_lex.c
+
+clean:
+	-rm -f *.o *.a
+

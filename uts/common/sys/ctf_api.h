@@ -26,10 +26,10 @@
 #pragma ident	"@(#)ctf_api.h	1.1	03/09/02 SMI"
 
 #include <sys/types.h>
-#include <sys/param.h>
-# if 1
-#include <elf.h>
+# if linux
+#include <linux/elf.h>
 # else
+#include <sys/param.h>
 #include <sys/elf.h>
 # endif
 #include <sys/ctf.h>

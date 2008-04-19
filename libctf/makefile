@@ -68,3 +68,5 @@ libctf.a(ctf_util.o): $(COMMON)/ctf_util.c
 	$(AR) rv libctf.a ctf_util.o
 	rm -f ctf_util.o
 
+clean:
+	-rm -f *.o *.a

@@ -7,7 +7,7 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)dtrace_subr.c	1.3	04/07/19 SMI"
+# ident	"@(#)dtrace_subr.c	1.3	04/07/19 SMI"
 
 #include "dtrace_linux.h"
 #include <sys/dtrace.h>

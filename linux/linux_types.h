@@ -1,11 +1,32 @@
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
-# include	<features.h>
+struct modctl;
 
+# if __KERNEL__
+
+# include	<linux/time.h>
+
+# include	<sys/processor.h>
+# include	<sys/systm.h>
+# include 	<sys/vmem.h>
+# include 	<sys/cred.h>
+
+# define	_LARGEFILE_SOURCE	1
+# define	_FILE_OFFSET_BITS	64
+# define 	__USE_LARGEFILE64 1
+
+# include	<linux/types.h>
+# include	<linux/wait.h>
+# include	<zone.h>
+
+# else
+
+# include	<features.h>
 
 # include	<time.h>
 # include	<sys/time.h>
+
 # include	<sys/processor.h>
 # include	<sys/systm.h>
 # include 	<sys/vmem.h>
@@ -22,6 +43,7 @@
 # include	<zone.h>
 /*# include	<sys/ucontext.h>*/
 /*# include	<sys/reg.h>*/
+# endif
 
 // link.h
 #define LM_ID_BASE              0x00
@@ -37,8 +59,8 @@
 #define P2ROUNDUP(x, align)             (-(-(x) & -(align)))
 
 /* fix this */
-extern int pread();
-extern int pwrite();
+extern int pread(int, void *, int, unsigned long long);
+extern int pwrite(int, void *, int, unsigned long long);
 # define	pread64	pread
 # define	pwrite64 pwrite
 
@@ -96,7 +118,7 @@ typedef unsigned int mutex_t;
 # if __KERNEL__
 # include <sys/cpuvar_defs.h>
 # include <asm/signal.h>
-# include <sys/sched.h>
+# include <linux/sched.h>
 //# include <sys/current.h>
 # define	SNOCD	0
 
@@ -115,10 +137,10 @@ typedef struct __dev_info *dev_info_t;
 //typedef int 	processorid_t;
 typedef int 	model_t;
 typedef long	intptr_t;
-//typedef unsigned long uintptr_t;
 typedef unsigned long long off64_t;
 typedef void *taskq_t;
-typedef void *kmem_cache_t;
+# define uintptr_t unsigned long
+# define kmem_cache_t struct kmem_cache
 typedef void *kthread_t;
 typedef struct mutex kmutex_t;
 

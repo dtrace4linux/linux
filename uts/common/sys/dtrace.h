@@ -2061,13 +2061,13 @@ extern void dtrace_membar_consumer(void);
 extern void (*dtrace_cpu_init)(processorid_t);
 extern void (*dtrace_modload)(struct modctl *);
 extern void (*dtrace_modunload)(struct modctl *);
-extern void (*dtrace_helpers_cleanup)();
+extern void (*dtrace_helpers_cleanup)(void);
 extern void (*dtrace_helpers_fork)(proc_t *parent, proc_t *child);
-extern void (*dtrace_cpustart_init)();
-extern void (*dtrace_cpustart_fini)();
+extern void (*dtrace_cpustart_init)(void);
+extern void (*dtrace_cpustart_fini)(void);
 
-extern void (*dtrace_debugger_init)();
-extern void (*dtrace_debugger_fini)();
+extern void (*dtrace_debugger_init)(void);
+extern void (*dtrace_debugger_fini)(void);
 extern int dtrace_debugger_active;
 extern dtrace_cacheid_t dtrace_predcache_id;
 

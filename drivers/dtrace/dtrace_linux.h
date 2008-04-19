@@ -26,11 +26,11 @@
 
 #include <linux_types.h>
 
-#include <smp.h>
-#include <gfp.h>
-#include <sys/kdev_t.h>
+#include <linux/smp.h>
+#include <linux/gfp.h>
+#include <linux/kdev_t.h>
 #include <sys/cyclic.h>
-#include <sched.h>
+#include <linux/sched.h>
 #include <linux/hardirq.h>
 
 # define TODO()	printk("%s:%d: please fill me in\n", __func__, __LINE__)
@@ -135,7 +135,7 @@ char	*getenv(char *);
 int	copyin(void *, void *, int);
 int kill_pid(struct pid *pid, int sig, int priv);
 //void	*kmem_cache_alloc(kmem_cache_t *cache, int flags);
-void	*new_unr(struct unrhdr *uh, void **p1, void **p2);
+//void	*new_unr(struct unrhdr *uh, void **p1, void **p2);
 void	*vmem_alloc(vmem_t *, size_t, int);
 void	*vmem_zalloc(vmem_t *, size_t, int);
 # define	bcopy(a, b, c) memcpy(b, a, c)

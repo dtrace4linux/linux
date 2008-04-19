@@ -15,3 +15,6 @@ $(LIB): \
 #	$(LIB)(Psymtab.o) \
 #	$(LIB)(Putil.o) \
 
+clean:
+	-rm -f *.o *.a
+

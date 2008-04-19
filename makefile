@@ -9,7 +9,12 @@ notice:
 
 release:
 	cd .. ; mv dtrace dtrace-$(rel) ; \
-	tar cvf - --exclude=*.o --exclude=*.ko --exclude=*.a --exclude=tags \
+	tar cvf - --exclude=*.o \
+		--exclude=.*.cmd \
+		--exclude=*.mod.c \
+		--exclude=*.ko \
+		--exclude=*.a \
+		--exclude=tags \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace
 	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/dtrace
@@ -21,3 +26,11 @@ all:
 	cd liblinux ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
 	cd drivers/dtrace ; ./make-me
+
+clean:
+	cd libctf ; $(MAKE) clean
+	cd libdtrace/common ; $(MAKE) clean
+	cd liblinux ; $(MAKE) clean
+	cd cmd/dtrace ; $(MAKE) clean
+	cd drivers/dtrace ; $(MAKE) clean
+

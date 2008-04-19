@@ -10,7 +10,7 @@ typedef struct cred {
 	int	cr_sgid;
 	} cred_t;
 
-cred_t *CRED();
+cred_t *CRED(void);
 #define crgetgid(cred)  ((cred)->cr_gid)
 #define crgetuid(cred)  ((cred)->cr_uid)
 

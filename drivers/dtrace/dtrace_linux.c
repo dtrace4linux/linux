@@ -1,6 +1,16 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace.h>
-#include <cpumask.h>
+#include <linux/cpumask.h>
+
+#include <linux/errno.h>
+#include <linux/miscdevice.h>
+#include <linux/fs.h>
+#include <linux/proc_fs.h>
+#include <linux/module.h>
+
+MODULE_AUTHOR("Paul D. Fox");
+MODULE_LICENSE("CDDL");
+MODULE_DESCRIPTION("DTRACEDRV Driver");
 
 uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
@@ -8,9 +18,15 @@ cpu_core_t cpu_core[CONFIG_NR_CPUS];
 cpu_t cpu_table[NCPU];
 mutex_t	mod_lock;
 
+static kmutex_t		dtrace_provider_lock;	/* provider state lock */
 kmutex_t        cpu_lock;
 int	panic_quiesce;
 sol_proc_t	*curthread;
+
+/**********************************************************************/
+/*   Prototypes.						      */
+/**********************************************************************/
+void dtrace_probe_provide(dtrace_probedesc_t *desc);
 
 cred_t *
 CRED()
@@ -94,22 +110,12 @@ dtrace_xcall_func(dtrace_xcall_t func, void *arg)
 void
 dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {
-	cpuset_t set;
-
-	CPUSET_ZERO(set);
-
-	if (cpu == DTRACE_CPUALL) {
-		CPUSET_ALL(set);
-	} else {
-		CPUSET_ADD(set, cpu);
-	}
-
 	kpreempt_disable();
-	smp_call_function_mask(set, func, arg, TRUE);
-/*
-	xc_sync((xc_arg_t)func, (xc_arg_t)arg, 0, X_CALL_HIPRI, set,
-		(xc_func_t)dtrace_xcall_func);
-*/
+	if (cpu == DTRACE_CPUALL) {
+		smp_call_function(func, arg, 0, TRUE);
+	} else {
+		smp_call_function_single(cpu, func, arg, 0, TRUE);
+	}
 	kpreempt_enable();
 }
 
@@ -160,3 +166,101 @@ dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 }
 
 */
+/**********************************************************************/
+/*   Module interface to the kernel.				      */
+/**********************************************************************/
+static int
+dtracedrv_open(struct module *mp, int *error)
+{
+	/*
+	 * Ask all providers to provide their probes.
+	 */
+	mutex_enter(&dtrace_provider_lock);
+	dtrace_probe_provide(NULL);
+	mutex_exit(&dtrace_provider_lock);
+
+	return 0;
+}
+static int
+dtracedrv_read(ctf_file_t *fp, int fd)
+{
+	return -EIO;
+}
+static int proc_calc_metrics(char *page, char **start, off_t off,
+				 int count, int *eof, int len)
+{
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+}
+static int dtracedrv_read_proc(char *page, char **start, off_t off,
+				 int count, int *eof, void *data)
+{	int len;
+	len = sprintf(page, "hello");
+//	printk(KERN_WARNING "pgfault: %s", page);
+	return proc_calc_metrics(page, start, off, count, eof, len);
+}
+static int dtracedrv_helper_read_proc(char *page, char **start, off_t off,
+				 int count, int *eof, void *data)
+{	int len;
+	len = sprintf(page, "hello");
+//	printk(KERN_WARNING "pgfault: %s", page);
+	return proc_calc_metrics(page, start, off, count, eof, len);
+}
+static int dtracedrv_ioctl(struct inode *inode, struct file *file,
+                     unsigned int cmd, unsigned long arg)
+{
+        return -EINVAL;
+}
+static const struct file_operations dtracedrv_fops = {
+        .read = dtracedrv_read,
+        .ioctl = dtracedrv_ioctl,
+        .open = dtracedrv_open,
+};
+
+static struct miscdevice dtracedrv_dev = {
+        MISC_DYNAMIC_MINOR,
+        "dtracedrv",
+        &dtracedrv_fops
+};
+static int __init dtracedrv_init(void)
+{	int	ret;
+static struct proc_dir_entry *dir;
+
+	/***********************************************/
+	/*   Create the parent directory.	       */
+	/***********************************************/
+	if (!dir) {
+		dir = proc_mkdir("dtrace", NULL);
+		if (!dir) {
+			printk("Cannot create /proc/dtrace\n");
+			return -1;
+		}
+	}
+
+//	create_proc_read_entry("dtracedrv", 0, NULL, dtracedrv_read_proc, NULL);
+	create_proc_entry("dtrace", S_IFREG | S_IRUGO, dir);
+	create_proc_entry("helper", S_IFREG | S_IRUGO, dir);
+	ret = misc_register(&dtracedrv_dev);
+	if (ret) {
+		printk(KERN_WARNING "dtracedrv: Unable to register misc device\n");
+		return ret;
+		}
+	printk(KERN_WARNING "dtracedrv driver loaded /proc/dtracedrv and /dev/dtracedrv now available\n");
+
+	return 0;
+}
+static void __exit dtracedrv_exit(void)
+{
+	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
+	remove_proc_entry("dtrace/dtrace", 0);
+	remove_proc_entry("dtrace/helper", 0);
+	remove_proc_entry("dtrace", 0);
+	misc_deregister(&dtracedrv_dev);
+}
+module_init(dtracedrv_init);
+module_exit(dtracedrv_exit);
+

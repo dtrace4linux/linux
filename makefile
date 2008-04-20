@@ -12,6 +12,7 @@ release:
 	tar cvf - --exclude=*.o \
 		--exclude=.*.cmd \
 		--exclude=*.mod.c \
+		--exclude=dtrace/dtrace \
 		--exclude=*.ko \
 		--exclude=*.a \
 		--exclude=tags \

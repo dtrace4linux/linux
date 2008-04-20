@@ -1,9 +1,7 @@
 #ifndef _SYS_VMEM_H
 #define _SYS_VMEM_H
 
-# ident   "@(#)vmem.h     1.14    07/05/11 SMI"
-
-/*#include <sys/types.h>*/
+//# ident   "@(#)vmem.h     1.14    07/05/11 SMI"
 
 #ifdef  __cplusplus
 extern "C" {

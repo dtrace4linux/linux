@@ -142,7 +142,7 @@ typedef void *taskq_t;
 # define uintptr_t unsigned long
 # define kmem_cache_t struct kmem_cache
 typedef void *kthread_t;
-typedef struct mutex kmutex_t;
+# define kmutex_t struct mutex
 
 #define	NBBY	8
 #define	bcmp(a, b, c) memcmp(a, b, c)

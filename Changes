@@ -1,3 +1,8 @@
+Mon Apr 21 22:10:40 2008  fox
+
+       4* Surprise: my first kernel panic. /dev/dtrace is the interface
+          and if you cat it ... surprise !
+
 Sun Apr 20 20:51:52 2008  fox
 
        3* Now builds under ubuntu 2.6.22-14-generic kernel and

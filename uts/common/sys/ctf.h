@@ -10,7 +10,7 @@
 #ifndef	_CTF_H
 #define	_CTF_H
 
-#pragma ident	"@(#)ctf.h	1.4	04/09/28 SMI"
+//#pragma ident	"@(#)ctf.h	1.4	04/09/28 SMI"
 
 #include <sys/types.h>
 

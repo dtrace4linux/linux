@@ -1,3 +1,13 @@
+/**********************************************************************/
+/*   This file contains much of the glue between the Solaris code in  */
+/*   dtrace.c  and  the linux kernel. We emulate much of the missing  */
+/*   functionality, or map into the kernel.			      */
+/*   								      */
+/*   Date: April 2008 Author: Paul D. Fox			      */
+/*   								      */
+/*   License: CDDL						      */
+/**********************************************************************/
+
 #include "dtrace_linux.h"
 #include <sys/dtrace.h>
 #include <linux/cpumask.h>
@@ -16,10 +26,10 @@ uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
 cpu_core_t cpu_core[CONFIG_NR_CPUS];
 cpu_t cpu_table[NCPU];
-mutex_t	mod_lock;
+DEFINE_MUTEX(mod_lock);
 
-static kmutex_t		dtrace_provider_lock;	/* provider state lock */
-kmutex_t        cpu_lock;
+static DEFINE_MUTEX(dtrace_provider_lock);	/* provider state lock */
+DEFINE_MUTEX(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
 
@@ -27,6 +37,7 @@ sol_proc_t	*curthread;
 /*   Prototypes.						      */
 /**********************************************************************/
 void dtrace_probe_provide(dtrace_probedesc_t *desc);
+int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
 
 cred_t *
 CRED()
@@ -175,9 +186,12 @@ dtracedrv_open(struct module *mp, int *error)
 	/*
 	 * Ask all providers to provide their probes.
 	 */
+TODO();
 	mutex_enter(&dtrace_provider_lock);
-	dtrace_probe_provide(NULL);
+TODO();
+//	dtrace_probe_provide(NULL);
 	mutex_exit(&dtrace_provider_lock);
+TODO();
 
 	return 0;
 }
@@ -223,12 +237,13 @@ static const struct file_operations dtracedrv_fops = {
 
 static struct miscdevice dtracedrv_dev = {
         MISC_DYNAMIC_MINOR,
-        "dtracedrv",
+        "dtrace",
         &dtracedrv_fops
 };
 static int __init dtracedrv_init(void)
 {	int	ret;
 static struct proc_dir_entry *dir;
+	struct proc_dir_entry *ent;
 
 	/***********************************************/
 	/*   Create the parent directory.	       */
@@ -242,14 +257,22 @@ static struct proc_dir_entry *dir;
 	}
 
 //	create_proc_read_entry("dtracedrv", 0, NULL, dtracedrv_read_proc, NULL);
-	create_proc_entry("dtrace", S_IFREG | S_IRUGO, dir);
-	create_proc_entry("helper", S_IFREG | S_IRUGO, dir);
+	ent = create_proc_entry("dtrace", S_IFREG | S_IRUGO, dir);
+	ent->read_proc = dtracedrv_read_proc;
+
+	ent = create_proc_entry("helper", S_IFREG | S_IRUGO, dir);
+	ent->read_proc = dtracedrv_helper_read_proc;
+
 	ret = misc_register(&dtracedrv_dev);
 	if (ret) {
 		printk(KERN_WARNING "dtracedrv: Unable to register misc device\n");
 		return ret;
 		}
-	printk(KERN_WARNING "dtracedrv driver loaded /proc/dtracedrv and /dev/dtracedrv now available\n");
+
+	/***********************************************/
+	/*   Helper not presently implemented :-(      */
+	/***********************************************/
+	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace and /proc/dtrace/helper & /proc/dtrace/dtrace now available\n");
 
 	return 0;
 }

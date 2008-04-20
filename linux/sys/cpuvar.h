@@ -3,9 +3,6 @@
 
 #define CPU_CACHE_COHERENCE_SIZE        64
 
-# define	kmutex_t mutex_t
-
-
 typedef enum {
         CPU_INIT,
         CPU_CONFIG,
@@ -50,8 +47,8 @@ typedef struct cpu_core {
 extern cpu_core_t cpu_core[NCPU];
 extern cpu_t cpu_table[NCPU];
 extern cpu_t	*cpu_list;
-extern mutex_t	cpu_lock;
-extern mutex_t	mod_lock;
+extern kmutex_t	cpu_lock;
+extern kmutex_t	mod_lock;
 extern cpu_t *curcpu(void);
 typedef intptr_t xc_arg_t;
 typedef int (*xc_func_t)(xc_arg_t, xc_arg_t, xc_arg_t);

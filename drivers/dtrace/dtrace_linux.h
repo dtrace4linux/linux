@@ -32,6 +32,7 @@
 #include <sys/cyclic.h>
 #include <linux/sched.h>
 #include <linux/hardirq.h>
+#include <asm/uaccess.h>
 
 # define TODO()	printk("%s:%d: please fill me in\n", __func__, __LINE__)
 # define TODO_END()
@@ -159,5 +160,6 @@ extern uintptr_t	_userlimit;
 # else
 #	define	cpu_get_id()	CPU->cpu_id
 # endif
+# define copyin(a, b, c) copy_from_user(b, a, c)
 
 # endif

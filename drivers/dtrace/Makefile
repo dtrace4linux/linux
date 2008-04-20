@@ -27,6 +27,7 @@ $(dtracedrv-objs): dtrace_linux.h $(M)/../../linux/linux_types.h
 clean:
 	rm -f *.o *.ko *.bak .*.d .*.cmd *.mod.c
 ins:
+	sync ; sync
 	setuid root insmod dtracedrv.ko
 rm unl:
 	setuid root rmmod dtracedrv

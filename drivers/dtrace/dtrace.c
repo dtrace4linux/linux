@@ -400,6 +400,7 @@ static intptr_t dtrace_buffer_reserve(dtrace_buffer_t *, size_t, size_t,
 static int dtrace_state_option(dtrace_state_t *, dtrace_optid_t,
     dtrace_optval_t);
 static int dtrace_ecb_create_enable(dtrace_probe_t *, void *);
+static dtrace_helpers_t * dtrace_helpers_create(proc_t *p);
 
 /*
  * DTrace Probe Context Functions
@@ -11526,6 +11527,9 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 	return (0);
 }
 
+# endif
+
+# if defined(sun)
 static int
 dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 {
@@ -11623,7 +11627,9 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 
 	return (gen);
 }
+# endif
 
+# if defined(sun)
 static dtrace_helpers_t *
 dtrace_helpers_create(proc_t *p)
 {
@@ -11641,7 +11647,9 @@ dtrace_helpers_create(proc_t *p)
 
 	return (help);
 }
+# endif
 
+# if defined(sun)
 static void
 dtrace_helpers_destroy(void)
 {
@@ -12394,8 +12402,8 @@ dtrace_close(dev_t dev, int flag, int otyp, cred_t *cred_p)
 	return (0);
 }
 
-# if defined(sun)
 /*ARGSUSED*/
+# if defined(sun)
 static int
 dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv)
 {
@@ -12451,7 +12459,9 @@ dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv)
 
 	return (ENOTTY);
 }
+# endif
 
+# if defined(sun)
 /*ARGSUSED*/
 static int
 dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)

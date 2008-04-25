@@ -1,10 +1,15 @@
 CC=gcc -g
-CPPFLAGS += -I../common -I../../../common/ctf -I../../../uts/common/ \
-	-I../../../linux -I../../libproc/common -I../../libctf/ -DCTF_OLD_VERSIONS
+CPPFLAGS += -I../common \
+	-I../../../common/ctf \
+	-I../../uts/common \
+	-I../../linux \
+	-I../../libproc/common \
+	-I../../libctf/ \
+	-DCTF_OLD_VERSIONS
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 CPPFLAGS += -DYY_NO_INPUT
 
-LIB = libdtrace.a
+LIB = ../../build/libdtrace.a
 
 all: dt_grammar.h $(LIB)
 

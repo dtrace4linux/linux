@@ -29,6 +29,9 @@ extern "C" {
 
 #ifndef _ASM
 
+# if linux
+# include <linux_types.h>
+# endif
 #include <sys/types.h>
 # if defined(sun)
 #include <sys/modctl.h>

@@ -12,6 +12,9 @@
 
 #pragma ident	"@(#)dt_impl.h	1.12	04/12/18 SMI"
 
+# if linux
+#include <linux_types.h>
+# endif
 #include <sys/param.h>
 #include <sys/objfs.h>
 #include <setjmp.h>

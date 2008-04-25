@@ -1,3 +1,3 @@
-dir ../../lib/libctf
-dir ../../lib/libdtrace/common
-dir ../../lib/liblinux
+dir ../../libctf
+dir ../../libdtrace/common
+dir ../../liblinux

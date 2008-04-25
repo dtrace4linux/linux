@@ -366,6 +366,9 @@ prepare_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf64_t *dep)
 		s = &dofs[dofrh->dofr_tgtsec];
 
 		for (j = 0; j < nrel; j++) {
+# if linux
+			TODO();
+# else
 #if defined(__i386) || defined(__amd64)
 			rel->r_offset = s->dofs_offset +
 			    dofr[j].dofr_offset;
@@ -379,6 +382,7 @@ prepare_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf64_t *dep)
 #else
 #error unknown ISA
 #endif
+# endif
 
 			sym->st_name = base + dofr[j].dofr_name - 1;
 			sym->st_value = 0;
@@ -1003,10 +1007,14 @@ process_obj(dtrace_hdl_t *dtp, const char *obj)
 			 * already been processed by an earlier link
 			 * invocation.
 			 */
+# if defined(SHN_SUNW_IGNORE)
 			if (rsym.st_shndx != SHN_SUNW_IGNORE) {
 				rsym.st_shndx = SHN_SUNW_IGNORE;
 				(void) gelf_update_sym(data_sym, ndx, &rsym);
 			}
+# else
+			TODO();
+# endif
 		}
 	}
 

@@ -2,7 +2,6 @@
 # define	LINUX_TYPES_H 1
 
 struct modctl;
-
 # if __KERNEL__
 
 # include	<linux/time.h>
@@ -36,11 +35,6 @@ struct modctl;
 # define	_FILE_OFFSET_BITS	64
 # define 	__USE_LARGEFILE64 1
 
-# include	<sys/types.h>
-# include	<stdint.h>
-# include	<unistd.h>
-# include	<sys/wait.h>
-# include	<zone.h>
 /*# include	<sys/ucontext.h>*/
 /*# include	<sys/reg.h>*/
 # endif
@@ -116,58 +110,63 @@ typedef unsigned long long hrtime_t;
 /**********************************************************************/
 typedef unsigned int mutex_t;
 # if __KERNEL__
-# include <sys/cpuvar_defs.h>
-# include <asm/signal.h>
-# include <linux/sched.h>
-//# include <sys/current.h>
-# define	SNOCD	0
+	# include <asm/signal.h>
+	# include <linux/sched.h>
+	//# include <sys/current.h>
+	# define	SNOCD	0
 
-# define	t_did pid
-# define	p_parent parent
+	# define	t_did pid
+	# define	p_parent parent
 
-#define        MIN(a,b) (((a)<(b))?(a):(b))
-#define	USHRT_MAX	0xffff
-#define	UINT16_MAX	0xffff
-#define	INT32_MAX	0x7fffffff
-#define	UINT32_MAX	0xffffffff
-#define	INT64_MAX	0x7fffffffffffffff
-#define	UINT64_MAX	0xffffffffffffffff
-typedef int *greg_t;
-typedef struct __dev_info *dev_info_t;
-//typedef int 	processorid_t;
-typedef int 	model_t;
-typedef long	intptr_t;
-typedef unsigned long long off64_t;
-typedef void *taskq_t;
-# define uintptr_t unsigned long
-# define kmem_cache_t struct kmem_cache
-typedef void *kthread_t;
-# define kmutex_t struct mutex
+	#define        MIN(a,b) (((a)<(b))?(a):(b))
+	#define	USHRT_MAX	0xffff
+	#define	UINT16_MAX	0xffff
+	#define	INT32_MAX	0x7fffffff
+	#define	UINT32_MAX	0xffffffff
+	#define	INT64_MAX	0x7fffffffffffffff
+	#define	UINT64_MAX	0xffffffffffffffff
+	typedef int *greg_t;
+	typedef struct __dev_info *dev_info_t;
+	//typedef int 	processorid_t;
+	typedef int 	model_t;
+	typedef long	intptr_t;
+	typedef unsigned long long off64_t;
+	typedef void *taskq_t;
+	# define uintptr_t unsigned long
+	# define kmem_cache_t struct kmem_cache
+	typedef void *kthread_t;
+	# define kmutex_t struct mutex
 
-#define	NBBY	8
-#define	bcmp(a, b, c) memcmp(a, b, c)
+	#define	NBBY	8
+	#define	bcmp(a, b, c) memcmp(a, b, c)
 
-#define	KM_SLEEP GFP_KERNEL
-#define	KM_NOSLEEP GFP_ATOMIC
+	#define	KM_SLEEP GFP_KERNEL
+	#define	KM_NOSLEEP GFP_ATOMIC
 
-#define	CE_WARN	0
-#define	CE_NOTE	1
-#define	CE_CONT	2
-#define	CE_PANIC	3
-#define	CE_IGNORE	4
+	#define	CE_WARN	0
+	#define	CE_NOTE	1
+	#define	CE_CONT	2
+	#define	CE_PANIC	3
+	#define	CE_IGNORE	4
 
-#define	NCPU NR_CPUS
+	#define	NCPU NR_CPUS
 
-# include	<sys/cpuvar.h>
+	# define kmutex_t struct mutex
 
-/**********************************************************************/
-/*   Protoypes.							      */
-/**********************************************************************/
-void cmn_err(int ce, const char *fmt, ...);
-void	*kmem_alloc(size_t, int);
+	# include	<sys/cpuvar_defs.h>
+	# include	<sys/cpuvar.h>
+
+	/**********************************************************************/
+	/*   Protoypes.							      */
+	/**********************************************************************/
+	void cmn_err(int ce, const char *fmt, ...);
+	void	*kmem_alloc(size_t, int);
 
 # endif /* __KERNEL__ */
 
+/**********************************************************************/
+/*   Definitions for both kernel and non-kernel code.		      */
+/**********************************************************************/
 //typedef unsigned int *uintptr_t;
 typedef short   o_dev_t;                /* old device type      */
 //typedef int     processorid_t;
@@ -200,7 +199,31 @@ typedef struct iovec iovec_t;
 # define	ino64_t	ino_t
 # define	blkcnt64_t blkcnt_t
 
+/**********************************************************************/
+/*   Userland - non-kernel definitions.				      */
+/**********************************************************************/
 # include	<sys/types32.h>
+# if !__KERNEL__
+	struct mutex {
+		long xxx;
+		};
+	typedef unsigned long long loff_t;
+	# define kmutex_t struct mutex
+	#define	NCPU 8
+	# include	<sys/types.h>
+	# include	<stdint.h>
+	# include	<unistd.h>
+	# include	<sys/stat.h>
+	# include	<sys/wait.h>
+	# include	<zone.h>
+//	# include	<sys/elf_amd64.h>
+
+	# define SHT_SUNW_dof            0x6ffffff4
+	#define EM_AMD64        EM_X86_64
+	#define SHT_PROGBITS    1               /* Program specific (private) data */
+	#define STT_OBJECT      1               /* Symbol is a data object */
+# endif
+
 
 typedef union {
         long double     _q;

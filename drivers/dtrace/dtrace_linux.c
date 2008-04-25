@@ -186,18 +186,16 @@ dtracedrv_open(struct module *mp, int *error)
 	/*
 	 * Ask all providers to provide their probes.
 	 */
-TODO();
 	mutex_enter(&dtrace_provider_lock);
-TODO();
-//	dtrace_probe_provide(NULL);
+	dtrace_probe_provide(NULL);
 	mutex_exit(&dtrace_provider_lock);
-TODO();
 
 	return 0;
 }
 static int
 dtracedrv_read(ctf_file_t *fp, int fd)
 {
+TODO();
 	return -EIO;
 }
 static int proc_calc_metrics(char *page, char **start, off_t off,

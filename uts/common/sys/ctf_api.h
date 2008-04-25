@@ -27,7 +27,7 @@
 
 #include <sys/types.h>
 # if linux
-#include <linux/elf.h>
+#include <elf.h>
 # else
 #include <sys/param.h>
 #include <sys/elf.h>

@@ -1,15 +1,17 @@
 CFLAGS=-g
+LIBELF=/usr/lib/libelf.so.1
+BINDIR=../../build
 dtrace: dtrace.o \
-	../../libctf/libctf.a \
-	../../liblinux/liblinux.a \
-	../../libdtrace/common/libdtrace.a \
-	../../libproc/common/libproc.a
+	$(BINDIR)/libctf.a \
+	$(BINDIR)/liblinux.a \
+	$(BINDIR)/libdtrace.a \
+	$(BINDIR)/libproc.a
 	$(CC) $(CFLAGS) -o dtrace \
 		-L../../libctf \
 		-L../../libdtrace/common \
 		-L../../libproc/common \
 		-L../../liblinux \
-		dtrace.o -ldtrace -lctf -llinux -lpthread -lelf -ldl
+		dtrace.o -ldtrace -lctf -llinux -lpthread $(LIBELF) -ldl
 
 dtrace.o: dtrace.c
 	$(CC) $(CFLAGS) -c \

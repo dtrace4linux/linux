@@ -1,9 +1,14 @@
 CC=gcc -g
-CPPFLAGS += -I../libproc/common -I../../common/ctf -I../../uts/common/ \
-	-I../../linux -I../lib/libproc/common -I../libctf -DCTF_OLD_VERSIONS
+CPPFLAGS += -I../libproc/common \
+	-I../common/ctf \
+	-I../linux \
+	-I../lib/libproc/common \
+	-I../libctf \
+	-I../uts/common \
+	-DCTF_OLD_VERSIONS
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 
-LIB = liblinux.a
+LIB = ../build/liblinux.a
 
 $(LIB): \
 	$(LIB)(gmatch.o) \

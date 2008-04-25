@@ -91,70 +91,102 @@ struct sigaction32 {
         sigset32_t      sa_mask;
         int32_t         sa_resv[2];
 };
-/*#define sa_handler      _funcptr._handler
-#define sa_sigaction    _funcptr._sigaction*/
+#define sa_handler32      __sigaction_handler._handler
+#define sa_sigaction32    __sigaction_handler._sigaction
 
 union sigval32 {
         int32_t sival_int;      /* integer value */
         caddr32_t sival_ptr;    /* pointer value */
 };
 
-typedef struct siginfo32 {
+/* X/Open requires some more fields with fixed names.  */
+# undef si_pid		
+# undef si_uid		
+# undef si_timerid	
+# undef si_overrun	
+# undef si_status	
+# undef si_utime	
+# undef si_stime	
+# undef si_value	
+# undef si_int		
+# undef si_ptr		
+# undef si_addr	
+# undef si_band	
+# undef si_fd		
 
-        int32_t si_signo;                       /* signal from signal.h */
-        int32_t si_code;                        /* code from above      */
-        int32_t si_errno;                       /* error from errno.h   */
+typedef struct siginfo32
+  {
+    int si_signo;		/* Signal number.  */
+    int si_errno;		/* If non-zero, an errno value associated with
+				   this signal, as defined in <errno.h>.  */
+    int si_code;		/* Signal code.  */
 
-        union {
+    union
+      {
+	int _pad[__SI_PAD_SIZE];
 
-                int32_t __pad[SI32_PAD];        /* for future growth    */
+	 /* kill().  */
+	struct
+	  {
+	    __pid_t si_pid;	/* Sending process ID.  */
+	    __uid_t si_uid;	/* Real user ID of sending process.  */
+	  } _kill;
 
-                struct {                        /* kill(), SIGCLD, siqqueue() */
-                        pid32_t __pid;          /* process ID           */
-                        union {
-                                struct {
-                                        uid32_t __uid;
-                                        union sigval32  __value;
-                                } __kill;
-                                struct {
-                                        clock32_t __utime;
-                                        int32_t __status;
-                                        clock32_t __stime;
-                                } __cld;
-                        } __pdata;
-                        id32_t  __ctid;         /* contract ID          */
-                        id32_t __zoneid;        /* zone ID              */
-                } __proc;
+	/* POSIX.1b timers.  */
+	struct
+	  {
+	    int si_tid;		/* Timer ID.  */
+	    int si_overrun;	/* Overrun count.  */
+	    sigval_t si_sigval;	/* Signal value.  */
+	  } _timer;
 
-                struct {        /* SIGSEGV, SIGBUS, SIGILL, SIGTRAP, SIGFPE */
-                        caddr32_t __addr;       /* faulting address     */
-                        int32_t __trapno;       /* illegal trap number  */
-                        caddr32_t __pc;         /* instruction address  */
-                } __fault;
+	/* POSIX.1b signals.  */
+	struct
+	  {
+	    __pid_t si_pid;	/* Sending process ID.  */
+	    __uid_t si_uid;	/* Real user ID of sending process.  */
+	    sigval_t si_sigval;	/* Signal value.  */
+	  } _rt;
 
-                struct {                        /* SIGPOLL, SIGXFSZ     */
-                /* fd not currently available for SIGPOLL */
-                        int32_t __fd;           /* file descriptor      */
-                        int32_t __band;
-                } __file;
+	/* SIGCHLD.  */
+	struct
+	  {
+	    __pid_t si_pid;	/* Which child.  */
+	    __uid_t si_uid;	/* Real user ID of sending process.  */
+	    int si_status;	/* Exit value or signal.  */
+	    __clock_t si_utime;
+	    __clock_t si_stime;
+	  } _sigchld;
 
-                struct {                        /* SIGPROF */
-                        caddr32_t __faddr;      /* last fault address   */
-                        timestruc32_t __tstamp; /* real time stamp      */
-                        int16_t __syscall;      /* current syscall      */
-                        int8_t  __nsysarg;      /* number of arguments  */
-                        int8_t  __fault;        /* last fault type      */
-                        int32_t __sysarg[8];    /* syscall arguments    */
-                        int32_t __mstate[10];   /* see <sys/msacct.h>   */
-                } __prof;
+	/* SIGILL, SIGFPE, SIGSEGV, SIGBUS.  */
+	struct
+	  {
+	    void *si_addr;	/* Faulting insn/memory ref.  */
+	  } _sigfault;
 
-                struct {                        /* SI_RCTL */
-                        int32_t __entity;       /* type of entity exceeding */
-                } __rctl;
+	/* SIGPOLL.  */
+	struct
+	  {
+	    long int si_band;	/* Band event for SIGPOLL.  */
+	    int si_fd;
+	  } _sigpoll;
+      } _sifields;
+  } siginfo32_t;
+/* X/Open requires some more fields with fixed names.  */
+# define si_pid		_sifields._kill.si_pid
+# define si_uid		_sifields._kill.si_uid
+# define si_timerid	_sifields._timer.si_tid
+# define si_overrun	_sifields._timer.si_overrun
+# define si_status	_sifields._sigchld.si_status
+# define si_utime	_sifields._sigchld.si_utime
+# define si_stime	_sifields._sigchld.si_stime
+# define si_value	_sifields._rt.si_sigval
+# define si_int		_sifields._rt.si_sigval.sival_int
+# define si_ptr		_sifields._rt.si_sigval.sival_ptr
+# define si_addr	_sifields._sigfault.si_addr
+# define si_band	_sifields._sigpoll.si_band
+# define si_fd		_sifields._sigpoll.si_fd
 
-        } __data;
-
-} siginfo32_t;
 
 # if 0
 union sigval {
@@ -218,7 +250,6 @@ typedef struct siginfo {                /* pollutes POSIX/XOPEN namespace */
         } __data;
 
 } siginfo_t;
-#define si_pid          __data.__proc.__pid
 #define si_utime        __data.__proc.__pdata.__cld.__utime
 #define si_stime        __data.__proc.__pdata.__cld.__stime
 #define si_status       __data.__proc.__pdata.__cld.__status
@@ -227,20 +258,7 @@ typedef struct siginfo {                /* pollutes POSIX/XOPEN namespace */
 #define si_fd           __data.__file.__fd
 #define si_addr         __data.__fault.__addr
 #define si_band         __data.__file.__band
-# endif
-
 #define si_ctid         __data.__proc.__ctid
-#define si_zoneid       __data.__proc.__zoneid
-#define si_trapno       __data.__fault.__trapno
-#define si_trapafter    __data.__fault.__trapno
-#define si_pc           __data.__fault.__pc
-#define si_tstamp       __data.__prof.__tstamp
-#define si_syscall      __data.__prof.__syscall
-#define si_nsysarg      __data.__prof.__nsysarg
-#define si_sysarg       __data.__prof.__sysarg
-#define si_fault        __data.__prof.__fault
-#define si_faddr        __data.__prof.__faddr
-#define si_mstate       __data.__prof.__mstate
-#define si_entity       __data.__rctl.__entity
+# endif
 
 # endif

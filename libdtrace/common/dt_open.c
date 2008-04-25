@@ -732,7 +732,11 @@ dt_vopen(int version, int flags, int *errp,
 		}
 	}
 
+# if linux
+	dtfd = open("/dev/dtrace", O_RDWR);
+# else
 	dtfd = open("/devices/pseudo/dtrace@0:dtrace", O_RDWR);
+# endif
 	err = errno; /* save errno from opening dtfd */
 
 	ftfd = open("/devices/pseudo/fasttrap@0:fasttrap", O_RDWR);
@@ -769,7 +773,9 @@ dt_vopen(int version, int flags, int *errp,
 	}
 
 	(void) fcntl(dtfd, F_SETFD, FD_CLOEXEC);
-	(void) fcntl(ftfd, F_SETFD, FD_CLOEXEC);
+	if (ftfd >= 0) {
+		(void) fcntl(ftfd, F_SETFD, FD_CLOEXEC);
+	}
 
 alloc:
 	if ((dtp = malloc(sizeof (dtrace_hdl_t))) == NULL)

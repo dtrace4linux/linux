@@ -51,7 +51,11 @@ dt_pid_create_return_probe() { printf("%s\n", __func__); }
 dt_pragma() { printf("%s\n", __func__); }
 fork1() { printf("%s\n", __func__); }
 gethrtime() { printf("%s\n", __func__); }
-getzoneid() { printf("%s\n", __func__); return 0; }
+int
+getzoneid() 
+{
+	return 0;
+}
 int modctl() { printf("%s\n", __func__); return -1; }
 p_online() { printf("%s\n", __func__); }
 pr_close() { printf("%s\n", __func__); }

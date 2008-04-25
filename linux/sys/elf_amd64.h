@@ -113,6 +113,8 @@ extern "C" {
 #define	SHF_ORDERED	0x40000000
 #define	SHF_EXCLUDE	0x80000000
 
+#define SHT_SUNW_dof            0x6ffffff4
+
 #define	SHN_BEFORE	0xff00
 #define	SHN_AFTER	0xff01
 

@@ -74,7 +74,7 @@ sigaction_32_to_n(const struct sigaction32 *src, struct sigaction *dst)
 {
 	(void) memset(dst, 0, sizeof (struct sigaction));
 	dst->sa_flags = src->sa_flags;
-	dst->sa_handler = (void (*)())(uintptr_t)src->sa_handler;
+	dst->sa_handler = (void (*)())(uintptr_t)src->sa_handler32;
 	(void) memcpy(&dst->sa_mask, &src->sa_mask, sizeof (dst->sa_mask));
 }
 
@@ -96,8 +96,10 @@ siginfo_32_to_n(const siginfo32_t *src, siginfo_t *dst)
 	 */
 	if (SI_FROMUSER(src)) {
 		dst->si_pid = src->si_pid;
+# if defined(sun)
 		dst->si_ctid = src->si_ctid;
 		dst->si_zoneid = src->si_zoneid;
+# endif
 		dst->si_uid = src->si_uid;
 		if (SI_CANQUEUE(src->si_code)) {
 			dst->si_value.sival_int =
@@ -111,16 +113,20 @@ siginfo_32_to_n(const siginfo32_t *src, siginfo_t *dst)
 	switch (src->si_signo) {
 	default:
 		dst->si_pid = src->si_pid;
+# if defined(sun)
 		dst->si_ctid = src->si_ctid;
 		dst->si_zoneid = src->si_zoneid;
+# endif
 		dst->si_uid = src->si_uid;
 		dst->si_value.sival_int =
 		    (long)(uint32_t)src->si_value.sival_int;
 		break;
 	case SIGCLD:
 		dst->si_pid = src->si_pid;
+# if defined(sun)
 		dst->si_ctid = src->si_ctid;
 		dst->si_zoneid = src->si_zoneid;
+# endif
 		dst->si_status = src->si_status;
 		dst->si_stime = src->si_stime;
 		dst->si_utime = src->si_utime;
@@ -132,8 +138,10 @@ siginfo_32_to_n(const siginfo32_t *src, siginfo_t *dst)
 	case SIGFPE:
 	case SIGEMT:
 		dst->si_addr = (void *)(uintptr_t)src->si_addr;
+# if defined(sun)
 		dst->si_trapno = src->si_trapno;
 		dst->si_pc = (void *)(uintptr_t)src->si_pc;
+# endif
 		break;
 	case SIGPOLL:
 	case SIGXFSZ:
@@ -141,12 +149,14 @@ siginfo_32_to_n(const siginfo32_t *src, siginfo_t *dst)
 		dst->si_band = src->si_band;
 		break;
 	case SIGPROF:
+# if defined(sun)
 		dst->si_faddr = (void *)(uintptr_t)src->si_faddr;
 		dst->si_tstamp.tv_sec = src->si_tstamp.tv_sec;
 		dst->si_tstamp.tv_nsec = src->si_tstamp.tv_nsec;
 		dst->si_syscall = src->si_syscall;
 		dst->si_nsysarg = src->si_nsysarg;
 		dst->si_fault = src->si_fault;
+# endif
 		break;
 	}
 }
@@ -469,8 +479,10 @@ siginfo_n_to_32(const siginfo_t *src, siginfo32_t *dst)
 	 */
 	if (SI_FROMUSER(src)) {
 		dst->si_pid = src->si_pid;
+# if defined(sun)
 		dst->si_ctid = src->si_ctid;
 		dst->si_zoneid = src->si_zoneid;
+# endif
 		dst->si_uid = src->si_uid;
 		if (SI_CANQUEUE(src->si_code)) {
 			dst->si_value.sival_int =
@@ -484,16 +496,20 @@ siginfo_n_to_32(const siginfo_t *src, siginfo32_t *dst)
 	switch (src->si_signo) {
 	default:
 		dst->si_pid = src->si_pid;
+# if defined(sun)
 		dst->si_ctid = src->si_ctid;
 		dst->si_zoneid = src->si_zoneid;
+# endif
 		dst->si_uid = src->si_uid;
 		dst->si_value.sival_int =
 		    (int32_t)src->si_value.sival_int;
 		break;
 	case SIGCLD:
 		dst->si_pid = src->si_pid;
+# if defined(sun)
 		dst->si_ctid = src->si_ctid;
 		dst->si_zoneid = src->si_zoneid;
+# endif
 		dst->si_status = src->si_status;
 		dst->si_stime = src->si_stime;
 		dst->si_utime = src->si_utime;
@@ -505,8 +521,10 @@ siginfo_n_to_32(const siginfo_t *src, siginfo32_t *dst)
 	case SIGFPE:
 	case SIGEMT:
 		dst->si_addr = (caddr32_t)(uintptr_t)src->si_addr;
+# if defined(sun)
 		dst->si_trapno = src->si_trapno;
 		dst->si_pc = (caddr32_t)(uintptr_t)src->si_pc;
+# endif
 		break;
 	case SIGPOLL:
 	case SIGXFSZ:
@@ -514,12 +532,14 @@ siginfo_n_to_32(const siginfo_t *src, siginfo32_t *dst)
 		dst->si_band = src->si_band;
 		break;
 	case SIGPROF:
+# if defined(sun)
 		dst->si_faddr = (caddr32_t)(uintptr_t)src->si_faddr;
 		dst->si_tstamp.tv_sec = src->si_tstamp.tv_sec;
 		dst->si_tstamp.tv_nsec = src->si_tstamp.tv_nsec;
 		dst->si_syscall = src->si_syscall;
 		dst->si_nsysarg = src->si_nsysarg;
 		dst->si_fault = src->si_fault;
+# endif
 		break;
 	}
 }

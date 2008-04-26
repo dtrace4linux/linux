@@ -23,14 +23,18 @@
 #ifndef	_CTF_API_H
 #define	_CTF_API_H
 
-#pragma ident	"@(#)ctf_api.h	1.1	03/09/02 SMI"
+# ident	"@(#)ctf_api.h	1.1	03/09/02 SMI"
 
 #include <sys/types.h>
 # if linux
-#include <elf.h>
+# 	if __KERNEL__
+#		include <linux/elf.h>
+# 	else
+#		include <elf.h>
+# 	endif
 # else
-#include <sys/param.h>
-#include <sys/elf.h>
+#	include <sys/param.h>
+#	include <sys/elf.h>
 # endif
 #include <sys/ctf.h>
 

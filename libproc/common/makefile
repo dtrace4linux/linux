@@ -11,7 +11,6 @@ CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 LIB = ../../build/libproc.a
 
 $(LIB): \
-	$(LIB)(P32ton.o) \
 	$(LIB)(Pcontrol.o) \
 	$(LIB)(Pcore.o) \
 	$(LIB)(Pexecname.o) \
@@ -49,3 +48,6 @@ $(LIB): \
 	$(LIB)(proc_names.o) \
 	$(LIB)(proc_set.o) \
 	$(LIB)(proc_stdio.o) \
+
+#	$(LIB)(P32ton.o) \
+

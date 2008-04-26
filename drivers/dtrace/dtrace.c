@@ -151,12 +151,14 @@ static dev_info_t	*dtrace_devi;		/* device info */
 static vmem_t		*dtrace_arena;		/* probe ID arena */
 static vmem_t		*dtrace_minor;		/* minor number arena */
 static taskq_t		*dtrace_taskq;		/* task queue */
-static dtrace_probe_t	**dtrace_probes;	/* array of all probes */
-static int		dtrace_nprobes;		/* number of probes */
+dtrace_probe_t	**dtrace_probes;	/* array of all probes */
+int		dtrace_nprobes;		/* number of probes */
 static dtrace_provider_t *dtrace_provider;	/* provider list */
 static dtrace_meta_t	*dtrace_meta_pid;	/* user-land meta provider */
 static int		dtrace_opens;		/* number of opens */
+# if defined(sun)
 static void		*dtrace_softstate;	/* softstate pointer */
+# endif
 static dtrace_hash_t	*dtrace_bymod;		/* probes hashed by module */
 static dtrace_hash_t	*dtrace_byfunc;		/* probes hashed by function */
 static dtrace_hash_t	*dtrace_byname;		/* probes hashed by name */
@@ -205,8 +207,8 @@ static dtrace_helpers_t *dtrace_deferred_pid;
  * stranger:  it must be acquired _between_ dtrace_provider_lock and
  * dtrace_lock.
  */
-static kmutex_t		dtrace_lock;		/* probe state lock */
-static kmutex_t		dtrace_provider_lock;	/* provider state lock */
+DEFINE_MUTEX(dtrace_lock);			/* probe state lock */
+DEFINE_MUTEX(dtrace_provider_lock);		/* provider state lock */
 static kmutex_t		dtrace_meta_lock;	/* meta-provider state lock */
 
 /*
@@ -4827,7 +4829,7 @@ dtrace_badname(const char *s)
 	return (0);
 }
 
-static void
+void
 dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp)
 {
 	uint32_t priv;
@@ -4892,7 +4894,7 @@ out:
  * These functions are used to match groups of probes, given some elements of
  * a probe tuple, or some globbed expressions for elements of a probe tuple.
  */
-static int
+int
 dtrace_match_priv(const dtrace_probe_t *prp, uint32_t priv, uid_t uid)
 {
 	if (priv != DTRACE_PRIV_ALL) {
@@ -4928,7 +4930,7 @@ dtrace_match_priv(const dtrace_probe_t *prp, uint32_t priv, uid_t uid)
  * consists of input pattern strings and an ops-vector to evaluate them.
  * This function returns >0 for match, 0 for no match, and <0 for error.
  */
-static int
+int
 dtrace_match_probe(const dtrace_probe_t *prp, const dtrace_probekey_t *pkp,
     uint32_t priv, uid_t uid)
 {
@@ -5214,7 +5216,7 @@ dtrace_probekey_func(const char *p)
  * probes: if each field is the empty string, reset dtpk_fmatch to
  * dtrace_match_nonzero().
  */
-static void
+void
 dtrace_probekey(const dtrace_probedesc_t *pdp, dtrace_probekey_t *pkp)
 {
 	pkp->dtpk_prov = pdp->dtpd_provider;
@@ -5798,7 +5800,7 @@ dtrace_probe_arg(dtrace_provider_id_t id, dtrace_id_t pid)
 /*
  * Copy a probe into a probe description.
  */
-static void
+void
 dtrace_probe_description(const dtrace_probe_t *prp, dtrace_probedesc_t *pdp)
 {
 	bzero(pdp, sizeof (dtrace_probedesc_t));

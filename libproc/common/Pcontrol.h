@@ -31,6 +31,10 @@ extern "C" {
 
 #include "Putil.h"
 
+# if linux
+#define PF_SUNW_FAILURE 0x00100000      /* mapping absent due to failure */
+# endif
+
 /*
  * Definitions of the process control structures, internal to libproc.
  * These may change without affecting clients of libproc.

@@ -1,3 +1,18 @@
+Sun Apr 27 00:03:52 2008  fox
+
+       8* Archive: 1.0006
+
+       7* Put all binaries into the build/ dir rather than littering the
+          source. Not done for drivers yet, since Linux kernel build
+	  pollutes us. Also made code do a clean build from start to finish.
+	  Ignore warnings - will address these over the course of time.
+
+       6* Archive: 1.0005
+
+       5* Various changes for clean build on FC8/2.6.24.4 kernel. Slightly
+          broken Ubuntu...to fix next. First part of the driver works, and
+	  making some changes to allow cmd/dtrace to talk to the driver.
+
 Mon Apr 21 22:10:40 2008  fox
 
        4* Surprise: my first kernel panic. /dev/dtrace is the interface

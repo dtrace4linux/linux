@@ -1201,7 +1201,7 @@ extern void dtrace_probe_error(dtrace_state_t *, dtrace_epid_t, int, int,
     int, uintptr_t);
 extern int dtrace_assfail(const char *, const char *, int);
 extern int dtrace_attached(void);
-extern hrtime_t dtrace_gethrestime();
+extern hrtime_t dtrace_gethrestime(void);
 
 #ifdef __sparc
 extern void dtrace_flush_windows(void);

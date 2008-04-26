@@ -3,7 +3,8 @@
 /*   dtrace.c  and  the linux kernel. We emulate much of the missing  */
 /*   functionality, or map into the kernel.			      */
 /*   								      */
-/*   Date: April 2008 Author: Paul D. Fox			      */
+/*   Date: April 2008						      */
+/*   Author: Paul D. Fox					      */
 /*   								      */
 /*   License: CDDL						      */
 /**********************************************************************/
@@ -38,6 +39,7 @@ sol_proc_t	*curthread;
 /**********************************************************************/
 void dtrace_probe_provide(dtrace_probedesc_t *desc);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
+int dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
 
 cred_t *
 CRED()
@@ -224,8 +226,10 @@ static int dtracedrv_helper_read_proc(char *page, char **start, off_t off,
 }
 static int dtracedrv_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
-{
-        return -EINVAL;
+{	int	ret;
+
+	ret = dtrace_ioctl(0, cmd, arg, 0, NULL, NULL);
+        return -ret;
 }
 static const struct file_operations dtracedrv_fops = {
         .read = dtracedrv_read,
@@ -254,13 +258,14 @@ static struct proc_dir_entry *dir;
 		}
 	}
 
+# if 0
 //	create_proc_read_entry("dtracedrv", 0, NULL, dtracedrv_read_proc, NULL);
 	ent = create_proc_entry("dtrace", S_IFREG | S_IRUGO, dir);
 	ent->read_proc = dtracedrv_read_proc;
 
 	ent = create_proc_entry("helper", S_IFREG | S_IRUGO, dir);
 	ent->read_proc = dtracedrv_helper_read_proc;
-
+# endif
 	ret = misc_register(&dtracedrv_dev);
 	if (ret) {
 		printk(KERN_WARNING "dtracedrv: Unable to register misc device\n");
@@ -270,7 +275,7 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace and /proc/dtrace/helper & /proc/dtrace/dtrace now available\n");
+	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
 
 	return 0;
 }

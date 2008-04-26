@@ -1,6 +1,9 @@
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
+# define TODO()	printk("%s:%s:%d: please fill me in\n", __FILE__, __func__, __LINE__)
+# define TODO_END()
+
 struct modctl;
 # if __KERNEL__
 
@@ -204,6 +207,11 @@ typedef struct iovec iovec_t;
 /**********************************************************************/
 # include	<sys/types32.h>
 # if !__KERNEL__
+
+	# define printk printf
+	# define MIN(a, b) ((a) < (b) ? (a) : (b))
+	# define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 	struct mutex {
 		long xxx;
 		};

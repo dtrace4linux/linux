@@ -136,9 +136,11 @@
 %type	<l_node>	statement_list
 %type	<l_node>	statement
 %type	<l_node>	declaration
+%type	<l_node>	d_storage_class_specifier
 %type	<l_node>	init_declarator_list
 %type	<l_node>	init_declarator
 
+%type	<l_node>	declaration_specifiers
 %type	<l_decl>	type_specifier
 %type	<l_decl>	type_qualifier
 %type	<l_decl>	struct_or_union_specifier
@@ -155,6 +157,7 @@
 %type	<l_node>	parameter_type_list
 %type	<l_node>	parameter_list
 %type	<l_node>	parameter_declaration
+%type	<l_node>	parameter_declaration_specifiers
 
 %type	<l_node>	array
 %type	<l_node>	function
@@ -216,6 +219,7 @@ inline_definition:
 		    assignment_expression ';' {
 			$$ = dt_node_inline($2, $3, $5);
 		}
+	;
 
 translator_definition:
 		DT_KEY_XLATOR type_name DT_TOK_LT type_name
@@ -560,19 +564,30 @@ declaration:	declaration_specifiers ';' {
 declaration_specifiers:
 		d_storage_class_specifier
 	|	d_storage_class_specifier declaration_specifiers
+			{ $$ = NULL; }
 	|	type_specifier
+			{ $$ = NULL; }
 	|	type_specifier declaration_specifiers
+			{ $$ = NULL; }
 	|	type_qualifier
+			{ $$ = NULL; }
 	|	type_qualifier declaration_specifiers
+			{ $$ = NULL; }
 	;
 
 parameter_declaration_specifiers:
 		storage_class_specifier
+			{ $$ = NULL; }
 	|	storage_class_specifier declaration_specifiers
+			{ $$ = NULL; }
 	|	type_specifier
+			{ $$ = NULL; }
 	|	type_specifier declaration_specifiers
+			{ $$ = NULL; }
 	|	type_qualifier
+			{ $$ = NULL; }
 	|	type_qualifier declaration_specifiers
+			{ $$ = NULL; }
 	;
 
 storage_class_specifier:
@@ -585,6 +600,7 @@ storage_class_specifier:
 
 d_storage_class_specifier:
 		storage_class_specifier
+			{ $$ = NULL; }
 	|	DT_KEY_SELF { dt_decl_class(DT_DC_SELF); }
 	|	DT_KEY_THIS { dt_decl_class(DT_DC_THIS); }
 	;

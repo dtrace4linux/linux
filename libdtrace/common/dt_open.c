@@ -739,7 +739,11 @@ dt_vopen(int version, int flags, int *errp,
 # endif
 	err = errno; /* save errno from opening dtfd */
 
+# if linux
+	ftfd = open("/dev/fasttrap", O_RDWR);
+# else
 	ftfd = open("/devices/pseudo/fasttrap@0:fasttrap", O_RDWR);
+# endif
 	fterr = ftfd == -1 ? errno : 0; /* save errno from open ftfd */
 
 	while (df.df_ents-- != 0)
@@ -748,6 +752,7 @@ dt_vopen(int version, int flags, int *errp,
 	free(df.df_fds);
 	free(path);
 
+printf("dt_open.c:%d: got here\n", __LINE__);
 	/*
 	 * If we failed to open the dtrace device, fail dtrace_open().
 	 * We convert some kernel errnos to custom libdtrace errnos to
@@ -944,6 +949,7 @@ alloc:
 	 * Fill the dynamic "C" CTF container with all of the intrinsic
 	 * integer and floating-point types appropriate for this data model.
 	 */
+printf("dt_open.c:%d: got here\n", __LINE__);
 	for (; dinp->din_name != NULL; dinp++) {
 		if (dinp->din_kind == CTF_K_INTEGER) {
 			err = ctf_add_integer(dmp->dm_ctfp, CTF_ADD_ROOT,
@@ -967,6 +973,7 @@ alloc:
 		return (set_open_errno(dtp, errp, EDT_CTF));
 	}
 
+printf("dt_open.c:%d: got here\n", __LINE__);
 	/*
 	 * Add intrinsic pointer types that are needed to initialize printf
 	 * format dictionary types (see table in dt_printf.c).
@@ -1005,12 +1012,14 @@ alloc:
 	dmp->dm_flags = DT_DM_LOADED; /* fake up loaded bit */
 	dmp->dm_modid = -1; /* no module ID */
 
+printf("dt_open.c:%d: got here\n", __LINE__);
 	if (ctf_import(dmp->dm_ctfp, dtp->dt_cdefs->dm_ctfp) == CTF_ERR) {
 		dt_dprintf("failed to import D parent container: %s\n",
 		    ctf_errmsg(ctf_errno(dmp->dm_ctfp)));
 		return (set_open_errno(dtp, errp, EDT_CTF));
 	}
 
+printf("dt_open.c:%d: got here\n", __LINE__);
 	/*
 	 * Fill the dynamic "D" CTF container with all of the built-in typedefs
 	 * that we need to use for our D variable and function definitions.
@@ -1118,6 +1127,7 @@ alloc:
 	 * Load hard-wired inlines into the definition cache by calling the
 	 * compiler on the raw definition string defined above.
 	 */
+printf("dt_open.c:%d: got here\n", __LINE__);
 	if ((pgp = dtrace_program_strcompile(dtp, _dtrace_hardwire,
 	    DTRACE_PROBESPEC_NONE, DTRACE_C_EMPTY, 0, NULL)) == NULL) {
 		dt_dprintf("failed to load hard-wired definitions: %s\n",
@@ -1125,6 +1135,7 @@ alloc:
 		return (set_open_errno(dtp, errp, EDT_HARDWIRE));
 	}
 
+printf("dt_open.c:%d: got here\n", __LINE__);
 	dtrace_program_destroy(dtp, pgp);
 
 	/*
@@ -1134,6 +1145,7 @@ alloc:
 	 * compile, and to provide better error reporting (because the full
 	 * reporting of compiler errors requires dtrace_open() to succeed).
 	 */
+printf("dt_open.c:%d: got here\n", __LINE__);
 	if (dtrace_setopt(dtp, "libdir", _dtrace_libdir) != 0)
 		return (set_open_errno(dtp, errp, dtp->dt_errno));
 

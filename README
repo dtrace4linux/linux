@@ -4,6 +4,38 @@ April 2008
 Paul D. Fox
 fox@crisp.demon.co.uk
 
+Licensing
+=========
+
+The majority (if not all) of this code falls under Sun's CDDL
+license. Some files or headers may originate with GPL code, e.g.
+ELF libraries from GLIBC or RedHat. The original files
+copyrights are left intact, so please honour those as appropriate.
+
+Any mistakes or omissions in copyright attribution will be my mistake,
+so please let me know if there are such cases.
+
+The linux kernel was referred to in order to engineer the glue
+for dtrace behavior, and there is no intention of making this
+code fall under anything other than CDDL.
+
+I have no political affiliation or preference for a licensing scheme,
+simply that Sun has gracefully donated to the community a large body
+of work.
+
+My efforts are simply in glueing pieces together and as such,
+these pieces of work may be considered falling somewhere between
+GPL and CDDL. I reserve the right to change the licensing model
+for my own code at a later date, when and if someone puts forward
+a case as to the correct license agreement. I will not and can not 
+ascribe code that does not belong to me.
+
+If the code is useful to you - great. Spread it around and get
+people to use, debug and enhance it.
+
+
+Miscellaneous
+=============
 
 This is a pre-alpha, work-in-progress port of Sun's DTrace kernel
 debugging tool for Linux. It is not prime-time and much of it

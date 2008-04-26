@@ -38,6 +38,7 @@ $(LIB): $(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_options.o) \
 	$(LIB)(dt_parser.o) \
 	$(LIB)(dt_pid.o) \
+	$(LIB)(dt_pragma.o) \
 	$(LIB)(dt_printf.o) \
 	$(LIB)(dt_proc.o) \
 	$(LIB)(dt_program.o) \

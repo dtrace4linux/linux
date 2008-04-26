@@ -2,17 +2,13 @@
 #
 # Dont run this directly - use the make-me script
 
-dtracedrv-objs := \
-	dtrace.o \
-	dtrace_asm.o \
-	dtrace_ioctl.o \
-	dtrace_isa.o \
-	dtrace_linux.o \
-	dtrace_subr.o
+fasttrap-objs := \
+	fasttrap_linux.o
 
-obj-m += dtracedrv.o
+obj-m += fasttrap.o
 
 EXTRA_CFLAGS += \
+	-I../dtrace \
 	-I$(M)/../.. \
 	-I$(M)/../include \
 	-I$(M)/../../linux \
@@ -20,16 +16,16 @@ EXTRA_CFLAGS += \
 	-I$(M)/../../uts/common \
 	-D_KERNEL
 #CFLAGS += -I$(M)/../../common/ctf -I$(M)/../../uts/common/sys -D_KERNEL
-dtracedrv.o: $(dtracedrv-objs)
+fasttrap.o: $(fasttrap-objs)
 	$(LD) -r -o $@ $(dtrace-objs)
 
-$(dtracedrv-objs): dtrace_linux.h $(M)/../../linux/linux_types.h
+$(fasttrap-objs): $(M)/../../linux/linux_types.h
 
 clean:
 	rm -f *.o *.ko *.bak .*.d .*.cmd *.mod.c
 ins:
 	sync ; sync
-	setuid root insmod dtracedrv.ko
-rm unl:
-	setuid root rmmod dtracedrv
+	setuid root insmod fasttrap.ko
+unl:
+	setuid root rmmod fasttrap
 

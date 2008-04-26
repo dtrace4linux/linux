@@ -48,7 +48,6 @@ dt_pid_create_entry_probe() { printf("%s\n", __func__); }
 dt_pid_create_glob_offset_probes() { printf("%s\n", __func__); }
 dt_pid_create_offset_probe() { printf("%s\n", __func__); }
 dt_pid_create_return_probe() { printf("%s\n", __func__); }
-dt_pragma() { printf("%s\n", __func__); }
 fork1() { printf("%s\n", __func__); }
 gethrtime() { printf("%s\n", __func__); }
 int

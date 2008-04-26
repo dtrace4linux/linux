@@ -2,6 +2,9 @@
 
 rel=`date +%Y%m%d`
 
+# Use sudo if you want ...
+SUDO=setuid root
+
 notice:
 	echo rel=$(rel)
 	@echo "make all        - build everything (which builds!)"
@@ -16,6 +19,7 @@ release:
 		--exclude=dtrace/dtrace \
 		--exclude=*.ko \
 		--exclude=*.a \
+		--exclude=*.mod \
 		--exclude=tags \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace
@@ -31,7 +35,8 @@ all:
 	cd liblinux ; $(MAKE)
 	cd libproc/common ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
-	cd drivers/dtrace ; ./make-me
+	cd drivers/dtrace ; ../make-me
+	cd drivers/fasttrap ; ../make-me
 
 clean:
 	rm -f build/*
@@ -41,4 +46,18 @@ clean:
 	cd libproc/common ; $(MAKE) clean
 	cd cmd/dtrace ; $(MAKE) clean
 	cd drivers/dtrace ; $(MAKE) clean
+	cd drivers/fasttrap ; $(MAKE) clean
+
+######################################################################
+#   Load  the driver -- we chmod 666 til i work out how to make the  #
+#   driver do it. Otherwise dtrace needs to be setuid-root.	     #
+######################################################################
+ins:
+	sync ; sync
+	-$(SUDO) insmod drivers/dtrace/dtracedrv.ko
+	-$(SUDO) insmod drivers/fasttrap/fasttrap.ko
+	$(SUDO) chmod 666 /dev/dtrace
+unl:
+	-$(SUDO) rmmod dtracedrv
+	-$(SUDO) rmmod fasttrap
 

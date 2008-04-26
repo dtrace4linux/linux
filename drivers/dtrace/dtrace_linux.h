@@ -34,9 +34,6 @@
 #include <linux/hardirq.h>
 #include <asm/uaccess.h>
 
-# define TODO()	printk("%s:%d: please fill me in\n", __func__, __LINE__)
-# define TODO_END()
-
 #define	current	_current /* is a macro in <current.h> */
 #define PRIV_EFFECTIVE          (1 << 0)
 #define PRIV_DTRACE_KERNEL      (1 << 1)
@@ -161,5 +158,6 @@ extern uintptr_t	_userlimit;
 #	define	cpu_get_id()	CPU->cpu_id
 # endif
 # define copyin(a, b, c) copy_from_user(b, a, c)
+# define copyout(a, b, c) copy_to_user(b, a, c)
 
 # endif

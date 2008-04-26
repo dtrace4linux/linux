@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <strings.h>
+#include <string.h>
 #include <unistd.h>
 #include <limits.h>
 #include <fcntl.h>

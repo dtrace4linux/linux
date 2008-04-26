@@ -1,0 +1,12 @@
+List of packages needed to build the kernel. You may have these
+installed already, but, for example, with Ubuntu, by default most
+dev libs are not installed. Fedora Code is better in this respect
+as the install DVD contains everything you need.
+
+elfutils -- provides <gelf.h>
+
+libelf-dev
+	libelf1 development libraries and header files
+
+bison-1.35 or byacc
+	Needed to compile the D language grammar file.

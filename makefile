@@ -21,6 +21,7 @@ release:
 		--exclude=*.a \
 		--exclude=*.mod \
 		--exclude=tags \
+		--exclude=dt_lex.c \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace
 	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/dtrace

@@ -260,10 +260,10 @@ static struct proc_dir_entry *dir;
 
 # if 0
 //	create_proc_read_entry("dtracedrv", 0, NULL, dtracedrv_read_proc, NULL);
-	ent = create_proc_entry("dtrace", S_IFREG | S_IRUGO, dir);
+	ent = create_proc_entry("dtrace", S_IFREG | S_IRUGO | S_IWUGO, dir);
 	ent->read_proc = dtracedrv_read_proc;
 
-	ent = create_proc_entry("helper", S_IFREG | S_IRUGO, dir);
+	ent = create_proc_entry("helper", S_IFREG | S_IRUGO | S_IWUGO, dir);
 	ent->read_proc = dtracedrv_helper_read_proc;
 # endif
 	ret = misc_register(&dtracedrv_dev);

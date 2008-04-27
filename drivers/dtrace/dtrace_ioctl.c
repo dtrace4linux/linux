@@ -101,7 +101,11 @@ PRINT_CASE(DTRACEIOC_CONF);
 			pkey.dtpk_id = DTRACE_IDNONE;
 		}
 
-		uid = crgetuid(cr);
+# if linux
+                uid = get_current()->uid;
+# else
+                uid = crgetuid(cr);
+# endif
 		dtrace_cred2priv(cr, &priv, &uid);
 
 		mutex_enter(&dtrace_lock);

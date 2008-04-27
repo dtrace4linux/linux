@@ -10,10 +10,27 @@ CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 CPPFLAGS += -DYY_NO_INPUT
 
 LIB = ../../build/libdtrace.a
+H = \
+	./dt_as.h		\
+	./dt_decl.h		\
+	./dt_errtags.h		\
+	./dt_ident.h		\
+	./dt_impl.h		\
+	./dt_inttab.h		\
+	./dt_list.h		\
+	./dt_module.h		\
+	./dt_parser.h		\
+	./dt_pid.h		\
+	./dt_printf.h		\
+	./dt_proc.h		\
+	./dt_provider.h		\
+	./dt_regset.h		\
+	./dt_string.h		\
+	./dt_strtab.h		\
+	./dt_xlator.h		\
+	./dtrace.h
 
-all: dt_grammar.h $(LIB)
-
-dt_grammar.h: dt_grammar.y
+all: $(LIB)
 
 $(LIB): $(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_as.o) \
@@ -50,13 +67,22 @@ $(LIB): $(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_work.o) \
 	$(LIB)(dt_xlator.o)
 
-#$(LIB)(dt_lex.o): dt_lex.l
-
 dt_errtags.c: dt_errtags.h mkerrtags.sh
 	mkerrtags.sh <dt_errtags.h > dt_errtags.c
 
-dt_lex.c: dt_lex.l dt_grammar.h
+$(LIB)(dt_grammar.o): dt_grammar.y $(H)
+	$(YACC) -d dt_grammar.y
+	mv y.tab.h dt_grammar.h
+	mv y.tab.c dt_grammar.c
+	$(CC) $(CPPFLAGS) -c dt_grammar.c
+	ar rv $(LIB) dt_grammar.o
+	-rm -f dt_grammar.c dt_grammar.o
+
+$(LIB)(dt_lex.o): dt_lex.l $(H) dt_grammar.h
 	lex -l -t -v dt_lex.l > dt_lex.c
+	$(CC) $(CPPFLAGS) -c dt_lex.c
+	ar rv $(LIB) dt_lex.o
+	-rm -f dt_lex.c dt_lex.o
 
 clean:
 	-rm -f *.o *.a

@@ -1,4 +1,17 @@
+Mon Apr 28 20:36:54 2008  fox
+
+      12* Archive: 1.0008
+
+      11* Fix dt_lex.l and dt_grammar.y compile fixed so we dont copy
+          files from my install tree to the remote install tree.
+	  Fixes problem with dtrace plainly not working at all.
+
+      10* dt_grammar.y: Some minor tweaks to handle compiling with
+          bison. Sun have an error in their file (missing ';').
+
 Sun Apr 27 00:03:52 2008  fox
+
+       9* Archive: 1.0007
 
        8* Archive: 1.0006
 

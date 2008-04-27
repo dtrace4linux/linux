@@ -9,4 +9,7 @@ libelf-dev
 	libelf1 development libraries and header files
 
 bison-1.35 or byacc
-	Needed to compile the D language grammar file.
+	Needed to compile the D language grammar file. dt_grammar.y
+
+lex or flex
+	Needed to compile dt_lex.l

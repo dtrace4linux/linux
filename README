@@ -84,3 +84,37 @@ warnings and errors and makes it easier to read the output. It also
 knows how to hide the exceptionally annoying non-warning output lines
 which are impossible to fix in real life code without a gazillion
 of compiler flags.
+
+INSTALLATION
+============
+
+Run:
+
+	make all
+
+to compile the drivers and user space commands. Check the file
+Packages, for hints on what you need (not much, but libelf, kernel
+source, flex/yacc -- bison will do).
+
+
+	make ins
+
+To load the drivers, and then you can play with cmd/dtrace/dtrace.
+
+	make unl
+
+to unload the drivers.
+
+DRIVERS
+=======
+/dev/dtrace
+
+	The main component of the implementation.
+
+/dev/fbt
+	A 'provider' which provides a mechanism for accessing a collection
+	of features via dtrace. This is the function-boundary-tracing module,
+	and it the bit of magic which can plant breakpoints on any
+	kernel function.
+
+

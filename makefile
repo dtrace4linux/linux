@@ -5,6 +5,16 @@ rel=`date +%Y%m%d`
 # Use sudo if you want ...
 SUDO=setuid root
 
+######################################################################
+#   List of drivers we have:					     #
+#    								     #
+#   dtrace: The grand daddy which marshalls the other components.    #
+#    								     #
+#   fbt  -  function  boundary  tracing - provider to intercept any  #
+#   function							     #
+######################################################################
+DRIVERS = dtrace fasttrap fbt
+
 notice:
 	echo rel=$(rel)
 	@echo "make all        - build everything (which builds!)"
@@ -36,8 +46,12 @@ all:
 	cd liblinux ; $(MAKE)
 	cd libproc/common ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
-	cd drivers/dtrace ; ../make-me
-	cd drivers/fasttrap ; ../make-me
+	for i in $(DRIVERS) ; \
+	do  \
+		echo "******** drivers/$$i" ; \
+		cd drivers/$$i ; ../make-me ; \
+		cd ../.. ; \
+	done
 
 clean:
 	rm -f build/*
@@ -46,8 +60,11 @@ clean:
 	cd liblinux ; $(MAKE) clean
 	cd libproc/common ; $(MAKE) clean
 	cd cmd/dtrace ; $(MAKE) clean
-	cd drivers/dtrace ; $(MAKE) clean
-	cd drivers/fasttrap ; $(MAKE) clean
+	for i in $(DRIVERS) ; \
+	do \
+		cd drivers/$$i ; make clean ; \
+		cd ../.. ; \
+	done
 
 ######################################################################
 #   Load  the driver -- we chmod 666 til i work out how to make the  #
@@ -57,8 +74,10 @@ ins:
 	sync ; sync
 	-$(SUDO) insmod drivers/dtrace/dtracedrv.ko
 	-$(SUDO) insmod drivers/fasttrap/fasttrap.ko
+	-$(SUDO) insmod drivers/fbt/fbt.ko
 	$(SUDO) chmod 666 /dev/dtrace
 unl:
-	-$(SUDO) rmmod dtracedrv
+	-$(SUDO) rmmod fbt
 	-$(SUDO) rmmod fasttrap
+	-$(SUDO) rmmod dtracedrv
 

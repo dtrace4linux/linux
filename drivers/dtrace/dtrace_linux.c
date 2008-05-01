@@ -18,6 +18,7 @@
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
@@ -27,6 +28,8 @@ uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
 cpu_core_t cpu_core[CONFIG_NR_CPUS];
 cpu_t cpu_table[NCPU];
+EXPORT_SYMBOL(cpu_core);
+EXPORT_SYMBOL(cpu_table);
 DEFINE_MUTEX(mod_lock);
 
 static DEFINE_MUTEX(dtrace_provider_lock);	/* provider state lock */
@@ -132,6 +135,7 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	kpreempt_enable();
 }
 
+# if 0
 void *
 kmem_alloc(size_t size, int flags)
 {
@@ -150,6 +154,7 @@ kmem_free(void *ptr, int size)
 {
 	kfree(ptr);
 }
+# endif
 void *
 vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {

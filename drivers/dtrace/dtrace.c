@@ -4565,6 +4565,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 
 	dtrace_interrupt_enable(cookie);
 }
+EXPORT_SYMBOL(dtrace_probe);
 
 /*
  * DTrace Probe Hashing Functions

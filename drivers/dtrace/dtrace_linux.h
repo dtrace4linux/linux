@@ -143,10 +143,10 @@ void	dtrace_vtime_disable(void);
 void	dtrace_vtime_enable(void);
 void	freeenv(char *);
 //void	kmem_cache_free(kmem_cache_t *, void *);
-void	kmem_free(void *, int);
+//void	kmem_free(void *, int);
 void	vmem_destroy(vmem_t *);
 void	vmem_free(vmem_t *, void *, size_t);
-void	*kmem_zalloc(size_t size, int kmflags);
+//void	*kmem_zalloc(size_t size, int kmflags);
 
 extern int panic_quiesce;
 extern uintptr_t	_userlimit;

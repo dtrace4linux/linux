@@ -8,6 +8,7 @@ struct modctl;
 # if __KERNEL__
 
 # include	<linux/time.h>
+# include	<linux/module.h>
 
 # include	<sys/processor.h>
 # include	<sys/systm.h>
@@ -166,6 +167,10 @@ typedef unsigned int mutex_t;
 	void	*kmem_alloc(size_t, int);
 
 # endif /* __KERNEL__ */
+
+# define kmem_zalloc(size, flags) kzalloc(size, flags)
+# define kmem_alloc(size, flags) kmalloc(size, flags)
+# define kmem_free(ptr, size) kfree(ptr)
 
 /**********************************************************************/
 /*   Definitions for both kernel and non-kernel code.		      */

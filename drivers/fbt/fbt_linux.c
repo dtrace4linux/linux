@@ -3,13 +3,19 @@
 /*   dtrace.c  and  the linux kernel. We emulate much of the missing  */
 /*   functionality, or map into the kernel.			      */
 /*   								      */
+/*   This file/driver is defined as GPL to allow us to find a way to  */
+/*   gain  access  to  the symbol table used by the kallsyms driver.  */
+/*   This  is  not correct - since it represents a fight between the  */
+/*   CDDL and the GPL, and more investigation will be needed to find  */
+/*   a valid way to avoid breaking the spirit of any license.	      */
+/*   								      */
 /*   Date: April 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   License: CDDL						      */
+/*   License: GPL 2						      */
 /**********************************************************************/
 
-#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
+//#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
 
 #include "../dtrace/dtrace_linux.h"
 #include <sys/dtrace.h>
@@ -22,8 +28,31 @@
 #include <linux/module.h>
 
 MODULE_AUTHOR("Paul D. Fox");
-MODULE_LICENSE("CDDL");
+//MODULE_LICENSE("CDDL");
+MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
+
+/**********************************************************************/
+/*   Stuff we stash away from /proc/kallsyms.			      */
+/**********************************************************************/
+static struct map {
+	char		*m_name;
+	unsigned long	*m_ptr;
+	} syms[] = {
+	{"kallsyms_op", NULL},
+	{"kallsyms_num_syms", NULL},
+	{"kallsyms_addresses", NULL},
+	{"kallsyms_expand_symbol", NULL},
+	{"get_symbol_offset", NULL},
+	{"kallsyms_lookup_name", NULL},
+	{0}
+	};
+static int xkallsyms_num_syms;
+static long *xkallsyms_addresses;
+static void *xkallsyms_op;
+static unsigned int (*xkallsyms_expand_symbol)(int, char *);
+static unsigned int (*xget_symbol_offset)(int);
+static unsigned long (*xkallsyms_lookup_name)(char *);
 
 #define	FBT_PUSHL_EBP		0x55
 #define	FBT_MOVL_ESP_EBP0_V0	0x8b
@@ -131,6 +160,7 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 static void
 fbt_provide_module(void *arg, struct modctl *ctl)
 {
+# if 0
 	struct module *mp = ctl->mod_mp;
 	char *str = mp->strings;
 	int nsyms = mp->nsyms;
@@ -391,6 +421,7 @@ again:
 		instr += size;
 		goto again;
 	}
+# endif
 }
 # if 0
 
@@ -764,6 +795,12 @@ static struct dev_ops fbt_ops = {
 /**********************************************************************/
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
+static int fbt_ioctl(struct inode *inode, struct file *file,
+                     unsigned int cmd, unsigned long arg)
+{	int	ret;
+
+	return -EIO;
+}
 static int
 fbt_open(struct module *mp, int *error)
 {
@@ -774,16 +811,99 @@ fbt_read(ctf_file_t *fp, int fd)
 {
 	return -EIO;
 }
-static int fbt_ioctl(struct inode *inode, struct file *file,
-                     unsigned int cmd, unsigned long arg)
-{	int	ret;
-TODO();
-	return -EIO;
+/**********************************************************************/
+/*   User  is  writing to us to tell us where the kprobes symtab is.  */
+/*   We  do this to avoid tripping over the GPL vs CDDL issue and to  */
+/*   avoid  a tight compile-time coupling against bits of the kernel  */
+/*   which are deemed private.					      */
+/**********************************************************************/
+
+static ssize_t 
+fbt_write(struct file *file, const char __user *buf,
+			      size_t count, loff_t *pos)
+{	int	n;
+	int	orig_count = count;
+	char	*bufend = buf + count;
+	char	*cp;
+	char	*symend;
+	struct map *mp;
+
+//printk("write: '%*.*s'\n", count, count, buf);
+	/***********************************************/
+	/*   Allow  for 'nm -p' format so we can just  */
+	/*   do:				       */
+	/*   grep XXX /proc/kallsyms > /dev/fbt	       */
+	/***********************************************/
+	while (buf < bufend) {
+		count = bufend - buf;
+		if ((cp = memchr(buf, ' ', count)) == NULL ||
+		     cp + 3 >= bufend ||
+		     cp[1] == ' ' ||
+		     cp[2] != ' ') {
+			return -EIO;
+		}
+
+		if ((cp = memchr(buf, '\n', count)) == NULL) {
+			return -EIO;
+		}
+		symend = cp--;
+		while (cp > buf && cp[-1] != ' ')
+			cp--;
+		n = symend - cp;
+//printk("sym='%*.*s'\n", n, n, cp);
+		for (mp = syms; mp->m_name; mp++) {
+			if (strlen(mp->m_name) == n &&
+			    memcmp(mp->m_name, cp, n) == 0)
+			    	break;
+		}
+		if (mp->m_name != NULL) {
+			mp->m_ptr = simple_strtoul(buf, NULL, 16);
+			printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
+		}
+		buf = symend + 1;
+	}
+
+	if (syms[1].m_ptr)
+		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
+	xkallsyms_addresses = syms[2].m_ptr;
+	xkallsyms_expand_symbol = syms[3].m_ptr;
+	xget_symbol_offset = syms[4].m_ptr;
+	xkallsyms_lookup_name = syms[5].m_ptr;
+
+	/***********************************************/
+	/*   Dump out the symtab for debugging.	       */
+	/***********************************************/
+# if 0
+	if (xkallsyms_num_syms > 0 && xkallsyms_addresses) {
+		int	i;
+		unsigned int off = 0;
+		for (i = 0; i < 10 && i < xkallsyms_num_syms; i++) {
+			unsigned long addr = xkallsyms_addresses[i];
+			char buf[512];
+			off = xkallsyms_expand_symbol(off, buf);
+			printk("%d: %p '%s'\n", i, addr, buf);
+			}
+	}
+# endif
+	if (xget_symbol_offset && xkallsyms_expand_symbol) {
+		int	i;
+		unsigned int off = 0;
+		for (i = 0; i < 10; i++) {
+			unsigned long addr = (*xget_symbol_offset)(i);
+			char buf[512];
+			off = xkallsyms_expand_symbol(addr, buf);
+			printk("%d: %p '%s'\n", i, addr, buf);
+			}
+	}
+
+	return orig_count;
 }
+
 static const struct file_operations fbt_fops = {
-        .read = fbt_read,
         .ioctl = fbt_ioctl,
         .open = fbt_open,
+        .read = fbt_read,
+        .write = fbt_write,
 };
 
 static struct miscdevice fbt_dev = {
@@ -804,7 +924,24 @@ static int __init fbt_init(void)
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
 	printk(KERN_WARNING "fbt loaded: /dev/fbt now available\n");
+/*{char buf[256];
+extern int kallsyms_lookup_name(char *);
+extern int kallsyms_lookup_size_offset(char *);
+extern int kallsyms_op;
+unsigned long p;
 
+//p = kallsyms_lookup_name("kallsyms_init");
+printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
+}
+*/
+	if (fbt_probetab_size == 0)
+		fbt_probetab_size = FBT_PROBETAB_SIZE;
+
+	fbt_probetab_mask = fbt_probetab_size - 1;
+	fbt_probetab =
+	    kmem_zalloc(fbt_probetab_size * sizeof (fbt_probe_t *), KM_SLEEP);
+
+	dtrace_invop_add(fbt_invop);
 	return 0;
 }
 static void __exit fbt_exit(void)

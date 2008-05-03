@@ -136,8 +136,6 @@ int kill_pid(struct pid *pid, int sig, int priv);
 //void	*new_unr(struct unrhdr *uh, void **p1, void **p2);
 void	*vmem_alloc(vmem_t *, size_t, int);
 void	*vmem_zalloc(vmem_t *, size_t, int);
-# define	bcopy(a, b, c) memcpy(b, a, c)
-# define	bzero(a, b) memset(a, 0, b)
 void	debug_enter(int);
 void	dtrace_vtime_disable(void);
 void	dtrace_vtime_enable(void);

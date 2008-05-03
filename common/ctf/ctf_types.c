@@ -7,10 +7,16 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)ctf_types.c	1.6	03/09/02 SMI"
+//#pragma ident	"@(#)ctf_types.c	1.6	03/09/02 SMI"
 
+# if defined(sun)
 #include <sys/sysmacros.h>
+# endif
 #include <ctf_impl.h>
+
+# if !defined(MAX)
+#	define MAX(a, b) ((a) > (b) ? (a) : (b))
+# endif
 
 ssize_t
 ctf_get_ctt_size(const ctf_file_t *fp, const ctf_type_t *tp, ssize_t *sizep,

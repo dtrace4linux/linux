@@ -22,7 +22,7 @@ fasttrap.o: $(fasttrap-objs)
 $(fasttrap-objs): $(M)/../../linux/linux_types.h
 
 clean:
-	rm -f *.o *.ko *.bak .*.d .*.cmd *.mod.c
+	rm -rf .tmp_versions *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers
 ins:
 	sync ; sync
 	setuid root insmod fasttrap.ko

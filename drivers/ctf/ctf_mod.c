@@ -7,48 +7,15 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)ctf_mod.c	1.1	03/09/02 SMI"
+//#pragma ident	"@(#)ctf_mod.c	1.1	03/09/02 SMI"
 
-#include <linux/types.h>
-#include <linux/errno.h>
+#include <dtrace_linux.h>
 #include <linux/time.h>
-#include <linux/kernel.h>
-#include <linux/kernel_stat.h>
+#include <linux/errno.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
-#include <linux/tty.h>
-#include <linux/string.h>
-#include <linux/mman.h>
 #include <linux/proc_fs.h>
-#include <linux/ioport.h>
-#include <linux/mm.h>
-#include <linux/mmzone.h>
-#include <linux/pagemap.h>
-#include <linux/swap.h>
-#include <linux/slab.h>
-#include <linux/smp.h>
-#include <linux/signal.h>
 #include <linux/module.h>
-#include <linux/init.h>
-#include <linux/smp_lock.h>
-#include <linux/seq_file.h>
-#include <linux/times.h>
-#include <linux/profile.h>
-#include <linux/utsname.h>
-#include <linux/blkdev.h>
-#include <linux/hugetlb.h>
-#include <linux/jiffies.h>
-#include <linux/sysrq.h>
-#include <linux/vmalloc.h>
-#include <linux/crash_dump.h>
-#include <linux/pid_namespace.h>
-#include <linux/delay.h>
-/*#include <sys/sysmacros.h>
-#include <sys/modctl.h>
-#include <sys/debug.h>
-#include <sys/mman.h>
-#include <sys/modctl.h>
-#include <sys/kobj.h>*/
 #include <ctf_impl.h>
 
 MODULE_AUTHOR("Paul Fox");
@@ -61,7 +28,7 @@ int ctf_leave_compressed = 0;
 void *
 ctf_zopen(int *errp)
 {
-	return ((void *)1); /* zmod is always loaded because we depend on it */
+        return ((void *)1); /* zmod is always loaded because we depend on it */
 }
 
 /*ARGSUSED*/
@@ -181,7 +148,7 @@ ctf_open(struct module *mp, int *error)
 # endif
 }
 static const struct file_operations ctf_fops = {
-        .read = ctf_read,
+        .write = ctf_write,
         .ioctl = ctf_ioctl,
         .open = ctf_open,
 };
@@ -194,7 +161,6 @@ static struct miscdevice ctf_dev = {
 static int __init ctf_init(void)
 {	int	ret;
 
-	create_proc_read_entry("ctf", 0, NULL, ctf_read_proc, NULL);
 	ret = misc_register(&ctf_dev);
 	if (ret) {
 		printk(KERN_WARNING "ctf: Unable to register misc device\n");

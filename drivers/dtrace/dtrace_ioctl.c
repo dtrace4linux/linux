@@ -11,6 +11,7 @@
 
 # define PRINT_CASE(x) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x)
 
+extern dtrace_provider_t *dtrace_provider;	/* provider list */
 static void		*dtrace_softstate;	/* softstate pointer */
 extern dtrace_probe_t	**dtrace_probes;	/* array of all probes */
 extern int		dtrace_nprobes;		/* number of probes */
@@ -20,6 +21,7 @@ extern kmutex_t		dtrace_provider_lock;	/* provider state lock */
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+int dtrace_state_go(dtrace_state_t *state, processorid_t *cpu);
 void	dtrace_probe_provide(dtrace_probedesc_t *desc);
 void	dtrace_probekey(const dtrace_probedesc_t *pdp, dtrace_probekey_t *pkp);
 void	dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp);
@@ -35,7 +37,7 @@ int
 dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 {
 	minor_t minor = getminor(dev);
-	dtrace_state_t *state;
+	dtrace_state_t *state = NULL;
 	int rval;
 
 # if 0
@@ -144,7 +146,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 
 		return (0);
 	}
-# if 0
+
 	case DTRACEIOC_PROVIDER: {
 		dtrace_providerdesc_t pvd;
 		dtrace_provider_t *pvp;
@@ -173,6 +175,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		return (0);
 	}
 
+# if 0
 	case DTRACEIOC_EPROBE: {
 		dtrace_eprobedesc_t epdesc;
 		dtrace_ecb_t *ecb;
@@ -454,9 +457,17 @@ PRINT_CASE(DTRACEIOC_CONF);
 
 		return (0);
 	}
+# endif
 
 	case DTRACEIOC_GO: {
 		processorid_t cpuid;
+
+		/***********************************************/
+		/*   Hack to avoid panicing kernel just yet.   */
+		/***********************************************/
+		if (state == NULL)
+			return EIO;
+
 		rval = dtrace_state_go(state, &cpuid);
 
 		if (rval != 0)
@@ -468,6 +479,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		return (0);
 	}
 
+# if 0
 	case DTRACEIOC_STOP: {
 		processorid_t cpuid;
 
@@ -632,6 +644,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		return (0);
 	}
 
+# endif
 	case DTRACEIOC_STATUS: {
 		dtrace_status_t stat;
 		dtrace_dstate_t *dstate;
@@ -744,7 +757,6 @@ PRINT_CASE(DTRACEIOC_CONF);
 		return (0);
 	}
 
-# endif
 	default:
 		PRINT_CASE(unknown_case_stmt_for_ioctl);
 		break;

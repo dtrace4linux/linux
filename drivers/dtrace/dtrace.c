@@ -153,7 +153,7 @@ static vmem_t		*dtrace_minor;		/* minor number arena */
 static taskq_t		*dtrace_taskq;		/* task queue */
 dtrace_probe_t	**dtrace_probes;	/* array of all probes */
 int		dtrace_nprobes;		/* number of probes */
-static dtrace_provider_t *dtrace_provider;	/* provider list */
+dtrace_provider_t *dtrace_provider;	/* provider list */
 static dtrace_meta_t	*dtrace_meta_pid;	/* user-land meta provider */
 static int		dtrace_opens;		/* number of opens */
 # if defined(sun)
@@ -445,6 +445,7 @@ dtrace_assfail(const char *a, const char *f, int l)
 	 */
 	return (a[(int)f]);
 }
+EXPORT_SYMBOL(dtrace_assfail);
 
 /*
  * Use the DTRACE_LOADFUNC macro to define functions for each of loading a
@@ -5398,6 +5399,7 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 
 	return (0);
 }
+EXPORT_SYMBOL(dtrace_register);
 
 /*
  * Unregister the specified provider from the DTrace framework.  This should
@@ -5727,6 +5729,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 
 	return (id);
 }
+EXPORT_SYMBOL(dtrace_probe_create);
 
 static dtrace_probe_t *
 dtrace_probe_lookup_id(dtrace_id_t id)
@@ -5867,6 +5870,9 @@ dtrace_probe_provide(dtrace_probedesc_t *desc)
 	mutex_exit(&mod_lock);
 # else
 	TODO();
+
+for (prv = dtrace_provider; prv != NULL; prv = prv->dtpv_next)
+printk("prov=%p\n", prv);
 # endif
 }
 
@@ -10259,7 +10265,7 @@ dtrace_state_prereserve(dtrace_state_t *state)
 	}
 }
 
-static int
+int
 dtrace_state_go(dtrace_state_t *state, processorid_t *cpu)
 {
 	dtrace_optval_t *opt = state->dts_options, sz, nspec;
@@ -10857,7 +10863,6 @@ dtrace_anon_modmatch(struct modctl *ctl)
 }
 # endif
 
-# if defined(sun)
 static dtrace_state_t *
 dtrace_anon_grab(void)
 {
@@ -10878,7 +10883,6 @@ dtrace_anon_grab(void)
 
 	return (state);
 }
-# endif
 
 # if defined(sun)
 static void

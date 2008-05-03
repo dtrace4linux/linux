@@ -2,6 +2,8 @@
 
 rel=`date +%Y%m%d`
 
+MAKEFLAGS += --no-print-directory
+
 # Use sudo if you want ...
 SUDO=setuid root
 
@@ -27,6 +29,8 @@ release:
 		--exclude=.*.cmd \
 		--exclude=*.mod.c \
 		--exclude=dtrace/dtrace \
+		--exclude=.tmp_versions \
+		--exclude=Module.symvers \
 		--exclude=*.ko \
 		--exclude=*.a \
 		--exclude=*.mod \

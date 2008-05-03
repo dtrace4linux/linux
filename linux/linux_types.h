@@ -10,6 +10,7 @@ struct modctl;
 # include	<linux/time.h>
 # include	<linux/module.h>
 
+# include	<sys/model.h>
 # include	<sys/processor.h>
 # include	<sys/systm.h>
 # include 	<sys/vmem.h>
@@ -132,7 +133,7 @@ typedef unsigned int mutex_t;
 	typedef int *greg_t;
 	typedef struct __dev_info *dev_info_t;
 	//typedef int 	processorid_t;
-	typedef int 	model_t;
+//	typedef int 	model_t;
 	typedef long	intptr_t;
 	typedef unsigned long long off64_t;
 	typedef void *taskq_t;
@@ -165,6 +166,9 @@ typedef unsigned int mutex_t;
 	/**********************************************************************/
 	void cmn_err(int ce, const char *fmt, ...);
 	void	*kmem_alloc(size_t, int);
+
+	# define	bcopy(a, b, c) memcpy(b, a, c)
+	# define	bzero(a, b) memset(a, 0, b)
 
 # endif /* __KERNEL__ */
 
@@ -206,6 +210,10 @@ typedef int	prgreg32_t;
 typedef struct iovec iovec_t;
 # define	ino64_t	ino_t
 # define	blkcnt64_t blkcnt_t
+
+# if !defined(ENOTSUP)
+# define ENOTSUP EOPNOTSUPP
+# endif
 
 /**********************************************************************/
 /*   Userland - non-kernel definitions.				      */
@@ -413,4 +421,22 @@ typedef struct meminfo32 {
         int32_t mi_info_count;  /* number of pieces of information requested */
 } meminfo32_t;
 
-# endif
+
+/*
+ * seg_rw gives the access type for a fault operation
+ */
+enum seg_rw {
+        S_OTHER,                /* unknown or not touched */
+        S_READ,                 /* read access attempted */
+        S_WRITE,                /* write access attempted */
+        S_EXEC,                 /* execution access attempted */
+        S_CREATE,               /* create if page doesn't exist */
+        S_READ_NOCOW            /* read access, don't do a copy on write */
+};
+
+#undef ASSERT
+#define	ASSERT(EX)	((void)((EX) || \
+			dtrace_assfail(#EX, __FILE__, __LINE__)))
+extern int dtrace_assfail(const char *, const char *, int);
+
+# endif /* LINE_TYPES_H */

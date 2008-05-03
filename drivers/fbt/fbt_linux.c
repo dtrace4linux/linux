@@ -18,6 +18,7 @@
 //#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
 
 #include "../dtrace/dtrace_linux.h"
+#include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <linux/cpumask.h>
 
@@ -31,6 +32,8 @@ MODULE_AUTHOR("Paul D. Fox");
 //MODULE_LICENSE("CDDL");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
+
+# define modctl module
 
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
@@ -155,21 +158,34 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 
 	return (0);
 }
+static int
+get_refcount(struct module *mp)
+{	int	sum = 0;
+	int	i;
+
+	for (i = 0; i < NR_CPUS; i++)
+		sum += local_read(&mp->ref[i].count);
+	return sum;
+}
 
 /*ARGSUSED*/
 static void
 fbt_provide_module(void *arg, struct modctl *ctl)
-{
+{	int	i;
+	struct module *mp = (struct module *) ctl;
+	char *modname = mp->name;
+	char	*str = mp->strtab;
+	char	*name;
+	int	 size;
+	fbt_probe_t *fbt, *retfbt;
+
 # if 0
 	struct module *mp = ctl->mod_mp;
 	char *str = mp->strings;
 	int nsyms = mp->nsyms;
 	Shdr *symhdr = mp->symhdr;
-	char *modname = ctl->mod_modname;
 	char *name;
-	fbt_probe_t *fbt, *retfbt;
 	size_t symsize;
-	int i, size;
 
 	/*
 	 * Employees of dtrace and their families are ineligible.  Void
@@ -213,10 +229,11 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		 */
 		return;
 	}
+# endif
 
-	for (i = 1; i < nsyms; i++) {
+	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
-		Sym *sym = (Sym *)(symhdr->sh_addr + i * symsize);
+		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
 
 		if (ELF_ST_TYPE(sym->st_info) != STT_FUNC)
 			continue;
@@ -242,7 +259,8 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 			continue;
 		}
 
-		if (strstr(name, "kdi_") == name) {
+		if (strstr(name, "kdi_") == name ||
+		    strstr(name, "kprobe") == name) {
 			/*
 			 * Anything beginning with "kdi_" is a part of the
 			 * kernel debugger interface and may be called in
@@ -330,7 +348,7 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		    name, FBT_ENTRY, 3, fbt);
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
-		fbt->fbtp_loadcnt = ctl->mod_loadcnt;
+		fbt->fbtp_loadcnt = get_refcount(mp);
 		fbt->fbtp_rval = DTRACE_INVOP_PUSHL_EBP;
 		fbt->fbtp_savedval = *instr;
 		fbt->fbtp_patchval = FBT_PATCHVAL;
@@ -339,7 +357,9 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		fbt->fbtp_symndx = i;
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
-		mp->fbt_nentries++;
+# if 0
+		mp1->fbt_nentries++;
+# endif
 
 		retfbt = NULL;
 again:
@@ -391,7 +411,7 @@ again:
 		retfbt = fbt;
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
-		fbt->fbtp_loadcnt = ctl->mod_loadcnt;
+		fbt->fbtp_loadcnt = get_refcount(mp);
 
 #ifndef __amd64
 		if (*instr == FBT_POPL_EBP) {
@@ -416,14 +436,14 @@ again:
 		fbt->fbtp_symndx = i;
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
+# if 0
 		mp->fbt_nentries++;
+# endif
 
 		instr += size;
 		goto again;
 	}
-# endif
 }
-# if 0
 
 /*ARGSUSED*/
 static void
@@ -431,14 +451,17 @@ fbt_destroy(void *arg, dtrace_id_t id, void *parg)
 {
 	fbt_probe_t *fbt = parg, *next, *hash, *last;
 	struct modctl *ctl = fbt->fbtp_ctl;
+	struct module *mp = ctl;
 	int ndx;
 
 	do {
-		if (ctl != NULL && ctl->mod_loadcnt == fbt->fbtp_loadcnt) {
-			if ((ctl->mod_loadcnt == fbt->fbtp_loadcnt &&
-			    ctl->mod_loaded)) {
+		if (mp != NULL && get_refcount(mp) == fbt->fbtp_loadcnt) {
+			if ((get_refcount(mp) == fbt->fbtp_loadcnt &&
+			    mp->state == MODULE_STATE_LIVE)) {
+# if 0
 				((struct module *)
 				    (ctl->mod_mp))->fbt_nentries--;
+# endif
 			}
 		}
 
@@ -474,14 +497,17 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	fbt_probe_t *fbt = parg;
 	struct modctl *ctl = fbt->fbtp_ctl;
+	struct module *mp = (struct module *) ctl;
 
+# if 0
 	ctl->mod_nenabled++;
+# endif
 
-	if (!ctl->mod_loaded) {
+	if (mp->state != MODULE_STATE_LIVE) {
 		if (fbt_verbose) {
 			cmn_err(CE_NOTE, "fbt is failing for probe %s "
 			    "(module %s unloaded)",
-			    fbt->fbtp_name, ctl->mod_modname);
+			    fbt->fbtp_name, mp->name);
 		}
 
 		return;
@@ -492,11 +518,11 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 	 * doesn't, this module must have been unloaded and reloaded -- and
 	 * we're not going to touch it.
 	 */
-	if (ctl->mod_loadcnt != fbt->fbtp_loadcnt) {
+	if (get_refcount(mp) != fbt->fbtp_loadcnt) {
 		if (fbt_verbose) {
 			cmn_err(CE_NOTE, "fbt is failing for probe %s "
 			    "(module %s reloaded)",
-			    fbt->fbtp_name, ctl->mod_modname);
+			    fbt->fbtp_name, mp->name);
 		}
 
 		return;
@@ -512,12 +538,19 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 {
 	fbt_probe_t *fbt = parg;
 	struct modctl *ctl = fbt->fbtp_ctl;
+	struct module *mp = (struct module *) ctl;
 
+# if 0
 	ASSERT(ctl->mod_nenabled > 0);
 	ctl->mod_nenabled--;
 
 	if (!ctl->mod_loaded || (ctl->mod_loadcnt != fbt->fbtp_loadcnt))
 		return;
+# else
+	if (mp->state != MODULE_STATE_LIVE ||
+	    get_refcount(mp) != fbt->fbtp_loadcnt)
+		return;
+# endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next)
 		*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
@@ -529,11 +562,18 @@ fbt_suspend(void *arg, dtrace_id_t id, void *parg)
 {
 	fbt_probe_t *fbt = parg;
 	struct modctl *ctl = fbt->fbtp_ctl;
+	struct module *mp = (struct module *) ctl;
 
+# if 0
 	ASSERT(ctl->mod_nenabled > 0);
 
 	if (!ctl->mod_loaded || (ctl->mod_loadcnt != fbt->fbtp_loadcnt))
 		return;
+# else
+	if (mp->state != MODULE_STATE_LIVE ||
+	    get_refcount(mp) != fbt->fbtp_loadcnt)
+		return;
+# endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next)
 		*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
@@ -545,11 +585,18 @@ fbt_resume(void *arg, dtrace_id_t id, void *parg)
 {
 	fbt_probe_t *fbt = parg;
 	struct modctl *ctl = fbt->fbtp_ctl;
+	struct module *mp = (struct module *) ctl;
 
+# if 0
 	ASSERT(ctl->mod_nenabled > 0);
 
 	if (!ctl->mod_loaded || (ctl->mod_loadcnt != fbt->fbtp_loadcnt))
 		return;
+# else
+	if (mp->state != MODULE_STATE_LIVE ||
+	    get_refcount(mp) != fbt->fbtp_loadcnt)
+		return;
+# endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next)
 		*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
@@ -561,7 +608,7 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 {
 	fbt_probe_t *fbt = parg;
 	struct modctl *ctl = fbt->fbtp_ctl;
-	struct module *mp = ctl->mod_mp;
+	struct module *mp = (struct module *) ctl;
 	ctf_file_t *fp = NULL, *pfp;
 	ctf_funcinfo_t f;
 	int error;
@@ -569,8 +616,9 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 	int argc = sizeof (argv) / sizeof (ctf_id_t);
 	const char *parent;
 
-	if (!ctl->mod_loaded || (ctl->mod_loadcnt != fbt->fbtp_loadcnt))
-		goto err;
+	if (mp->state != MODULE_STATE_LIVE ||
+	    get_refcount(mp) != fbt->fbtp_loadcnt)
+		return;
 
 	if (fbt->fbtp_roffset != 0 && desc->dtargd_ndx == 0) {
 		(void) strcpy(desc->dtargd_native, "int");
@@ -589,6 +637,8 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 	 * If we have a parent container, we must manually import it.
 	 */
 	if ((parent = ctf_parent_name(fp)) != NULL) {
+		TODO();
+# if 0
 		struct modctl *mod;
 
 		/*
@@ -612,6 +662,7 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 		}
 
 		ctf_close(pfp);
+# endif
 	}
 
 	if (ctf_func_info(fp, fbt->fbtp_symndx, &f) == CTF_ERR)
@@ -665,17 +716,17 @@ static dtrace_pops_t fbt_pops = {
 	NULL,
 	fbt_destroy
 };
-
 static void
 fbt_cleanup(dev_info_t *devi)
 {
 	dtrace_invop_remove(fbt_invop);
-	ddi_remove_minor_node(devi, NULL);
+//	ddi_remove_minor_node(devi, NULL);
 	kmem_free(fbt_probetab, fbt_probetab_size * sizeof (fbt_probe_t *));
 	fbt_probetab = NULL;
 	fbt_probetab_mask = 0;
 }
 
+# if 0
 static int
 fbt_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 {
@@ -787,7 +838,7 @@ static struct dev_ops fbt_ops = {
 	fbt_detach,		/* detach */
 	nodev,			/* reset */
 	&fbt_cb_ops,		/* driver operations */
-	NULL,			/* bus operations */
+  	NULL,			/* bus operations */
 	nodev			/* dev power */
 };
 # endif
@@ -942,10 +993,16 @@ printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
 	    kmem_zalloc(fbt_probetab_size * sizeof (fbt_probe_t *), KM_SLEEP);
 
 	dtrace_invop_add(fbt_invop);
+	
+	dtrace_register("fbt", &fbt_attr, DTRACE_PRIV_KERNEL, 0,
+	    &fbt_pops, NULL, &fbt_id);
+
 	return 0;
 }
 static void __exit fbt_exit(void)
 {
+	fbt_cleanup(NULL);
+
 	printk(KERN_WARNING "fbt driver unloaded.\n");
 	misc_deregister(&fbt_dev);
 }

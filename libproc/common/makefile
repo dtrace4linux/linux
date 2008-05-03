@@ -51,3 +51,6 @@ $(LIB): \
 
 #	$(LIB)(P32ton.o) \
 
+
+clean:
+	

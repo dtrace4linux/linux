@@ -4,7 +4,9 @@
 
 fbt-objs := \
 	dtrace_subr.o \
-	fbt_linux.o
+	fbt_linux.o \
+	dis_tables.o \
+	instr_size.o
 
 obj-m += fbt.o
 
@@ -23,7 +25,7 @@ fbt.o: $(fbt-objs)
 $(fbt-objs): $(M)/../../linux/linux_types.h
 
 clean:
-	rm -f *.o *.ko *.bak .*.d .*.cmd *.mod.c
+	rm -rf .tmp_versions *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers
 ins:
 	sync ; sync
 	-setuid root rmmod fbt

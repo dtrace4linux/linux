@@ -1,25 +1,55 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_CTF_IMPL_H
 #define	_CTF_IMPL_H
 
-#pragma ident	"@(#)ctf_impl.h	1.5	03/09/02 SMI"
+//#pragma ident	"@(#)ctf_impl.h	1.9	06/01/07 SMI"
 
+#include <linux_types.h>
 #include <sys/types.h>
+# if __KERNEL
+# include <linux/zlib.h>
+# else
 #include <sys/errno.h>
+# endif
+# if defined(sun)
+#include <sys/errno.h>
+#include <sys/sysmacros.h>
+# endif
 #include <sys/ctf_api.h>
 
 #ifdef _KERNEL
 
 #include <sys/systm.h>
 #include <sys/cmn_err.h>
+# if defined(sun)
+#include <sys/varargs.h>
+# endif
 
 #define	isspace(c) \
 	((c) == ' ' || (c) == '\t' || (c) == '\n' || \
@@ -31,6 +61,7 @@
 
 #include <strings.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <limits.h>
 #include <ctype.h>
@@ -87,6 +118,33 @@ typedef struct ctf_list {
 	struct ctf_list *l_next; /* next pointer or head pointer */
 } ctf_list_t;
 
+typedef enum {
+	CTF_PREC_BASE,
+	CTF_PREC_POINTER,
+	CTF_PREC_ARRAY,
+	CTF_PREC_FUNCTION,
+	CTF_PREC_MAX
+} ctf_decl_prec_t;
+
+typedef struct ctf_decl_node {
+	ctf_list_t cd_list;			/* linked list pointers */
+	ctf_id_t cd_type;			/* type identifier */
+	uint_t cd_kind;				/* type kind */
+	uint_t cd_n;				/* type dimension if array */
+} ctf_decl_node_t;
+
+typedef struct ctf_decl {
+	ctf_list_t cd_nodes[CTF_PREC_MAX];	/* declaration node stacks */
+	int cd_order[CTF_PREC_MAX];		/* storage order of decls */
+	ctf_decl_prec_t cd_qualp;		/* qualifier precision */
+	ctf_decl_prec_t cd_ordp;		/* ordered precision */
+	char *cd_buf;				/* buffer for output */
+	char *cd_ptr;				/* buffer location */
+	char *cd_end;				/* buffer limit */
+	size_t cd_len;				/* buffer space required */
+	int cd_err;				/* saved error value */
+} ctf_decl_t;
+
 typedef struct ctf_dmdef {
 	ctf_list_t dmd_list;	/* list forward/back pointers */
 	char *dmd_name;		/* name of this member */
@@ -97,6 +155,7 @@ typedef struct ctf_dmdef {
 
 typedef struct ctf_dtdef {
 	ctf_list_t dtd_list;	/* list forward/back pointers */
+	struct ctf_dtdef *dtd_hash; /* hash chain pointer for ctf_dthash */
 	char *dtd_name;		/* name associated with definition (if any) */
 	ctf_id_t dtd_type;	/* type identifier for this definition */
 	ctf_type_t dtd_data;	/* type node (see <sys/ctf.h>) */
@@ -153,10 +212,13 @@ struct ctf_file {
 	uint_t ctf_flags;	/* libctf flags (see below) */
 	int ctf_errno;		/* error code for most recent error */
 	int ctf_version;	/* CTF data version */
+	ctf_dtdef_t **ctf_dthash; /* hash of dynamic type definitions */
+	ulong_t ctf_dthashlen;	/* size of dynamic type hash bucket array */
 	ctf_list_t ctf_dtdefs;	/* list of dynamic type definitions */
 	size_t ctf_dtstrlen;	/* total length of dynamic type strings */
 	ulong_t ctf_dtnextid;	/* next dynamic type id to assign */
 	ulong_t ctf_dtoldid;	/* oldest id that has been committed */
+	void *ctf_specific;	/* data for ctf_get/setspecific */
 };
 
 #define	LCTF_INDEX_TO_TYPEPTR(fp, i) \
@@ -227,6 +289,7 @@ extern const ctf_type_t *ctf_lookup_by_id(ctf_file_t **, ctf_id_t);
 
 extern int ctf_hash_create(ctf_hash_t *, ulong_t);
 extern int ctf_hash_insert(ctf_hash_t *, ctf_file_t *, ushort_t, uint_t);
+extern int ctf_hash_define(ctf_hash_t *, ctf_file_t *, ushort_t, uint_t);
 extern ctf_helem_t *ctf_hash_lookup(ctf_hash_t *, ctf_file_t *,
     const char *, size_t);
 extern uint_t ctf_hash_size(const ctf_hash_t *);
@@ -236,7 +299,17 @@ extern void ctf_hash_destroy(ctf_hash_t *);
 #define	ctf_list_next(elem)	((void *)(((ctf_list_t *)(elem))->l_next))
 
 extern void ctf_list_append(ctf_list_t *, void *);
+extern void ctf_list_prepend(ctf_list_t *, void *);
 extern void ctf_list_delete(ctf_list_t *, void *);
+
+extern void ctf_dtd_insert(ctf_file_t *, ctf_dtdef_t *);
+extern void ctf_dtd_delete(ctf_file_t *, ctf_dtdef_t *);
+extern ctf_dtdef_t *ctf_dtd_lookup(ctf_file_t *, ctf_id_t);
+
+extern void ctf_decl_init(ctf_decl_t *, char *, size_t);
+extern void ctf_decl_fini(ctf_decl_t *);
+extern void ctf_decl_push(ctf_decl_t *, ctf_file_t *, ctf_id_t);
+extern void ctf_decl_sprintf(ctf_decl_t *, const char *, ...);
 
 extern const char *ctf_strraw(ctf_file_t *, uint_t);
 extern const char *ctf_strptr(ctf_file_t *, uint_t);

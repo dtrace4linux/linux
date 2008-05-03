@@ -3,6 +3,7 @@
 # Dont run this directly - use the make-me script
 
 dtracedrv-objs := \
+	cyclic.o \
 	dtrace.o \
 	dtrace_asm.o \
 	dtrace_ioctl.o \
@@ -26,7 +27,7 @@ dtracedrv.o: $(dtracedrv-objs)
 $(dtracedrv-objs): dtrace_linux.h $(M)/../../linux/linux_types.h
 
 clean:
-	rm -f *.o *.ko *.bak .*.d .*.cmd *.mod.c
+	rm -rf .tmp_versions *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers
 ins:
 	sync ; sync
 	setuid root insmod dtracedrv.ko

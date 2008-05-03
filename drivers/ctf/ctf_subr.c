@@ -1,17 +1,36 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)ctf_subr.c	1.2	04/05/22 SMI"
+//#pragma ident	"@(#)ctf_subr.c	1.3	05/06/08 SMI"
 
 #include <ctf_impl.h>
+# if defined(sun)
 #include <sys/kobj.h>
 #include <sys/kobj_impl.h>
+# endif
 
 /*
  * This module is used both during the normal operation of the kernel (i.e.
@@ -23,7 +42,7 @@
 void *
 ctf_data_alloc(size_t size)
 {
-	void *buf = kobj_alloc(size, KM_NOWAIT|KM_SCRATCH);
+	void *buf = kmalloc(size, GFP_KERNEL & ~__GFP_WAIT);
 
 	if (buf == NULL)
 		return (MAP_FAILED);
@@ -34,7 +53,7 @@ ctf_data_alloc(size_t size)
 void
 ctf_data_free(void *buf, size_t size)
 {
-	kobj_free(buf, size);
+	kfree(buf);
 }
 
 /*ARGSUSED*/
@@ -47,14 +66,14 @@ ctf_data_protect(void *buf, size_t size)
 void *
 ctf_alloc(size_t size)
 {
-	return (kobj_alloc(size, KM_NOWAIT|KM_TMP));
+	return kmalloc(size, GFP_KERNEL & ~__GFP_WAIT);
 }
 
 /*ARGSUSED*/
 void
 ctf_free(void *buf, size_t size)
 {
-	kobj_free(buf, size);
+	kfree(buf);
 }
 
 /*ARGSUSED*/
@@ -72,8 +91,8 @@ ctf_dprintf(const char *format, ...)
 		va_list alist;
 
 		va_start(alist, format);
-		(void) printf("ctf DEBUG: ");
-		(void) vprintf(format, alist);
+		(void) printk("ctf DEBUG: ");
+		(void) vprintk(format, alist);
 		va_end(alist);
 	}
 }

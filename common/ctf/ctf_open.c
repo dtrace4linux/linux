@@ -7,11 +7,13 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)ctf_open.c	1.7	04/03/20 SMI"
+//#pragma ident	"@(#)ctf_open.c	1.7	04/03/20 SMI"
 
 #include <ctf_impl.h>
+# if !__KERNEL__
 #include <sys/mman.h>
 #include <sys/zmod.h>
+# endif
 
 static const ctf_dmodel_t _libctf_models[] = {
 	{ "ILP32", CTF_MODEL_ILP32, 4, 1, 2, 4, 4 },
@@ -24,6 +26,12 @@ const char _CTF_NULLSTR[] = "";
 
 int _libctf_version = CTF_VERSION;	/* library client version */
 int _libctf_debug = 0;			/* debugging messages enabled */
+
+# define 	z_uncompress ctf_uncompress
+# define	z_strerror ctf_zstrerror
+
+int ctf_uncompress (char *dest, int *destLen, char *source, int sourceLen);
+char	*ctf_zstrerror();
 
 static ushort_t
 get_kind_v1(ushort_t info)

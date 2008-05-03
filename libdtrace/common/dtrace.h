@@ -10,7 +10,7 @@
 #ifndef	_DTRACE_H
 #define	_DTRACE_H
 
-#pragma ident	"@(#)dtrace.h	1.9	04/12/18 SMI"
+//#pragma ident	"@(#)dtrace.h	1.9	04/12/18 SMI"
 
 #include <sys/dtrace.h>
 #include <stdarg.h>

@@ -139,7 +139,11 @@ typedef int ctf_label_f(const char *, const ctf_lblinfo_t *, void *);
 extern ctf_file_t *ctf_bufopen(const ctf_sect_t *, const ctf_sect_t *,
     const ctf_sect_t *, int *);
 extern ctf_file_t *ctf_fdopen(int, int *);
+# if __KERNEL__
+extern int ctf_open(struct module *, int *);
+# else
 extern ctf_file_t *ctf_open(const char *, int *);
+# endif
 extern ctf_file_t *ctf_create(int *);
 extern void ctf_close(ctf_file_t *);
 

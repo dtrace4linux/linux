@@ -7,9 +7,11 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)ctf_lookup.c	1.3	03/09/02 SMI"
+//#pragma ident	"@(#)ctf_lookup.c	1.3	03/09/02 SMI"
 
+# if defined(sun)
 #include <sys/sysmacros.h>
+# endif
 #include <ctf_impl.h>
 
 /*

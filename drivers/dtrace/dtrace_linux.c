@@ -26,8 +26,10 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 
 uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
+cpu_t	*cpu_list;
 cpu_core_t cpu_core[CONFIG_NR_CPUS];
 cpu_t cpu_table[NCPU];
+EXPORT_SYMBOL(cpu_list);
 EXPORT_SYMBOL(cpu_core);
 EXPORT_SYMBOL(cpu_table);
 DEFINE_MUTEX(mod_lock);

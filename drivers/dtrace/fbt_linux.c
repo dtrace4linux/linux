@@ -17,7 +17,7 @@
 
 //#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
 
-#include "../dtrace/dtrace_linux.h"
+#include <dtrace_linux.h>
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <linux/cpumask.h>
@@ -27,6 +27,7 @@
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
 #include <linux/module.h>
+#include <linux/list.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 //MODULE_LICENSE("CDDL");
@@ -48,6 +49,7 @@ static struct map {
 	{"kallsyms_expand_symbol", NULL},
 	{"get_symbol_offset", NULL},
 	{"kallsyms_lookup_name", NULL},
+	{"modules", NULL},
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -56,6 +58,7 @@ static void *xkallsyms_op;
 static unsigned int (*xkallsyms_expand_symbol)(int, char *);
 static unsigned int (*xget_symbol_offset)(int);
 static unsigned long (*xkallsyms_lookup_name)(char *);
+static void *xmodules;
 
 #define	FBT_PUSHL_EBP		0x55
 #define	FBT_MOVL_ESP_EBP0_V0	0x8b
@@ -168,6 +171,21 @@ get_refcount(struct module *mp)
 	return sum;
 }
 
+struct module *
+get_module(int n)
+{	struct module *modp;
+	struct list_head *head = (struct list_head *) xmodules;
+
+printk("get_module(%d) head=%p\n", n, head);
+	if (head == NULL)
+		return NULL;
+
+	list_for_each_entry(modp, head, list) {
+		if (n-- == 0)
+			return modp;
+	}
+	return NULL;
+}
 /*ARGSUSED*/
 static void
 fbt_provide_module(void *arg, struct modctl *ctl)
@@ -625,6 +643,7 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 		return;
 	}
 
+# if 0
 	if ((fp = ctf_modopen(mp, &error)) == NULL) {
 		/*
 		 * We have no CTF information for this module -- and therefore
@@ -632,13 +651,18 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 		 */
 		goto err;
 	}
+# endif
+
+	TODO();
+	if (fp == NULL)
+		goto err;
+# if 0
 
 	/*
 	 * If we have a parent container, we must manually import it.
 	 */
 	if ((parent = ctf_parent_name(fp)) != NULL) {
 		TODO();
-# if 0
 		struct modctl *mod;
 
 		/*
@@ -662,8 +686,8 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 		}
 
 		ctf_close(pfp);
-# endif
 	}
+# endif
 
 	if (ctf_func_info(fp, fbt->fbtp_symndx, &f) == CTF_ERR)
 		goto err;
@@ -720,6 +744,9 @@ static void
 fbt_cleanup(dev_info_t *devi)
 {
 	dtrace_invop_remove(fbt_invop);
+	if (fbt_id)
+		dtrace_unregister(fbt_id);
+
 //	ddi_remove_minor_node(devi, NULL);
 	kmem_free(fbt_probetab, fbt_probetab_size * sizeof (fbt_probe_t *));
 	fbt_probetab = NULL;
@@ -916,10 +943,11 @@ fbt_write(struct file *file, const char __user *buf,
 
 	if (syms[1].m_ptr)
 		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
-	xkallsyms_addresses = syms[2].m_ptr;
+	xkallsyms_addresses 	= syms[2].m_ptr;
 	xkallsyms_expand_symbol = syms[3].m_ptr;
-	xget_symbol_offset = syms[4].m_ptr;
-	xkallsyms_lookup_name = syms[5].m_ptr;
+	xget_symbol_offset 	= syms[4].m_ptr;
+	xkallsyms_lookup_name 	= syms[5].m_ptr;
+	xmodules 		= syms[6].m_ptr;
 
 	/***********************************************/
 	/*   Dump out the symtab for debugging.	       */
@@ -939,7 +967,7 @@ fbt_write(struct file *file, const char __user *buf,
 	if (xget_symbol_offset && xkallsyms_expand_symbol) {
 		int	i;
 		unsigned int off = 0;
-		for (i = 0; i < 10; i++) {
+		for (i = 0; i < 2; i++) {
 			unsigned long addr = (*xget_symbol_offset)(i);
 			char buf[512];
 			off = xkallsyms_expand_symbol(addr, buf);
@@ -962,7 +990,7 @@ static struct miscdevice fbt_dev = {
         "fbt",
         &fbt_fops
 };
-static int __init fbt_init(void)
+int fbt_init(void)
 {	int	ret;
 
 	ret = misc_register(&fbt_dev);
@@ -999,12 +1027,10 @@ printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
 
 	return 0;
 }
-static void __exit fbt_exit(void)
+void fbt_exit(void)
 {
 	fbt_cleanup(NULL);
 
 	printk(KERN_WARNING "fbt driver unloaded.\n");
 	misc_deregister(&fbt_dev);
 }
-module_init(fbt_init);
-module_exit(fbt_exit);

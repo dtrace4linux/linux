@@ -39,12 +39,22 @@ DEFINE_MUTEX(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
 
+dtrace_vtime_state_t dtrace_vtime_active = 0;
+
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+# define	cas32 dtrace_cas32
+uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
 void dtrace_probe_provide(dtrace_probedesc_t *desc);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
 int dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
+int	ctf_init(void);
+void	ctf_exit(void);
+int	fasttrap_init(void);
+void	fasttrap_exit(void);
+int	fbt_init(void);
+void	fbt_exit(void);
 
 cred_t *
 CRED()
@@ -116,6 +126,60 @@ void
 dtrace_sync(void)
 {
         dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
+}
+
+void
+dtrace_vtime_enable(void)
+{
+	dtrace_vtime_state_t state, nstate;
+
+	do {
+		state = dtrace_vtime_active;
+
+		switch (state) {
+		case DTRACE_VTIME_INACTIVE:
+			nstate = DTRACE_VTIME_ACTIVE;
+			break;
+
+		case DTRACE_VTIME_INACTIVE_TNF:
+			nstate = DTRACE_VTIME_ACTIVE_TNF;
+			break;
+
+		case DTRACE_VTIME_ACTIVE:
+		case DTRACE_VTIME_ACTIVE_TNF:
+			panic("DTrace virtual time already enabled");
+			/*NOTREACHED*/
+		}
+
+	} while	(cas32((uint32_t *)&dtrace_vtime_active,
+	    state, nstate) != state);
+}
+
+void
+dtrace_vtime_disable(void)
+{
+	dtrace_vtime_state_t state, nstate;
+
+	do {
+		state = dtrace_vtime_active;
+
+		switch (state) {
+		case DTRACE_VTIME_ACTIVE:
+			nstate = DTRACE_VTIME_INACTIVE;
+			break;
+
+		case DTRACE_VTIME_ACTIVE_TNF:
+			nstate = DTRACE_VTIME_INACTIVE_TNF;
+			break;
+
+		case DTRACE_VTIME_INACTIVE:
+		case DTRACE_VTIME_INACTIVE_TNF:
+			panic("DTrace virtual time already disabled");
+			/*NOTREACHED*/
+		}
+
+	} while	(cas32((uint32_t *)&dtrace_vtime_active,
+	    state, nstate) != state);
 }
 static int
 dtrace_xcall_func(dtrace_xcall_t func, void *arg)
@@ -284,10 +348,17 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
 
+	ctf_init();
+	fasttrap_init();
+	fbt_init();
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
 {
+	ctf_exit();
+	fasttrap_exit();
+	fbt_exit();
+
 	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
 	remove_proc_entry("dtrace/dtrace", 0);
 	remove_proc_entry("dtrace/helper", 0);

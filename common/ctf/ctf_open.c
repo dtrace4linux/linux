@@ -858,6 +858,7 @@ ctf_close(ctf_file_t *fp)
 
 	ctf_free(fp, sizeof (ctf_file_t));
 }
+EXPORT_SYMBOL(ctf_close);
 
 /*
  * Return the CTF handle for the parent CTF container, if one exists.
@@ -878,6 +879,7 @@ ctf_parent_name(ctf_file_t *fp)
 {
 	return (fp->ctf_parname);
 }
+EXPORT_SYMBOL(ctf_parent_name);
 
 /*
  * Import the types from the specified parent container by storing a pointer

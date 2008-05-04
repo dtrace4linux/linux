@@ -1,3 +1,12 @@
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only.
+ * See the file usr/src/LICENSING.NOTICE in this distribution or
+ * http://www.opensolaris.org/license/ for details.
+ */
+
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
@@ -79,6 +88,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		uint32_t priv;
 		uid_t uid;
 
+PRINT_CASE(DTRACEIOC_PROBES);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 
@@ -126,6 +136,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 			}
 
 		} else {
+printk("nprobes=%d\n", dtrace_nprobes);
 			for (i = desc.dtpd_id; i <= dtrace_nprobes; i++) {
 				if ((probe = dtrace_probes[i - 1]) != NULL &&
 				    dtrace_match_priv(probe, priv, uid))

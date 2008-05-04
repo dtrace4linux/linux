@@ -7,328 +7,371 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-# ident	"@(#)dtrace_subr.c	1.3	04/07/19 SMI"
+//#pragma ident	"@(#)dtrace_subr.c	1.9	04/11/19 SMI"
 
-#include "dtrace_linux.h"
+#include <dtrace_linux.h>
 #include <sys/dtrace.h>
-#include <sys/cmn_err.h>
+#include <sys/fasttrap.h>
+
 # if defined(sun)
-#include <sys/tnf.h>
-#include <sys/atomic.h>
-#include <sys/prsystm.h>
-#include <sys/modctl.h>
-#include <sys/aio_impl.h>
-
-#ifdef __sparc
+#include <sys/x_call.h>
+#include <sys/cmn_err.h>
+#include <sys/trap.h>
+#include <sys/psw.h>
 #include <sys/privregs.h>
-#endif
+#include <sys/machsystm.h>
+#include <vm/seg_kmem.h>
 # endif
 
-# define	cas32 dtrace_cas32
+# define ASSERT(x) {if (!(x)) panic("%s(%d): dtrace assertion failed", __FILE__, __LINE__);}
 
-uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
+typedef struct dtrace_invop_hdlr {
+	int (*dtih_func)(uintptr_t, uintptr_t *, uintptr_t);
+	struct dtrace_invop_hdlr *dtih_next;
+} dtrace_invop_hdlr_t;
 
-# if 0
-void (*dtrace_cpu_init)(processorid_t);
-void (*dtrace_modload)(struct modctl *);
-void (*dtrace_modunload)(struct modctl *);
-void (*dtrace_helpers_cleanup)(void);
-void (*dtrace_helpers_fork)(proc_t *, proc_t *);
-void (*dtrace_cpustart_init)(void);
-void (*dtrace_cpustart_fini)(void);
+dtrace_invop_hdlr_t *dtrace_invop_hdlr;
 
-void (*dtrace_debugger_init)(void);
-void (*dtrace_debugger_fini)(void);
-# endif
-
-int dtrace_debugger_active = 0;
-int dtrace_debugger_override = 0;
-
-dtrace_vtime_state_t dtrace_vtime_active = 0;
-
-# if 0
-dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
-
-typedef struct dtrace_hrestime {
-	lock_t		dthr_lock;		/* lock for this element */
-	timestruc_t	dthr_hrestime;		/* hrestime value */
-	int64_t		dthr_adj;		/* hrestime_adj value */
-	hrtime_t	dthr_hrtime;		/* hrtime value */
-} dtrace_hrestime_t;
-
-static dtrace_hrestime_t dtrace_hrestime[2];
-
-/*
- * Making available adjustable high-resolution time in DTrace is regrettably
- * more complicated than one might think it should be.  The problem is that
- * the variables related to adjusted high-resolution time (hrestime,
- * hrestime_adj and friends) are adjusted under hres_lock -- and this lock may
- * be held when we enter probe context.  One might think that we could address
- * this by having a single snapshot copy that is stored under a different lock
- * from hres_tick(), using the snapshot iff hres_lock is locked in probe
- * context.  Unfortunately, this too won't work:  because hres_lock is grabbed
- * in more than just hres_tick() context, we could enter probe context
- * concurrently on two different CPUs with both locks (hres_lock and the
- * snapshot lock) held.  As this implies, the fundamental problem is that we
- * need to have access to a snapshot of these variables that we _know_ will
- * not be locked in probe context.  To effect this, we have two snapshots
- * protected by two different locks, and we mandate that these snapshots are
- * recorded in succession by a single thread calling dtrace_hres_tick().  (We
- * assure this by calling it out of the same CY_HIGH_LEVEL cyclic that calls
- * hres_tick().)  A single thread can't be in two places at once:  one of the
- * snapshot locks is guaranteed to be unheld at all times.  The
- * dtrace_gethrestime() algorithm is thus to check first one snapshot and then
- * the other to find the unlocked snapshot.
- */
-void
-dtrace_hres_tick(void)
+int
+dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax)
 {
-	int i;
-	ushort_t spl;
+	dtrace_invop_hdlr_t *hdlr;
+	int rval;
 
-	for (i = 0; i < 2; i++) {
-		dtrace_hrestime_t tmp;
-
-		spl = hr_clock_lock();
-		tmp.dthr_hrestime = hrestime;
-		tmp.dthr_adj = hrestime_adj;
-		tmp.dthr_hrtime = dtrace_gethrtime();
-		hr_clock_unlock(spl);
-
-		lock_set(&dtrace_hrestime[i].dthr_lock);
-		dtrace_hrestime[i].dthr_hrestime = tmp.dthr_hrestime;
-		dtrace_hrestime[i].dthr_adj = tmp.dthr_adj;
-		dtrace_hrestime[i].dthr_hrtime = tmp.dthr_hrtime;
-		dtrace_membar_producer();
-
-		/*
-		 * To allow for lock-free examination of this lock, we use
-		 * the same trick that is used hres_lock; for more details,
-		 * see the description of this technique in sun4u/sys/clock.h.
-		 */
-		dtrace_hrestime[i].dthr_lock++;
+	for (hdlr = dtrace_invop_hdlr; hdlr != NULL; hdlr = hdlr->dtih_next) {
+		if ((rval = hdlr->dtih_func(addr, stack, eax)) != 0)
+			return (rval);
 	}
+
+	return (0);
 }
 
-hrtime_t
-dtrace_gethrestime(void)
+void
+dtrace_invop_add(int (*func)(uintptr_t, uintptr_t *, uintptr_t))
 {
-	dtrace_hrestime_t snap;
-	hrtime_t now;
-	int i = 0, adj, nslt;
+	dtrace_invop_hdlr_t *hdlr;
+
+	hdlr = kmem_alloc(sizeof (dtrace_invop_hdlr_t), KM_SLEEP);
+	hdlr->dtih_func = func;
+	hdlr->dtih_next = dtrace_invop_hdlr;
+	dtrace_invop_hdlr = hdlr;
+}
+
+void
+dtrace_invop_remove(int (*func)(uintptr_t, uintptr_t *, uintptr_t))
+{
+	dtrace_invop_hdlr_t *hdlr = dtrace_invop_hdlr, *prev = NULL;
 
 	for (;;) {
-		snap.dthr_lock = dtrace_hrestime[i].dthr_lock;
-		dtrace_membar_consumer();
-		snap.dthr_hrestime = dtrace_hrestime[i].dthr_hrestime;
-		snap.dthr_hrtime = dtrace_hrestime[i].dthr_hrtime;
-		snap.dthr_adj = dtrace_hrestime[i].dthr_adj;
-		dtrace_membar_consumer();
+		if (hdlr == NULL)
+			panic("attempt to remove non-existent invop handler");
 
-		if ((snap.dthr_lock & ~1) == dtrace_hrestime[i].dthr_lock)
+		if (hdlr->dtih_func == func)
 			break;
 
-		/*
-		 * If we're here, the lock was either locked, or it
-		 * transitioned while we were taking the snapshot.  Either
-		 * way, we're going to try the other dtrace_hrestime element;
-		 * we know that it isn't possible for both to be locked
-		 * simultaneously, so we will ultimately get a good snapshot.
-		 */
-		i ^= 1;
+		prev = hdlr;
+		hdlr = hdlr->dtih_next;
 	}
 
-	/*
-	 * We have a good snapshot.  Now perform any necessary adjustments.
-	 */
-	nslt = dtrace_gethrtime() - snap.dthr_hrtime;
-	ASSERT(nslt >= 0);
-
-	now = ((hrtime_t)snap.dthr_hrestime.tv_sec * (hrtime_t)NANOSEC) +
-	    snap.dthr_hrestime.tv_nsec;
-
-	if (snap.dthr_adj != 0) {
-		if (snap.dthr_adj > 0) {
-			adj = (nslt >> adj_shift);
-			if (adj > snap.dthr_adj)
-				adj = (int)snap.dthr_adj;
-		} else {
-			adj = -(nslt >> adj_shift);
-			if (adj < snap.dthr_adj)
-				adj = (int)snap.dthr_adj;
-		}
-		now += adj;
+	if (prev == NULL) {
+		ASSERT(dtrace_invop_hdlr == hdlr);
+		dtrace_invop_hdlr = hdlr->dtih_next;
+	} else {
+		ASSERT(dtrace_invop_hdlr != hdlr);
+		prev->dtih_next = hdlr->dtih_next;
 	}
 
-	return (now);
-}
-# endif
-
-void
-dtrace_vtime_enable(void)
-{
-	dtrace_vtime_state_t state, nstate;
-
-	do {
-		state = dtrace_vtime_active;
-
-		switch (state) {
-		case DTRACE_VTIME_INACTIVE:
-			nstate = DTRACE_VTIME_ACTIVE;
-			break;
-
-		case DTRACE_VTIME_INACTIVE_TNF:
-			nstate = DTRACE_VTIME_ACTIVE_TNF;
-			break;
-
-		case DTRACE_VTIME_ACTIVE:
-		case DTRACE_VTIME_ACTIVE_TNF:
-			panic("DTrace virtual time already enabled");
-			/*NOTREACHED*/
-		}
-
-	} while	(cas32((uint32_t *)&dtrace_vtime_active,
-	    state, nstate) != state);
-}
-
-void
-dtrace_vtime_disable(void)
-{
-	dtrace_vtime_state_t state, nstate;
-
-	do {
-		state = dtrace_vtime_active;
-
-		switch (state) {
-		case DTRACE_VTIME_ACTIVE:
-			nstate = DTRACE_VTIME_INACTIVE;
-			break;
-
-		case DTRACE_VTIME_ACTIVE_TNF:
-			nstate = DTRACE_VTIME_INACTIVE_TNF;
-			break;
-
-		case DTRACE_VTIME_INACTIVE:
-		case DTRACE_VTIME_INACTIVE_TNF:
-			panic("DTrace virtual time already disabled");
-			/*NOTREACHED*/
-		}
-
-	} while	(cas32((uint32_t *)&dtrace_vtime_active,
-	    state, nstate) != state);
+	kmem_free(hdlr, sizeof (dtrace_invop_hdlr_t));
 }
 
 # if 0
-void
-dtrace_vtime_enable_tnf(void)
+int
+dtrace_getipl(void)
 {
-	dtrace_vtime_state_t state, nstate;
+	return (CPU->cpu_pri);
+}
 
-	do {
-		state = dtrace_vtime_active;
+/*ARGSUSED*/
+void
+dtrace_toxic_ranges(void (*func)(uintptr_t base, uintptr_t limit))
+{
+	extern const uintptr_t _userlimit;
+#ifdef __amd64
+	extern uintptr_t toxic_addr;
+	extern size_t toxic_size;
+	extern const uintptr_t _userlimit;
 
-		switch (state) {
-		case DTRACE_VTIME_ACTIVE:
-			nstate = DTRACE_VTIME_ACTIVE_TNF;
-			break;
+	(*func)(0, _userlimit);
 
-		case DTRACE_VTIME_INACTIVE:
-			nstate = DTRACE_VTIME_INACTIVE_TNF;
-			break;
+	if (hole_end > hole_start)
+		(*func)((uintptr_t)hole_start, (uintptr_t)hole_end);
+	(*func)(toxic_addr, toxic_addr + toxic_size);
+#else
+	extern void *device_arena_contains(void *, size_t, size_t *);
+	caddr_t	vaddr;
+	size_t	len;
 
-		case DTRACE_VTIME_ACTIVE_TNF:
-		case DTRACE_VTIME_INACTIVE_TNF:
-			panic("TNF already active");
-			/*NOTREACHED*/
-		}
+	for (vaddr = (caddr_t)kernelbase; vaddr < (caddr_t)KERNEL_TEXT;
+	    vaddr += len) {
+		len = (caddr_t)KERNEL_TEXT - vaddr;
+		vaddr = device_arena_contains(vaddr, len, &len);
+		if (vaddr == NULL)
+		    break;
+		(*func)((uintptr_t)vaddr, (uintptr_t)vaddr + len);
+	}
+#endif
+	(*func)(0, _userlimit);
+}
 
-	} while	(cas32((uint32_t *)&dtrace_vtime_active,
-	    state, nstate) != state);
+static int
+dtrace_xcall_func(dtrace_xcall_t func, void *arg)
+{
+	(*func)(arg);
+
+	return (0);
+}
+
+/*ARGSUSED*/
+void
+dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
+{
+	cpuset_t set;
+
+	CPUSET_ZERO(set);
+
+	if (cpu == DTRACE_CPUALL) {
+		CPUSET_ALL(set);
+	} else {
+		CPUSET_ADD(set, cpu);
+	}
+
+	kpreempt_disable();
+	xc_sync((xc_arg_t)func, (xc_arg_t)arg, 0, X_CALL_HIPRI, set,
+		(xc_func_t)dtrace_xcall_func);
+	kpreempt_enable();
 }
 
 void
-dtrace_vtime_disable_tnf(void)
-{
-	dtrace_vtime_state_t state, nstate;
-
-	do {
-		state = dtrace_vtime_active;
-
-		switch (state) {
-		case DTRACE_VTIME_ACTIVE_TNF:
-			nstate = DTRACE_VTIME_ACTIVE;
-			break;
-
-		case DTRACE_VTIME_INACTIVE_TNF:
-			nstate = DTRACE_VTIME_INACTIVE;
-			break;
-
-		case DTRACE_VTIME_ACTIVE:
-		case DTRACE_VTIME_INACTIVE:
-			panic("TNF already inactive");
-			/*NOTREACHED*/
-		}
-
-	} while	(cas32((uint32_t *)&dtrace_vtime_active,
-	    state, nstate) != state);
-}
+dtrace_sync_func(void)
+{}
 
 void
-dtrace_vtime_switch(kthread_t *next)
+dtrace_sync(void)
 {
-	dtrace_icookie_t cookie;
-	hrtime_t ts;
+	dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
+}
 
-	if (tnf_tracing_active) {
-		tnf_thread_switch(next);
+int (*dtrace_fasttrap_probe_ptr)(struct regs *);
+int (*dtrace_pid_probe_ptr)(struct regs *);
+int (*dtrace_return_probe_ptr)(struct regs *);
 
-		if (dtrace_vtime_active == DTRACE_VTIME_INACTIVE_TNF)
+void
+dtrace_user_probe(struct regs *rp, caddr_t addr, processorid_t cpuid)
+{
+	krwlock_t *rwp;
+	proc_t *p = curproc;
+	extern void trap(struct regs *, caddr_t, processorid_t);
+
+	if (USERMODE(rp->r_cs) || (rp->r_ps & PS_VM)) {
+		if (curthread->t_cred != p->p_cred) {
+			cred_t *oldcred = curthread->t_cred;
+			/*
+			 * DTrace accesses t_cred in probe context.  t_cred
+			 * must always be either NULL, or point to a valid,
+			 * allocated cred structure.
+			 */
+			curthread->t_cred = crgetcred();
+			crfree(oldcred);
+		}
+	}
+
+	if (rp->r_trapno == T_DTRACE_RET) {
+		uint8_t step = curthread->t_dtrace_step;
+		uint8_t ret = curthread->t_dtrace_ret;
+		uintptr_t npc = curthread->t_dtrace_npc;
+
+		if (curthread->t_dtrace_ast) {
+			aston(curthread);
+			curthread->t_sig_check = 1;
+		}
+
+		/*
+		 * Clear all user tracing flags.
+		 */
+		curthread->t_dtrace_ft = 0;
+
+		/*
+		 * If we weren't expecting to take a return probe trap, kill
+		 * the process as though it had just executed an unassigned
+		 * trap instruction.
+		 */
+		if (step == 0) {
+			tsignal(curthread, SIGILL);
 			return;
+		}
+
+		/*
+		 * If we hit this trap unrelated to a return probe, we're
+		 * just here to reset the AST flag since we deferred a signal
+		 * until after we logically single-stepped the instruction we
+		 * copied out.
+		 */
+		if (ret == 0) {
+			rp->r_pc = npc;
+			return;
+		}
+
+		/*
+		 * We need to wait until after we've called the
+		 * dtrace_return_probe_ptr function pointer to set %pc.
+		 */
+		rwp = &CPU->cpu_ft_lock;
+		rw_enter(rwp, RW_READER);
+		if (dtrace_return_probe_ptr != NULL)
+			(void) (*dtrace_return_probe_ptr)(rp);
+		rw_exit(rwp);
+		rp->r_pc = npc;
+
+	} else if (rp->r_trapno == T_DTRACE_PROBE) {
+		rwp = &CPU->cpu_ft_lock;
+		rw_enter(rwp, RW_READER);
+		if (dtrace_fasttrap_probe_ptr != NULL)
+			(void) (*dtrace_fasttrap_probe_ptr)(rp);
+		rw_exit(rwp);
+
+	} else if (rp->r_trapno == T_BPTFLT) {
+		uint8_t instr;
+		rwp = &CPU->cpu_ft_lock;
+
+		/*
+		 * The DTrace fasttrap provider uses the breakpoint trap
+		 * (int 3). We let DTrace take the first crack at handling
+		 * this trap; if it's not a probe that DTrace knowns about,
+		 * we call into the trap() routine to handle it like a
+		 * breakpoint placed by a conventional debugger.
+		 */
+		rw_enter(rwp, RW_READER);
+		if (dtrace_pid_probe_ptr != NULL &&
+		    (*dtrace_pid_probe_ptr)(rp) == 0) {
+			rw_exit(rwp);
+			return;
+		}
+		rw_exit(rwp);
+
+		/*
+		 * If the instruction that caused the breakpoint trap doesn't
+		 * look like an int 3 anymore, it may be that this tracepoint
+		 * was removed just after the user thread executed it. In
+		 * that case, return to user land to retry the instuction.
+		 */
+		if (fuword8((void *)(rp->r_pc - 1), &instr) == 0 &&
+		    instr != FASTTRAP_INSTR) {
+			rp->r_pc--;
+			return;
+		}
+
+		trap(rp, addr, cpuid);
+
+	} else {
+		trap(rp, addr, cpuid);
 	}
-
-	cookie = dtrace_interrupt_disable();
-	ts = dtrace_gethrtime();
-
-	if (curthread->t_dtrace_start != 0) {
-		curthread->t_dtrace_vtime += ts - curthread->t_dtrace_start;
-		curthread->t_dtrace_start = 0;
-	}
-
-	next->t_dtrace_start = ts;
-
-	dtrace_interrupt_enable(cookie);
 }
 
-void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
-void (*dtrace_fasttrap_exec_ptr)(proc_t *);
-void (*dtrace_fasttrap_exit_ptr)(proc_t *);
-
-/*
- * This function is called by cfork() in the event that it appears that
- * there may be dtrace tracepoints active in the parent process's address
- * space. This first confirms the existence of dtrace tracepoints in the
- * parent process and calls into the fasttrap module to remove the
- * corresponding tracepoints from the child. By knowing that there are
- * existing tracepoints, and ensuring they can't be removed, we can rely
- * on the fasttrap module remaining loaded.
- */
 void
-dtrace_fasttrap_fork(proc_t *p, proc_t *cp)
+dtrace_safe_synchronous_signal(void)
 {
-	ASSERT(MUTEX_HELD(&p->p_lock));
-	ASSERT(p->p_proc_flag & P_PR_LOCK);
-	mutex_exit(&p->p_lock);
+	kthread_t *t = curthread;
+	struct regs *rp = lwptoregs(ttolwp(t));
+	size_t isz = t->t_dtrace_npc - t->t_dtrace_pc;
+
+	ASSERT(t->t_dtrace_on);
 
 	/*
-	 * If any tracepoints exist, call into the fasttrap module to remove
-	 * those tracepoints. We can rely on that module being loaded since
-	 * the extant tracepoints can't be removed while we hold P_PR_LOCK.
+	 * If we're not in the range of scratch addresses, we're not actually
+	 * tracing user instructions so turn off the flags. If the instruction
+	 * we copied out caused a synchonous trap, reset the pc back to its
+	 * original value and turn off the flags.
 	 */
-	if (p->p_dtrace_count > 0) {
-		ASSERT(dtrace_fasttrap_fork_ptr != NULL);
-		dtrace_fasttrap_fork_ptr(p, cp);
+	if (rp->r_pc < t->t_dtrace_scrpc ||
+	    rp->r_pc > t->t_dtrace_astpc + isz) {
+		t->t_dtrace_ft = 0;
+	} else if (rp->r_pc == t->t_dtrace_scrpc ||
+	    rp->r_pc == t->t_dtrace_astpc) {
+		rp->r_pc = t->t_dtrace_pc;
+		t->t_dtrace_ft = 0;
+	}
+}
+
+int
+dtrace_safe_defer_signal(void)
+{
+	kthread_t *t = curthread;
+	struct regs *rp = lwptoregs(ttolwp(t));
+	size_t isz = t->t_dtrace_npc - t->t_dtrace_pc;
+
+	ASSERT(t->t_dtrace_on);
+
+	/*
+	 * If we're not in the range of scratch addresses, we're not actually
+	 * tracing user instructions so turn off the flags.
+	 */
+	if (rp->r_pc < t->t_dtrace_scrpc ||
+	    rp->r_pc > t->t_dtrace_astpc + isz) {
+		t->t_dtrace_ft = 0;
+		return (0);
 	}
 
-	mutex_enter(&p->p_lock);
+	/*
+	 * If we've executed the original instruction, but haven't performed
+	 * the jmp back to t->t_dtrace_npc or the clean up of any registers
+	 * used to emulate %rip-relative instructions in 64-bit mode, do that
+	 * here and take the signal right away. We detect this condition by
+	 * seeing if the program counter is the range [scrpc + isz, astpc).
+	 */
+	if (t->t_dtrace_astpc - rp->r_pc <
+	    t->t_dtrace_astpc - t->t_dtrace_scrpc - isz) {
+#ifdef __amd64
+		/*
+		 * If there is a scratch register and we're on the
+		 * instruction immediately after the modified instruction,
+		 * restore the value of that scratch register.
+		 */
+		if (t->t_dtrace_reg != 0 &&
+		    rp->r_pc == t->t_dtrace_scrpc + isz) {
+			switch (t->t_dtrace_reg) {
+			case REG_RAX:
+				rp->r_rax = t->t_dtrace_regv;
+				break;
+			case REG_RCX:
+				rp->r_rcx = t->t_dtrace_regv;
+				break;
+			case REG_R8:
+				rp->r_r8 = t->t_dtrace_regv;
+				break;
+			case REG_R9:
+				rp->r_r9 = t->t_dtrace_regv;
+				break;
+			}
+		}
+#endif
+		rp->r_pc = t->t_dtrace_npc;
+		t->t_dtrace_ft = 0;
+		return (0);
+	}
+
+	/*
+	 * Otherwise, make sure we'll return to the kernel after executing
+	 * the copied out instruction and defer the signal.
+	 */
+	if (!t->t_dtrace_step) {
+		ASSERT(rp->r_pc < t->t_dtrace_astpc);
+		rp->r_pc += t->t_dtrace_astpc - t->t_dtrace_scrpc;
+		t->t_dtrace_step = 1;
+	}
+
+	t->t_dtrace_ast = 1;
+
+	return (1);
 }
 # endif
+

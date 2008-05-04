@@ -257,6 +257,7 @@ ctf_func_info(ctf_file_t *fp, ulong_t symidx, ctf_funcinfo_t *fip)
 
 	return (0);
 }
+EXPORT_SYMBOL(ctf_func_info);
 
 /*
  * Given a symbol table index, return the arguments for the function described
@@ -282,3 +283,4 @@ ctf_func_args(ctf_file_t *fp, ulong_t symidx, uint_t argc, ctf_id_t *argv)
 
 	return (0);
 }
+EXPORT_SYMBOL(ctf_func_args);

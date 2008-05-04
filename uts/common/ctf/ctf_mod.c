@@ -158,3 +158,4 @@ ctf_modopen(struct module *mp, int *error)
 
 	return (fp);
 }
+EXPORT_SYMBOL(ctf_modopen);

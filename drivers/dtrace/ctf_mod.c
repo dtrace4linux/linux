@@ -158,7 +158,9 @@ static struct miscdevice ctf_dev = {
         "ctf",
         &ctf_fops
 };
-static int __init ctf_init(void)
+
+int
+ctf_init(void)
 {	int	ret;
 
 	ret = misc_register(&ctf_dev);
@@ -170,10 +172,8 @@ static int __init ctf_init(void)
 
 	return 0;
 }
-static void __exit ctf_exit(void)
+void ctf_exit(void)
 {
 	printk(KERN_WARNING "ctf driver unloaded.\n");
 	misc_deregister(&ctf_dev);
 }
-module_init(ctf_init);
-module_exit(ctf_exit);

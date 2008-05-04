@@ -1,0 +1,17 @@
+SUDO=sudo 
+if [ -f $HOME/bin/setuid ]; then
+	SUDO="setuid root"
+fi
+
+sync ; sync
+$SUDO rmmod dtracedrv
+sleep 1
+sync ; sync
+$SUDO insmod dtracedrv.ko
+sleep 2
+$SUDO chmod 666 /dev/dtrace
+$SUDO chmod 666 /dev/fbt
+grep ' kallsyms' /proc/kallsyms >/dev/fbt
+grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
+grep ' modules' /proc/kallsyms >/dev/fbt
+

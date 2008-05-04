@@ -9,7 +9,7 @@
 /*   License: CDDL						      */
 /**********************************************************************/
 
-#include "../dtrace/dtrace_linux.h"
+#include <dtrace_linux.h>
 #include <sys/dtrace.h>
 #include <linux/cpumask.h>
 
@@ -54,7 +54,7 @@ static struct miscdevice fasttrap_dev = {
         "fasttrap",
         &fasttrap_fops
 };
-static int __init fasttrap_init(void)
+int fasttrap_init(void)
 {	int	ret;
 	struct proc_dir_entry *ent;
 # if 0
@@ -88,7 +88,7 @@ static struct proc_dir_entry *dir;
 
 	return 0;
 }
-static void __exit fasttrap_exit(void)
+void fasttrap_exit(void)
 {
 	printk(KERN_WARNING "fasttrap driver unloaded.\n");
 /*	remove_proc_entry("dtrace/dtrace", 0);
@@ -97,6 +97,4 @@ static void __exit fasttrap_exit(void)
 */
 	misc_deregister(&fasttrap_dev);
 }
-module_init(fasttrap_init);
-module_exit(fasttrap_exit);
 

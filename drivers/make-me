@@ -1,6 +1,24 @@
 #! /bin/sh
+#
+# 'warn' colorises gcc warnings and errors which is useful during
+# the lets-get-it-together phase when there is so many errors which
+# swamp the output.
+
 warn=warn
 if [ ! -f /home/fox/bin/warn ]; then
 	warn=
 fi
-exec $warn make $@ -C /lib/modules/`uname -r`/build M=`pwd` modules
+finished=no
+while [ $finished = "no" ]
+do
+	case $1 in
+	  -*) flags="$flags $1"
+		shift
+		;;
+	  *)
+		finished=yes
+		;;
+	esac
+done
+
+exec $warn make $flags -C /lib/modules/`uname -r`/build M=`pwd` $@

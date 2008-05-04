@@ -14,6 +14,7 @@ COMMON_OBJS = \
 	ctf_lookup.o \
 	ctf_open.o \
 	ctf_types.o \
+	ctf_uncompress.o \
 	ctf_util.o
 
 $(BINDIR)/libctf.a: \
@@ -27,6 +28,7 @@ $(BINDIR)/libctf.a: \
 	$(BINDIR)/libctf.a(ctf_lookup.o) \
 	$(BINDIR)/libctf.a(ctf_open.o) \
 	$(BINDIR)/libctf.a(ctf_types.o) \
+	$(BINDIR)/libctf.a(uncompress.o) \
 	$(BINDIR)/libctf.a(ctf_util.o)
 
 $(BINDIR)/libctf.a(ctf_create.o): $(COMMON)/ctf_create.c
@@ -63,6 +65,11 @@ $(BINDIR)/libctf.a(ctf_types.o): $(COMMON)/ctf_types.c
 	$(CC) $(CPPFLAGS) -c $<
 	$(AR) rv $(BINDIR)/libctf.a ctf_types.o
 	rm -f ctf_types.o
+
+$(BINDIR)/libctf.a(uncompress.o): uncompress.c
+	$(CC) $(CPPFLAGS) -c $<
+	$(AR) rv $(BINDIR)/libctf.a uncompress.o
+	rm -f uncompress.o
 
 $(BINDIR)/libctf.a(ctf_util.o): $(COMMON)/ctf_util.c
 	$(CC) $(CPPFLAGS) -c $<

@@ -13,3 +13,6 @@ bison-1.35 or byacc
 
 lex or flex
 	Needed to compile dt_lex.l
+
+zlib
+	Need compression header file -- zlib.h and libz.so.1

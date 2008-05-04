@@ -1,5 +1,16 @@
-# include <linux_types.h>
-# include <linux/zlib.h>
+# if __KERNEL__
+
+	# include <linux_types.h>
+	# include <linux/zlib.h>
+
+# else
+
+	# include <zlib.h>
+	# define	zlib_inflateInit inflateInit
+	# define	zlib_inflate inflate
+	# define	zlib_inflateEnd inflateEnd
+
+# endif
 
 static char *last_err;
 

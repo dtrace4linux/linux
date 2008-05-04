@@ -324,6 +324,7 @@ out:
 	buf[0] = '\0';
 	return (NULL);
 }
+EXPORT_SYMBOL(ctf_type_name);
 
 /*
  * Resolve the type down to a base type node, and then return the size

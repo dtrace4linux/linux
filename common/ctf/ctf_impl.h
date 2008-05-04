@@ -32,7 +32,7 @@
 
 #include <linux_types.h>
 #include <sys/types.h>
-# if __KERNEL
+# if __KERNEL__
 # include <linux/zlib.h>
 # else
 #include <sys/errno.h>

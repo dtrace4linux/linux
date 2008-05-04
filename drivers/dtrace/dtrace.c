@@ -5839,6 +5839,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc)
 {
 	dtrace_provider_t *prv;
 	struct modctl *ctl;
+	int	i;
 
 	ASSERT(MUTEX_HELD(&dtrace_provider_lock));
 
@@ -5869,10 +5870,21 @@ dtrace_probe_provide(dtrace_probedesc_t *desc)
 
 	mutex_exit(&mod_lock);
 # else
+	{struct module *get_module(int n);
 	TODO();
 
-for (prv = dtrace_provider; prv != NULL; prv = prv->dtpv_next)
-printk("prov=%p\n", prv);
+	for (i = 0; ; i++) {
+		struct module *modp = get_module(i);
+		if (modp == NULL)
+			break;
+		if (modp->state != MODULE_STATE_LIVE)
+			continue;
+
+		printk("dtrace_probe_provide: %p %s\n", modp, modp->name);
+		for (prv = dtrace_provider; prv != NULL; prv = prv->dtpv_next)
+			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, ctl);
+	}
+	}
 # endif
 }
 

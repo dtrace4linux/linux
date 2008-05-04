@@ -16,7 +16,7 @@ dtrace: dtrace.o $(LIBS)
 	fi ; \
 	$(CC) $(CFLAGS) -o dtrace \
 		-L../../build \
-		dtrace.o -ldtrace -lctf -llinux -lpthread $$libelf -ldl
+		dtrace.o -ldtrace -lctf -llinux -lz -lpthread $$libelf -ldl
 
 dtrace.o: dtrace.c
 	$(CC) $(CFLAGS) -c \

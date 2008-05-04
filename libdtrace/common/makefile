@@ -78,6 +78,8 @@ $(LIB)(dt_grammar.o): dt_grammar.y $(H)
 	ar rv $(LIB) dt_grammar.o
 	-rm -f dt_grammar.c dt_grammar.o
 
+dt_grammar.h: $(LIB)(dt_grammar.o)
+
 $(LIB)(dt_lex.o): dt_lex.l $(H) dt_grammar.h
 	lex -l -t -v dt_lex.l > dt_lex.c
 	$(CC) $(CPPFLAGS) -c dt_lex.c

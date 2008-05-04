@@ -1,5 +1,0 @@
-00000000 size=0       mtime=1209505836 ./.fbt.o.d
-694c5d23 size=610     mtime=1209755047 ./Makefile
-00000000 size=0       mtime=1209507461 ./Module.symvers
-95757738 size=8928    mtime=1209755268 ./dtrace_subr.c
-24a816c7 size=23393   mtime=1209754635 ./fbt_linux.c

@@ -10,12 +10,16 @@ SUDO=setuid root
 ######################################################################
 #   List of drivers we have:					     #
 #    								     #
+#   ctf - compact type framework.				     #
+#    								     #
 #   dtrace: The grand daddy which marshalls the other components.    #
+#    								     #
+#   fasttrap - trace user land applications.    		     #
 #    								     #
 #   fbt  -  function  boundary  tracing - provider to intercept any  #
 #   function							     #
 ######################################################################
-DRIVERS = dtrace fasttrap fbt
+DRIVERS = dtrace 
 
 notice:
 	echo rel=$(rel)
@@ -77,11 +81,10 @@ clean:
 ins:
 	sync ; sync
 	-$(SUDO) insmod drivers/dtrace/dtracedrv.ko
-	-$(SUDO) insmod drivers/fasttrap/fasttrap.ko
-	-$(SUDO) insmod drivers/fbt/fbt.ko
+	sleep 1
 	$(SUDO) chmod 666 /dev/dtrace
+	$(SUDO) chmod 666 /dev/fbt
+	grep ' kallsyms' /proc/kallsyms >/dev/fbt
+	grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
 unl:
-	-$(SUDO) rmmod fbt
-	-$(SUDO) rmmod fasttrap
 	-$(SUDO) rmmod dtracedrv
-

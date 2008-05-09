@@ -1,7 +1,4 @@
-SUDO=sudo 
-if [ -f $HOME/bin/setuid ]; then
-	SUDO="setuid root"
-fi
+SUDO="setuid root"
 
 sync ; sync
 $SUDO rmmod dtracedrv

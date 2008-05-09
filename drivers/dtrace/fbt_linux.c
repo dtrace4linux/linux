@@ -176,13 +176,14 @@ get_module(int n)
 {	struct module *modp;
 	struct list_head *head = (struct list_head *) xmodules;
 
-printk("get_module(%d) head=%p\n", n, head);
+//printk("get_module(%d) head=%p\n", n, head);
 	if (head == NULL)
 		return NULL;
 
 	list_for_each_entry(modp, head, list) {
-		if (n-- == 0)
+		if (n-- == 0) {
 			return modp;
+		}
 	}
 	return NULL;
 }
@@ -197,6 +198,8 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	int	 size;
 	fbt_probe_t *fbt, *retfbt;
 
+TODO();
+printk("ctl=%p name=%s\n", ctl, modname);
 # if 0
 	struct module *mp = ctl->mod_mp;
 	char *str = mp->strings;
@@ -212,6 +215,7 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	if (strcmp(modname, "dtrace") == 0)
 		return;
 
+TODO();
 	if (ctl->mod_requisites != NULL) {
 		struct modctl_list *list;
 
@@ -223,6 +227,7 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		}
 	}
 
+TODO();
 	/*
 	 * KMDB is ineligible for instrumentation -- it may execute in
 	 * any context, including probe context.
@@ -249,12 +254,25 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	}
 # endif
 
+printk("num_symtab=%d\n", mp->num_symtab);
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
 
+		name = str + sym->st_name;
+		if (sym->st_name == NULL || *name == '\0')
+			continue;
+
+		/***********************************************/
+		/*   Linux re-encodes the symbol types.	       */
+		/***********************************************/
+		if (sym->st_info != 't' && sym->st_info != 'T')
+			continue;
+
+#if 0
 		if (ELF_ST_TYPE(sym->st_info) != STT_FUNC)
 			continue;
+
 
 		/*
 		 * Weak symbols are not candidates.  This could be made to
@@ -263,8 +281,7 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		 */
 		if (ELF_ST_BIND(sym->st_info) == STB_WEAK)
 			continue;
-
-		name = str + sym->st_name;
+#endif
 
 		if (strstr(name, "dtrace_") == name &&
 		    strstr(name, "dtrace_safe_") != name) {
@@ -330,8 +347,12 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		instr = (uint8_t *)sym->st_value;
 		limit = (uint8_t *)(sym->st_value + sym->st_size);
 
+printk("sym %d: %s ty=%x %p %p %d\n", i, name,sym->st_info,
+instr, limit, sym->st_size);
+if (i > 100) break;
 #ifdef __amd64
 		while (instr < limit) {
+printk("disasm: %p %02x\n", instr, *instr);
 			if (*instr == FBT_PUSHL_EBP)
 				break;
 
@@ -347,6 +368,8 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 			 * function, or we ran into some disassembly
 			 * screw-up.  Either way, we bail.
 			 */
+TODO();
+printk("size=%d *instr=%02x %02x %d\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
 			continue;
 		}
 #else
@@ -360,10 +383,16 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 			continue;
 #endif
 
+TODO();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
+TODO();
+printk("fbt=%p\n", fbt);
+		
 		fbt->fbtp_name = name;
+TODO();
 		fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
 		    name, FBT_ENTRY, 3, fbt);
+TODO();
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
 		fbt->fbtp_loadcnt = get_refcount(mp);
@@ -379,10 +408,13 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 		mp1->fbt_nentries++;
 # endif
 
+TODO();
 		retfbt = NULL;
 again:
-		if (instr >= limit)
+		if (instr >= limit) {
+TODO();
 			continue;
+		}
 
 		/*
 		 * If this disassembly fails, then we've likely walked off into
@@ -400,6 +432,7 @@ again:
 		 */
 		if (*instr != FBT_RET) {
 			instr += size;
+TODO();
 			goto again;
 		}
 #else
@@ -415,6 +448,7 @@ again:
 		/*
 		 * We have a winner!
 		 */
+TODO();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		fbt->fbtp_name = name;
 

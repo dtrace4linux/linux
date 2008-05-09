@@ -49,6 +49,7 @@ uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
 void dtrace_probe_provide(dtrace_probedesc_t *desc);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
 int dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
+int dtrace_attach(dev_info_t *devi, int cmd);
 int	ctf_init(void);
 void	ctf_exit(void);
 int	fasttrap_init(void);
@@ -221,15 +222,34 @@ kmem_free(void *ptr, int size)
 	kfree(ptr);
 }
 # endif
+
+/**********************************************************************/
+/*   Need to implement this or use the unr code from FreeBSD.	      */
+/**********************************************************************/
+static int vm_id;
+
 void *
 vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {
-	return kmem_cache_alloc(hdr, flags);
+	return vm_id++;
+	
+	printk("vmem_alloc: hdr=%x\n", hdr);
+	return kmem_cache_alloc(hdr, GFP_KERNEL);
+}
+
+void *
+vmem_create(const char *name, void *base, size_t size, size_t quantum,
+        vmem_alloc_t *afunc, vmem_free_t *ffunc, vmem_t *source,
+        size_t qcache_max, int vmflag)
+{
+	return NULL;
 }
 
 void
 vmem_free(vmem_t *hdr, void *ptr, size_t s)
 {
+	return;
+
 	kmem_cache_free(hdr, ptr);
 }
 int
@@ -347,6 +367,8 @@ static struct proc_dir_entry *dir;
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
 	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
+
+	dtrace_attach(NULL, 0);
 
 	ctf_init();
 	fasttrap_init();

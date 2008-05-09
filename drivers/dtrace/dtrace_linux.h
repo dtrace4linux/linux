@@ -144,6 +144,12 @@ void	freeenv(char *);
 //void	kmem_free(void *, int);
 void	vmem_destroy(vmem_t *);
 void	vmem_free(vmem_t *, void *, size_t);
+#define	vmem_alloc_t int
+#define	vmem_free_t int
+#define	vmem_mem_t int
+void *vmem_create(const char *name, void *base, size_t size, size_t quantum,
+        vmem_alloc_t *afunc, vmem_free_t *ffunc, vmem_t *source,
+        size_t qcache_max, int vmflag);
 //void	*kmem_zalloc(size_t size, int kmflags);
 
 extern int panic_quiesce;

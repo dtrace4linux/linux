@@ -90,11 +90,13 @@ dtrace_getipl(void)
 {
 	return (CPU->cpu_pri);
 }
+#endif
 
 /*ARGSUSED*/
 void
 dtrace_toxic_ranges(void (*func)(uintptr_t base, uintptr_t limit))
 {
+# if 0
 	extern const uintptr_t _userlimit;
 #ifdef __amd64
 	extern uintptr_t toxic_addr;
@@ -121,8 +123,10 @@ dtrace_toxic_ranges(void (*func)(uintptr_t base, uintptr_t limit))
 	}
 #endif
 	(*func)(0, _userlimit);
+#endif
 }
 
+# if 0
 static int
 dtrace_xcall_func(dtrace_xcall_t func, void *arg)
 {

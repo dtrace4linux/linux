@@ -1,16 +1,35 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_subr.c	1.7	04/12/18 SMI"
+#pragma ident	"@(#)dt_subr.c	1.12	05/11/29 SMI"
 
-#include <linux_types.h>
 #include <sys/sysmacros.h>
+
+typedef unsigned long long off64_t;
+#include <sys/bitmap.h>
 #include <strings.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -21,6 +40,9 @@
 #include <ctype.h>
 #include <alloca.h>
 #include <assert.h>
+#include <libgen.h>
+#include <limits.h>
+
 #include <dt_impl.h>
 
 static const struct {
@@ -124,6 +146,7 @@ dtrace_xstr2desc(dtrace_hdl_t *dtp, dtrace_probespec_t spec,
 
 	} while (--p >= s);
 
+	pdp->dtpd_id = DTRACE_IDNONE;
 	return (0);
 }
 
@@ -450,10 +473,14 @@ dt_ioctl(dtrace_hdl_t *dtp, int val, void *arg)
 {
 	const dtrace_vector_t *v = dtp->dt_vector;
 
-	if (v == NULL)
+	if (v != NULL)
+		return (v->dtv_ioctl(dtp->dt_varg, val, arg));
+
+	if (dtp->dt_fd >= 0)
 		return (ioctl(dtp->dt_fd, val, arg));
 
-	return (v->dtv_ioctl(dtp->dt_varg, val, arg));
+	errno = EBADF;
+	return (-1);
 }
 
 int
@@ -631,7 +658,7 @@ dt_printf(dtrace_hdl_t *dtp, FILE *fp, const char *format, ...)
 
 int
 dt_buffered_flush(dtrace_hdl_t *dtp, dtrace_probedata_t *pdata,
-    dtrace_recdesc_t *rec, dtrace_aggdata_t *agg)
+    const dtrace_recdesc_t *rec, const dtrace_aggdata_t *agg, uint32_t flags)
 {
 	dtrace_bufdata_t data;
 
@@ -643,6 +670,7 @@ dt_buffered_flush(dtrace_hdl_t *dtp, dtrace_probedata_t *pdata,
 	data.dtbda_probe = pdata;
 	data.dtbda_recdesc = rec;
 	data.dtbda_aggdata = agg;
+	data.dtbda_flags = flags;
 
 	if ((*dtp->dt_bufhdlr)(&data, dtp->dt_bufarg) == DTRACE_HANDLE_ABORT)
 		return (dt_set_errno(dtp, EDT_DIRABORT));
@@ -686,11 +714,38 @@ dt_alloc(dtrace_hdl_t *dtp, size_t size)
 	return (data);
 }
 
-/*ARGSUSED*/
 void
 dt_free(dtrace_hdl_t *dtp, void *data)
 {
+	assert(dtp != NULL); /* ensure sane use of this interface */
 	free(data);
+}
+
+void
+dt_difo_free(dtrace_hdl_t *dtp, dtrace_difo_t *dp)
+{
+	if (dp == NULL)
+		return; /* simplify caller code */
+
+	dt_free(dtp, dp->dtdo_buf);
+	dt_free(dtp, dp->dtdo_inttab);
+	dt_free(dtp, dp->dtdo_strtab);
+	dt_free(dtp, dp->dtdo_vartab);
+	dt_free(dtp, dp->dtdo_kreltab);
+	dt_free(dtp, dp->dtdo_ureltab);
+	dt_free(dtp, dp->dtdo_xlmtab);
+
+	dt_free(dtp, dp);
+}
+
+/*
+ * dt_gmatch() is similar to gmatch(3GEN) and dtrace(7D) globbing, but also
+ * implements the behavior that an empty pattern matches any string.
+ */
+int
+dt_gmatch(const char *s, const char *p)
+{
+	return (p == NULL || *p == '\0' || gmatch(s, p));
 }
 
 char *
@@ -702,6 +757,52 @@ dt_basename(char *str)
 		return (str);
 
 	return (last + 1);
+}
+
+/*
+ * dt_popc() is a fast implementation of population count.  The algorithm is
+ * from "Hacker's Delight" by Henry Warren, Jr with a 64-bit equivalent added.
+ */
+ulong_t
+dt_popc(ulong_t x)
+{
+#ifdef _ILP32
+	x = x - ((x >> 1) & 0x55555555UL);
+	x = (x & 0x33333333UL) + ((x >> 2) & 0x33333333UL);
+	x = (x + (x >> 4)) & 0x0F0F0F0FUL;
+	x = x + (x >> 8);
+	x = x + (x >> 16);
+	return (x & 0x3F);
+#endif
+#ifdef _LP64
+	x = x - ((x >> 1) & 0x5555555555555555ULL);
+	x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+	x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
+	x = x + (x >> 8);
+	x = x + (x >> 16);
+	x = x + (x >> 32);
+	return (x & 0x7F);
+#endif
+}
+
+/*
+ * dt_popcb() is a bitmap-based version of population count that returns the
+ * number of one bits in the specified bitmap 'bp' at bit positions below 'n'.
+ */
+ulong_t
+dt_popcb(const ulong_t *bp, ulong_t n)
+{
+	ulong_t maxb = n & BT_ULMASK;
+	ulong_t maxw = n >> BT_ULSHIFT;
+	ulong_t w, popc = 0;
+
+	if (n == 0)
+		return (0);
+
+	for (w = 0; w < maxw; w++)
+		popc += dt_popc(bp[w]);
+
+	return (popc + dt_popc(bp[maxw] & ((1UL << maxb) - 1)));
 }
 
 struct _rwlock;
@@ -726,4 +827,112 @@ dt_mutex_held(pthread_mutex_t *lock)
 {
 	extern int _mutex_held(struct _lwp_mutex *);
 	return (_mutex_held((struct _lwp_mutex *)lock));
+}
+
+static int
+dt_string2str(char *s, char *str, int nbytes)
+{
+	int len = strlen(s);
+
+	if (nbytes == 0) {
+		/*
+		 * Like snprintf(3C), we don't check the value of str if the
+		 * number of bytes is 0.
+		 */
+		return (len);
+	}
+
+	if (nbytes <= len) {
+		(void) strncpy(str, s, nbytes - 1);
+		/*
+		 * Like snprintf(3C) (and unlike strncpy(3C)), we guarantee
+		 * that the string is null-terminated.
+		 */
+		str[nbytes - 1] = '\0';
+	} else {
+		(void) strcpy(str, s);
+	}
+
+	return (len);
+}
+
+int
+dtrace_addr2str(dtrace_hdl_t *dtp, uint64_t addr, char *str, int nbytes)
+{
+	dtrace_syminfo_t dts;
+	GElf_Sym sym;
+
+	size_t n = 20; /* for 0x%llx\0 */
+	char *s;
+	int err;
+
+	if ((err = dtrace_lookup_by_addr(dtp, addr, &sym, &dts)) == 0)
+		n += strlen(dts.dts_object) + strlen(dts.dts_name) + 2; /* +` */
+
+	s = alloca(n);
+
+	if (err == 0 && addr != sym.st_value) {
+		(void) snprintf(s, n, "%s`%s+0x%llx", dts.dts_object,
+		    dts.dts_name, (u_longlong_t)addr - sym.st_value);
+	} else if (err == 0) {
+		(void) snprintf(s, n, "%s`%s",
+		    dts.dts_object, dts.dts_name);
+	} else {
+		/*
+		 * We'll repeat the lookup, but this time we'll specify a NULL
+		 * GElf_Sym -- indicating that we're only interested in the
+		 * containing module.
+		 */
+		if (dtrace_lookup_by_addr(dtp, addr, NULL, &dts) == 0) {
+			(void) snprintf(s, n, "%s`0x%llx", dts.dts_object,
+			    (u_longlong_t)addr);
+		} else {
+			(void) snprintf(s, n, "0x%llx", (u_longlong_t)addr);
+		}
+	}
+
+	return (dt_string2str(s, str, nbytes));
+}
+
+int
+dtrace_uaddr2str(dtrace_hdl_t *dtp, pid_t pid,
+    uint64_t addr, char *str, int nbytes)
+{
+	char name[PATH_MAX], objname[PATH_MAX], c[PATH_MAX * 2];
+	struct ps_prochandle *P = NULL;
+	GElf_Sym sym;
+	char *obj;
+
+	if (pid != 0)
+		P = dt_proc_grab(dtp, pid, PGRAB_RDONLY | PGRAB_FORCE, 0);
+
+	if (P == NULL) {
+		(void) snprintf(c, sizeof (c), "0x%llx", addr);
+		return (dt_string2str(c, str, nbytes));
+	}
+
+	dt_proc_lock(dtp, P);
+
+	if (Plookup_by_addr(P, addr, name, sizeof (name), &sym) == 0) {
+		(void) Pobjname(P, addr, objname, sizeof (objname));
+
+		obj = dt_basename(objname);
+
+		if (addr > sym.st_value) {
+			(void) snprintf(c, sizeof (c), "%s`%s+0x%llx", obj,
+			    name, (u_longlong_t)(addr - sym.st_value));
+		} else {
+			(void) snprintf(c, sizeof (c), "%s`%s", obj, name);
+		}
+	} else if (Pobjname(P, addr, objname, sizeof (objname)) != NULL) {
+		(void) snprintf(c, sizeof (c), "%s`0x%llx",
+		    dt_basename(objname), addr);
+	} else {
+		(void) snprintf(c, sizeof (c), "0x%llx", addr);
+	}
+
+	dt_proc_unlock(dtp, P);
+	dt_proc_release(dtp, P);
+
+	return (dt_string2str(c, str, nbytes));
 }

@@ -1,0 +1,1 @@
+setuid root          ./dtrace -n 'dtrace:::BEGIN'

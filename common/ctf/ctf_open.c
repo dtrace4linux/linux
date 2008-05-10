@@ -1,13 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-//#pragma ident	"@(#)ctf_open.c	1.7	04/03/20 SMI"
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+
+#pragma ident   "@(#)ctf_open.c 1.10    06/01/07 SMI"
 
 #include <ctf_impl.h>
 # if !__KERNEL__
@@ -932,4 +950,15 @@ int
 ctf_getmodel(ctf_file_t *fp)
 {
 	return (fp->ctf_dmodel->ctd_code);
+}
+void
+ctf_setspecific(ctf_file_t *fp, void *data)
+{
+        fp->ctf_specific = data;
+}
+
+void *
+ctf_getspecific(ctf_file_t *fp)
+{
+        return (fp->ctf_specific);
 }

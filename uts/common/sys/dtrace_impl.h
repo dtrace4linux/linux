@@ -51,6 +51,7 @@ typedef struct dtrace_meta dtrace_meta_t;
 typedef struct dtrace_state dtrace_state_t;
 typedef uint32_t dtrace_optid_t;
 typedef uint32_t dtrace_specid_t;
+typedef uint64_t dtrace_genid_t;
 
 /*
  * DTrace Probes
@@ -844,6 +845,7 @@ typedef struct dtrace_globvar {
 } dtrace_globvar_t;
 
 typedef struct dtrace_vstate {
+        dtrace_state_t *dtvs_state;             /* back pointer to state */
 	dtrace_globvar_t **dtvs_globals;	/* statically-allocated glbls */
 	int dtvs_nglobals;			/* number of globals */
 	dtrace_difv_t *dtvs_tlocals;		/* thread-local metadata */
@@ -1081,6 +1083,7 @@ struct dtrace_state {
 	char **dts_formats;			/* format string array */
 	dtrace_optval_t dts_options[DTRACEOPT_MAX]; /* options */
 	dtrace_cred_t dts_cred;			/* credentials */
+        size_t dts_nretained;                   /* number of retained enabs */
 };
 
 struct dtrace_provider {
@@ -1104,21 +1107,28 @@ struct dtrace_meta {
 /*
  * DTrace Enablings
  *
- * An dtrace_enabling structure is used to track a collection of ECB
+ * A dtrace_enabling structure is used to track a collection of ECB
  * descriptions -- before they have been turned into actual ECBs.  This is
  * created as a result of DOF processing, and is generally used to generate
- * ECBs immediately thereafter.  When enablings are used in this way, they are
- * destroyed immediately after they have been used to generate ECBs.  Anonymous
- * enablings, however, may be created before the probes they wish to enable are
- * created.  For anonymous enablings then, the enabling is retained; as each
- * new module or provider registers with the framework, the anonymous enabling
- * is reevaluated, with any new match resulting in new ECBs.
+ * ECBs immediately thereafter.  However, enablings are also generally
+ * retained should the probes they describe be created at a later time; as
+ * each new module or provider registers with the framework, the retained
+ * enablings are reevaluated, with any new match resulting in new ECBs.  To
+ * prevent probes from being matched more than once, the enabling tracks the
+ * last probe generation matched, and only matches probes from subsequent
+ * generations.
  */
 typedef struct dtrace_enabling {
-	dtrace_ecbdesc_t **dten_desc;		/* ECB descriptions */
-	int dten_ndesc;				/* number of ECB descriptions */
-	int dten_maxdesc;			/* size of ECB array */
-	dtrace_vstate_t *dten_vstate;		/* associated variable state */
+        dtrace_ecbdesc_t **dten_desc;           /* all ECB descriptions */
+        int dten_ndesc;                         /* number of ECB descriptions */
+        int dten_maxdesc;                       /* size of ECB array */
+        dtrace_vstate_t *dten_vstate;           /* associated variable state */
+        dtrace_genid_t dten_probegen;           /* matched probe generation */
+        dtrace_ecbdesc_t *dten_current;         /* current ECB description */
+        int dten_error;                         /* current error value */
+        int dten_primed;                        /* boolean: set if primed */
+        struct dtrace_enabling *dten_prev;      /* previous enabling */
+        struct dtrace_enabling *dten_next;      /* next enabling */
 } dtrace_enabling_t;
 
 /*

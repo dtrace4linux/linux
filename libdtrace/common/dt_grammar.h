@@ -104,6 +104,7 @@
 #define DT_TOK_EPRED 360
 #define DT_CTX_DEXPR 361
 #define DT_CTX_DPROG 362
+#define DT_CTX_DTYPE 363
 #define DT_TOK_EOF 0
 typedef union {
 	dt_node_t *l_node;

@@ -1,16 +1,33 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_DT_PRINTF_H
 #define	_DT_PRINTF_H
 
-#pragma ident	"@(#)dt_printf.h	1.2	04/11/22 SMI"
+#pragma ident	"@(#)dt_printf.h	1.5	05/11/29 SMI"
 
 #include <sys/types.h>
 #include <libctf.h>
@@ -25,9 +42,11 @@ struct dt_node;
 struct dt_ident;
 
 struct dt_pfconv;
+struct dt_pfargv;
 struct dt_pfargd;
 
-typedef int dt_pfcheck_f(struct dt_pfargd *, struct dt_node *);
+typedef int dt_pfcheck_f(struct dt_pfargv *,
+    struct dt_pfargd *, struct dt_node *);
 typedef int dt_pfprint_f(dtrace_hdl_t *, FILE *, const char *,
     const struct dt_pfargd *, const void *, size_t, uint64_t);
 
@@ -74,6 +93,7 @@ typedef struct dt_pfargd {
 #define	DT_PFCONV_SIGNED	0x0200	/* arg is a signed integer */
 
 typedef struct dt_pfargv {
+	dtrace_hdl_t *pfv_dtp;		/* libdtrace client handle */
 	char *pfv_format;		/* format string pointer */
 	dt_pfargd_t *pfv_argv;		/* list of argument descriptors */
 	uint_t pfv_argc;		/* number of argument descriptors */
@@ -81,7 +101,6 @@ typedef struct dt_pfargv {
 } dt_pfargv_t;
 
 typedef struct dt_pfwalk {
-	dtrace_hdl_t *pfw_dtp;		/* libdtrace client handle */
 	const dt_pfargv_t *pfw_argv;	/* argument description list */
 	uint_t pfw_aid;			/* aggregation variable identifier */
 	FILE *pfw_fp;			/* file pointer to use for output */
@@ -100,10 +119,14 @@ extern void dt_printf_destroy(dt_pfargv_t *);
 extern void dt_printf_validate(dt_pfargv_t *, uint_t,
     struct dt_ident *, int, dtrace_actkind_t, struct dt_node *);
 
+extern void dt_printa_validate(struct dt_node *, struct dt_node *);
+
 extern int dt_print_stack(dtrace_hdl_t *, FILE *,
-    const char *, caddr_t, int);
+    const char *, caddr_t, int, int);
 extern int dt_print_ustack(dtrace_hdl_t *, FILE *,
     const char *, caddr_t, uint64_t);
+extern int dt_print_mod(dtrace_hdl_t *, FILE *, const char *, caddr_t);
+extern int dt_print_umod(dtrace_hdl_t *, FILE *, const char *, caddr_t);
 
 #ifdef	__cplusplus
 }

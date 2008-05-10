@@ -1,13 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)dt_parser.c	1.11	04/12/17 SMI"
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+
+#pragma ident	"@(#)dt_parser.c	1.19	06/02/08 SMI"
 
 /*
  * DTrace D Language Parser
@@ -53,12 +71,16 @@
  *
  * 2. dn_ctfp = DT_DYN_CTFP(dtp), dn_type = DT_DYN_TYPE(dtp)
  *
- *    In this state, the node is a dynamic D type.  This means that general
+ *    In this state, the node is a dynamic D type.  This means that generic
  *    operations are not valid on this node and only code that knows how to
- *    examine the inner details of the value can operate on it.  When a node is
- *    of type <DYN>, dn_ident *must* be valid on the node and it points to an
- *    identifier describing the object and its type.  The DT_NF_REF flag is
- *    set for all dt_node_t objects of type <DYN>.
+ *    examine the inner details of the node can operate on it.  A <DYN> node
+ *    must have dn_ident set to point to an identifier describing the object
+ *    and its type.  The DT_NF_REF flag is set for all nodes of type <DYN>.
+ *    At present, the D compiler uses the <DYN> type for:
+ *
+ *    - associative arrays that do not yet have a value type defined
+ *    - translated data (i.e. the result of the xlate operator)
+ *    - aggregations
  *
  * 3. dn_ctfp = DT_STR_CTFP(dtp), dn_type = DT_STR_TYPE(dtp)
  *
@@ -73,7 +95,6 @@
  *    flags cache the corresponding attributes of the underlying CTF type.
  */
 
-#include <linux_types.h>
 #include <sys/param.h>
 #include <limits.h>
 #include <setjmp.h>
@@ -247,13 +268,17 @@ dt_type_pointer(dtrace_typeinfo_t *tip)
 		dmp = dtp->dt_ddefs;
 
 	if (ctfp != dmp->dm_ctfp && ctfp != ctf_parent_file(dmp->dm_ctfp) &&
-	    (type = ctf_add_type(dmp->dm_ctfp, ctfp, type)) == CTF_ERR)
-		return (-1); /* errno is set for us */
+	    (type = ctf_add_type(dmp->dm_ctfp, ctfp, type)) == CTF_ERR) {
+		dtp->dt_ctferr = ctf_errno(dmp->dm_ctfp);
+		return (dt_set_errno(dtp, EDT_CTF));
+	}
 
 	ptr = ctf_add_pointer(dmp->dm_ctfp, CTF_ADD_ROOT, type);
 
-	if (ptr == CTF_ERR || ctf_update(dmp->dm_ctfp) == CTF_ERR)
-		return (-1); /* errno is set for us */
+	if (ptr == CTF_ERR || ctf_update(dmp->dm_ctfp) == CTF_ERR) {
+		dtp->dt_ctferr = ctf_errno(dmp->dm_ctfp);
+		return (dt_set_errno(dtp, EDT_CTF));
+	}
 
 	tip->dtt_object = dmp->dm_name;
 	tip->dtt_ctfp = dmp->dm_ctfp;
@@ -462,26 +487,50 @@ dt_node_name(const dt_node_t *dnp, char *buf, size_t len)
 	return (buf);
 }
 
-static dt_node_t *
-dt_node_alloc(int kind)
+/*
+ * dt_node_xalloc() can be used to create new parse nodes from any libdtrace
+ * caller.  The caller is responsible for assigning dn_link appropriately.
+ */
+dt_node_t *
+dt_node_xalloc(dtrace_hdl_t *dtp, int kind)
 {
-	dt_node_t *dnp = malloc(sizeof (dt_node_t));
+	dt_node_t *dnp = dt_alloc(dtp, sizeof (dt_node_t));
 
 	if (dnp == NULL)
-		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+		return (NULL);
 
 	dnp->dn_ctfp = NULL;
 	dnp->dn_type = CTF_ERR;
 	dnp->dn_kind = (uchar_t)kind;
 	dnp->dn_flags = 0;
 	dnp->dn_op = 0;
-	dnp->dn_line = yylineno;
+	dnp->dn_line = -1;
 	dnp->dn_reg = -1;
 	dnp->dn_attr = _dtrace_defattr;
 	dnp->dn_list = NULL;
+	dnp->dn_link = NULL;
+	bzero(&dnp->dn_u, sizeof (dnp->dn_u));
+
+	return (dnp);
+}
+
+/*
+ * dt_node_alloc() is used to create new parse nodes from the parser.  It
+ * assigns the node location based on the current lexer line number and places
+ * the new node on the default allocation list.  If allocation fails, we
+ * automatically longjmp the caller back to the enclosing compilation call.
+ */
+static dt_node_t *
+dt_node_alloc(int kind)
+{
+	dt_node_t *dnp = dt_node_xalloc(yypcb->pcb_hdl, kind);
+
+	if (dnp == NULL)
+		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+
+	dnp->dn_line = yylineno;
 	dnp->dn_link = yypcb->pcb_list;
 	yypcb->pcb_list = dnp;
-	bzero(&dnp->dn_u, sizeof (dnp->dn_u));
 
 	return (dnp);
 }
@@ -503,6 +552,12 @@ dt_node_free(dt_node_t *dnp)
 
 	case DT_NODE_VAR:
 	case DT_NODE_FUNC:
+	case DT_NODE_PROBE:
+		if (dnp->dn_ident != NULL) {
+			if (dnp->dn_ident->di_flags & DT_IDFLG_ORPHAN)
+				dt_ident_destroy(dnp->dn_ident);
+			dnp->dn_ident = NULL;
+		}
 		dt_node_list_free(&dnp->dn_args);
 		break;
 
@@ -571,17 +626,10 @@ dt_node_free(dt_node_t *dnp)
 		}
 		break;
 
-	case DT_NODE_PROBE:
-		if (dnp->dn_ident != NULL) {
-			dt_ident_destroy(dnp->dn_ident);
-			dnp->dn_ident = NULL;
-		}
-		break;
-
 	case DT_NODE_PROVIDER:
-		dt_node_list_free(&dnp->dn_list);
-		free(dnp->dn_string);
-		dnp->dn_string = NULL;
+		dt_node_list_free(&dnp->dn_probes);
+		free(dnp->dn_provname);
+		dnp->dn_provname = NULL;
 		break;
 
 	case DT_NODE_PROG:
@@ -635,7 +683,7 @@ dt_node_type_assign(dt_node_t *dnp, ctf_file_t *fp, ctf_id_t type)
 	    kind == CTF_K_FORWARD ||
 	    kind == CTF_K_ARRAY || kind == CTF_K_FUNCTION)
 		dnp->dn_flags |= DT_NF_REF;
-	else if (fp == DT_DYN_CTFP(yypcb->pcb_hdl) &&
+	else if (yypcb != NULL && fp == DT_DYN_CTFP(yypcb->pcb_hdl) &&
 	    type == DT_DYN_TYPE(yypcb->pcb_hdl))
 		dnp->dn_flags |= DT_NF_REF;
 
@@ -658,7 +706,7 @@ dt_node_type_name(const dt_node_t *dnp, char *buf, size_t len)
 {
 	if (dt_node_is_dynamic(dnp) && dnp->dn_ident != NULL) {
 		(void) snprintf(buf, len, "%s",
-		    dt_idkind_name(dnp->dn_ident->di_kind));
+		    dt_idkind_name(dt_ident_resolve(dnp->dn_ident)->di_kind));
 		return (buf);
 	}
 
@@ -682,6 +730,35 @@ dt_node_type_size(const dt_node_t *dnp)
 		return (dt_ident_size(dnp->dn_ident));
 
 	return (ctf_type_size(dnp->dn_ctfp, dnp->dn_type));
+}
+
+/*
+ * Determine if the specified parse tree node references an identifier of the
+ * specified kind, and if so return a pointer to it; otherwise return NULL.
+ * This function resolves the identifier itself, following through any inlines.
+ */
+dt_ident_t *
+dt_node_resolve(const dt_node_t *dnp, uint_t idkind)
+{
+	dt_ident_t *idp;
+
+	switch (dnp->dn_kind) {
+	case DT_NODE_VAR:
+	case DT_NODE_SYM:
+	case DT_NODE_FUNC:
+	case DT_NODE_AGG:
+	case DT_NODE_INLINE:
+	case DT_NODE_PROBE:
+		idp = dt_ident_resolve(dnp->dn_ident);
+		return (idp->di_kind == idkind ? idp : NULL);
+	}
+
+	if (dt_node_is_dynamic(dnp)) {
+		idp = dt_ident_resolve(dnp->dn_ident);
+		return (idp->di_kind == idkind ? idp : NULL);
+	}
+
+	return (NULL);
 }
 
 size_t
@@ -815,6 +892,12 @@ dt_node_is_vfptr(const dt_node_t *dnp)
 int
 dt_node_is_dynamic(const dt_node_t *dnp)
 {
+	if (dnp->dn_kind == DT_NODE_VAR &&
+	    (dnp->dn_ident->di_flags & DT_IDFLG_INLINE)) {
+		const dt_idnode_t *inp = dnp->dn_ident->di_iarg;
+		return (inp->din_root ? dt_node_is_dynamic(inp->din_root) : 0);
+	}
+
 	return (dnp->dn_ctfp == DT_DYN_CTFP(yypcb->pcb_hdl) &&
 	    dnp->dn_type == DT_DYN_TYPE(yypcb->pcb_hdl));
 }
@@ -831,6 +914,20 @@ dt_node_is_stack(const dt_node_t *dnp)
 {
 	return (dnp->dn_ctfp == DT_STACK_CTFP(yypcb->pcb_hdl) &&
 	    dnp->dn_type == DT_STACK_TYPE(yypcb->pcb_hdl));
+}
+
+int
+dt_node_is_symaddr(const dt_node_t *dnp)
+{
+	return (dnp->dn_ctfp == DT_SYMADDR_CTFP(yypcb->pcb_hdl) &&
+	    dnp->dn_type == DT_SYMADDR_TYPE(yypcb->pcb_hdl));
+}
+
+int
+dt_node_is_usymaddr(const dt_node_t *dnp)
+{
+	return (dnp->dn_ctfp == DT_USYMADDR_CTFP(yypcb->pcb_hdl) &&
+	    dnp->dn_type == DT_USYMADDR_TYPE(yypcb->pcb_hdl));
 }
 
 int
@@ -887,6 +984,9 @@ dt_node_is_void(const dt_node_t *dnp)
 		return (0); /* <DYN> is an alias for void but not the same */
 
 	if (dt_node_is_stack(dnp))
+		return (0);
+
+	if (dt_node_is_symaddr(dnp) || dt_node_is_usymaddr(dnp))
 		return (0);
 
 	type = ctf_type_resolve(fp, dnp->dn_type);
@@ -1025,6 +1125,12 @@ dt_node_is_argcompat(const dt_node_t *lp, const dt_node_t *rp)
 	if (dt_node_is_stack(lp) && dt_node_is_stack(rp))
 		return (1); /* stack types are compatible */
 
+	if (dt_node_is_symaddr(lp) && dt_node_is_symaddr(rp))
+		return (1); /* symaddr types are compatible */
+
+	if (dt_node_is_usymaddr(lp) && dt_node_is_usymaddr(rp))
+		return (1); /* usymaddr types are compatible */
+
 	switch (ctf_type_kind(lfp, ctf_type_resolve(lfp, lp->dn_type))) {
 	case CTF_K_FUNCTION:
 	case CTF_K_STRUCT:
@@ -1152,7 +1258,6 @@ dt_node_string(char *string)
 dt_node_t *
 dt_node_ident(char *name)
 {
-	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
 	dt_ident_t *idp;
 	dt_node_t *dnp;
 
@@ -1165,11 +1270,12 @@ dt_node_ident(char *name)
 	 * immediately, allowing this inline to be used in parsing contexts
 	 * that require constant expressions (e.g. scalar array sizes).
 	 */
-	if ((idp = dt_idhash_lookup(dtp->dt_globals, name)) != NULL &&
+	if ((idp = dt_idstack_lookup(&yypcb->pcb_globals, name)) != NULL &&
 	    (idp->di_flags & DT_IDFLG_INLINE)) {
-		dt_idnode_t *inp = idp->di_data;
+		dt_idnode_t *inp = idp->di_iarg;
 
-		if (inp->din_root->dn_kind == DT_NODE_INT) {
+		if (inp->din_root != NULL &&
+		    inp->din_root->dn_kind == DT_NODE_INT) {
 			free(name);
 
 			dnp = dt_node_alloc(DT_NODE_INT);
@@ -1241,7 +1347,7 @@ dt_node_vatype(void)
 	dt_node_t *dnp = dt_node_alloc(DT_NODE_TYPE);
 
 	dnp->dn_op = DT_TOK_IDENT;
-	dnp->dn_ctfp = NULL;
+	dnp->dn_ctfp = yypcb->pcb_hdl->dt_cdefs->dm_ctfp;
 	dnp->dn_type = CTF_ERR;
 	dnp->dn_attr = _dtrace_defattr;
 
@@ -1352,6 +1458,17 @@ dt_node_decl(void)
 	}
 
 	case DT_DC_TYPEDEF:
+		if (dt_idstack_lookup(&yypcb->pcb_globals, dsp->ds_ident)) {
+			xyerror(D_DECL_IDRED, "global variable identifier "
+			    "redeclared: %s\n", dsp->ds_ident);
+		}
+
+		if (ctf_lookup_by_name(dmp->dm_ctfp,
+		    dsp->ds_ident) != CTF_ERR) {
+			xyerror(D_DECL_IDRED,
+			    "typedef redeclared: %s\n", dsp->ds_ident);
+		}
+
 		/*
 		 * If the source type for the typedef is not defined in the
 		 * target container or its parent, copy the type to the target
@@ -1396,14 +1513,18 @@ dt_node_decl(void)
 		case DT_DC_THIS:
 			dhp = yypcb->pcb_locals;
 			idflags = DT_IDFLG_LOCAL;
+			idp = dt_idhash_lookup(dhp, dsp->ds_ident);
 			break;
 		case DT_DC_SELF:
 			dhp = dtp->dt_tls;
 			idflags = DT_IDFLG_TLS;
+			idp = dt_idhash_lookup(dhp, dsp->ds_ident);
 			break;
 		default:
 			dhp = dtp->dt_globals;
 			idflags = 0;
+			idp = dt_idstack_lookup(
+			    &yypcb->pcb_globals, dsp->ds_ident);
 			break;
 		}
 
@@ -1413,16 +1534,18 @@ dt_node_decl(void)
 			    "tuple signature: %s\n", dsp->ds_ident);
 		}
 
-		/*
-		 * Create a fake dt_node_t on the stack so we can determine the
-		 * type of the ident if it's defined.  We look it up in the
-		 * appropriate hash table (dhp) and cook it into the node (idn).
-		 */
-		bzero(&idn, sizeof (dt_node_t));
-		idp = dt_idhash_lookup(dhp, dsp->ds_ident);
+		if (idp != NULL && idp->di_gen == 0) {
+			xyerror(D_DECL_IDRED, "built-in identifier "
+			    "redeclared: %s\n", idp->di_name);
+		}
 
-		if (idp != NULL)
-			(void) dt_ident_cook(&idn, idp, NULL);
+		if (dtrace_lookup_by_type(dtp, DTRACE_OBJ_CDEFS,
+		    dsp->ds_ident, NULL) == 0 ||
+		    dtrace_lookup_by_type(dtp, DTRACE_OBJ_DDEFS,
+		    dsp->ds_ident, NULL) == 0) {
+			xyerror(D_DECL_IDRED, "typedef identifier "
+			    "redeclared: %s\n", dsp->ds_ident);
+		}
 
 		/*
 		 * Cache some attributes of the decl to make the rest of this
@@ -1435,6 +1558,21 @@ dt_node_decl(void)
 		    ddp->dd_node->dn_kind == DT_NODE_TYPE;
 
 		idkind = assc ? DT_IDENT_ARRAY : DT_IDENT_SCALAR;
+
+		/*
+		 * Create a fake dt_node_t on the stack so we can determine the
+		 * type of any matching identifier by assigning to this node.
+		 * If the pre-existing ident has its di_type set, propagate
+		 * the type by hand so as not to trigger a prototype check for
+		 * arrays (yet); otherwise we use dt_ident_cook() on the ident
+		 * to ensure it is fully initialized before looking at it.
+		 */
+		bzero(&idn, sizeof (dt_node_t));
+
+		if (idp != NULL && idp->di_type != CTF_ERR)
+			dt_node_type_assign(&idn, idp->di_ctfp, idp->di_type);
+		else if (idp != NULL)
+			(void) dt_ident_cook(&idn, idp, NULL);
 
 		if (assc) {
 			if (class == DT_DC_THIS) {
@@ -1465,6 +1603,9 @@ dt_node_decl(void)
 
 			for (; dnp != NULL; dnp = dnp->dn_list, argc++) {
 				const dt_node_t *pnp = &isp->dis_args[argc];
+
+				if (argc >= isp->dis_argc)
+					continue; /* tuple length mismatch */
 
 				if (ctf_type_cmp(dnp->dn_ctfp, dnp->dn_type,
 				    pnp->dn_ctfp, pnp->dn_type) == 0)
@@ -1517,13 +1658,6 @@ dt_node_decl(void)
 				    dt_type_name(dtt.dtt_ctfp, dtt.dtt_type,
 				    n1, sizeof (n1)), dsp->ds_ident);
 				/*NOTREACHED*/
-			}
-
-			if ((kind == CTF_K_STRUCT || kind == CTF_K_UNION ||
-			    kind == CTF_K_ARRAY) && class == DT_DC_THIS) {
-				xyerror(D_VAR_UNSUP, "clause-local variable"
-				    " cannot be used with struct/union/array"
-				    " type: %s\n", dsp->ds_ident);
 			}
 
 			if (dt_idhash_nextid(dhp, &id) == -1) {
@@ -1579,7 +1713,7 @@ dt_node_func(dt_node_t *dnp, dt_node_t *args)
 		    "function designator is not of function type\n");
 	}
 
-	idp = dt_idhash_lookup(yypcb->pcb_hdl->dt_globals, dnp->dn_string);
+	idp = dt_idstack_lookup(&yypcb->pcb_globals, dnp->dn_string);
 
 	if (idp == NULL) {
 		xyerror(D_FUNC_UNDEF,
@@ -2023,22 +2157,146 @@ dt_node_clause(dt_node_t *pdescs, dt_node_t *pred, dt_node_t *acts)
 }
 
 dt_node_t *
-dt_node_inline(dt_decl_t *ddp, char *name, dt_node_t *expr)
+dt_node_inline(dt_node_t *expr)
 {
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
-	dtrace_typeinfo_t dtt;
-	dtrace_attribute_t attr;
-	int err;
+	dt_scope_t *dsp = &yypcb->pcb_dstack;
+	dt_decl_t *ddp = dt_decl_top();
 
+	char n[DT_TYPE_NAMELEN];
+	dtrace_typeinfo_t dtt;
+
+	dt_ident_t *idp, *rdp;
 	dt_idnode_t *inp;
-	dt_ident_t *idp;
 	dt_node_t *dnp;
 
-	err = dt_decl_type(ddp, &dtt);
-	dt_decl_free(ddp);
-
-	if (err != 0)
+	if (dt_decl_type(ddp, &dtt) != 0)
 		longjmp(yypcb->pcb_jmpbuf, EDT_COMPILER);
+
+	if (dsp->ds_class != DT_DC_DEFAULT) {
+		xyerror(D_DECL_BADCLASS, "specified storage class not "
+		    "appropriate for inline declaration\n");
+	}
+
+	if (dsp->ds_ident == NULL)
+		xyerror(D_DECL_USELESS, "inline declaration requires a name\n");
+
+	if ((idp = dt_idstack_lookup(
+	    &yypcb->pcb_globals, dsp->ds_ident)) != NULL) {
+		xyerror(D_DECL_IDRED, "identifier redefined: %s\n\t current: "
+		    "inline definition\n\tprevious: %s %s\n",
+		    idp->di_name, dt_idkind_name(idp->di_kind),
+		    (idp->di_flags & DT_IDFLG_INLINE) ? "inline" : "");
+	}
+
+	/*
+	 * If we are declaring an inlined array, verify that we have a tuple
+	 * signature, and then recompute 'dtt' as the array's value type.
+	 */
+	if (ddp->dd_kind == CTF_K_ARRAY) {
+		if (ddp->dd_node == NULL) {
+			xyerror(D_DECL_ARRNULL, "inline declaration requires "
+			    "array tuple signature: %s\n", dsp->ds_ident);
+		}
+
+		if (ddp->dd_node->dn_kind != DT_NODE_TYPE) {
+			xyerror(D_DECL_ARRNULL, "inline declaration cannot be "
+			    "of scalar array type: %s\n", dsp->ds_ident);
+		}
+
+		if (dt_decl_type(ddp->dd_next, &dtt) != 0)
+			longjmp(yypcb->pcb_jmpbuf, EDT_COMPILER);
+	}
+
+	/*
+	 * If the inline identifier is not defined, then create it with the
+	 * orphan flag set.  We do not insert the identifier into dt_globals
+	 * until we have successfully cooked the right-hand expression, below.
+	 */
+	dnp = dt_node_alloc(DT_NODE_INLINE);
+	dt_node_type_assign(dnp, dtt.dtt_ctfp, dtt.dtt_type);
+	dt_node_attr_assign(dnp, _dtrace_defattr);
+
+	if (dt_node_is_void(dnp)) {
+		xyerror(D_DECL_VOIDOBJ,
+		    "cannot declare void inline: %s\n", dsp->ds_ident);
+	}
+
+	if (ctf_type_kind(dnp->dn_ctfp, ctf_type_resolve(
+	    dnp->dn_ctfp, dnp->dn_type)) == CTF_K_FORWARD) {
+		xyerror(D_DECL_INCOMPLETE,
+		    "incomplete struct/union/enum %s: %s\n",
+		    dt_node_type_name(dnp, n, sizeof (n)), dsp->ds_ident);
+	}
+
+	if ((inp = malloc(sizeof (dt_idnode_t))) == NULL)
+		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+
+	bzero(inp, sizeof (dt_idnode_t));
+
+	idp = dnp->dn_ident = dt_ident_create(dsp->ds_ident,
+	    ddp->dd_kind == CTF_K_ARRAY ? DT_IDENT_ARRAY : DT_IDENT_SCALAR,
+	    DT_IDFLG_INLINE | DT_IDFLG_REF | DT_IDFLG_DECL | DT_IDFLG_ORPHAN, 0,
+	    _dtrace_defattr, 0, &dt_idops_inline, inp, dtp->dt_gen);
+
+	if (idp == NULL) {
+		free(inp);
+		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+	}
+
+	/*
+	 * If we're inlining an associative array, create a private identifier
+	 * hash containing the named parameters and store it in inp->din_hash.
+	 * We then push this hash on to the top of the pcb_globals stack.
+	 */
+	if (ddp->dd_kind == CTF_K_ARRAY) {
+		dt_idnode_t *pinp;
+		dt_ident_t *pidp;
+		dt_node_t *pnp;
+		uint_t i = 0;
+
+		for (pnp = ddp->dd_node; pnp != NULL; pnp = pnp->dn_list)
+			i++; /* count up parameters for din_argv[] */
+
+		inp->din_hash = dt_idhash_create("inline args", NULL, 0, 0);
+		inp->din_argv = calloc(i, sizeof (dt_ident_t *));
+
+		if (inp->din_hash == NULL || inp->din_argv == NULL)
+			longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+
+		/*
+		 * Create an identifier for each parameter as a scalar inline,
+		 * and store it in din_hash and in position in din_argv[].  The
+		 * parameter identifiers also use dt_idops_inline, but we leave
+		 * the dt_idnode_t argument 'pinp' zeroed.  This will be filled
+		 * in by the code generation pass with references to the args.
+		 */
+		for (i = 0, pnp = ddp->dd_node;
+		    pnp != NULL; pnp = pnp->dn_list, i++) {
+
+			if (pnp->dn_string == NULL)
+				continue; /* ignore anonymous parameters */
+
+			if ((pinp = malloc(sizeof (dt_idnode_t))) == NULL)
+				longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+
+			pidp = dt_idhash_insert(inp->din_hash, pnp->dn_string,
+			    DT_IDENT_SCALAR, DT_IDFLG_DECL | DT_IDFLG_INLINE, 0,
+			    _dtrace_defattr, 0, &dt_idops_inline,
+			    pinp, dtp->dt_gen);
+
+			if (pidp == NULL) {
+				free(pinp);
+				longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+			}
+
+			inp->din_argv[i] = pidp;
+			bzero(pinp, sizeof (dt_idnode_t));
+			dt_ident_type_assign(pidp, pnp->dn_ctfp, pnp->dn_type);
+		}
+
+		dt_idstack_push(&yypcb->pcb_globals, inp->din_hash);
+	}
 
 	/*
 	 * Unlike most constructors, we need to explicitly cook the right-hand
@@ -2046,60 +2304,48 @@ dt_node_inline(dt_decl_t *ddp, char *name, dt_node_t *expr)
 	 * the right-hand side uses the inline itself, the cook will fail.
 	 */
 	expr = dt_node_cook(expr, DT_IDFLG_REF);
-	attr = dt_attr_min(_dtrace_defattr, expr->dn_attr);
 
-	if ((idp = dt_idhash_lookup(dtp->dt_globals, name)) != NULL) {
-		free(name);
-		xyerror(D_DECL_IDRED, "identifier redefined: %s\n\t current: "
-		    "inline definition\n\tprevious: %s %s\n",
-		    idp->di_name, dt_idkind_name(idp->di_kind),
-		    (idp->di_flags & DT_IDFLG_INLINE) ? "inline" : "");
+	if (ddp->dd_kind == CTF_K_ARRAY)
+		dt_idstack_pop(&yypcb->pcb_globals, inp->din_hash);
+
+	/*
+	 * Set the type, attributes, and flags for the inline.  If the right-
+	 * hand expression has an identifier, propagate its flags.  Then cook
+	 * the identifier to fully initialize it: if we're declaring an inline
+	 * associative array this will construct a type signature from 'ddp'.
+	 */
+	if (dt_node_is_dynamic(expr))
+		rdp = dt_ident_resolve(expr->dn_ident);
+	else if (expr->dn_kind == DT_NODE_VAR || expr->dn_kind == DT_NODE_SYM)
+		rdp = expr->dn_ident;
+	else
+		rdp = NULL;
+
+	if (rdp != NULL) {
+		idp->di_flags |= (rdp->di_flags &
+		    (DT_IDFLG_WRITE | DT_IDFLG_USER | DT_IDFLG_PRIM));
 	}
 
-	dt_dprintf("create inline definition %s\n", name);
+	idp->di_attr = dt_attr_min(_dtrace_defattr, expr->dn_attr);
+	dt_ident_type_assign(idp, dtt.dtt_ctfp, dtt.dtt_type);
+	(void) dt_ident_cook(dnp, idp, &ddp->dd_node);
 
-	idp = dt_idhash_insert(dtp->dt_globals, name, DT_IDENT_SCALAR,
-	    DT_IDFLG_INLINE | DT_IDFLG_REF, 0, attr, 0,
-	    &dt_idops_inline, NULL, dtp->dt_gen);
-
-	free(name);
-
-	if (idp == NULL)
-		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
-
-	if ((inp = malloc(sizeof (dt_idnode_t))) == NULL)
-		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
-
+	/*
+	 * Store the parse tree nodes for 'expr' inside of idp->di_data ('inp')
+	 * so that they will be preserved with this identifier.  Then pop the
+	 * inline declaration from the declaration stack and restore the lexer.
+	 */
 	inp->din_list = yypcb->pcb_list;
 	inp->din_root = expr;
 
+	dt_decl_free(dt_decl_pop());
 	yybegin(YYS_CLAUSE);
-	idp->di_data = inp;
 
-	if (dt_node_is_dynamic(expr)) {
-		dt_ident_t *rdp = dt_ident_resolve(expr->dn_ident);
-
-		idp->di_kind = rdp->di_kind;
-		idp->di_flags |= (rdp->di_flags &
-		    (DT_IDFLG_WRITE | DT_IDFLG_USER | DT_IDFLG_PRIM));
-		idp->di_ctfp = expr->dn_ctfp;
-		idp->di_type = expr->dn_type;
-	} else {
-		if (expr->dn_kind == DT_NODE_VAR ||
-		    expr->dn_kind == DT_NODE_SYM) {
-			idp->di_flags |= (expr->dn_ident->di_flags &
-			    (DT_IDFLG_WRITE | DT_IDFLG_USER | DT_IDFLG_PRIM));
-		}
-		idp->di_ctfp = dtt.dtt_ctfp;
-		idp->di_type = dtt.dtt_type;
-	}
-
-	dnp = dt_node_alloc(DT_NODE_INLINE);
-	dnp->dn_ident = idp;
-	dt_node_type_assign(dnp, dtt.dtt_ctfp, dtt.dtt_type);
-	dt_node_attr_assign(dnp, _dtrace_defattr);
-	dnp->dn_flags &= ~DT_NF_COOKED;
-
+	/*
+	 * Finally, insert the inline identifier into dt_globals to make it
+	 * visible, and then cook 'dnp' to check its type against 'expr'.
+	 */
+	dt_idhash_xinsert(dtp->dt_globals, idp);
 	return (dt_node_cook(dnp, DT_IDFLG_REF));
 }
 
@@ -2137,6 +2383,7 @@ dt_node_xlator(dt_decl_t *ddp, dt_decl_t *sdp, char *name, dt_node_t *members)
 	dt_xlator_t *dxp;
 	dt_node_t *dnp;
 	int edst, esrc;
+	uint_t kind;
 
 	char n1[DT_TYPE_NAMELEN];
 	char n2[DT_TYPE_NAMELEN];
@@ -2165,6 +2412,19 @@ dt_node_xlator(dt_decl_t *ddp, dt_decl_t *sdp, char *name, dt_node_t *members)
 		    dt_node_type_name(&dn, n2, sizeof (n2)));
 	}
 
+	kind = ctf_type_kind(dst.dtt_ctfp,
+	    ctf_type_resolve(dst.dtt_ctfp, dst.dtt_type));
+
+	if (kind == CTF_K_FORWARD) {
+		xyerror(D_XLATE_SOU, "incomplete struct/union/enum %s\n",
+		    dt_type_name(dst.dtt_ctfp, dst.dtt_type, n1, sizeof (n1)));
+	}
+
+	if (kind != CTF_K_STRUCT && kind != CTF_K_UNION) {
+		xyerror(D_XLATE_SOU,
+		    "translator output type must be a struct or union\n");
+	}
+
 	dxp = dt_xlator_create(dtp, &src, &dst, name, members, yypcb->pcb_list);
 	yybegin(YYS_CLAUSE);
 	free(name);
@@ -2179,93 +2439,17 @@ dt_node_xlator(dt_decl_t *ddp, dt_decl_t *sdp, char *name, dt_node_t *members)
 	return (dt_node_cook(dnp, DT_IDFLG_REF));
 }
 
-/*
- * Examine the list of formal parameters 'flist' and determine if the formal
- * name fnp->dn_string is defined in this list (B_TRUE) or not (B_FALSE).
- * If 'fnp' is in 'flist', do not search beyond 'fnp' itself in 'flist'.
- */
-static int
-dt_node_probe_protoform(dt_node_t *fnp, dt_node_t *flist)
-{
-	dt_node_t *dnp;
-
-	for (dnp = flist; dnp != fnp && dnp != NULL; dnp = dnp->dn_list) {
-		if (dnp->dn_string != NULL &&
-		    strcmp(dnp->dn_string, fnp->dn_string) == 0)
-			return (B_TRUE);
-	}
-
-	return (B_FALSE);
-}
-
-/*
- * Common code for parsing a probe definition's prototype 'plist', of which
- * there can be two: one for native arguments at the probe site and one for
- * translated arguments presented to DTrace consumers.  If 'defined' is TRUE,
- * we demand that every formal parameter have a name and be present in 'flist'.
- * If 'defined' is false, we require that named parameters not be in 'flist'.
- */
-static int
-dt_node_probe_prototype(const char *pname, const char *desc,
-    dt_node_t *plist, dt_node_t *flist, int defined)
-{
-	char n[DT_TYPE_NAMELEN];
-	dt_node_t *dnp;
-	int i = 0, v = 0;
-
-	for (dnp = plist; dnp != NULL; dnp = dnp->dn_list, i++) {
-		if (dt_node_is_dynamic(dnp)) {
-			xyerror(D_DECL_FUNCTYPE, "%s type may not be "
-			    "used in probe %s %s prototype: param #%d\n",
-			    dt_node_type_name(dnp, n, sizeof (n)),
-			    pname, desc, i + 1);
-		}
-
-		if (dnp->dn_type == CTF_ERR) {
-			xyerror(D_DECL_FUNCTYPE, "probe %s %s prototype may "
-			    "not use variable argument list\n", pname, desc);
-		}
-
-		if (dnp->dn_string != NULL &&
-		    dt_node_probe_protoform(dnp, flist) != defined) {
-			xyerror(D_DECL_PARMNAME, "formal parameter %s is %s "
-			    "defined in probe %s %s prototype: param #%d\n",
-			    dnp->dn_string, defined ? "not" : "already",
-			    pname, desc, i + 1);
-		}
-
-		if (dt_node_is_void(dnp))
-			v++; /* count number of void parameters for below */
-		else if (dnp->dn_string == NULL && defined == B_TRUE) {
-			xyerror(D_DECL_PARMNAME, "probe %s formal %s "
-			    "parameter lacks name: param #%d\n",
-			    pname, desc, i + 1);
-		}
-	}
-
-	if (v != 0 && plist->dn_list != NULL) {
-		xyerror(D_DECL_FUNCVOID, "void must be sole parameter in "
-		    "probe %s %s prototype\n", pname, desc);
-	}
-
-	if (i > UINT8_MAX) {
-		xyerror(D_PROV_PRARGLEN, "probe %s %s prototype exceeds %u "
-		    "parameters: %d params used\n", pname, desc, UINT8_MAX, i);
-	}
-
-	return (v ? 0 : i); /* return zero if sole parameter is 'void' */
-}
-
 dt_node_t *
-dt_node_probe(char *s, dt_node_t *nargs, dt_node_t *xargs)
+dt_node_probe(char *s, int protoc, dt_node_t *nargs, dt_node_t *xargs)
 {
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
 	int nargc, xargc;
 	dt_node_t *dnp;
-	char *name;
 
-	name = alloca(strlen(s) + 1);
-	(void) strcpy(name, s);
+	size_t len = strlen(s) + 3; /* +3 for :: and \0 */
+	char *name = alloca(len);
+
+	(void) snprintf(name, len, "::%s", s);
 	(void) strhyphenate(name);
 	free(s);
 
@@ -2274,20 +2458,35 @@ dt_node_probe(char *s, dt_node_t *nargs, dt_node_t *xargs)
 		    "contain scoping operator: %s\n", name);
 	}
 
-	if (strlen(name) >= DTRACE_NAMELEN) {
+	if (strlen(name) - 2 >= DTRACE_NAMELEN) {
 		xyerror(D_PROV_BADNAME, "probe name may not exceed %d "
 		    "characters: %s\n", DTRACE_NAMELEN - 1, name);
 	}
 
 	dnp = dt_node_alloc(DT_NODE_PROBE);
-	dnp->dn_ident = dt_ident_create(name, DT_IDENT_PROBE, 0, 0,
-	    _dtrace_defattr, 0, &dt_idops_probe, (void *)CTF_ERR, dtp->dt_gen);
 
-	nargc = dt_node_probe_prototype(name, "input", nargs, nargs, B_FALSE);
-	xargc = dt_node_probe_prototype(name, "output", xargs, nargs, B_TRUE);
+	dnp->dn_ident = dt_ident_create(name, DT_IDENT_PROBE,
+	    DT_IDFLG_ORPHAN, DTRACE_IDNONE, _dtrace_defattr, 0,
+	    &dt_idops_probe, NULL, dtp->dt_gen);
 
-	if (dnp->dn_ident == NULL || (dnp->dn_ident->di_data =
-	    dt_probe_create(dnp->dn_ident, nargs, nargc, xargs, xargc)) == NULL)
+	nargc = dt_decl_prototype(nargs, nargs,
+	    "probe input", DT_DP_VOID | DT_DP_ANON);
+
+	xargc = dt_decl_prototype(xargs, nargs,
+	    "probe output", DT_DP_VOID);
+
+	if (nargc > UINT8_MAX) {
+		xyerror(D_PROV_PRARGLEN, "probe %s input prototype exceeds %u "
+		    "parameters: %d params used\n", name, UINT8_MAX, nargc);
+	}
+
+	if (xargc > UINT8_MAX) {
+		xyerror(D_PROV_PRARGLEN, "probe %s output prototype exceeds %u "
+		    "parameters: %d params used\n", name, UINT8_MAX, xargc);
+	}
+
+	if (dnp->dn_ident == NULL || dt_probe_create(dtp,
+	    dnp->dn_ident, protoc, nargs, nargc, xargs, xargc) == NULL)
 		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
 
 	return (dnp);
@@ -2297,49 +2496,57 @@ dt_node_t *
 dt_node_provider(char *name, dt_node_t *probes)
 {
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
-	dt_node_t *dnp, *pnp;
-	dt_provider_t *pvp;
+	dt_node_t *dnp = dt_node_alloc(DT_NODE_PROVIDER);
+	dt_node_t *lnp;
+	size_t len;
 
-	dnp = dt_node_alloc(DT_NODE_PROVIDER);
-	dnp->dn_string = name;
-	dnp->dn_list = probes;
-
-	if (!(dtp->dt_cflags & DTRACE_C_PRDEFS))
-		dnerror(dnp, D_PROV_NODEFS, "unexpected provider definition\n");
-
-	if (dt_provider_lookup(dtp, name) != NULL)
-		dnerror(dnp, D_PROV_EXISTS, "provider redeclared: %s\n", name);
+	dnp->dn_provname = name;
+	dnp->dn_probes = probes;
 
 	if (strchr(name, '`') != NULL) {
 		dnerror(dnp, D_PROV_BADNAME, "provider name may not "
 		    "contain scoping operator: %s\n", name);
 	}
 
-	if (strlen(name) >= DTRACE_PROVNAMELEN) {
+	if ((len = strlen(name)) >= DTRACE_PROVNAMELEN) {
 		dnerror(dnp, D_PROV_BADNAME, "provider name may not exceed %d "
 		    "characters: %s\n", DTRACE_PROVNAMELEN - 1, name);
 	}
 
-	if ((pvp = dt_provider_create(dtp, dnp->dn_string)) == NULL)
+	if (isdigit(name[len - 1])) {
+		dnerror(dnp, D_PROV_BADNAME, "provider name may not "
+		    "end with a digit: %s\n", name);
+	}
+
+	/*
+	 * Check to see if the provider is already defined or visible through
+	 * dtrace(7D).  If so, set dn_provred to treat it as a re-declaration.
+	 * If not, create a new provider and set its interface-only flag.  This
+	 * flag may be cleared later by calls made to dt_probe_declare().
+	 */
+	if ((dnp->dn_provider = dt_provider_lookup(dtp, name)) != NULL)
+		dnp->dn_provred = B_TRUE;
+	else if ((dnp->dn_provider = dt_provider_create(dtp, name)) == NULL)
 		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+	else
+		dnp->dn_provider->pv_flags |= DT_PROVIDER_INTF;
 
 	/*
 	 * Store all parse nodes created since we consumed the DT_KEY_PROVIDER
 	 * token with the provider and then restore our lexing state to CLAUSE.
+	 * Note that if dnp->dn_provred is true, we may end up storing dups of
+	 * a provider's interface and implementation: we eat this space because
+	 * the implementation will likely need to redeclare probe members, and
+	 * therefore may result in those member nodes becoming persistent.
 	 */
-	pvp->pv_nodes = yypcb->pcb_list;
+	for (lnp = yypcb->pcb_list; lnp->dn_link != NULL; lnp = lnp->dn_link)
+		continue; /* skip to end of allocation list */
+
+	lnp->dn_link = dnp->dn_provider->pv_nodes;
+	dnp->dn_provider->pv_nodes = yypcb->pcb_list;
+
 	yybegin(YYS_CLAUSE);
-
-	for (pnp = probes; pnp != NULL; pnp = pnp->dn_list) {
-		if (dt_idhash_lookup(pvp->pv_probes, pnp->dn_ident->di_name)) {
-			dnerror(pnp, D_PROV_PREXISTS,
-			    "probe redeclared: %s\n", pnp->dn_ident->di_name);
-		}
-		dt_idhash_xinsert(pvp->pv_probes, pnp->dn_ident);
-		pnp->dn_ident = NULL; /* ident is now in idhash */
-	}
-
-	return (dt_node_cook(dnp, DT_IDFLG_REF));
+	return (dnp);
 }
 
 dt_node_t *
@@ -2416,18 +2623,10 @@ dt_xcook_ident(dt_node_t *dnp, dt_idhash_t *dhp, uint_t idkind, int create)
 	mark = uref ? "``" : "`";
 
 	if (scope == DTRACE_OBJ_EXEC && (
-	    (idp = dt_idhash_lookup(dhp, name)) != NULL ||
-	    (dhp == dtp->dt_globals && yypcb->pcb_globals != NULL &&
-	    (idp = dt_idhash_lookup(yypcb->pcb_globals, name)) != NULL))) {
-		/*
-		 * Permit requests for scalars to match translated struct or
-		 * union values in addition to actual scalar identifiers.
-		 */
-		if (idkind == DT_IDENT_SCALAR && (
-		    idp->di_kind == DT_IDENT_XLPTR ||
-		    idp->di_kind == DT_IDENT_XLSOU))
-			idkind = idp->di_kind;
-
+	    (dhp != dtp->dt_globals &&
+	    (idp = dt_idhash_lookup(dhp, name)) != NULL) ||
+	    (dhp == dtp->dt_globals &&
+	    (idp = dt_idstack_lookup(&yypcb->pcb_globals, name)) != NULL))) {
 		/*
 		 * Check that we are referencing the ident in the manner that
 		 * matches its type if this is a global lookup.  In the TLS or
@@ -2650,6 +2849,8 @@ dt_cook_op1(dt_node_t *dnp, uint_t idflags)
 
 	char n[DT_TYPE_NAMELEN];
 	dtrace_typeinfo_t dtt;
+	dt_ident_t *idp;
+
 	ctf_encoding_t e;
 	ctf_arinfo_t r;
 	ctf_id_t type, base;
@@ -2687,9 +2888,7 @@ dt_cook_op1(dt_node_t *dnp, uint_t idflags)
 		 * If the deref operator is applied to a translated pointer,
 		 * we can just set our output type to the base translation.
 		 */
-		if (dt_node_is_dynamic(cp) &&
-		    cp->dn_ident->di_kind == DT_IDENT_XLPTR) {
-			dt_ident_t *idp = dt_ident_resolve(cp->dn_ident);
+		if ((idp = dt_node_resolve(cp, DT_IDENT_XLPTR)) != NULL) {
 			dt_xlator_t *dxp = idp->di_data;
 
 			dnp->dn_ident = &dxp->dx_souid;
@@ -2882,6 +3081,7 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 	ctf_file_t *ctfp;
 	ctf_id_t type;
 	int kind, val, uref;
+	dt_ident_t *idp;
 
 	char n1[DT_TYPE_NAMELEN];
 	char n2[DT_TYPE_NAMELEN];
@@ -2896,21 +3096,18 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 	if (op == DT_TOK_LBRAC) {
 		if (lp->dn_kind == DT_NODE_IDENT) {
 			dt_idhash_t *dhp;
-			dt_ident_t *idp;
-			const char *name;
 			uint_t idkind;
 
 			if (lp->dn_op == DT_TOK_AGG) {
 				dhp = dtp->dt_aggs;
-				name = lp->dn_string + 1;
+				idp = dt_idhash_lookup(dhp, lp->dn_string + 1);
 				idkind = DT_IDENT_AGG;
 			} else {
 				dhp = dtp->dt_globals;
-				name = lp->dn_string;
+				idp = dt_idstack_lookup(
+				    &yypcb->pcb_globals, lp->dn_string);
 				idkind = DT_IDENT_ARRAY;
 			}
-
-			idp = dt_idhash_lookup(dhp, name);
 
 			if (idp == NULL || dt_ident_unref(idp))
 				dt_xcook_ident(lp, dhp, idkind, B_TRUE);
@@ -3029,10 +3226,8 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 		    strchr(rp->dn_string, '`') == NULL && ctf_enum_value(
 		    lp->dn_ctfp, lp->dn_type, rp->dn_string, &val) == 0) {
 
-			dt_ident_t *idp =
-			    dt_idhash_lookup(dtp->dt_globals, rp->dn_string);
-
-			if (idp != NULL) {
+			if ((idp = dt_idstack_lookup(&yypcb->pcb_globals,
+			    rp->dn_string)) != NULL) {
 				xyerror(D_IDENT_AMBIG,
 				    "ambiguous use of operator %s: %s is "
 				    "both a %s enum tag and a global %s\n",
@@ -3089,17 +3284,20 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 		/*
 		 * The rules for type checking for the additive operators are
 		 * described in the ANSI-C spec (see K&R[A7.7]).  Pointers and
-		 * integers may be manipulated according to specific rules.
+		 * integers may be manipulated according to specific rules.  In
+		 * these cases D permits strings to be treated as pointers.
 		 */
 		int lp_is_ptr, lp_is_int, rp_is_ptr, rp_is_int;
 
 		lp = dnp->dn_left = dt_node_cook(lp, DT_IDFLG_REF);
 		rp = dnp->dn_right = dt_node_cook(rp, DT_IDFLG_REF);
 
-		lp_is_ptr = dt_node_is_pointer(lp) && !dt_node_is_vfptr(lp);
+		lp_is_ptr = dt_node_is_string(lp) ||
+		    (dt_node_is_pointer(lp) && !dt_node_is_vfptr(lp));
 		lp_is_int = dt_node_is_integer(lp);
 
-		rp_is_ptr = dt_node_is_pointer(rp) && !dt_node_is_vfptr(rp);
+		rp_is_ptr = dt_node_is_string(rp) ||
+		    (dt_node_is_pointer(rp) && !dt_node_is_vfptr(rp));
 		rp_is_int = dt_node_is_integer(rp);
 
 		if (lp_is_int && rp_is_int) {
@@ -3249,9 +3447,7 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 		 * If the right-hand side is a dynamic variable that is the
 		 * output of a translator, our result is the translated type.
 		 */
-		if (dt_node_is_dynamic(rp) &&
-		    rp->dn_ident->di_kind == DT_IDENT_XLSOU) {
-			dt_ident_t *idp = dt_ident_resolve(rp->dn_ident);
+		if ((idp = dt_node_resolve(rp, DT_IDENT_XLSOU)) != NULL) {
 			ctfp = idp->di_ctfp;
 			type = idp->di_type;
 			uref = idp->di_flags & DT_IDFLG_USER;
@@ -3270,13 +3466,6 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 		    dt_ident_unref(lp->dn_ident)) {
 			dt_node_type_assign(lp, ctfp, type);
 			dt_ident_type_assign(lp->dn_ident, ctfp, type);
-
-			if ((lp->dn_ident->di_flags & DT_IDFLG_LOCAL) &&
-			    (lp->dn_flags & DT_NF_REF)) {
-				dnerror(lp, D_VAR_UNSUP, "clause-local variable"
-				    " cannot be used with struct/union/array"
-				    " type: this->%s\n", lp->dn_ident->di_name);
-			}
 
 			if (uref) {
 				lp->dn_flags |= DT_NF_USERLAND;
@@ -3304,8 +3493,7 @@ dt_cook_op2(dt_node_t *dnp, uint_t idflags)
 			}
 		}
 
-		if (dt_node_is_dynamic(rp) &&
-		    rp->dn_ident->di_kind == DT_IDENT_XLSOU &&
+		if (idp != NULL && idp->di_kind == DT_IDENT_XLSOU &&
 		    ctf_type_compat(lp->dn_ctfp, lp->dn_type, ctfp, type))
 			goto asgn_common;
 
@@ -3423,14 +3611,12 @@ asgn_common:
 			    "an identifier\n", opstr(op));
 		}
 
-		if (dt_node_is_dynamic(lp) && (
-		    lp->dn_ident->di_kind == DT_IDENT_XLSOU ||
-		    lp->dn_ident->di_kind == DT_IDENT_XLPTR)) {
+		if ((idp = dt_node_resolve(lp, DT_IDENT_XLSOU)) != NULL ||
+		    (idp = dt_node_resolve(lp, DT_IDENT_XLPTR)) != NULL) {
 			/*
 			 * If the left-hand side is a translated struct or ptr,
 			 * the type of the left is the translation output type.
 			 */
-			dt_ident_t *idp = dt_ident_resolve(lp->dn_ident);
 			dt_xlator_t *dxp = idp->di_data;
 
 			if (dt_xlator_member(dxp, rp->dn_string) == NULL) {
@@ -3528,7 +3714,6 @@ asgn_common:
 		 * If op is DT_TOK_LBRAC, we know from the special-case code at
 		 * the top that lp is either a D variable or an aggregation.
 		 */
-		dt_ident_t *idp = lp->dn_ident;
 		dt_node_t *lnp;
 
 		/*
@@ -3555,6 +3740,7 @@ asgn_common:
 		}
 
 		assert(lp->dn_kind == DT_NODE_VAR);
+		idp = lp->dn_ident;
 
 		/*
 		 * If the left-hand side is a non-global scalar that hasn't yet
@@ -3876,8 +4062,12 @@ dt_cook_clause(dt_node_t *dnp, uint_t idflags)
 	volatile int err, tries;
 	jmp_buf ojb;
 
-	dt_node_attr_assign(dnp, yypcb->pcb_attr); /* force attribute check */
-	dnp->dn_ctxattr = yypcb->pcb_attr;
+	/*
+	 * Before assigning dn_ctxattr, temporarily assign the probe attribute
+	 * to 'dnp' itself to force an attribute check and minimum violation.
+	 */
+	dt_node_attr_assign(dnp, yypcb->pcb_pinfo.dtp_attr);
+	dnp->dn_ctxattr = yypcb->pcb_pinfo.dtp_attr;
 
 	bcopy(yypcb->pcb_jmpbuf, ojb, sizeof (jmp_buf));
 	tries = 0;
@@ -3931,7 +4121,8 @@ dt_cook_clause(dt_node_t *dnp, uint_t idflags)
 static dt_node_t *
 dt_cook_inline(dt_node_t *dnp, uint_t idflags)
 {
-	dt_idnode_t *inp = dnp->dn_ident->di_data;
+	dt_idnode_t *inp = dnp->dn_ident->di_iarg;
+	dt_ident_t *rdp;
 
 	char n1[DT_TYPE_NAMELEN];
 	char n2[DT_TYPE_NAMELEN];
@@ -3942,15 +4133,15 @@ dt_cook_inline(dt_node_t *dnp, uint_t idflags)
 	/*
 	 * If we are inlining a translation, verify that the inline declaration
 	 * type exactly matches the type that is returned by the translation.
+	 * Otherwise just use dt_node_is_argcompat() to check the types.
 	 */
-	if (dnp->dn_ident->di_kind == DT_IDENT_XLSOU ||
-	    dnp->dn_ident->di_kind == DT_IDENT_XLPTR) {
+	if ((rdp = dt_node_resolve(inp->din_root, DT_IDENT_XLSOU)) != NULL ||
+	    (rdp = dt_node_resolve(inp->din_root, DT_IDENT_XLPTR)) != NULL) {
 
 		ctf_file_t *lctfp = dnp->dn_ctfp;
 		ctf_id_t ltype = ctf_type_resolve(lctfp, dnp->dn_type);
 
-		dt_ident_t *idp = dt_ident_resolve(dnp->dn_ident);
-		dt_xlator_t *dxp = idp->di_data;
+		dt_xlator_t *dxp = rdp->di_data;
 		ctf_file_t *rctfp = dxp->dx_dst_ctfp;
 		ctf_id_t rtype = dxp->dx_dst_base;
 
@@ -3960,30 +4151,15 @@ dt_cook_inline(dt_node_t *dnp, uint_t idflags)
 		}
 
 		if (ctf_type_compat(lctfp, ltype, rctfp, rtype) == 0) {
-			xyerror(D_INLINE_XLTYPE,
-			    "inline %s definition base type does not match "
-			    "translation base type: \"%s\" = \"%s\"\n",
-			    dnp->dn_ident->di_name,
+			dnerror(dnp, D_OP_INCOMPAT,
+			    "inline %s definition uses incompatible types: "
+			    "\"%s\" = \"%s\"\n", dnp->dn_ident->di_name,
 			    dt_type_name(lctfp, ltype, n1, sizeof (n1)),
 			    dt_type_name(rctfp, rtype, n2, sizeof (n2)));
 		}
 
-		(void) dt_ident_cook(dnp, dnp->dn_ident, NULL);
-		return (dnp);
-	}
-
-	/*
-	 * Now that we've checked the inline declaration type (if needed), cook
-	 * the inline identifier itself and perform assignment type checking.
-	 */
-	(void) dt_ident_cook(dnp, dnp->dn_ident, NULL);
-
-	if (ctf_type_kind(dnp->dn_ctfp,
-	    ctf_type_resolve(dnp->dn_ctfp, dnp->dn_type)) == CTF_K_FUNCTION)
-		xyerror(D_INLINE_FUNC, "inline cannot be of function type\n");
-
-	if (dt_node_is_argcompat(dnp, inp->din_root) == 0) {
-		xyerror(D_INLINE_INCOMPAT,
+	} else if (dt_node_is_argcompat(dnp, inp->din_root) == 0) {
+		dnerror(dnp, D_OP_INCOMPAT,
 		    "inline %s definition uses incompatible types: "
 		    "\"%s\" = \"%s\"\n", dnp->dn_ident->di_name,
 		    dt_node_type_name(dnp, n1, sizeof (n1)),
@@ -4014,23 +4190,13 @@ dt_cook_xlator(dt_node_t *dnp, uint_t idflags)
 
 	dtrace_attribute_t attr = _dtrace_maxattr;
 	ctf_membinfo_t ctm;
-	ctf_id_t type;
-	uint_t kind;
-
-	type = ctf_type_resolve(dxp->dx_dst_ctfp, dxp->dx_dst_type);
-	kind = ctf_type_kind(dxp->dx_dst_ctfp, type);
-
-	if (kind != CTF_K_STRUCT && kind != CTF_K_UNION) {
-		xyerror(D_XLATE_SOU,
-		    "translator output type must be a struct or union\n");
-	}
 
 	/*
-	 * Before cooking each translator member, we store a reference to the
-	 * hash containing translator-local identifiers in pcb_globals.  This
-	 * temporarily interposes these identifiers in front of the dt_globals.
+	 * Before cooking each translator member, we push a reference to the
+	 * hash containing translator-local identifiers on to pcb_globals to
+	 * temporarily interpose these identifiers in front of other globals.
 	 */
-	yypcb->pcb_globals = dxp->dx_locals;
+	dt_idstack_push(&yypcb->pcb_globals, dxp->dx_locals);
 
 	for (mnp = dnp->dn_members; mnp != NULL; mnp = mnp->dn_list) {
 		if (ctf_member_info(dxp->dx_dst_ctfp, dxp->dx_dst_type,
@@ -4056,13 +4222,161 @@ dt_cook_xlator(dt_node_t *dnp, uint_t idflags)
 		}
 	}
 
-	yypcb->pcb_globals = NULL;
+	dt_idstack_pop(&yypcb->pcb_globals, dxp->dx_locals);
 
 	dxp->dx_souid.di_attr = attr;
 	dxp->dx_ptrid.di_attr = attr;
 
 	dt_node_type_assign(dnp, DT_DYN_CTFP(dtp), DT_DYN_TYPE(dtp));
 	dt_node_attr_assign(dnp, _dtrace_defattr);
+
+	return (dnp);
+}
+
+static void
+dt_node_provider_cmp_argv(dt_provider_t *pvp, dt_node_t *pnp, const char *kind,
+    uint_t old_argc, dt_node_t *old_argv, uint_t new_argc, dt_node_t *new_argv)
+{
+	dt_probe_t *prp = pnp->dn_ident->di_data;
+	uint_t i;
+
+	char n1[DT_TYPE_NAMELEN];
+	char n2[DT_TYPE_NAMELEN];
+
+	if (old_argc != new_argc) {
+		dnerror(pnp, D_PROV_INCOMPAT,
+		    "probe %s:%s %s prototype mismatch:\n"
+		    "\t current: %u arg%s\n\tprevious: %u arg%s\n",
+		    pvp->pv_desc.dtvd_name, prp->pr_ident->di_name, kind,
+		    new_argc, new_argc != 1 ? "s" : "",
+		    old_argc, old_argc != 1 ? "s" : "");
+	}
+
+	for (i = 0; i < old_argc; i++,
+	    old_argv = old_argv->dn_list, new_argv = new_argv->dn_list) {
+		if (ctf_type_cmp(old_argv->dn_ctfp, old_argv->dn_type,
+		    new_argv->dn_ctfp, new_argv->dn_type) == 0)
+			continue;
+
+		dnerror(pnp, D_PROV_INCOMPAT,
+		    "probe %s:%s %s prototype argument #%u mismatch:\n"
+		    "\t current: %s\n\tprevious: %s\n",
+		    pvp->pv_desc.dtvd_name, prp->pr_ident->di_name, kind, i + 1,
+		    dt_node_type_name(new_argv, n1, sizeof (n1)),
+		    dt_node_type_name(old_argv, n2, sizeof (n2)));
+	}
+}
+
+/*
+ * Compare a new probe declaration with an existing probe definition (either
+ * from a previous declaration or cached from the kernel).  If the existing
+ * definition and declaration both have an input and output parameter list,
+ * compare both lists.  Otherwise compare only the output parameter lists.
+ */
+static void
+dt_node_provider_cmp(dt_provider_t *pvp, dt_node_t *pnp,
+    dt_probe_t *old, dt_probe_t *new)
+{
+	dt_node_provider_cmp_argv(pvp, pnp, "output",
+	    old->pr_xargc, old->pr_xargs, new->pr_xargc, new->pr_xargs);
+
+	if (old->pr_nargs != old->pr_xargs && new->pr_nargs != new->pr_xargs) {
+		dt_node_provider_cmp_argv(pvp, pnp, "input",
+		    old->pr_nargc, old->pr_nargs, new->pr_nargc, new->pr_nargs);
+	}
+
+	if (old->pr_nargs == old->pr_xargs && new->pr_nargs != new->pr_xargs) {
+		if (pvp->pv_flags & DT_PROVIDER_IMPL) {
+			dnerror(pnp, D_PROV_INCOMPAT,
+			    "provider interface mismatch: %s\n"
+			    "\t current: probe %s:%s has an output prototype\n"
+			    "\tprevious: probe %s:%s has no output prototype\n",
+			    pvp->pv_desc.dtvd_name, pvp->pv_desc.dtvd_name,
+			    new->pr_ident->di_name, pvp->pv_desc.dtvd_name,
+			    old->pr_ident->di_name);
+		}
+
+		if (old->pr_ident->di_gen == yypcb->pcb_hdl->dt_gen)
+			old->pr_ident->di_flags |= DT_IDFLG_ORPHAN;
+
+		dt_idhash_delete(pvp->pv_probes, old->pr_ident);
+		dt_probe_declare(pvp, new);
+	}
+}
+
+static void
+dt_cook_probe(dt_node_t *dnp, dt_provider_t *pvp)
+{
+	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
+	dt_probe_t *prp = dnp->dn_ident->di_data;
+
+	dt_xlator_t *dxp;
+	uint_t i;
+
+	char n1[DT_TYPE_NAMELEN];
+	char n2[DT_TYPE_NAMELEN];
+
+	if (prp->pr_nargs == prp->pr_xargs)
+		return;
+
+	for (i = 0; i < prp->pr_xargc; i++) {
+		dt_node_t *xnp = prp->pr_xargv[i];
+		dt_node_t *nnp = prp->pr_nargv[prp->pr_mapping[i]];
+
+		if ((dxp = dt_xlator_lookup(dtp,
+		    nnp, xnp, DT_XLATE_FUZZY)) != NULL) {
+			if (dt_provider_xref(dtp, pvp, dxp->dx_id) != 0)
+				longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+			continue;
+		}
+
+		if (dt_node_is_argcompat(nnp, xnp))
+			continue; /* no translator defined and none required */
+
+		dnerror(dnp, D_PROV_PRXLATOR, "translator for %s:%s output "
+		    "argument #%u from %s to %s is not defined\n",
+		    pvp->pv_desc.dtvd_name, dnp->dn_ident->di_name, i + 1,
+		    dt_node_type_name(nnp, n1, sizeof (n1)),
+		    dt_node_type_name(xnp, n2, sizeof (n2)));
+	}
+}
+
+/*ARGSUSED*/
+static dt_node_t *
+dt_cook_provider(dt_node_t *dnp, uint_t idflags)
+{
+	dt_provider_t *pvp = dnp->dn_provider;
+	dt_node_t *pnp;
+
+	/*
+	 * If we're declaring a provider for the first time and it is unknown
+	 * to dtrace(7D), insert the probe definitions into the provider's hash.
+	 * If we're redeclaring a known provider, verify the interface matches.
+	 */
+	for (pnp = dnp->dn_probes; pnp != NULL; pnp = pnp->dn_list) {
+		const char *probename = pnp->dn_ident->di_name;
+		dt_probe_t *prp = dt_probe_lookup(pvp, probename);
+
+		assert(pnp->dn_kind == DT_NODE_PROBE);
+
+		if (prp != NULL && dnp->dn_provred) {
+			dt_node_provider_cmp(pvp, pnp,
+			    prp, pnp->dn_ident->di_data);
+		} else if (prp == NULL && dnp->dn_provred) {
+			dnerror(pnp, D_PROV_INCOMPAT,
+			    "provider interface mismatch: %s\n"
+			    "\t current: probe %s:%s defined\n"
+			    "\tprevious: probe %s:%s not defined\n",
+			    dnp->dn_provname, dnp->dn_provname,
+			    probename, dnp->dn_provname, probename);
+		} else if (prp != NULL) {
+			dnerror(pnp, D_PROV_PRDUP, "probe redeclared: %s:%s\n",
+			    dnp->dn_provname, probename);
+		} else
+			dt_probe_declare(pvp, pnp->dn_ident->di_data);
+
+		dt_cook_probe(pnp, pvp);
+	}
 
 	return (dnp);
 }
@@ -4095,7 +4409,7 @@ static dt_node_t *(*dt_cook_funcs[])(dt_node_t *, uint_t) = {
 	dt_cook_member,		/* DT_NODE_MEMBER */
 	dt_cook_xlator,		/* DT_NODE_XLATOR */
 	dt_cook_none,		/* DT_NODE_PROBE */
-	dt_cook_none,		/* DT_NODE_PROVIDER */
+	dt_cook_provider,	/* DT_NODE_PROVIDER */
 	dt_cook_none		/* DT_NODE_PROG */
 };
 
@@ -4188,10 +4502,16 @@ dt_node_link(dt_node_t *lp, dt_node_t *rp)
 	return (lp);
 }
 
+/*
+ * Compute the DOF dtrace_diftype_t representation of a node's type.  This is
+ * called from a variety of places in the library so it cannot assume yypcb
+ * is valid: any references to handle-specific data must be made through 'dtp'.
+ */
 void
-dt_node_diftype(const dt_node_t *dnp, dtrace_diftype_t *tp)
+dt_node_diftype(dtrace_hdl_t *dtp, const dt_node_t *dnp, dtrace_diftype_t *tp)
 {
-	if (dt_node_is_string(dnp)) {
+	if (dnp->dn_ctfp == DT_STR_CTFP(dtp) &&
+	    dnp->dn_type == DT_STR_TYPE(dtp)) {
 		tp->dtdt_kind = DIF_TYPE_STRING;
 		tp->dtdt_ckind = CTF_K_UNKNOWN;
 	} else {
@@ -4379,7 +4699,7 @@ dt_node_printr(dt_node_t *dnp, FILE *fp, int depth)
 		break;
 
 	case DT_NODE_INLINE:
-		inp = dnp->dn_ident->di_data;
+		inp = dnp->dn_ident->di_iarg;
 
 		(void) fprintf(fp, "INLINE %s (%s)\n",
 		    dnp->dn_ident->di_name, buf);
@@ -4414,8 +4734,9 @@ dt_node_printr(dt_node_t *dnp, FILE *fp, int depth)
 		break;
 
 	case DT_NODE_PROVIDER:
-		(void) fprintf(fp, "PROVIDER %s\n", dnp->dn_string);
-		for (arg = dnp->dn_list; arg != NULL; arg = arg->dn_list)
+		(void) fprintf(fp, "PROVIDER %s (%s)\n",
+		    dnp->dn_provname, dnp->dn_provred ? "redecl" : "decl");
+		for (arg = dnp->dn_probes; arg != NULL; arg = arg->dn_list)
 			dt_node_printr(arg, fp, depth + 1);
 		break;
 

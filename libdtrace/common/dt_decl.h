@@ -1,16 +1,33 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_DT_DECL_H
 #define	_DT_DECL_H
 
-#pragma ident	"@(#)dt_decl.h	1.2	04/04/30 SMI"
+#pragma ident	"@(#)dt_decl.h	1.5	05/06/08 SMI"
 
 #include <sys/types.h>
 #include <libctf.h>
@@ -39,8 +56,9 @@ typedef struct dt_decl {
 #define	DT_DA_LONG	0x0008		/* long integer or double */
 #define	DT_DA_LONGLONG	0x0010		/* long long integer value */
 #define	DT_DA_CONST	0x0020		/* qualify type as const */
-#define	DT_DA_VOLATILE	0x0040		/* qualify type as volatile */
-#define	DT_DA_PAREN	0x0080		/* parenthesis tag */
+#define	DT_DA_RESTRICT	0x0040		/* qualify type as restrict */
+#define	DT_DA_VOLATILE	0x0080		/* qualify type as volatile */
+#define	DT_DA_PAREN	0x0100		/* parenthesis tag */
 
 typedef enum dt_dclass {
 	DT_DC_DEFAULT,			/* no storage class specified */
@@ -73,6 +91,14 @@ extern dt_decl_t *dt_decl_top(void);
 
 extern dt_decl_t *dt_decl_ident(char *);
 extern void dt_decl_class(dt_dclass_t);
+
+#define	DT_DP_VARARGS	0x1		/* permit varargs in prototype */
+#define	DT_DP_DYNAMIC	0x2		/* permit dynamic type in prototype */
+#define	DT_DP_VOID	0x4		/* permit void type in prototype */
+#define	DT_DP_ANON	0x8		/* permit anonymous parameters */
+
+extern int dt_decl_prototype(struct dt_node *, struct dt_node *,
+    const char *, uint_t);
 
 extern dt_decl_t *dt_decl_spec(ushort_t, char *);
 extern dt_decl_t *dt_decl_attr(ushort_t);

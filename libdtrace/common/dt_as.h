@@ -1,16 +1,33 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_DT_AS_H
 #define	_DT_AS_H
 
-#pragma ident	"@(#)dt_as.h	1.1	03/09/02 SMI"
+#pragma ident	"@(#)dt_as.h	1.3	05/07/31 SMI"
 
 #include <sys/types.h>
 #include <sys/dtrace.h>
@@ -19,12 +36,10 @@
 extern "C" {
 #endif
 
-struct dt_ident;
-
 typedef struct dt_irnode {
 	uint_t di_label;		/* label number or DT_LBL_NONE */
 	dif_instr_t di_instr;		/* instruction opcode */
-	struct dt_ident *di_ident;	/* ident pointer for relocation */
+	void *di_extern;		/* opcode-specific external reference */
 	struct dt_irnode *di_next;	/* next instruction */
 } dt_irnode_t;
 

@@ -378,4 +378,3 @@ dtrace_safe_defer_signal(void)
 	return (1);
 }
 # endif
-

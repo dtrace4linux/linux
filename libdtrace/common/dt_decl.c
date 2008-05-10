@@ -1,15 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_decl.c	1.3	04/11/13 SMI"
+#pragma ident	"@(#)dt_decl.c	1.5	05/06/08 SMI"
 
-#include <linux_types.h>
 #include <strings.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -266,6 +282,91 @@ dt_decl_attr(ushort_t attr)
 	return (dt_decl_check(ddp));
 }
 
+/*
+ * Examine the list of formal parameters 'flist' and determine if the formal
+ * name fnp->dn_string is defined in this list (B_TRUE) or not (B_FALSE).
+ * If 'fnp' is in 'flist', do not search beyond 'fnp' itself in 'flist'.
+ */
+static int
+dt_decl_protoform(dt_node_t *fnp, dt_node_t *flist)
+{
+	dt_node_t *dnp;
+
+	for (dnp = flist; dnp != fnp && dnp != NULL; dnp = dnp->dn_list) {
+		if (dnp->dn_string != NULL &&
+		    strcmp(dnp->dn_string, fnp->dn_string) == 0)
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * Common code for parsing array, function, and probe definition prototypes.
+ * The prototype node list is specified as 'plist'.  The formal prototype
+ * against which to compare the prototype is specified as 'flist'.  If plist
+ * and flist are the same, we require that named parameters are unique.  If
+ * plist and flist are different, we require that named parameters in plist
+ * match a name that is present in flist.
+ */
+int
+dt_decl_prototype(dt_node_t *plist,
+    dt_node_t *flist, const char *kind, uint_t flags)
+{
+	char n[DT_TYPE_NAMELEN];
+	int is_void, v = 0, i = 1;
+	int form = plist != flist;
+	dt_node_t *dnp;
+
+	for (dnp = plist; dnp != NULL; dnp = dnp->dn_list, i++) {
+
+		if (dnp->dn_type == CTF_ERR && !(flags & DT_DP_VARARGS)) {
+			dnerror(dnp, D_DECL_PROTO_VARARGS, "%s prototype may "
+			    "not use a variable-length argument list\n", kind);
+		}
+
+		if (dt_node_is_dynamic(dnp) && !(flags & DT_DP_DYNAMIC)) {
+			dnerror(dnp, D_DECL_PROTO_TYPE, "%s prototype may not "
+			    "use parameter of type %s: %s, parameter #%d\n",
+			    kind, dt_node_type_name(dnp, n, sizeof (n)),
+			    dnp->dn_string ? dnp->dn_string : "(anonymous)", i);
+		}
+
+		is_void = dt_node_is_void(dnp);
+		v += is_void;
+
+		if (is_void && !(flags & DT_DP_VOID)) {
+			dnerror(dnp, D_DECL_PROTO_TYPE, "%s prototype may not "
+			    "use parameter of type %s: %s, parameter #%d\n",
+			    kind, dt_node_type_name(dnp, n, sizeof (n)),
+			    dnp->dn_string ? dnp->dn_string : "(anonymous)", i);
+		}
+
+		if (is_void && dnp->dn_string != NULL) {
+			dnerror(dnp, D_DECL_PROTO_NAME, "void parameter may "
+			    "not have a name: %s\n", dnp->dn_string);
+		}
+
+		if (dnp->dn_string != NULL &&
+		    dt_decl_protoform(dnp, flist) != form) {
+			dnerror(dnp, D_DECL_PROTO_FORM, "parameter is "
+			    "%s declared in %s prototype: %s, parameter #%d\n",
+			    form ? "not" : "already", kind, dnp->dn_string, i);
+		}
+
+		if (dnp->dn_string == NULL &&
+		    !is_void && !(flags & DT_DP_ANON)) {
+			dnerror(dnp, D_DECL_PROTO_NAME, "parameter declaration "
+			    "requires a name: parameter #%d\n", i);
+		}
+	}
+
+	if (v != 0 && plist->dn_list != NULL)
+		xyerror(D_DECL_PROTO_VOID, "void must be sole parameter\n");
+
+	return (v ? 0 : i - 1); /* return zero if sole parameter is 'void' */
+}
+
 dt_decl_t *
 dt_decl_array(dt_node_t *dnp)
 {
@@ -296,27 +397,7 @@ dt_decl_array(dt_node_t *dnp)
 	    strcmp(ddp->dd_next->dd_name, "void") == 0)
 		xyerror(D_DECL_VOIDOBJ, "cannot declare array of void\n");
 
-	if (dnp == NULL)
-		return (ddp); /* no array dimension or tuple signature */
-
-	if (dnp->dn_kind == DT_NODE_TYPE) {
-		char n[DT_TYPE_NAMELEN];
-		int i = 1;
-
-		for (ddp->dd_node = dnp; dnp != NULL; dnp = dnp->dn_list, i++) {
-			if (dnp->dn_type == CTF_ERR) {
-				xyerror(D_DECL_ARRVA, "array tuples may not "
-				    "use variable-length argument lists\n");
-			}
-
-			if (dt_node_is_dynamic(dnp) || dt_node_is_void(dnp)) {
-				xyerror(D_DECL_ARRTYPE, "%s type may not be "
-				    "used in array tuples: key #%d\n",
-				    dt_node_type_name(dnp, n, sizeof (n)), i);
-			}
-		}
-
-	} else {
+	if (dnp != NULL && dnp->dn_kind != DT_NODE_TYPE) {
 		dnp = ddp->dd_node = dt_node_cook(dnp, DT_IDFLG_REF);
 
 		if (dt_node_is_posconst(dnp) == 0) {
@@ -327,6 +408,10 @@ dt_decl_array(dt_node_t *dnp)
 
 		if (dnp->dn_value > UINT_MAX)
 			xyerror(D_DECL_ARRBIG, "array dimension too big\n");
+
+	} else if (dnp != NULL) {
+		ddp->dd_node = dnp;
+		(void) dt_decl_prototype(dnp, dnp, "array", DT_DP_ANON);
 	}
 
 	return (ddp);
@@ -347,21 +432,11 @@ dt_decl_t *
 dt_decl_func(dt_decl_t *pdp, dt_node_t *dnp)
 {
 	dt_decl_t *ddp = dt_decl_alloc(CTF_K_FUNCTION, NULL);
-	char n[DT_TYPE_NAMELEN];
-	int i = 1, v = 0;
 
-	for (ddp->dd_node = dnp; dnp != NULL; dnp = dnp->dn_list, i++) {
-		if (dt_node_is_dynamic(dnp)) {
-			xyerror(D_DECL_FUNCTYPE, "%s type may not be "
-			    "used in function prototypes: arg #%d\n",
-			    dt_node_type_name(dnp, n, sizeof (n)), i);
-		}
-		if (dnp->dn_type != CTF_ERR)
-			v += dt_node_is_void(dnp);
-	}
+	ddp->dd_node = dnp;
 
-	if (v != 0 && ddp->dd_node->dn_list != NULL)
-		xyerror(D_DECL_FUNCVOID, "void must be sole parameter\n");
+	(void) dt_decl_prototype(dnp, dnp, "function",
+	    DT_DP_VARARGS | DT_DP_VOID | DT_DP_ANON);
 
 	if (pdp == NULL || pdp->dd_kind != CTF_K_POINTER)
 		return (dt_decl_push(ddp));
@@ -407,19 +482,18 @@ dt_decl_sou(uint_t kind, char *name)
 	    kind == CTF_K_STRUCT ? "struct" : "union",
 	    name == NULL ? "(anon)" : name);
 
-	if (name != NULL && (type = ctf_lookup_by_name(ctfp, n)) != CTF_ERR) {
-		if (ctf_type_size(ctfp, type) != 0)
-			xyerror(D_DECL_TYPERED, "type redeclared: %s\n", n);
-	} else {
-		if (kind == CTF_K_STRUCT)
-			type = ctf_add_struct(ctfp, flag, name);
-		else
-			type = ctf_add_union(ctfp, flag, name);
+	if (name != NULL && (type = ctf_lookup_by_name(ctfp, n)) != CTF_ERR &&
+	    ctf_type_kind(ctfp, type) != CTF_K_FORWARD)
+		xyerror(D_DECL_TYPERED, "type redeclared: %s\n", n);
 
-		if (type == CTF_ERR || ctf_update(ctfp) == CTF_ERR) {
-			xyerror(D_UNKNOWN, "failed to define %s: %s\n",
-			    n, ctf_errmsg(ctf_errno(ctfp)));
-		}
+	if (kind == CTF_K_STRUCT)
+		type = ctf_add_struct(ctfp, flag, name);
+	else
+		type = ctf_add_union(ctfp, flag, name);
+
+	if (type == CTF_ERR || ctf_update(ctfp) == CTF_ERR) {
+		xyerror(D_UNKNOWN, "failed to define %s: %s\n",
+		    n, ctf_errmsg(ctf_errno(ctfp)));
 	}
 
 	ddp->dd_ctfp = ctfp;
@@ -687,7 +761,7 @@ dt_decl_enumerator(char *s, dt_node_t *dnp)
 	 * enumerator conflicts with a global identifier, we add the enumerator
 	 * but do not insert a corresponding inline (i.e. the D variable wins).
 	 */
-	if (dt_idhash_lookup(dtp->dt_globals, name) != NULL) {
+	if (dt_idstack_lookup(&yypcb->pcb_globals, name) != NULL) {
 		if (dsp->ds_ctfp == dtp->dt_ddefs->dm_ctfp) {
 			xyerror(D_DECL_IDRED,
 			    "identifier redeclared: %s\n", name);
@@ -722,10 +796,11 @@ dt_decl_enumerator(char *s, dt_node_t *dnp)
 	yypcb->pcb_list = dnp->dn_link;
 	dnp->dn_link = NULL;
 
+	bzero(inp, sizeof (dt_idnode_t));
 	inp->din_list = dnp;
 	inp->din_root = dnp;
 
-	idp->di_data = inp;
+	idp->di_iarg = inp;
 	idp->di_ctfp = dsp->ds_ctfp;
 	idp->di_type = dsp->ds_type;
 }
@@ -798,9 +873,9 @@ dt_decl_type(dt_decl_t *ddp, dtrace_typeinfo_t *tip)
 
 		if ((rv = dt_decl_type(ddp->dd_next, tip)) == 0 &&
 		    (rv = dt_type_pointer(tip)) != 0) {
-			xywarn(D_UNKNOWN, "cannot find type: %s*\n",
+			xywarn(D_UNKNOWN, "cannot find type: %s*: %s\n",
 			    dt_type_name(tip->dtt_ctfp, tip->dtt_type,
-			    n, sizeof (n)));
+			    n, sizeof (n)), ctf_errmsg(dtp->dt_ctferr));
 		}
 
 		return (rv);
@@ -948,13 +1023,10 @@ dt_decl_type(dt_decl_t *ddp, dtrace_typeinfo_t *tip)
 
 	switch (ddp->dd_kind) {
 	case CTF_K_STRUCT:
-		type = ctf_add_struct(dmp->dm_ctfp, flag, ddp->dd_name);
-		break;
 	case CTF_K_UNION:
-		type = ctf_add_union(dmp->dm_ctfp, flag, ddp->dd_name);
-		break;
 	case CTF_K_ENUM:
-		type = ctf_add_enum(dmp->dm_ctfp, flag, ddp->dd_name);
+		type = ctf_add_forward(dmp->dm_ctfp, flag,
+		    ddp->dd_name, ddp->dd_kind);
 		break;
 	default:
 		xywarn(D_UNKNOWN, "failed to resolve type %s: %s\n", name,

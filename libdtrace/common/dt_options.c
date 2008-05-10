@@ -1,17 +1,34 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)dt_options.c	1.10	04/10/22 SMI"
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-#include <linux_types.h>
-#include <sys/types.h>
+#pragma ident	"@(#)dt_options.c	1.19	07/04/01 SMI"
+
 #include <sys/resource.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 
 #include <strings.h>
 #include <signal.h>
@@ -181,6 +198,14 @@ dt_opt_ctypes(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 
 /*ARGSUSED*/
 static int
+dt_opt_droptags(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+{
+	dtp->dt_droptags = 1;
+	return (0);
+}
+
+/*ARGSUSED*/
+static int
 dt_opt_dtypes(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 {
 	int fd;
@@ -271,7 +296,7 @@ dt_opt_libdir(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 
 /*ARGSUSED*/
 static int
-dt_opt_link(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+dt_opt_linkmode(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 {
 	if (arg == NULL)
 		return (dt_set_errno(dtp, EDT_BADOPTVAL));
@@ -284,6 +309,23 @@ dt_opt_link(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 		dtp->dt_linkmode = DT_LINK_DYNAMIC;
 	else if (strcmp(arg, "static") == 0)
 		dtp->dt_linkmode = DT_LINK_STATIC;
+	else
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	return (0);
+}
+
+/*ARGSUSED*/
+static int
+dt_opt_linktype(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+{
+	if (arg == NULL)
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	if (strcasecmp(arg, "elf") == 0)
+		dtp->dt_linktype = DT_LTYP_ELF;
+	else if (strcasecmp(arg, "dof") == 0)
+		dtp->dt_linktype = DT_LTYP_DOF;
 	else
 		return (dt_set_errno(dtp, EDT_BADOPTVAL));
 
@@ -350,6 +392,26 @@ dt_opt_stdc(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 
 /*ARGSUSED*/
 static int
+dt_opt_syslibdir(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+{
+	dt_dirpath_t *dp = dt_list_next(&dtp->dt_lib_path);
+	char *path;
+
+	if (arg == NULL)
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	if ((path = strdup(arg)) == NULL)
+		return (dt_set_errno(dtp, EDT_NOMEM));
+
+	free(dp->dir_path);
+	dp->dir_path = path;
+
+	return (0);
+}
+
+
+/*ARGSUSED*/
+static int
 dt_opt_tree(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 {
 	int m;
@@ -374,6 +436,24 @@ dt_opt_tregs(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 	return (0);
 }
 
+/*ARGSUSED*/
+static int
+dt_opt_xlate(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+{
+	if (arg == NULL)
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	if (strcmp(arg, "dynamic") == 0)
+		dtp->dt_xlatemode = DT_XL_DYNAMIC;
+	else if (strcmp(arg, "static") == 0)
+		dtp->dt_xlatemode = DT_XL_STATIC;
+	else
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	return (0);
+}
+
+/*ARGSUSED*/
 static int
 dt_opt_cflags(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 {
@@ -385,6 +465,16 @@ dt_opt_cflags(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 	else
 		dtp->dt_cflags |= option;
 
+	return (0);
+}
+
+static int
+dt_opt_dflags(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+{
+	if (arg != NULL)
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	dtp->dt_dflags |= option;
 	return (0);
 }
 
@@ -425,8 +515,39 @@ dt_opt_runtime(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 {
 	char *end;
 	dtrace_optval_t val = 0;
+	int i;
+
+	const struct {
+		char *positive;
+		char *negative;
+	} couples[] = {
+		{ "yes",	"no" },
+		{ "enable",	"disable" },
+		{ "enabled",	"disabled" },
+		{ "true",	"false" },
+		{ "on",		"off" },
+		{ "set",	"unset" },
+		{ NULL }
+	};
 
 	if (arg != NULL) {
+		if (arg[0] == '\0') {
+			val = DTRACEOPT_UNSET;
+			goto out;
+		}
+
+		for (i = 0; couples[i].positive != NULL; i++) {
+			if (strcasecmp(couples[i].positive, arg) == 0) {
+				val = 1;
+				goto out;
+			}
+
+			if (strcasecmp(couples[i].negative, arg) == 0) {
+				val = DTRACEOPT_UNSET;
+				goto out;
+			}
+		}
+
 		errno = 0;
 		val = strtoull(arg, &end, 0);
 
@@ -434,49 +555,59 @@ dt_opt_runtime(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 			return (dt_set_errno(dtp, EDT_BADOPTVAL));
 	}
 
+out:
 	dtp->dt_options[option] = val;
+	return (0);
+}
+
+static int
+dt_optval_parse(const char *arg, dtrace_optval_t *rval)
+{
+	dtrace_optval_t mul = 1;
+	size_t len;
+	char *end;
+
+	len = strlen(arg);
+	errno = 0;
+
+	switch (arg[len - 1]) {
+	case 't':
+	case 'T':
+		mul *= 1024;
+		/*FALLTHRU*/
+	case 'g':
+	case 'G':
+		mul *= 1024;
+		/*FALLTHRU*/
+	case 'm':
+	case 'M':
+		mul *= 1024;
+		/*FALLTHRU*/
+	case 'k':
+	case 'K':
+		mul *= 1024;
+		/*FALLTHRU*/
+	default:
+		break;
+	}
+
+	errno = 0;
+	*rval = strtoull(arg, &end, 0) * mul;
+
+	if ((mul > 1 && end != &arg[len - 1]) || (mul == 1 && *end != '\0') ||
+	    *rval < 0 || errno != 0)
+		return (-1);
+
 	return (0);
 }
 
 static int
 dt_opt_size(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
 {
-	char *end;
-	int len;
-	dtrace_optval_t mul = 1, val = 0;
+	dtrace_optval_t val = 0;
 
-	if (arg != NULL) {
-		len = strlen(arg);
-		errno = 0;
-
-		switch (arg[len - 1]) {
-		case 't':
-		case 'T':
-			mul *= 1024;
-			/*FALLTHRU*/
-		case 'g':
-		case 'G':
-			mul *= 1024;
-			/*FALLTHRU*/
-		case 'm':
-		case 'M':
-			mul *= 1024;
-			/*FALLTHRU*/
-		case 'k':
-		case 'K':
-			mul *= 1024;
-			/*FALLTHRU*/
-		default:
-			break;
-		}
-
-		val = strtoull(arg, &end, 0) * mul;
-
-		if ((mul > 1 && end != &arg[len - 1]) ||
-		    (mul == 1 && *end != '\0') || val < 0 ||
-		    errno != 0 || val == DTRACEOPT_UNSET)
-			return (dt_set_errno(dtp, EDT_BADOPTVAL));
-	}
+	if (arg != NULL && dt_optval_parse(arg, &val) != 0)
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
 
 	dtp->dt_options[option] = val;
 	return (0);
@@ -681,7 +812,7 @@ dt_options_load(dtrace_hdl_t *dtp)
 		return (dt_set_errno(dtp, errno));
 
 	for (i = 0; i < dof->dofh_secnum; i++) {
-		sec = (dof_sec_t *)((uintptr_t)dof +
+		sec = (dof_sec_t *)(uintptr_t)((uintptr_t)dof +
 		    dof->dofh_secoff + i * dof->dofh_secsize);
 
 		if (sec->dofs_type != DOF_SECT_OPTDESC)
@@ -691,8 +822,8 @@ dt_options_load(dtrace_hdl_t *dtp)
 	}
 
 	for (offs = 0; offs < sec->dofs_size; offs += sec->dofs_entsize) {
-		dof_optdesc_t *opt = (dof_optdesc_t *)((uintptr_t)dof +
-		    sec->dofs_offset + offs);
+		dof_optdesc_t *opt = (dof_optdesc_t *)(uintptr_t)
+		    ((uintptr_t)dof + sec->dofs_offset + offs);
 
 		if (opt->dofo_strtab != DOF_SECIDX_NONE)
 			continue;
@@ -702,6 +833,30 @@ dt_options_load(dtrace_hdl_t *dtp)
 
 		dtp->dt_options[opt->dofo_option] = opt->dofo_value;
 	}
+
+	return (0);
+}
+
+/*ARGSUSED*/
+static int
+dt_opt_preallocate(dtrace_hdl_t *dtp, const char *arg, uintptr_t option)
+{
+	dtrace_optval_t size;
+	void *p;
+
+	if (arg == NULL || dt_optval_parse(arg, &size) != 0)
+		return (dt_set_errno(dtp, EDT_BADOPTVAL));
+
+	if (size > SIZE_MAX)
+		size = SIZE_MAX;
+
+	if ((p = dt_zalloc(dtp, size)) == NULL) {
+		do {
+			size /= 2;
+		} while ((p = dt_zalloc(dtp, size)) == NULL);
+	}
+
+	dt_free(dtp, p);
 
 	return (0);
 }
@@ -728,6 +883,7 @@ static const dt_option_t _dtrace_ctoptions[] = {
 	{ "dtypes", dt_opt_dtypes },
 	{ "debug", dt_opt_debug },
 	{ "define", dt_opt_cpp_opts, (uintptr_t)"-D" },
+	{ "droptags", dt_opt_droptags },
 	{ "empty", dt_opt_cflags, DTRACE_C_EMPTY },
 	{ "errtags", dt_opt_cflags, DTRACE_C_ETAGS },
 	{ "evaltime", dt_opt_evaltime },
@@ -735,15 +891,19 @@ static const dt_option_t _dtrace_ctoptions[] = {
 	{ "iregs", dt_opt_iregs },
 	{ "kdefs", dt_opt_invcflags, DTRACE_C_KNODEF },
 	{ "knodefs", dt_opt_cflags, DTRACE_C_KNODEF },
+	{ "late", dt_opt_xlate },
 	{ "lazyload", dt_opt_lazyload },
 	{ "ldpath", dt_opt_ld_path },
 	{ "libdir", dt_opt_libdir },
-	{ "link", dt_opt_link },
+	{ "linkmode", dt_opt_linkmode },
+	{ "linktype", dt_opt_linktype },
 	{ "nolibs", dt_opt_cflags, DTRACE_C_NOLIBS },
 	{ "pgmax", dt_opt_pgmax },
+	{ "preallocate", dt_opt_preallocate },
 	{ "pspec", dt_opt_cflags, DTRACE_C_PSPEC },
-	{ "prdefs", dt_opt_cflags, DTRACE_C_PRDEFS },
 	{ "stdc", dt_opt_stdc },
+	{ "strip", dt_opt_dflags, DTRACE_D_STRIP },
+	{ "syslibdir", dt_opt_syslibdir },
 	{ "tree", dt_opt_tree },
 	{ "tregs", dt_opt_tregs },
 	{ "udefs", dt_opt_invcflags, DTRACE_C_UNODEF },
@@ -759,7 +919,6 @@ static const dt_option_t _dtrace_ctoptions[] = {
  * Run-time options.
  */
 static const dt_option_t _dtrace_rtoptions[] = {
-	{ "aggrate", dt_opt_rate, DTRACEOPT_AGGRATE },
 	{ "aggsize", dt_opt_size, DTRACEOPT_AGGSIZE },
 	{ "bufsize", dt_opt_size, DTRACEOPT_BUFSIZE },
 	{ "bufpolicy", dt_opt_bufpolicy, DTRACEOPT_BUFPOLICY },
@@ -768,20 +927,32 @@ static const dt_option_t _dtrace_rtoptions[] = {
 	{ "cpu", dt_opt_runtime, DTRACEOPT_CPU },
 	{ "destructive", dt_opt_runtime, DTRACEOPT_DESTRUCTIVE },
 	{ "dynvarsize", dt_opt_size, DTRACEOPT_DYNVARSIZE },
-	{ "flowindent", dt_opt_runtime, DTRACEOPT_FLOWINDENT },
 	{ "grabanon", dt_opt_runtime, DTRACEOPT_GRABANON },
 	{ "jstackframes", dt_opt_runtime, DTRACEOPT_JSTACKFRAMES },
-	{ "jstackstrsize", dt_opt_runtime, DTRACEOPT_JSTACKSTRSIZE },
+	{ "jstackstrsize", dt_opt_size, DTRACEOPT_JSTACKSTRSIZE },
 	{ "nspec", dt_opt_runtime, DTRACEOPT_NSPEC },
-	{ "quiet", dt_opt_runtime, DTRACEOPT_QUIET },
-	{ "rawbytes", dt_opt_runtime, DTRACEOPT_RAWBYTES },
 	{ "specsize", dt_opt_size, DTRACEOPT_SPECSIZE },
 	{ "stackframes", dt_opt_runtime, DTRACEOPT_STACKFRAMES },
-	{ "stackindent", dt_opt_runtime, DTRACEOPT_STACKINDENT },
 	{ "statusrate", dt_opt_rate, DTRACEOPT_STATUSRATE },
 	{ "strsize", dt_opt_strsize, DTRACEOPT_STRSIZE },
-	{ "switchrate", dt_opt_rate, DTRACEOPT_SWITCHRATE },
 	{ "ustackframes", dt_opt_runtime, DTRACEOPT_USTACKFRAMES },
+	{ NULL }
+};
+
+/*
+ * Dynamic run-time options.
+ */
+static const dt_option_t _dtrace_drtoptions[] = {
+	{ "aggrate", dt_opt_rate, DTRACEOPT_AGGRATE },
+	{ "aggsortkey", dt_opt_runtime, DTRACEOPT_AGGSORTKEY },
+	{ "aggsortkeypos", dt_opt_runtime, DTRACEOPT_AGGSORTKEYPOS },
+	{ "aggsortpos", dt_opt_runtime, DTRACEOPT_AGGSORTPOS },
+	{ "aggsortrev", dt_opt_runtime, DTRACEOPT_AGGSORTREV },
+	{ "flowindent", dt_opt_runtime, DTRACEOPT_FLOWINDENT },
+	{ "quiet", dt_opt_runtime, DTRACEOPT_QUIET },
+	{ "rawbytes", dt_opt_runtime, DTRACEOPT_RAWBYTES },
+	{ "stackindent", dt_opt_runtime, DTRACEOPT_STACKINDENT },
+	{ "switchrate", dt_opt_rate, DTRACEOPT_SWITCHRATE },
 	{ NULL }
 };
 
@@ -804,6 +975,13 @@ dtrace_getopt(dtrace_hdl_t *dtp, const char *opt, dtrace_optval_t *val)
 		}
 	}
 
+	for (op = _dtrace_drtoptions; op->o_name != NULL; op++) {
+		if (strcmp(op->o_name, opt) == 0) {
+			*val = dtp->dt_options[op->o_option];
+			return (0);
+		}
+	}
+
 	return (dt_set_errno(dtp, EDT_BADOPTNAME));
 }
 
@@ -820,10 +998,15 @@ dtrace_setopt(dtrace_hdl_t *dtp, const char *opt, const char *val)
 			return (op->o_func(dtp, val, op->o_option));
 	}
 
+	for (op = _dtrace_drtoptions; op->o_name != NULL; op++) {
+		if (strcmp(op->o_name, opt) == 0)
+			return (op->o_func(dtp, val, op->o_option));
+	}
+
 	for (op = _dtrace_rtoptions; op->o_name != NULL; op++) {
 		if (strcmp(op->o_name, opt) == 0) {
 			/*
-			 * Currently, no run-time option may be set while
+			 * Only dynamic run-time options may be set while
 			 * tracing is active.
 			 */
 			if (dtp->dt_active)

@@ -1,15 +1,30 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_error.c	1.8	04/12/18 SMI"
+#pragma ident	"@(#)dt_error.c	1.14	07/02/20 SMI"
 
-#include <linux_types.h>
 #include <strings.h>
 #include <dt_impl.h>
 
@@ -30,6 +45,7 @@ static const struct {
 	{ EDT_STR2BIG,	"String constant table limit exceeded" },
 	{ EDT_NOMOD,	"Unknown module name" },
 	{ EDT_NOPROV,	"Unknown provider name" },
+	{ EDT_NOPROBE,	"No probe matches description" },
 	{ EDT_NOSYM,	"Unknown symbol name" },
 	{ EDT_NOSYMADDR, "No symbol corresponds to address" },
 	{ EDT_NOTYPE,	"Unknown type name" },
@@ -49,6 +65,7 @@ static const struct {
 	{ EDT_DIFSIZE,	"DIF program exceeds maximum program size" },
 	{ EDT_DIFFAULT,	"DIF program contains invalid pointer" },
 	{ EDT_BADPROBE,	"Invalid probe specification" },
+	{ EDT_BADPGLOB, "Probe description has too many globbing characters" },
 	{ EDT_NOSCOPE,	"Declaration scope stack underflow" },
 	{ EDT_NODECL,	"Declaration stack underflow" },
 	{ EDT_DMISMATCH, "Data record list does not match statement" },
@@ -79,12 +96,16 @@ static const struct {
 	{ EDT_BADTRUNC, "Invalid truncation" },
 	{ EDT_BUSY, "DTrace cannot be used when kernel debugger is active" },
 	{ EDT_ACCESS, "DTrace requires additional privileges" },
-	{ EDT_GNOENT, "DTrace device not available on system" },
-	{ EDT_ZNOENT, "DTrace device not available in local zone" },
+	{ EDT_NOENT, "DTrace device not available on system" },
 	{ EDT_BRICKED, "Abort due to systemic unresponsiveness" },
 	{ EDT_HARDWIRE, "Failed to load language definitions" },
 	{ EDT_ELFVERSION, "libelf is out-of-date with respect to libdtrace" },
 	{ EDT_NOBUFFERED, "Attempt to buffer output without handler" },
+	{ EDT_UNSTABLE, "Description matched an unstable set of probes" },
+	{ EDT_BADSETOPT, "Invalid setopt() library action" },
+	{ EDT_BADSTACKPC, "Invalid stack program counter size" },
+	{ EDT_BADAGGVAR, "Invalid aggregation variable identifier" },
+	{ EDT_OVERSION,	"Client requested deprecated version of library" }
 };
 
 static const int _dt_nerr = sizeof (_dt_errlist) / sizeof (_dt_errlist[0]);
@@ -182,6 +203,8 @@ dtrace_faultstr(dtrace_hdl_t *dtp, int fault)
 		{ DTRACEFLT_KPRIV,	"invalid kernel access" },
 		{ DTRACEFLT_UPRIV,	"invalid user access" },
 		{ DTRACEFLT_TUPOFLOW,	"tuple stack overflow" },
+		{ DTRACEFLT_BADSTACK,	"bad stack" },
+		{ DTRACEFLT_LIBRARY,	"library-level fault" },
 		{ 0,			NULL }
 	};
 

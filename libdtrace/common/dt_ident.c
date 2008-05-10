@@ -1,15 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)dt_ident.c	1.8	04/11/13 SMI"
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-#include <linux_types.h>
+#pragma ident	"@(#)dt_ident.c	1.16	07/06/29 SMI"
+
 #include <sys/sysmacros.h>
 #include <strings.h>
 #include <stdlib.h>
@@ -37,23 +53,30 @@ dt_idcook_sign(dt_node_t *dnp, dt_ident_t *idp,
     int argc, dt_node_t *args, const char *prefix, const char *suffix)
 {
 	dt_idsig_t *isp = idp->di_data;
-	int i, compat, mismatch, arglimit;
+	int i, compat, mismatch, arglimit, iskey;
 
 	char n1[DT_TYPE_NAMELEN];
 	char n2[DT_TYPE_NAMELEN];
 
+	iskey = idp->di_kind == DT_IDENT_ARRAY || idp->di_kind == DT_IDENT_AGG;
+
 	if (isp->dis_varargs >= 0) {
 		mismatch = argc < isp->dis_varargs;
 		arglimit = isp->dis_varargs;
+	} else if (isp->dis_optargs >= 0) {
+		mismatch = (argc < isp->dis_optargs || argc > isp->dis_argc);
+		arglimit = argc;
 	} else {
 		mismatch = argc != isp->dis_argc;
 		arglimit = isp->dis_argc;
 	}
 
 	if (mismatch) {
-		xyerror(D_PROTO_LEN, "%s%s%s prototype mismatch: %d arg%s"
-		    "passed, %d expected\n", prefix, idp->di_name, suffix, argc,
-		    argc == 1 ? " " : "s ", arglimit);
+		xyerror(D_PROTO_LEN, "%s%s%s prototype mismatch: %d %s%s"
+		    "passed, %s%d expected\n", prefix, idp->di_name, suffix,
+		    argc, iskey ? "key" : "arg", argc == 1 ? " " : "s ",
+		    isp->dis_optargs >= 0 ? "at least " : "",
+		    isp->dis_optargs >= 0 ? isp->dis_optargs : arglimit);
 	}
 
 	for (i = 0; i < arglimit; i++, args = args->dn_list) {
@@ -64,11 +87,13 @@ dt_idcook_sign(dt_node_t *dnp, dt_ident_t *idp,
 
 		if (!compat) {
 			xyerror(D_PROTO_ARG,
-			    "%s%s%s argument #%d is incompatible with "
-			    "prototype:\n\tprototype: %s\n\t argument: %s\n",
-			    prefix, idp->di_name, suffix, i + 1,
+			    "%s%s%s %s #%d is incompatible with "
+			    "prototype:\n\tprototype: %s\n\t%9s: %s\n",
+			    prefix, idp->di_name, suffix,
+			    iskey ? "key" : "argument", i + 1,
 			    dt_node_type_name(&isp->dis_args[i], n1,
 			    sizeof (n1)),
+			    iskey ? "key" : "argument",
 			    dt_node_type_name(args, n2, sizeof (n2)));
 		}
 	}
@@ -93,8 +118,10 @@ dt_idcook_assc(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 			longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
 
 		isp->dis_varargs = -1;
+		isp->dis_optargs = -1;
 		isp->dis_argc = argc;
 		isp->dis_args = NULL;
+		isp->dis_auxinfo = 0;
 
 		if (argc != 0 && (isp->dis_args = calloc(argc,
 		    sizeof (dt_node_t))) == NULL) {
@@ -187,8 +214,10 @@ dt_idcook_func(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 			longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
 
 		isp->dis_varargs = -1;
+		isp->dis_optargs = -1;
 		isp->dis_argc = i;
 		isp->dis_args = NULL;
+		isp->dis_auxinfo = 0;
 
 		if (i != 0 && (isp->dis_args = calloc(i,
 		    sizeof (dt_node_t))) == NULL) {
@@ -220,6 +249,12 @@ dt_idcook_func(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 		 * as a dis_args[] element with ctfp = NULL, type == CTF_ERR).
 		 * If a varargs "..." is present, we record the argument index
 		 * in dis_varargs for the benefit of dt_idcook_sign(), above.
+		 * If the type of an argument is enclosed in square brackets
+		 * (e.g. "[int]"), the argument is considered optional:  the
+		 * argument may be absent, but if it is present, it must be of
+		 * the specified type.  Note that varargs may not optional,
+		 * optional arguments may not follow varargs, and non-optional
+		 * arguments may not follow optional arguments.
 		 */
 		for (i = 0; i < isp->dis_argc; i++, p1 = p2) {
 			while (isspace(*p1))
@@ -238,6 +273,24 @@ dt_idcook_func(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 				continue;
 			}
 
+			if (*p1 == '[' && p1[strlen(p1) - 1] == ']') {
+				if (isp->dis_varargs != -1) {
+					xyerror(D_UNKNOWN, "optional arg#%d "
+					    "may not follow variable arg#%d\n",
+					    i + 1, isp->dis_varargs + 1);
+				}
+
+				if (isp->dis_optargs == -1)
+					isp->dis_optargs = i;
+
+				p1[strlen(p1) - 1] = '\0';
+				p1++;
+			} else if (isp->dis_optargs != -1) {
+				xyerror(D_UNKNOWN, "required arg#%d may not "
+				    "follow optional arg#%d\n", i + 1,
+				    isp->dis_optargs + 1);
+			}
+
 			if (dt_type_lookup(p1, &dtt) == -1) {
 				xyerror(D_UNKNOWN, "failed to resolve type of "
 				    "%s arg#%d (%s): %s\n", idp->di_name, i + 1,
@@ -254,16 +307,21 @@ dt_idcook_func(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 
 /*
  * Cook a reference to the dynamically typed args[] array.  We verify that the
- * reference is using a single integer constant, and then return the type found
- * at the corresponding location in yypcb->pcb_pargv[].
+ * reference is using a single integer constant, and then construct a new ident
+ * representing the appropriate type or translation specifically for this node.
  */
 static void
 dt_idcook_args(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *ap)
 {
-	char n[DT_TYPE_NAMELEN];
-	dt_ident_t *xidp;
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
-	dt_arg_t *argp;
+	dt_probe_t *prp = yypcb->pcb_probe;
+
+	dt_node_t tag, *nnp, *xnp;
+	dt_xlator_t *dxp;
+	dt_ident_t *xidp;
+
+	char n1[DT_TYPE_NAMELEN];
+	char n2[DT_TYPE_NAMELEN];
 
 	if (argc != 1) {
 		xyerror(D_PROTO_LEN, "%s[ ] prototype mismatch: %d arg%s"
@@ -275,7 +333,7 @@ dt_idcook_args(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *ap)
 		xyerror(D_PROTO_ARG, "%s[ ] argument #1 is incompatible with "
 		    "prototype:\n\tprototype: %s\n\t argument: %s\n",
 		    idp->di_name, "integer constant",
-		    dt_type_name(ap->dn_ctfp, ap->dn_type, n, sizeof (n)));
+		    dt_type_name(ap->dn_ctfp, ap->dn_type, n1, sizeof (n1)));
 	}
 
 	if (yypcb->pcb_pdesc == NULL) {
@@ -283,55 +341,89 @@ dt_idcook_args(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *ap)
 		    "of a probe clause\n", idp->di_name);
 	}
 
-	if (yypcb->pcb_pargs == NULL) {
-		if (yypcb->pcb_nprobes > 1) {
-			xyerror(D_ARGS_MULTI, "%s[ ] may not be referenced "
-			    "because probe description %s matches more than "
-			    "one probe\n", idp->di_name,
-			    dtrace_desc2str(yypcb->pcb_pdesc, n, sizeof (n)));
-		}
-
-		xyerror(D_ARGS_NONE, "no %s[ ] are available for probe %s\n",
-		    idp->di_name, dtrace_desc2str(yypcb->pcb_pdesc,
-		    n, sizeof (n)));
+	if (prp == NULL) {
+		xyerror(D_ARGS_MULTI,
+		    "%s[ ] may not be referenced because probe description %s "
+		    "matches an unstable set of probes\n", idp->di_name,
+		    dtrace_desc2str(yypcb->pcb_pdesc, n1, sizeof (n1)));
 	}
 
-	for (argp = yypcb->pcb_pargs; argp != NULL; argp = argp->da_next) {
-		if (argp->da_ndx == ap->dn_value)
-			break;
+	if (ap->dn_value >= prp->pr_argc) {
+		xyerror(D_ARGS_IDX, "index %lld is out of range for %s %s[ ]\n",
+		    (longlong_t)ap->dn_value, dtrace_desc2str(yypcb->pcb_pdesc,
+		    n1, sizeof (n1)), idp->di_name);
 	}
 
-	if (((ap->dn_flags & DT_NF_SIGNED) && (int64_t)ap->dn_value < 0) ||
-	    argp == NULL) {
-		xyerror(D_ARGS_IDX, "index %lld is out of range for probe %s "
-		    "%s[ ]\n", (longlong_t)ap->dn_value,
-		    dtrace_desc2str(yypcb->pcb_pdesc,
-		    n, sizeof (n)), idp->di_name);
+	/*
+	 * Look up the native and translated argument types for the probe.
+	 * If no translation is needed, these will be the same underlying node.
+	 * If translation is needed, look up the appropriate translator.  Once
+	 * we have the appropriate node, create a new dt_ident_t for this node,
+	 * assign it the appropriate attributes, and set the type of 'dnp'.
+	 */
+	xnp = prp->pr_xargv[ap->dn_value];
+	nnp = prp->pr_nargv[prp->pr_mapping[ap->dn_value]];
+
+	if (xnp->dn_type == CTF_ERR) {
+		xyerror(D_ARGS_TYPE, "failed to resolve translated type for "
+		    "%s[%lld]\n", idp->di_name, (longlong_t)ap->dn_value);
 	}
 
-	if ((xidp = argp->da_xlator) != NULL) {
+	if (nnp->dn_type == CTF_ERR) {
+		xyerror(D_ARGS_TYPE, "failed to resolve native type for "
+		    "%s[%lld]\n", idp->di_name, (longlong_t)ap->dn_value);
+	}
+
+	if (dtp->dt_xlatemode == DT_XL_STATIC && (
+	    nnp == xnp || dt_node_is_argcompat(nnp, xnp))) {
+		dnp->dn_ident = dt_ident_create(idp->di_name, idp->di_kind,
+		    idp->di_flags | DT_IDFLG_ORPHAN, idp->di_id, idp->di_attr,
+		    idp->di_vers, idp->di_ops, idp->di_iarg, idp->di_gen);
+
+		if (dnp->dn_ident == NULL)
+			longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+
+		dt_node_type_assign(dnp,
+		    prp->pr_argv[ap->dn_value].dtt_ctfp,
+		    prp->pr_argv[ap->dn_value].dtt_type);
+
+	} else if ((dxp = dt_xlator_lookup(dtp,
+	    nnp, xnp, DT_XLATE_FUZZY)) != NULL || (
+	    dxp = dt_xlator_lookup(dtp, dt_probe_tag(prp, ap->dn_value, &tag),
+	    xnp, DT_XLATE_EXACT | DT_XLATE_EXTERN)) != NULL) {
+
+		xidp = dt_xlator_ident(dxp, xnp->dn_ctfp, xnp->dn_type);
+
+		dnp->dn_ident = dt_ident_create(idp->di_name, xidp->di_kind,
+		    xidp->di_flags | DT_IDFLG_ORPHAN, idp->di_id, idp->di_attr,
+		    idp->di_vers, idp->di_ops, idp->di_iarg, idp->di_gen);
+
+		if (dnp->dn_ident == NULL)
+			longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
+
+		if (dt_xlator_dynamic(dxp))
+			dxp->dx_arg = (int)ap->dn_value;
+
 		/*
-		 * If we have an argument translator, we need to transform the
-		 * ident for the node based on the ident of the translator.
-		 * We perform just enough transformation such that the node
-		 * appears to be a translator when looked at as a translator,
-		 * but not so much that it doesn't look like an array when it
-		 * needs to be viewed as an array.
+		 * Propagate relevant members from the translator's internal
+		 * dt_ident_t.  This code must be kept in sync with the state
+		 * that is initialized for idents in dt_xlator_create().
 		 */
-		idp->di_kind = xidp->di_kind;
-		idp->di_data = xidp->di_data;
-		idp->di_ctfp = xidp->di_ctfp;
-		idp->di_type = xidp->di_type;
+		dnp->dn_ident->di_data = xidp->di_data;
+		dnp->dn_ident->di_ctfp = xidp->di_ctfp;
+		dnp->dn_ident->di_type = xidp->di_type;
 
 		dt_node_type_assign(dnp, DT_DYN_CTFP(dtp), DT_DYN_TYPE(dtp));
-	} else {
-		idp->di_kind = DT_IDENT_ARRAY;
-		idp->di_data = NULL;
-		idp->di_ctfp = DT_DYN_CTFP(yypcb->pcb_hdl);
-		idp->di_type = DT_DYN_TYPE(yypcb->pcb_hdl);
 
-		dt_node_type_assign(dnp, argp->da_ctfp, argp->da_type);
+	} else {
+		xyerror(D_ARGS_XLATOR, "translator for %s[%lld] from %s to %s "
+		    "is not defined\n", idp->di_name, (longlong_t)ap->dn_value,
+		    dt_node_type_name(nnp, n1, sizeof (n1)),
+		    dt_node_type_name(xnp, n2, sizeof (n2)));
 	}
+
+	assert(dnp->dn_ident->di_flags & DT_IDFLG_ORPHAN);
+	assert(dnp->dn_ident->di_id == idp->di_id);
 }
 
 static void
@@ -400,77 +492,13 @@ dt_idcook_thaw(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 		dt_node_type_assign(dnp, idp->di_ctfp, idp->di_type);
 }
 
-/*ARGSUSED*/
-static dt_ident_t *
-dt_idctor_default(dt_node_t *dnp, int argc, dt_node_t *ap)
+static void
+dt_idcook_inline(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 {
-	return (dnp->dn_ident);
-}
-
-static dt_ident_t *
-dt_idctor_args(dt_node_t *dnp, int argc, dt_node_t *ap)
-{
-	dt_ident_t *idp = dnp->dn_ident;
-	char n[DT_TYPE_NAMELEN], *name;
-	int len;
-
-	/*
-	 * The args[] array is special because two identifiers with different
-	 * indices will have different ident attributes.  To support this,
-	 * we create an ident for each index.  The di_data field of the "args"
-	 * ident in the hash points to a list of indexed idents; each of the
-	 * indexed args[] idents has DT_IDFLG_ARGNDX set in its di_flags field.
-	 */
-	if (idp->di_flags & DT_IDFLG_ARGNDX)
-		return (idp);
-
-	if (argc != 1) {
-		xyerror(D_PROTO_LEN, "%s[ ] prototype mismatch: %d arg%s"
-		    "passed, 1 expected\n", idp->di_name, argc,
-		    argc == 1 ? " " : "s ");
-	}
-
-	if (ap->dn_kind != DT_NODE_INT) {
-		xyerror(D_PROTO_ARG, "%s[ ] argument #1 is incompatible with "
-		    "prototype:\n\tprototype: %s\n\t argument: %s\n",
-		    idp->di_name, "integer constant",
-		    dt_type_name(ap->dn_ctfp, ap->dn_type, n, sizeof (n)));
-	}
-
-	if (ap->dn_value > UCHAR_MAX) {
-		xyerror(D_ARGS_IDX, "index %lld is out of range for probe %s "
-		    "%s[ ]\n", (longlong_t)ap->dn_value,
-		    dtrace_desc2str(yypcb->pcb_pdesc,
-		    n, sizeof (n)), idp->di_name);
-	}
-
-	len = strlen(idp->di_name) + 1;
-
-	for (idp = idp->di_data; idp != NULL; idp = idp->di_next) {
-		if (idp->di_name[len] == ap->dn_value)
-			return (idp);
-	}
-
-	/*
-	 * We need to create a new ident using the existing one as a template.
-	 */
-	idp = dnp->dn_ident;
-	if ((name = malloc(strlen(idp->di_name) + 2)) == NULL)
-		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
-
-	(void) strcpy(name, idp->di_name);
-	name[len] = ap->dn_value;
-
-	idp = dt_ident_create(NULL, idp->di_kind, idp->di_flags, idp->di_id,
-	    idp->di_attr, idp->di_vers, idp->di_ops, idp->di_iarg,
-	    idp->di_gen);
-
-	idp->di_next = dnp->dn_ident->di_data;
-	dnp->dn_ident->di_data = idp;
-	idp->di_flags |= DT_IDFLG_ARGNDX;
-	idp->di_name = name;
-
-	return (idp);
+	if (idp->di_kind == DT_IDENT_ARRAY)
+		dt_idcook_assc(dnp, idp, argc, args);
+	else
+		dt_idcook_thaw(dnp, idp, argc, args);
 }
 
 static void
@@ -482,34 +510,44 @@ dt_iddtor_sign(dt_ident_t *idp)
 }
 
 static void
-dt_iddtor_node(dt_ident_t *idp)
-{
-	dt_idnode_t *inp = idp->di_data;
-
-	if (inp != NULL) {
-		dt_node_link_free(&inp->din_list);
-		free(inp);
-	}
-}
-
-static void
 dt_iddtor_free(dt_ident_t *idp)
 {
 	free(idp->di_data);
 }
 
 static void
-dt_iddtor_args(dt_ident_t *idp)
+dt_iddtor_inline(dt_ident_t *idp)
 {
-	dt_ident_t *next, *old;
+	dt_idnode_t *inp = idp->di_iarg;
 
-	assert(!(idp->di_flags & DT_IDFLG_ARGNDX));
+	if (inp != NULL) {
+		dt_node_link_free(&inp->din_list);
 
-	for (old = idp->di_data; old != NULL; old = next) {
-		next = old->di_next;
-		free(old->di_name);
-		free(old);
+		if (inp->din_hash != NULL)
+			dt_idhash_destroy(inp->din_hash);
+
+		free(inp->din_argv);
+		free(inp);
 	}
+
+	if (idp->di_kind == DT_IDENT_ARRAY)
+		dt_iddtor_sign(idp);
+	else
+		dt_iddtor_free(idp);
+}
+
+/*ARGSUSED*/
+static void
+dt_iddtor_none(dt_ident_t *idp)
+{
+	/* do nothing */
+}
+
+static void
+dt_iddtor_probe(dt_ident_t *idp)
+{
+	if (idp->di_data != NULL)
+		dt_probe_destroy(idp->di_data);
 }
 
 static size_t
@@ -527,57 +565,49 @@ dt_idsize_none(dt_ident_t *idp)
 
 const dt_idops_t dt_idops_assc = {
 	dt_idcook_assc,
-	dt_idctor_default,
 	dt_iddtor_sign,
 	dt_idsize_none,
 };
 
 const dt_idops_t dt_idops_func = {
 	dt_idcook_func,
-	dt_idctor_default,
 	dt_iddtor_sign,
 	dt_idsize_none,
 };
 
 const dt_idops_t dt_idops_args = {
 	dt_idcook_args,
-	dt_idctor_args,
-	dt_iddtor_args,
+	dt_iddtor_none,
 	dt_idsize_none,
 };
 
 const dt_idops_t dt_idops_regs = {
 	dt_idcook_regs,
-	dt_idctor_default,
 	dt_iddtor_free,
 	dt_idsize_none,
 };
 
 const dt_idops_t dt_idops_type = {
 	dt_idcook_type,
-	dt_idctor_default,
 	dt_iddtor_free,
 	dt_idsize_type,
 };
 
 const dt_idops_t dt_idops_thaw = {
 	dt_idcook_thaw,
-	dt_idctor_default,
 	dt_iddtor_free,
 	dt_idsize_type,
 };
 
 const dt_idops_t dt_idops_inline = {
-	dt_idcook_thaw,
-	dt_idctor_default,
-	dt_iddtor_node,
+	dt_idcook_inline,
+	dt_iddtor_inline,
 	dt_idsize_type,
 };
 
 const dt_idops_t dt_idops_probe = {
 	dt_idcook_thaw,
-	dt_idctor_default,
-	dt_probe_destroy,
+	dt_iddtor_probe,
 	dt_idsize_none,
 };
 
@@ -624,6 +654,15 @@ dt_idhash_create(const char *name, const dt_ident_t *tmpl,
 	return (dhp);
 }
 
+/*
+ * Destroy an entire identifier hash.  This must be done using two passes with
+ * an inlined version of dt_ident_destroy() to avoid referencing freed memory.
+ * In the first pass di_dtor() is called for all identifiers; then the second
+ * pass frees the actual dt_ident_t's.  These must be done separately because
+ * a di_dtor() may operate on data structures which contain references to other
+ * identifiers inside of this hash itself (e.g. a global inline definition
+ * which contains a parse tree that refers to another global variable).
+ */
 void
 dt_idhash_destroy(dt_idhash_t *dhp)
 {
@@ -633,7 +672,15 @@ dt_idhash_destroy(dt_idhash_t *dhp)
 	for (i = 0; i < dhp->dh_hashsz; i++) {
 		for (idp = dhp->dh_hash[i]; idp != NULL; idp = next) {
 			next = idp->di_next;
-			dt_ident_destroy(idp);
+			idp->di_ops->di_dtor(idp);
+		}
+	}
+
+	for (i = 0; i < dhp->dh_hashsz; i++) {
+		for (idp = dhp->dh_hash[i]; idp != NULL; idp = next) {
+			next = idp->di_next;
+			free(idp->di_name);
+			free(idp);
 		}
 	}
 
@@ -649,8 +696,13 @@ dt_idhash_update(dt_idhash_t *dhp)
 
 	for (i = 0; i < dhp->dh_hashsz; i++) {
 		for (idp = dhp->dh_hash[i]; idp != NULL; idp = idp->di_next) {
+			/*
+			 * Right now we're hard coding which types need to be
+			 * reset, but ideally this would be done dynamically.
+			 */
 			if (idp->di_kind == DT_IDENT_ARRAY ||
-			    idp->di_kind == DT_IDENT_SCALAR)
+			    idp->di_kind == DT_IDENT_SCALAR ||
+			    idp->di_kind == DT_IDENT_AGG)
 				nextid = MAX(nextid, idp->di_id + 1);
 		}
 	}
@@ -737,6 +789,7 @@ dt_idhash_xinsert(dt_idhash_t *dhp, dt_ident_t *idp)
 
 	h = dt_strtab_hash(idp->di_name, NULL) % dhp->dh_hashsz;
 	idp->di_next = dhp->dh_hash[h];
+	idp->di_flags &= ~DT_IDFLG_ORPHAN;
 
 	dhp->dh_hash[h] = idp;
 	dhp->dh_nelems++;
@@ -766,7 +819,8 @@ dt_idhash_delete(dt_idhash_t *dhp, dt_ident_t *key)
 	assert(dhp->dh_nelems != 0);
 	dhp->dh_nelems--;
 
-	dt_ident_destroy(idp);
+	if (!(idp->di_flags & DT_IDFLG_ORPHAN))
+		dt_ident_destroy(idp);
 }
 
 static int
@@ -775,20 +829,25 @@ dt_idhash_comp(const void *lp, const void *rp)
 	const dt_ident_t *lhs = *((const dt_ident_t **)lp);
 	const dt_ident_t *rhs = *((const dt_ident_t **)rp);
 
-	return ((int)(lhs->di_id - rhs->di_id));
+	if (lhs->di_id != rhs->di_id)
+		return ((int)(lhs->di_id - rhs->di_id));
+	else
+		return (strcmp(lhs->di_name, rhs->di_name));
 }
 
-void
+int
 dt_idhash_iter(dt_idhash_t *dhp, dt_idhash_f *func, void *data)
 {
 	dt_ident_t **ids;
 	dt_ident_t *idp;
-	ulong_t i, j;
+	ulong_t i, j, n;
+	int rv;
 
 	if (dhp->dh_tmpl != NULL)
 		dt_idhash_populate(dhp); /* fill hash w/ initial population */
 
-	ids = alloca(sizeof (dt_ident_t *) * dhp->dh_nelems);
+	n = dhp->dh_nelems;
+	ids = alloca(sizeof (dt_ident_t *) * n);
 
 	for (i = 0, j = 0; i < dhp->dh_hashsz; i++) {
 		for (idp = dhp->dh_hash[i]; idp != NULL; idp = idp->di_next)
@@ -797,8 +856,40 @@ dt_idhash_iter(dt_idhash_t *dhp, dt_idhash_f *func, void *data)
 
 	qsort(ids, dhp->dh_nelems, sizeof (dt_ident_t *), dt_idhash_comp);
 
-	for (i = 0; i < dhp->dh_nelems; i++)
-		func(dhp, ids[i], data);
+	for (i = 0; i < n; i++) {
+		if ((rv = func(dhp, ids[i], data)) != 0)
+			return (rv);
+	}
+
+	return (0);
+}
+
+dt_ident_t *
+dt_idstack_lookup(dt_idstack_t *sp, const char *name)
+{
+	dt_idhash_t *dhp;
+	dt_ident_t *idp;
+
+	for (dhp = dt_list_prev(&sp->dids_list);
+	    dhp != NULL; dhp = dt_list_prev(dhp)) {
+		if ((idp = dt_idhash_lookup(dhp, name)) != NULL)
+			return (idp);
+	}
+
+	return (NULL);
+}
+
+void
+dt_idstack_push(dt_idstack_t *sp, dt_idhash_t *dhp)
+{
+	dt_list_append(&sp->dids_list, dhp);
+}
+
+void
+dt_idstack_pop(dt_idstack_t *sp, dt_idhash_t *dhp)
+{
+	assert(dt_list_prev(&sp->dids_list) == dhp);
+	dt_list_delete(&sp->dids_list, dhp);
 }
 
 dt_ident_t *
@@ -833,6 +924,10 @@ dt_ident_create(const char *name, ushort_t kind, ushort_t flags, uint_t id,
 	return (idp);
 }
 
+/*
+ * Destroy an individual identifier.  This code must be kept in sync with the
+ * dt_idhash_destroy() function below, which separates out the call to di_dtor.
+ */
 void
 dt_ident_destroy(dt_ident_t *idp)
 {
@@ -865,16 +960,6 @@ dt_ident_cook(dt_node_t *dnp, dt_ident_t *idp, dt_node_t **pargp)
 	for (argp = args; argp != NULL; argp = argp->dn_list)
 		argc++;
 
-	if (idp == dnp->dn_ident) {
-		/*
-		 * If the ident we've been passed is the ident that corresponds
-		 * to the node, we're going to call through the identifier ops
-		 * to construct the identifier -- potentially changing it.
-		 */
-		dnp->dn_ident = idp->di_ops->di_ctor(dnp, argc, args);
-		idp = dnp->dn_ident;
-	}
-
 	idp->di_ops->di_cook(dnp, idp, argc, args);
 
 	if (idp->di_flags & DT_IDFLG_USER)
@@ -894,7 +979,10 @@ dt_ident_t *
 dt_ident_resolve(dt_ident_t *idp)
 {
 	while (idp->di_flags & DT_IDFLG_INLINE) {
-		const dt_node_t *dnp = ((dt_idnode_t *)idp->di_data)->din_root;
+		const dt_node_t *dnp = ((dt_idnode_t *)idp->di_iarg)->din_root;
+
+		if (dnp == NULL)
+			break; /* can't resolve any further yet */
 
 		switch (dnp->dn_kind) {
 		case DT_NODE_VAR:
@@ -902,6 +990,7 @@ dt_ident_resolve(dt_ident_t *idp)
 		case DT_NODE_FUNC:
 		case DT_NODE_AGG:
 		case DT_NODE_INLINE:
+		case DT_NODE_PROBE:
 			idp = dnp->dn_ident;
 			continue;
 		}

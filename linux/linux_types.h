@@ -11,6 +11,7 @@ struct modctl;
 # include	<linux/module.h>
 
 # include	<sys/model.h>
+# include	<sys/bitmap.h>
 # include	<sys/processor.h>
 # include	<sys/systm.h>
 # include 	<sys/vmem.h>
@@ -109,6 +110,8 @@ extern int pwrite(int, void *, int, unsigned long long);
 #define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
 
 typedef unsigned long long hrtime_t;
+
+# define	ABS(x) ((x) < 0 ? -(x) : (x))
 
 /**********************************************************************/
 /*   Typedefs for kernel driver building.			      */
@@ -318,6 +321,7 @@ typedef union {
 #define SYS_getsockname         244
 #define SYS_getpeername         243
 #define SYS_getsockopt          245
+#define	SYS_forksys		999
 
 /* fcntl.h */
 #define F_ALLOCSP       10      /* Reserved */

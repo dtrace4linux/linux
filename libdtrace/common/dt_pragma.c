@@ -1,14 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_pragma.c	1.3	04/09/27 SMI"
+#pragma ident	"@(#)dt_pragma.c	1.6	07/11/12 SMI"
 
+#include <assert.h>
 #include <strings.h>
 #include <alloca.h>
 #include <stdlib.h>
@@ -104,18 +121,16 @@ dt_pragma_attributes(const char *prname, dt_node_t *dnp)
 			return;
 		}
 
-	} else {
-		idp = dt_idhash_lookup(dtp->dt_globals, name);
+	} else if ((idp = dt_idstack_lookup(
+	    &yypcb->pcb_globals, name)) != NULL) {
 
-		if (idp != NULL) {
-			if (idp->di_gen != dtp->dt_gen) {
-				xyerror(D_PRAGMA_SCOPE, "#pragma %s cannot "
-				    "modify entity defined outside program "
-				    "scope\n", prname);
-			}
-			idp->di_attr = attr;
-			return;
+		if (idp->di_gen != dtp->dt_gen) {
+			xyerror(D_PRAGMA_SCOPE, "#pragma %s cannot modify "
+			    "entity defined outside program scope\n", prname);
 		}
+
+		idp->di_attr = attr;
+		return;
 	}
 
 	if (yypcb->pcb_pragmas == NULL && (yypcb->pcb_pragmas =
@@ -158,7 +173,7 @@ dt_pragma_binding(const char *prname, dt_node_t *dnp)
 	}
 
 	name = dnp->dn_list->dn_string;
-	idp = dt_idhash_lookup(dtp->dt_globals, name);
+	idp = dt_idstack_lookup(&yypcb->pcb_globals, name);
 
 	if (idp != NULL) {
 		if (idp->di_gen != dtp->dt_gen) {
@@ -185,7 +200,8 @@ dt_pragma_binding(const char *prname, dt_node_t *dnp)
 
 /*
  * The #pragma depends_on directive can be used to express a dependency on a
- * module or provider, which if not present will cause processing to abort.
+ * module, provider or library which if not present will cause processing to
+ * abort.
  */
 static void
 dt_pragma_depends(const char *prname, dt_node_t *cnp)
@@ -193,6 +209,7 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
 	dt_node_t *nnp = cnp ? cnp->dn_list : NULL;
 	int found;
+	dt_lib_depend_t *dld;
 
 	if (cnp == NULL || nnp == NULL ||
 	    cnp->dn_kind != DT_NODE_IDENT || nnp->dn_kind != DT_NODE_IDENT) {
@@ -205,6 +222,30 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 	else if (strcmp(cnp->dn_string, "module") == 0) {
 		dt_module_t *mp = dt_module_lookup_by_name(dtp, nnp->dn_string);
 		found = mp != NULL && dt_module_getctf(dtp, mp) != NULL;
+	} else if (strcmp(cnp->dn_string, "library") == 0) {
+
+		/*
+		 * We have the file we are working on in dtp->dt_filetag
+		 * so find that node and add the dependency in.
+		 */
+		if (yypcb->pcb_cflags & DTRACE_C_CTL) {
+			char lib[MAXPATHLEN];
+
+			dld = dt_lib_depend_lookup(&dtp->dt_lib_dep,
+			    dtp->dt_filetag);
+			assert(dld != NULL);
+
+			(void) snprintf(lib, MAXPATHLEN, "%s%s",
+			    dld->dtld_libpath, nnp->dn_string);
+			if ((dt_lib_depend_add(dtp, &dld->dtld_dependencies,
+			    lib)) != 0) {
+				xyerror(D_PRAGMA_DEPEND,
+				    "failed to add dependency %s:%s\n",
+				    lib,
+				    dtrace_errmsg(dtp, dtrace_errno(dtp)));
+			}
+		}
+		found = 1;
 	} else {
 		xyerror(D_PRAGMA_INVAL, "invalid class %s "
 		    "specified by #pragma %s\n", cnp->dn_string, prname);

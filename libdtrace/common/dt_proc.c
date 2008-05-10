@@ -1,13 +1,30 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)dt_proc.c	1.6	04/11/17 SMI"
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+
+#pragma ident	"@(#)dt_proc.c	1.15	07/05/18 SMI"
 
 /*
  * DTrace Process Control
@@ -62,16 +79,19 @@
  */
 
 #include <sys/wait.h>
+#include <sys/lwp.h>
 #include <strings.h>
 #include <signal.h>
 #include <assert.h>
 #include <errno.h>
 
 #include <dt_proc.h>
+#include <dt_pid.h>
 #include <dt_impl.h>
 
 #define	IS_SYS_EXEC(w)	(w == SYS_exec || w == SYS_execve)
-#define	IS_SYS_FORK(w)	(w == SYS_vfork || w == SYS_fork1 || w == SYS_forkall)
+#define	IS_SYS_FORK(w)	(w == SYS_vfork || w == SYS_fork1 ||	\
+			w == SYS_forkall || w == SYS_forksys)
 
 static dt_bkpt_t *
 dt_proc_bpcreate(dt_proc_t *dpr, uintptr_t addr, dt_bkpt_f *func, void *data)
@@ -116,7 +136,7 @@ dt_proc_bpdestroy(dt_proc_t *dpr, int delbkpts)
 }
 
 static void
-dt_proc_bpmatch(dt_proc_t *dpr)
+dt_proc_bpmatch(dtrace_hdl_t *dtp, dt_proc_t *dpr)
 {
 	const lwpstatus_t *psp = &Pstatus(dpr->dpr_proc)->pr_lwp;
 	dt_bkpt_t *dbp;
@@ -138,7 +158,7 @@ dt_proc_bpmatch(dt_proc_t *dpr)
 	dt_dprintf("pid %d: hit breakpoint at %lx (%lu)\n",
 	    (int)dpr->dpr_pid, (ulong_t)dbp->dbp_addr, ++dbp->dbp_hits);
 
-	dbp->dbp_func(dpr, dbp->dbp_data);
+	dbp->dbp_func(dtp, dpr, dbp->dbp_data);
 	(void) Pxecbkpt(dpr->dpr_proc, dbp->dbp_instr);
 }
 
@@ -155,6 +175,8 @@ dt_proc_bpenable(dt_proc_t *dpr)
 		    dbp->dbp_addr, &dbp->dbp_instr) == 0)
 			dbp->dbp_active = B_TRUE;
 	}
+
+	dt_dprintf("breakpoints enabled\n");
 }
 
 static void
@@ -169,6 +191,35 @@ dt_proc_bpdisable(dt_proc_t *dpr)
 		if (dbp->dbp_active && Pdelbkpt(dpr->dpr_proc,
 		    dbp->dbp_addr, dbp->dbp_instr) == 0)
 			dbp->dbp_active = B_FALSE;
+	}
+
+	dt_dprintf("breakpoints disabled\n");
+}
+
+static void
+dt_proc_notify(dtrace_hdl_t *dtp, dt_proc_hash_t *dph, dt_proc_t *dpr,
+    const char *msg)
+{
+	dt_proc_notify_t *dprn = dt_alloc(dtp, sizeof (dt_proc_notify_t));
+
+	if (dprn == NULL) {
+		dt_dprintf("failed to allocate notification for %d %s\n",
+		    (int)dpr->dpr_pid, msg);
+	} else {
+		dprn->dprn_dpr = dpr;
+		if (msg == NULL)
+			dprn->dprn_errmsg[0] = '\0';
+		else
+			(void) strlcpy(dprn->dprn_errmsg, msg,
+			    sizeof (dprn->dprn_errmsg));
+
+		(void) pthread_mutex_lock(&dph->dph_lock);
+
+		dprn->dprn_next = dph->dph_notify;
+		dph->dph_notify = dprn;
+
+		(void) pthread_cond_broadcast(&dph->dph_cv);
+		(void) pthread_mutex_unlock(&dph->dph_lock);
 	}
 }
 
@@ -190,20 +241,30 @@ dt_proc_stop(dt_proc_t *dpr, uint8_t why)
 
 		(void) pthread_cond_broadcast(&dpr->dpr_cv);
 
+		/*
+		 * We disable breakpoints while stopped to preserve the
+		 * integrity of the program text for both our own disassembly
+		 * and that of the kernel.
+		 */
+		dt_proc_bpdisable(dpr);
+
 		while (dpr->dpr_stop & DT_PROC_STOP_IDLE)
 			(void) pthread_cond_wait(&dpr->dpr_cv, &dpr->dpr_lock);
+
+		dt_proc_bpenable(dpr);
 	}
 }
 
+/*ARGSUSED*/
 static void
-dt_proc_bpmain(dt_proc_t *dpr, const char *fname)
+dt_proc_bpmain(dtrace_hdl_t *dtp, dt_proc_t *dpr, const char *fname)
 {
 	dt_dprintf("pid %d: breakpoint at %s()\n", (int)dpr->dpr_pid, fname);
 	dt_proc_stop(dpr, DT_PROC_STOP_MAIN);
 }
 
 static void
-dt_proc_rdevent(dt_proc_t *dpr, const char *evname)
+dt_proc_rdevent(dtrace_hdl_t *dtp, dt_proc_t *dpr, const char *evname)
 {
 	rd_event_msg_t rdm;
 	rd_err_e err;
@@ -219,8 +280,14 @@ dt_proc_rdevent(dt_proc_t *dpr, const char *evname)
 
 	switch (rdm.type) {
 	case RD_DLACTIVITY:
-		if (rdm.u.state == RD_CONSISTENT)
-			Pupdate_syms(dpr->dpr_proc);
+		if (rdm.u.state != RD_CONSISTENT)
+			break;
+
+		Pupdate_syms(dpr->dpr_proc);
+		if (dt_pid_create_probes_module(dtp, dpr) != 0)
+			dt_proc_notify(dtp, dtp->dt_procs, dpr,
+			    dpr->dpr_errmsg);
+
 		break;
 	case RD_PREINIT:
 		Pupdate_syms(dpr->dpr_proc);
@@ -373,6 +440,11 @@ dt_proc_waitrun(dt_proc_t *dpr)
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
 }
 
+typedef struct dt_proc_control_data {
+	dtrace_hdl_t *dpcd_hdl;			/* DTrace handle */
+	dt_proc_t *dpcd_proc;			/* proccess to control */
+} dt_proc_control_data_t;
+
 /*
  * Main loop for all victim process control threads.  We initialize all the
  * appropriate /proc control mechanisms, and then enter a loop waiting for
@@ -388,7 +460,9 @@ dt_proc_waitrun(dt_proc_t *dpr)
 static void *
 dt_proc_control(void *arg)
 {
-	dt_proc_t *dpr = arg;
+	dt_proc_control_data_t *datap = arg;
+	dtrace_hdl_t *dtp = datap->dpcd_hdl;
+	dt_proc_t *dpr = datap->dpcd_proc;
 	dt_proc_hash_t *dph = dpr->dpr_hdl->dt_procs;
 	struct ps_prochandle *P = dpr->dpr_proc;
 
@@ -439,6 +513,8 @@ dt_proc_control(void *arg)
 	(void) Psysexit(P, SYS_fork1, B_TRUE);
 	(void) Psysentry(P, SYS_forkall, B_TRUE);
 	(void) Psysexit(P, SYS_forkall, B_TRUE);
+	(void) Psysentry(P, SYS_forksys, B_TRUE);
+	(void) Psysexit(P, SYS_forksys, B_TRUE);
 
 	Psync(P);				/* enable all /proc changes */
 	dt_proc_attach(dpr, B_FALSE);		/* enable rtld breakpoints */
@@ -515,7 +591,7 @@ pwait_locked:
 			 * corresponding mechanism (e.g. job control stop).
 			 */
 			if (psp->pr_why == PR_FAULTED && psp->pr_what == FLTBPT)
-				dt_proc_bpmatch(dpr);
+				dt_proc_bpmatch(dtp, dpr);
 			else if (psp->pr_why == PR_SYSENTRY &&
 			    IS_SYS_FORK(psp->pr_what))
 				dt_proc_bpdisable(dpr);
@@ -557,15 +633,8 @@ pwait_locked:
 	 * If the control thread detected PS_UNDEAD or PS_LOST, then enqueue
 	 * the dt_proc_t structure on the dt_proc_hash_t notification list.
 	 */
-	if (notify) {
-		(void) pthread_mutex_lock(&dph->dph_lock);
-
-		dpr->dpr_notify = dph->dph_notify;
-		dph->dph_notify = dpr;
-
-		(void) pthread_mutex_unlock(&dph->dph_lock);
-		(void) pthread_cond_broadcast(&dph->dph_cv);
-	}
+	if (notify)
+		dt_proc_notify(dtp, dph, dpr, NULL);
 
 	/*
 	 * Destroy and remove any remaining breakpoints, set dpr_done and clear
@@ -578,8 +647,8 @@ pwait_locked:
 	dpr->dpr_done = B_TRUE;
 	dpr->dpr_tid = 0;
 
-	(void) pthread_mutex_unlock(&dpr->dpr_lock);
 	(void) pthread_cond_broadcast(&dpr->dpr_cv);
+	(void) pthread_mutex_unlock(&dpr->dpr_lock);
 
 	return (NULL);
 }
@@ -628,9 +697,9 @@ dt_proc_lookup(dtrace_hdl_t *dtp, struct ps_prochandle *P, int remove)
 static void
 dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 {
-	dt_proc_t *dpr = dt_proc_lookup(dtp, P, B_TRUE);
+	dt_proc_t *dpr = dt_proc_lookup(dtp, P, B_FALSE);
 	dt_proc_hash_t *dph = dtp->dt_procs;
-	dt_proc_t *npr, **npp;
+	dt_proc_notify_t *npr, **npp;
 	int rflag;
 
 	assert(dpr != NULL);
@@ -655,10 +724,27 @@ dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 		 * long-term /proc system call.  Our daemon threads have POSIX
 		 * cancellation disabled, so EINTR will be the only effect.  We
 		 * then wait for dpr_done to indicate the thread has exited.
+		 *
+		 * We can't use pthread_kill() to send SIGCANCEL because the
+		 * interface forbids it and we can't use pthread_cancel()
+		 * because with cancellation disabled it won't actually
+		 * send SIGCANCEL to the target thread, so we use _lwp_kill()
+		 * to do the job.  This is all built on evil knowledge of
+		 * the details of the cancellation mechanism in libc.
 		 */
 		(void) pthread_mutex_lock(&dpr->dpr_lock);
 		dpr->dpr_quit = B_TRUE;
-		(void) pthread_kill(dpr->dpr_tid, SIGCANCEL);
+		(void) _lwp_kill(dpr->dpr_tid, SIGCANCEL);
+
+		/*
+		 * If the process is currently idling in dt_proc_stop(), re-
+		 * enable breakpoints and poke it into running again.
+		 */
+		if (dpr->dpr_stop & DT_PROC_STOP_IDLE) {
+			dt_proc_bpenable(dpr);
+			dpr->dpr_stop &= ~DT_PROC_STOP_IDLE;
+			(void) pthread_cond_broadcast(&dpr->dpr_cv);
+		}
 
 		while (!dpr->dpr_done)
 			(void) pthread_cond_wait(&dpr->dpr_cv, &dpr->dpr_lock);
@@ -667,22 +753,21 @@ dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 	}
 
 	/*
-	 * Before we free the process structure, walk the dt_proc_hash_t's
-	 * notification list and remove this dt_proc_t if it is enqueued.
+	 * Before we free the process structure, remove this dt_proc_t from the
+	 * lookup hash, and then walk the dt_proc_hash_t's notification list
+	 * and remove this dt_proc_t if it is enqueued.
 	 */
 	(void) pthread_mutex_lock(&dph->dph_lock);
+	(void) dt_proc_lookup(dtp, P, B_TRUE);
 	npp = &dph->dph_notify;
 
-	for (npr = *npp; npr != NULL; npr = npr->dpr_notify) {
-		if (npr != dpr)
-			npp = &npr->dpr_notify;
-		else
-			break;
-	}
-
-	if (npr != NULL) {
-		*npp = npr->dpr_notify;
-		npr->dpr_notify = NULL;
+	while ((npr = *npp) != NULL) {
+		if (npr->dprn_dpr == dpr) {
+			*npp = npr->dprn_next;
+			dt_free(dtp, npr);
+		} else {
+			npp = &npr->dprn_next;
+		}
 	}
 
 	(void) pthread_mutex_unlock(&dph->dph_lock);
@@ -702,8 +787,9 @@ dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 }
 
 static int
-dt_proc_create_thread(dt_proc_t *dpr, uint_t stop)
+dt_proc_create_thread(dtrace_hdl_t *dtp, dt_proc_t *dpr, uint_t stop)
 {
+	dt_proc_control_data_t data;
 	sigset_t nset, oset;
 	pthread_attr_t a;
 	int err;
@@ -718,8 +804,11 @@ dt_proc_create_thread(dt_proc_t *dpr, uint_t stop)
 	(void) sigdelset(&nset, SIGABRT);	/* unblocked for assert() */
 	(void) sigdelset(&nset, SIGCANCEL);	/* see dt_proc_destroy() */
 
+	data.dpcd_hdl = dtp;
+	data.dpcd_proc = dpr;
+
 	(void) pthread_sigmask(SIG_SETMASK, &nset, &oset);
-	err = pthread_create(&dpr->dpr_tid, &a, dt_proc_control, dpr);
+	err = pthread_create(&dpr->dpr_tid, &a, dt_proc_control, &data);
 	(void) pthread_sigmask(SIG_SETMASK, &oset, NULL);
 
 	/*
@@ -760,15 +849,7 @@ dt_proc_create_thread(dt_proc_t *dpr, uint_t stop)
 			}
 
 			err = ESRCH; /* cause grab() or create() to fail */
-		} else {
-			/*
-			 * Disable breakpoints while the process is stopped so
-			 * the pid provider can correctly disassemble all
-			 * functions.
-			 */
-			dt_proc_bpdisable(dpr);
 		}
-
 	} else {
 		(void) dt_proc_error(dpr->dpr_hdl, dpr,
 		    "failed to create control thread for process-id %d: %s\n",
@@ -805,7 +886,7 @@ dt_proc_create(dtrace_hdl_t *dtp, const char *file, char *const *argv)
 	(void) Punsetflags(dpr->dpr_proc, PR_RLC);
 	(void) Psetflags(dpr->dpr_proc, PR_KLC);
 
-	if (dt_proc_create_thread(dpr, dtp->dt_prcmode) != 0)
+	if (dt_proc_create_thread(dtp, dpr, dtp->dt_prcmode) != 0)
 		return (NULL); /* dt_proc_error() has been called for us */
 
 	dpr->dpr_hash = dph->dph_hash[dpr->dpr_pid & (dph->dph_hashlen - 1)];
@@ -832,7 +913,21 @@ dt_proc_grab(dtrace_hdl_t *dtp, pid_t pid, int flags, int nomonitor)
 	 * the reference count, and return the existing ps_prochandle.
 	 */
 	for (dpr = dph->dph_hash[h]; dpr != NULL; dpr = dpr->dpr_hash) {
-		if (dpr->dpr_pid == pid) {
+		if (dpr->dpr_pid == pid && !dpr->dpr_stale) {
+			/*
+			 * If the cached handle was opened read-only and
+			 * this request is for a writeable handle, mark
+			 * the cached handle as stale and open a new handle.
+			 * Since it's stale, unmark it as cacheable.
+			 */
+			if (dpr->dpr_rdonly && !(flags & PGRAB_RDONLY)) {
+				dt_dprintf("upgrading pid %d\n", (int)pid);
+				dpr->dpr_stale = B_TRUE;
+				dpr->dpr_cacheable = B_FALSE;
+				dph->dph_lrucnt--;
+				break;
+			}
+
 			dt_dprintf("grabbed pid %d (cached)\n", (int)pid);
 			dt_list_delete(&dph->dph_lrulist, dpr);
 			dt_list_prepend(&dph->dph_lrulist, dpr);
@@ -860,12 +955,13 @@ dt_proc_grab(dtrace_hdl_t *dtp, pid_t pid, int flags, int nomonitor)
 
 	/*
 	 * If we are attempting to grab the process without a monitor
-	 * thread, then mark the process as cacheable.  If we're currently
-	 * caching more process handles than dph_lrulim permits, attempt to
-	 * find the least-recently-used handle that is currently
-	 * unreferenced and release it from the cache.  Otherwise we are
-	 * grabbing the process for control: create a control thread for
-	 * this process and store its ID in dpr->dpr_tid.
+	 * thread, then mark the process cacheable only if it's being
+	 * grabbed read-only.  If we're currently caching more process
+	 * handles than dph_lrulim permits, attempt to find the
+	 * least-recently-used handle that is currently unreferenced and
+	 * release it from the cache.  Otherwise we are grabbing the process
+	 * for control: create a control thread for this process and store
+	 * its ID in dpr->dpr_tid.
 	 */
 	if (nomonitor || (flags & PGRAB_RDONLY)) {
 		if (dph->dph_lrucnt >= dph->dph_lrulim) {
@@ -880,10 +976,11 @@ dt_proc_grab(dtrace_hdl_t *dtp, pid_t pid, int flags, int nomonitor)
 
 		if (flags & PGRAB_RDONLY) {
 			dpr->dpr_cacheable = B_TRUE;
+			dpr->dpr_rdonly = B_TRUE;
 			dph->dph_lrucnt++;
 		}
 
-	} else if (dt_proc_create_thread(dpr, DT_PROC_STOP_GRAB) != 0)
+	} else if (dt_proc_create_thread(dtp, dpr, DT_PROC_STOP_GRAB) != 0)
 		return (NULL); /* dt_proc_error() has been called for us */
 
 	dpr->dpr_hash = dph->dph_hash[h];
@@ -918,11 +1015,6 @@ dt_proc_continue(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
 
 	if (dpr->dpr_stop & DT_PROC_STOP_IDLE) {
-		/*
-		 * Breakpoints are disabled while the process is stopped so
-		 * the pid provider can correctly disassemble all functions.
-		 */
-		dt_proc_bpenable(dpr);
 		dpr->dpr_stop &= ~DT_PROC_STOP_IDLE;
 		(void) pthread_cond_broadcast(&dpr->dpr_cv);
 	}

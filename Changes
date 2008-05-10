@@ -1,3 +1,8 @@
+Sun May 11 20:54:47 2008  fox
+
+      15* Update libdtrace to latest opensolaris version.
+          Update cmd/dtrace/dtrace.c to latest verison.
+
 Mon May  5 09:48:18 2008  fox
 
       14* /dev/ctf driver now loads but theres lots of inter-driver

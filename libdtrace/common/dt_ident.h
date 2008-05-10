@@ -1,16 +1,33 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_DT_IDENT_H
 #define	_DT_IDENT_H
 
-#pragma ident	"@(#)dt_ident.h	1.3	04/04/30 SMI"
+#pragma ident	"@(#)dt_ident.h	1.8	05/11/29 SMI"
 
 #include <libctf.h>
 #include <dtrace.h>
@@ -19,26 +36,33 @@
 extern "C" {
 #endif
 
+#include <dt_list.h>
+
 struct dt_node;
 struct dt_ident;
+struct dt_idhash;
 struct dt_irlist;
 struct dt_regset;
 
 typedef struct dt_idsig {
 	int dis_varargs;	/* argument index of start of varargs (or -1) */
+	int dis_optargs;	/* argument index of start of optargs (or -1) */
 	int dis_argc;		/* number of types in this signature */
 	struct dt_node *dis_args; /* array of nodes representing formal types */
+	uint64_t dis_auxinfo;	/* auxiliary signature information, if any */
 } dt_idsig_t;
 
 typedef struct dt_idnode {
 	struct dt_node *din_list; /* allocation list for parse tree nodes */
 	struct dt_node *din_root; /* root of this identifier's parse tree */
+	struct dt_idhash *din_hash; /* identifiers private to this subtree */
+	struct dt_ident **din_argv; /* identifiers in din_hash for arguments */
+	int din_argc;		  /* length of din_argv[] array */
 } dt_idnode_t;
 
 typedef struct dt_idops {
 	void (*di_cook)(struct dt_node *, struct dt_ident *,
 	    int, struct dt_node *);
-	struct dt_ident *(*di_ctor)(struct dt_node *, int, struct dt_node *);
 	void (*di_dtor)(struct dt_ident *);
 	size_t (*di_size)(struct dt_ident *);
 } dt_idops_t;
@@ -87,9 +111,10 @@ typedef struct dt_ident {
 #define	DT_IDFLG_USER	0x0200	/* variable is associated with userland */
 #define	DT_IDFLG_PRIM	0x0400	/* variable is associated with primary object */
 #define	DT_IDFLG_DECL	0x0800	/* variable is associated with explicit decl */
-#define	DT_IDFLG_ARGNDX	0x1000	/* variable is an indexed args[] ident */
+#define	DT_IDFLG_ORPHAN	0x1000	/* variable is in a dt_node and not dt_idhash */
 
 typedef struct dt_idhash {
+	dt_list_t dh_list;	/* list prev/next pointers for dt_idstack */
 	const char *dh_name;	/* name of this hash table */
 	void (*dh_defer)(struct dt_idhash *, dt_ident_t *); /* defer callback */
 	const dt_ident_t *dh_tmpl; /* template for initial ident population */
@@ -100,6 +125,10 @@ typedef struct dt_idhash {
 	ulong_t dh_hashsz;	/* number of entries in dh_buckets array */
 	dt_ident_t *dh_hash[1];	/* array of hash table bucket pointers */
 } dt_idhash_t;
+
+typedef struct dt_idstack {
+	dt_list_t dids_list;	/* list meta-data for dt_idhash_t stack */
+} dt_idstack_t;
 
 extern const dt_idops_t dt_idops_assc;	/* associative array or aggregation */
 extern const dt_idops_t dt_idops_func;	/* function call built-in */
@@ -126,8 +155,12 @@ extern dt_ident_t *dt_idhash_insert(dt_idhash_t *, const char *, ushort_t,
 extern void dt_idhash_xinsert(dt_idhash_t *, dt_ident_t *);
 extern void dt_idhash_delete(dt_idhash_t *, dt_ident_t *);
 
-typedef void dt_idhash_f(dt_idhash_t *, dt_ident_t *, void *);
-extern void dt_idhash_iter(dt_idhash_t *, dt_idhash_f *, void *);
+typedef int dt_idhash_f(dt_idhash_t *, dt_ident_t *, void *);
+extern int dt_idhash_iter(dt_idhash_t *, dt_idhash_f *, void *);
+
+extern dt_ident_t *dt_idstack_lookup(dt_idstack_t *, const char *);
+extern void dt_idstack_push(dt_idstack_t *, dt_idhash_t *);
+extern void dt_idstack_pop(dt_idstack_t *, dt_idhash_t *);
 
 extern dt_ident_t *dt_ident_create(const char *, ushort_t, ushort_t, uint_t,
     dtrace_attribute_t, uint_t, const dt_idops_t *, void *, ulong_t);

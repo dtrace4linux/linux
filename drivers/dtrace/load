@@ -1,5 +1,6 @@
 SUDO="setuid root"
 
+set -x
 sync ; sync
 $SUDO rmmod dtracedrv
 sleep 1
@@ -11,4 +12,5 @@ $SUDO chmod 666 /dev/fbt
 grep ' kallsyms' /proc/kallsyms >/dev/fbt
 grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
 grep ' modules' /proc/kallsyms >/dev/fbt
+grep ' __symbol_get' /proc/kallsyms >/dev/fbt
 

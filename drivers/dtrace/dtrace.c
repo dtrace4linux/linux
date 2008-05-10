@@ -104,6 +104,7 @@ size_t		dtrace_difo_maxsize = (256 * 1024);
 dtrace_optval_t	dtrace_dof_maxsize = (256 * 1024);
 size_t		dtrace_global_maxsize = (16 * 1024);
 size_t		dtrace_actions_max = (16 * 1024);
+size_t          dtrace_retain_max = 1024;
 dtrace_optval_t	dtrace_helper_actions_max = 32;
 dtrace_optval_t	dtrace_helper_providers_max = 32;
 dtrace_optval_t	dtrace_dstate_defsize = (1 * 1024 * 1024);
@@ -170,9 +171,12 @@ static kmem_cache_t	*dtrace_state_cache;	/* cache for dynamic state */
 static uint64_t		dtrace_vtime_references; /* number of vtimestamp refs */
 static kthread_t	*dtrace_panicked;	/* panicking thread */
 static dtrace_ecb_t	*dtrace_ecb_create_cache; /* cached created ECB */
+static dtrace_genid_t   dtrace_probegen;        /* current probe generation */
 static int		dtrace_double_errors;	/* ERRORs inducing error */
-static dtrace_state_t	*dtrace_state;		/* temporary variable */
-static int		dtrace_error;		/* temporary variable */
+static dtrace_enabling_t *dtrace_retained;      /* list of retained enablings */
+static dtrace_dynvar_t  dtrace_dynhash_sink;    /* end of dynamic hash chains */
+dtrace_state_t	*dtrace_state;		/* temporary variable */
+int		dtrace_error;		/* temporary variable */
 /*
  * List of helpers that must be processed once a 'pid' meta provider comes
  * along. This is protected by dtrace_lock.
@@ -5258,7 +5262,7 @@ dtrace_probekey(const dtrace_probedesc_t *pdp, dtrace_probekey_t *pkp)
  */
 int
 dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
-    uid_t uid, const dtrace_pops_t *pops, void *arg, dtrace_provider_id_t *idp)
+    cred_t *cr, const dtrace_pops_t *pops, void *arg, dtrace_provider_id_t *idp)
 {
 	dtrace_provider_t *provider;
 
@@ -5313,7 +5317,12 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 
 	provider->dtpv_attr = *pap;
 	provider->dtpv_priv.dtpp_flags = priv;
-	provider->dtpv_priv.dtpp_uid = uid;
+	if (cr != NULL) {
+# if defined(sun)
+		provider->dtpv_priv.dtpp_uid = crgetuid(cr);
+                provider->dtpv_priv.dtpp_zoneid = crgetzoneid(cr);
+# endif
+	}
 	provider->dtpv_pops = *pops;
 
 	if (pops->dtps_provide == NULL) {
@@ -5684,7 +5693,6 @@ TODO();
 	probe->dtpr_func = dtrace_strdup(func);
 TODO();
 	probe->dtpr_name = dtrace_strdup(name);
-TODO();
 	probe->dtpr_arg = arg;
 	probe->dtpr_aframes = aframes;
 	probe->dtpr_provider = provider;
@@ -5693,19 +5701,25 @@ TODO();
 	dtrace_hash_add(dtrace_bymod, probe);
 TODO();
 	dtrace_hash_add(dtrace_byfunc, probe);
+TODO();
 	dtrace_hash_add(dtrace_byname, probe);
+TODO();
+printk("id=%d\n", id);
 
 	if (id - 1 >= dtrace_nprobes) {
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
 		size_t nsize = osize << 1;
 
+TODO();
 		if (nsize == 0) {
 			ASSERT(osize == 0);
 			ASSERT(dtrace_probes == NULL);
 			nsize = sizeof (dtrace_probe_t *);
 		}
 
+TODO();
 		probes = kmem_zalloc(nsize, KM_SLEEP);
+TODO();
 
 		if (dtrace_probes == NULL) {
 			ASSERT(osize == 0);
@@ -5730,6 +5744,7 @@ TODO();
 
 		ASSERT(id - 1 < dtrace_nprobes);
 	}
+TODO();
 
 	ASSERT(dtrace_probes[id - 1] == NULL);
 	dtrace_probes[id - 1] = probe;
@@ -5942,7 +5957,7 @@ dtrace_probe_foreach(uintptr_t offs)
 }
 # endif
 
-static int
+int
 dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_ecbdesc_t *ep)
 {
 	dtrace_probekey_t pkey;
@@ -8759,7 +8774,7 @@ dtrace_enabling_dump(dtrace_enabling_t *enab)
 	}
 }
 
-static void
+void
 dtrace_enabling_destroy(dtrace_enabling_t *enab)
 {
 	int i;
@@ -8807,6 +8822,163 @@ dtrace_enabling_destroy(dtrace_enabling_t *enab)
 	kmem_free(enab->dten_desc,
 	    enab->dten_maxdesc * sizeof (dtrace_enabling_t *));
 	kmem_free(enab, sizeof (dtrace_enabling_t));
+}
+
+static void
+dtrace_enabling_retract(dtrace_state_t *state)
+{
+	dtrace_enabling_t *enab, *next;
+
+	ASSERT(MUTEX_HELD(&dtrace_lock));
+
+	/*
+	 * Iterate over all retained enablings, destroy the enablings retained
+	 * for the specified state.
+	 */
+	for (enab = dtrace_retained; enab != NULL; enab = next) {
+		next = enab->dten_next;
+
+		/*
+		 * dtvs_state can only be NULL for helper enablings -- and
+		 * helper enablings can't be retained.
+		 */
+		ASSERT(enab->dten_vstate->dtvs_state != NULL);
+
+		if (enab->dten_vstate->dtvs_state == state) {
+			ASSERT(state->dts_nretained > 0);
+			dtrace_enabling_destroy(enab);
+		}
+	}
+
+	ASSERT(state->dts_nretained == 0);
+}
+
+int
+dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched)
+{
+	int i = 0;
+	int matched = 0;
+
+	ASSERT(MUTEX_HELD(&cpu_lock));
+	ASSERT(MUTEX_HELD(&dtrace_lock));
+
+	for (i = 0; i < enab->dten_ndesc; i++) {
+		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
+
+		enab->dten_current = ep;
+		enab->dten_error = 0;
+
+		matched += dtrace_probe_enable(&ep->dted_probe, enab);
+
+		if (enab->dten_error != 0) {
+			/*
+			 * If we get an error half-way through enabling the
+			 * probes, we kick out -- perhaps with some number of
+			 * them enabled.  Leaving enabled probes enabled may
+			 * be slightly confusing for user-level, but we expect
+			 * that no one will attempt to actually drive on in
+			 * the face of such errors.  If this is an anonymous
+			 * enabling (indicated with a NULL nmatched pointer),
+			 * we cmn_err() a message.  We aren't expecting to
+			 * get such an error -- such as it can exist at all,
+			 * it would be a result of corrupted DOF in the driver
+			 * properties.
+			 */
+			if (nmatched == NULL) {
+				cmn_err(CE_WARN, "dtrace_enabling_match() "
+				    "error on %p: %d", (void *)ep,
+				    enab->dten_error);
+			}
+
+			return (enab->dten_error);
+		}
+	}
+
+	enab->dten_probegen = dtrace_probegen;
+	if (nmatched != NULL)
+		*nmatched = matched;
+
+	return (0);
+}
+
+static void
+dtrace_enabling_matchall(void)
+{
+	dtrace_enabling_t *enab;
+
+	mutex_enter(&cpu_lock);
+	mutex_enter(&dtrace_lock);
+
+	/*
+	 * Because we can be called after dtrace_detach() has been called, we
+	 * cannot assert that there are retained enablings.  We can safely
+	 * load from dtrace_retained, however:  the taskq_destroy() at the
+	 * end of dtrace_detach() will block pending our completion.
+	 */
+	for (enab = dtrace_retained; enab != NULL; enab = enab->dten_next)
+		(void) dtrace_enabling_match(enab, NULL);
+
+	mutex_exit(&dtrace_lock);
+	mutex_exit(&cpu_lock);
+}
+
+int
+dtrace_enabling_matchstate(dtrace_state_t *state, int *nmatched)
+{
+	dtrace_enabling_t *enab;
+	int matched, total = 0, err;
+
+	ASSERT(MUTEX_HELD(&cpu_lock));
+	ASSERT(MUTEX_HELD(&dtrace_lock));
+
+	for (enab = dtrace_retained; enab != NULL; enab = enab->dten_next) {
+		ASSERT(enab->dten_vstate->dtvs_state != NULL);
+
+		if (enab->dten_vstate->dtvs_state != state)
+			continue;
+
+		if ((err = dtrace_enabling_match(enab, &matched)) != 0)
+			return (err);
+
+		total += matched;
+	}
+
+	if (nmatched != NULL)
+		*nmatched = total;
+
+	return (0);
+}
+
+int
+dtrace_enabling_retain(dtrace_enabling_t *enab)
+{
+	dtrace_state_t *state;
+
+	ASSERT(MUTEX_HELD(&dtrace_lock));
+	ASSERT(enab->dten_next == NULL && enab->dten_prev == NULL);
+	ASSERT(enab->dten_vstate != NULL);
+
+	state = enab->dten_vstate->dtvs_state;
+	ASSERT(state != NULL);
+
+	/*
+	 * We only allow each state to retain dtrace_retain_max enablings.
+	 */
+	if (state->dts_nretained >= dtrace_retain_max)
+		return (ENOSPC);
+
+	state->dts_nretained++;
+
+	if (dtrace_retained == NULL) {
+		dtrace_retained = enab;
+		return (0);
+	}
+
+	enab->dten_next = dtrace_retained;
+	dtrace_retained->dten_prev = enab;
+	dtrace_retained = enab;
+
+	return (0);
 }
 
 /*
@@ -8887,7 +9059,7 @@ dtrace_dof_create(dtrace_state_t *state)
 	return (dof);
 }
 
-static dof_hdr_t *
+dof_hdr_t *
 dtrace_dof_copyin(uintptr_t uarg, int *errp)
 {
 	dof_hdr_t hdr, *dof;
@@ -9050,7 +9222,7 @@ dtrace_dof_property(const char *name)
 	return (dof);
 }
 
-static void
+void
 dtrace_dof_destroy(dof_hdr_t *dof)
 {
 	kmem_free(dof, dof->dofh_loadsz);
@@ -9627,7 +9799,7 @@ dtrace_dof_relocate(dof_hdr_t *dof, dof_sec_t *sec, uint64_t ubase)
  * sizeof (dof_hdr_t) in size -- and then at least dof_hdr.dofh_loadsz in
  * size.  It need not be validated in any other way.
  */
-static int
+int
 dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr,
     dtrace_enabling_t **enabp, uint64_t ubase, int noprobes)
 {
@@ -9815,7 +9987,7 @@ dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr,
  * Process DOF for any options.  This routine assumes that the DOF has been
  * at least processed by dtrace_dof_slurp().
  */
-static int
+int
 dtrace_dof_options(dof_hdr_t *dof, dtrace_state_t *state)
 {
 	int i, rval;
@@ -10539,7 +10711,7 @@ out:
 	return (rval);
 }
 
-static int
+int
 dtrace_state_stop(dtrace_state_t *state, processorid_t *cpu)
 {
 	dtrace_icookie_t cookie;
@@ -13398,23 +13570,14 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 
 	return (ENOTTY);
 }
+# endif
 
 /*ARGSUSED*/
-static int
-dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
+# define	DDI_FAILURE -1
+int
+dtrace_detach()
 {
 	dtrace_state_t *state;
-
-	switch (cmd) {
-	case DDI_DETACH:
-		break;
-
-	case DDI_SUSPEND:
-		return (DDI_SUCCESS);
-
-	default:
-		return (DDI_FAILURE);
-	}
 
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_provider_lock);
@@ -13455,10 +13618,13 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 		 * If we're being detached with anonymous state, we need to
 		 * indicate to the kernel debugger that DTrace is now inactive.
 		 */
+# if defined(sun)
 		(void) kdi_dtrace_set(KDI_DTSET_DTRACE_DEACTIVATE);
+# endif
 	}
 
 	bzero(&dtrace_anon, sizeof (dtrace_anon_t));
+# if defined(sun)
 	unregister_cpu_setup_func((cpu_setup_func_t *)dtrace_cpu_setup, NULL);
 	dtrace_cpu_init = NULL;
 	dtrace_helpers_cleanup = NULL;
@@ -13469,6 +13635,7 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	dtrace_debugger_fini = NULL;
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
+# endif
 
 	mutex_exit(&cpu_lock);
 
@@ -13500,10 +13667,12 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 		dtrace_toxranges_max = 0;
 	}
 
+# if defined(sun)
 	ddi_remove_minor_node(dtrace_devi, NULL);
 	dtrace_devi = NULL;
 
 	ddi_soft_state_fini(&dtrace_softstate);
+# endif
 
 	ASSERT(dtrace_vtime_references == 0);
 	ASSERT(dtrace_opens == 0);
@@ -13519,12 +13688,13 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	 * task queue must check that DTrace is still attached before
 	 * performing any operation.
 	 */
+# if defined(sun)
 	taskq_destroy(dtrace_taskq);
+# endif
 	dtrace_taskq = NULL;
 
-	return (DDI_SUCCESS);
+	return 0;
 }
-# endif
 
 # if defined(sun)
 /*ARGSUSED*/

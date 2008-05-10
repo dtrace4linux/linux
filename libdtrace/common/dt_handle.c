@@ -1,23 +1,40 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_handle.c	1.6	04/12/18 SMI"
+#pragma ident	"@(#)dt_handle.c	1.11	07/02/20 SMI"
 
-#include <linux_types.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <errno.h>
 #include <unistd.h>
-#include <dt_impl.h>
 #include <assert.h>
 #include <alloca.h>
+
+#include <dt_impl.h>
+#include <dt_program.h>
 
 static const char _dt_errprog[] =
 "dtrace:::ERROR"
@@ -109,6 +126,19 @@ dtrace_handle_buffered(dtrace_hdl_t *dtp, dtrace_handle_buffered_f *hdlr,
 	return (0);
 }
 
+int
+dtrace_handle_setopt(dtrace_hdl_t *dtp, dtrace_handle_setopt_f *hdlr,
+    void *arg)
+{
+	if (hdlr == NULL)
+		return (dt_set_errno(dtp, EINVAL));
+
+	dtp->dt_setopthdlr = hdlr;
+	dtp->dt_setoptarg = arg;
+
+	return (0);
+}
+
 #define	DT_REC(type, ndx) *((type *)((uintptr_t)data->dtpda_data + \
     epd->dtepd_rec[(ndx)].dtrd_offset))
 
@@ -174,6 +204,7 @@ dt_handle_err(dtrace_hdl_t *dtp, dtrace_probedata_t *data)
 	switch (err.dteda_fault) {
 	case DTRACEFLT_BADADDR:
 	case DTRACEFLT_BADALIGN:
+	case DTRACEFLT_BADSTACK:
 		(void) sprintf(details, " (0x%llx)",
 		    (u_longlong_t)err.dteda_addr);
 		break;
@@ -201,11 +232,87 @@ dt_handle_err(dtrace_hdl_t *dtp, dtrace_probedata_t *data)
 }
 
 int
+dt_handle_liberr(dtrace_hdl_t *dtp, const dtrace_probedata_t *data,
+    const char *faultstr)
+{
+	dtrace_probedesc_t *errpd = data->dtpda_pdesc;
+	dtrace_errdata_t err;
+	const int slop = 80;
+	char *str;
+	int len;
+
+	err.dteda_edesc = data->dtpda_edesc;
+	err.dteda_pdesc = errpd;
+	err.dteda_cpu = data->dtpda_cpu;
+	err.dteda_action = -1;
+	err.dteda_offset = -1;
+	err.dteda_fault = DTRACEFLT_LIBRARY;
+	err.dteda_addr = NULL;
+
+	len = strlen(faultstr) +
+	    strlen(errpd->dtpd_provider) + strlen(errpd->dtpd_mod) +
+	    strlen(errpd->dtpd_name) + strlen(errpd->dtpd_func) +
+	    slop;
+
+	str = alloca(len);
+
+	(void) snprintf(str, len, "error on enabled probe ID %u "
+	    "(ID %u: %s:%s:%s:%s): %s\n",
+	    data->dtpda_edesc->dtepd_epid,
+	    errpd->dtpd_id, errpd->dtpd_provider,
+	    errpd->dtpd_mod, errpd->dtpd_func,
+	    errpd->dtpd_name, faultstr);
+
+	err.dteda_msg = str;
+
+	if (dtp->dt_errhdlr == NULL)
+		return (dt_set_errno(dtp, EDT_ERRABORT));
+
+	if ((*dtp->dt_errhdlr)(&err, dtp->dt_errarg) == DTRACE_HANDLE_ABORT)
+		return (dt_set_errno(dtp, EDT_ERRABORT));
+
+	return (0);
+}
+
+#define	DROPTAG(x)	x, #x
+
+static const struct {
+	dtrace_dropkind_t dtdrg_kind;
+	char *dtdrg_tag;
+} _dt_droptags[] = {
+	{ DROPTAG(DTRACEDROP_PRINCIPAL) },
+	{ DROPTAG(DTRACEDROP_AGGREGATION) },
+	{ DROPTAG(DTRACEDROP_DYNAMIC) },
+	{ DROPTAG(DTRACEDROP_DYNRINSE) },
+	{ DROPTAG(DTRACEDROP_DYNDIRTY) },
+	{ DROPTAG(DTRACEDROP_SPEC) },
+	{ DROPTAG(DTRACEDROP_SPECBUSY) },
+	{ DROPTAG(DTRACEDROP_SPECUNAVAIL) },
+	{ DROPTAG(DTRACEDROP_DBLERROR) },
+	{ DROPTAG(DTRACEDROP_STKSTROVERFLOW) },
+	{ 0, NULL }
+};
+
+static const char *
+dt_droptag(dtrace_dropkind_t kind)
+{
+	int i;
+
+	for (i = 0; _dt_droptags[i].dtdrg_tag != NULL; i++) {
+		if (_dt_droptags[i].dtdrg_kind == kind)
+			return (_dt_droptags[i].dtdrg_tag);
+	}
+
+	return ("DTRACEDROP_UNKNOWN");
+}
+
+int
 dt_handle_cpudrop(dtrace_hdl_t *dtp, processorid_t cpu,
     dtrace_dropkind_t what, uint64_t howmany)
 {
 	dtrace_dropdata_t drop;
-	char str[80];
+	char str[80], *s;
+	int size;
 
 	assert(what == DTRACEDROP_PRINCIPAL || what == DTRACEDROP_AGGREGATION);
 
@@ -216,7 +323,16 @@ dt_handle_cpudrop(dtrace_hdl_t *dtp, processorid_t cpu,
 	drop.dtdda_drops = howmany;
 	drop.dtdda_msg = str;
 
-	(void) snprintf(str, sizeof (str), "%llu %sdrop%s on CPU %d\n",
+	if (dtp->dt_droptags) {
+		(void) snprintf(str, sizeof (str), "[%s] ", dt_droptag(what));
+		s = &str[strlen(str)];
+		size = sizeof (str) - (s - str);
+	} else {
+		s = str;
+		size = sizeof (str);
+	}
+
+	(void) snprintf(s, size, "%llu %sdrop%s on CPU %d\n",
 	    howmany, what == DTRACEDROP_PRINCIPAL ? "" : "aggregation ",
 	    howmany > 1 ? "s" : "", cpu);
 
@@ -259,6 +375,14 @@ static const struct {
 	    offsetof(dtrace_status_t, dtst_specdrops_unavail),
 	    "failed speculation", " (no speculative buffer available)" },
 
+	{ DTRACEDROP_STKSTROVERFLOW,
+	    offsetof(dtrace_status_t, dtst_stkstroverflows),
+	    "jstack()/ustack() string table overflow" },
+
+	{ DTRACEDROP_DBLERROR,
+	    offsetof(dtrace_status_t, dtst_dblerrors),
+	    "error", " in ERROR probe enabling" },
+
 	{ 0, 0, NULL }
 };
 
@@ -266,9 +390,9 @@ int
 dt_handle_status(dtrace_hdl_t *dtp, dtrace_status_t *old, dtrace_status_t *new)
 {
 	dtrace_dropdata_t drop;
-	char str[80];
+	char str[80], *s;
 	uintptr_t base = (uintptr_t)new, obase = (uintptr_t)old;
-	int i;
+	int i, size;
 
 	bzero(&drop, sizeof (drop));
 	drop.dtdda_handle = dtp;
@@ -291,7 +415,17 @@ dt_handle_status(dtrace_hdl_t *dtp, dtrace_status_t *old, dtrace_status_t *new)
 		if (nval == oval)
 			continue;
 
-		(void) snprintf(str, sizeof (str), "%llu %s%s%s\n", nval - oval,
+		if (dtp->dt_droptags) {
+			(void) snprintf(str, sizeof (str), "[%s] ",
+			    dt_droptag(_dt_droptab[i].dtdrt_kind));
+			s = &str[strlen(str)];
+			size = sizeof (str) - (s - str);
+		} else {
+			s = str;
+			size = sizeof (str);
+		}
+
+		(void) snprintf(s, size, "%llu %s%s%s\n", nval - oval,
 		    _dt_droptab[i].dtdrt_str, (nval - oval > 1) ? "s" : "",
 		    _dt_droptab[i].dtdrt_msg != NULL ?
 		    _dt_droptab[i].dtdrt_msg : "");
@@ -307,6 +441,20 @@ dt_handle_status(dtrace_hdl_t *dtp, dtrace_status_t *old, dtrace_status_t *new)
 		    dtp->dt_droparg) == DTRACE_HANDLE_ABORT)
 			return (dt_set_errno(dtp, EDT_DROPABORT));
 	}
+
+	return (0);
+}
+
+int
+dt_handle_setopt(dtrace_hdl_t *dtp, dtrace_setoptdata_t *data)
+{
+	void *arg = dtp->dt_setoptarg;
+
+	if (dtp->dt_setopthdlr == NULL)
+		return (0);
+
+	if ((*dtp->dt_setopthdlr)(data, arg) == DTRACE_HANDLE_ABORT)
+		return (dt_set_errno(dtp, EDT_DIRABORT));
 
 	return (0);
 }

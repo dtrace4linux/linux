@@ -1,18 +1,35 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)dt_open.c	1.17	04/12/18 SMI"
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-#include <linux_types.h>
+#pragma ident	"@(#)dt_open.c	1.37	08/01/29 SMI"
+
 #include <sys/types.h>
 #include <sys/modctl.h>
 #include <sys/systeminfo.h>
+#include <sys/resource.h>
 
 #include <libelf.h>
 #include <strings.h>
@@ -23,7 +40,6 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <zone.h>
 #include <assert.h>
 
 #define	_POSIX_PTHREAD_SEMANTICS
@@ -31,6 +47,7 @@
 #undef	_POSIX_PTHREAD_SEMANTICS
 
 #include <dt_impl.h>
+#include <dt_program.h>
 #include <dt_module.h>
 #include <dt_printf.h>
 #include <dt_string.h>
@@ -63,12 +80,43 @@
 	DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_COMMON \
 }
 
+/*
+ * The version number should be increased for every customer visible release
+ * of Solaris. The major number should be incremented when a fundamental
+ * change has been made that would affect all consumers, and would reflect
+ * sweeping changes to DTrace or the D language. The minor number should be
+ * incremented when a change is introduced that could break scripts that had
+ * previously worked; for example, adding a new built-in variable could break
+ * a script which was already using that identifier. The micro number should
+ * be changed when introducing functionality changes or major bug fixes that
+ * do not affect backward compatibility -- this is merely to make capabilities
+ * easily determined from the version number. Minor bugs do not require any
+ * modification to the version number.
+ */
 #define	DT_VERS_1_0	DT_VERSION_NUMBER(1, 0, 0)
-#define	DT_VERS_LATEST	DT_VERS_1_0
-#define	DT_VERS_STRING	"Sun D 1.0"
+#define	DT_VERS_1_1	DT_VERSION_NUMBER(1, 1, 0)
+#define	DT_VERS_1_2	DT_VERSION_NUMBER(1, 2, 0)
+#define	DT_VERS_1_2_1	DT_VERSION_NUMBER(1, 2, 1)
+#define	DT_VERS_1_2_2	DT_VERSION_NUMBER(1, 2, 2)
+#define	DT_VERS_1_3	DT_VERSION_NUMBER(1, 3, 0)
+#define	DT_VERS_1_4	DT_VERSION_NUMBER(1, 4, 0)
+#define	DT_VERS_1_4_1	DT_VERSION_NUMBER(1, 4, 1)
+#define	DT_VERS_1_5	DT_VERSION_NUMBER(1, 5, 0)
+#define	DT_VERS_1_6	DT_VERSION_NUMBER(1, 6, 0)
+#define	DT_VERS_LATEST	DT_VERS_1_6
+#define	DT_VERS_STRING	"Sun D 1.6"
 
 const dt_version_t _dtrace_versions[] = {
 	DT_VERS_1_0,	/* D API 1.0.0 (PSARC 2001/466) Solaris 10 FCS */
+	DT_VERS_1_1,	/* D API 1.1.0 Solaris Express 6/05 */
+	DT_VERS_1_2,	/* D API 1.2.0 Solaris 10 Update 1 */
+	DT_VERS_1_2_1,	/* D API 1.2.1 Solaris Express 4/06 */
+	DT_VERS_1_2_2,	/* D API 1.2.2 Solaris Express 6/06 */
+	DT_VERS_1_3,	/* D API 1.3 Solaris Express 10/06 */
+	DT_VERS_1_4,	/* D API 1.4 Solaris Express 2/07 */
+	DT_VERS_1_4_1,	/* D API 1.4.1 Solaris Express 4/07 */
+	DT_VERS_1_5,	/* D API 1.5 Solaris Express 7/07 */
+	DT_VERS_1_6,	/* D API 1.6 */
 	0
 };
 
@@ -82,6 +130,8 @@ const dt_version_t _dtrace_versions[] = {
  * wildcard to represent a single parameter of any type (i.e. any dt_node_t).
  * The standard "..." notation can also be used to represent varargs.  An empty
  * parameter list is taken to mean void (that is, no arguments are permitted).
+ * A parameter enclosed in square brackets (e.g. "[int]") denotes an optional
+ * argument.
  */
 static const dt_ident_t _dtrace_globals[] = {
 { "alloca", DT_IDENT_FUNC, 0, DIF_SUBR_ALLOCA, DT_ATTR_STABCMN, DT_VERS_1_0,
@@ -131,7 +181,7 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "void *(uintptr_t, size_t)" },
 { "copyinstr", DT_IDENT_FUNC, 0, DIF_SUBR_COPYINSTR,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
-	&dt_idops_func, "string(uintptr_t)" },
+	&dt_idops_func, "string(uintptr_t, [size_t])" },
 { "copyinto", DT_IDENT_FUNC, 0, DIF_SUBR_COPYINTO, DT_ATTR_STABCMN,
 	DT_VERS_1_0, &dt_idops_func, "void(uintptr_t, size_t, void *)" },
 { "copyout", DT_IDENT_FUNC, 0, DIF_SUBR_COPYOUT, DT_ATTR_STABCMN, DT_VERS_1_0,
@@ -156,20 +206,42 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "void(int)" },
 { "epid", DT_IDENT_SCALAR, 0, DIF_VAR_EPID, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "uint_t" },
+{ "errno", DT_IDENT_SCALAR, 0, DIF_VAR_ERRNO, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_type, "int" },
 { "execname", DT_IDENT_SCALAR, 0, DIF_VAR_EXECNAME,
 	DT_ATTR_STABCMN, DT_VERS_1_0, &dt_idops_type, "string" },
 { "exit", DT_IDENT_ACTFUNC, 0, DT_ACT_EXIT, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(int)" },
+{ "freopen", DT_IDENT_ACTFUNC, 0, DT_ACT_FREOPEN, DT_ATTR_STABCMN,
+	DT_VERS_1_1, &dt_idops_func, "void(@, ...)" },
 { "ftruncate", DT_IDENT_ACTFUNC, 0, DT_ACT_FTRUNCATE, DT_ATTR_STABCMN,
 	DT_VERS_1_0, &dt_idops_func, "void()" },
+{ "func", DT_IDENT_ACTFUNC, 0, DT_ACT_SYM, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_symaddr(uintptr_t)" },
 { "getmajor", DT_IDENT_FUNC, 0, DIF_SUBR_GETMAJOR,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
 	&dt_idops_func, "genunix`major_t(genunix`dev_t)" },
 { "getminor", DT_IDENT_FUNC, 0, DIF_SUBR_GETMINOR,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
 	&dt_idops_func, "genunix`minor_t(genunix`dev_t)" },
+{ "htonl", DT_IDENT_FUNC, 0, DIF_SUBR_HTONL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
+	&dt_idops_func, "uint32_t(uint32_t)" },
+{ "htonll", DT_IDENT_FUNC, 0, DIF_SUBR_HTONLL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
+	&dt_idops_func, "uint64_t(uint64_t)" },
+{ "htons", DT_IDENT_FUNC, 0, DIF_SUBR_HTONS, DT_ATTR_EVOLCMN, DT_VERS_1_3,
+	&dt_idops_func, "uint16_t(uint16_t)" },
+{ "gid", DT_IDENT_SCALAR, 0, DIF_VAR_GID, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_type, "gid_t" },
 { "id", DT_IDENT_SCALAR, 0, DIF_VAR_ID, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "uint_t" },
+{ "index", DT_IDENT_FUNC, 0, DIF_SUBR_INDEX, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "int(const char *, const char *, [int])" },
+{ "inet_ntoa", DT_IDENT_FUNC, 0, DIF_SUBR_INET_NTOA, DT_ATTR_STABCMN,
+	DT_VERS_1_5, &dt_idops_func, "string(ipaddr_t *)" },
+{ "inet_ntoa6", DT_IDENT_FUNC, 0, DIF_SUBR_INET_NTOA6, DT_ATTR_STABCMN,
+	DT_VERS_1_5, &dt_idops_func, "string(in6_addr_t *)" },
+{ "inet_ntop", DT_IDENT_FUNC, 0, DIF_SUBR_INET_NTOP, DT_ATTR_STABCMN,
+	DT_VERS_1_5, &dt_idops_func, "string(int, void *)" },
 { "ipl", DT_IDENT_SCALAR, 0, DIF_VAR_IPL, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "uint_t" },
 { "jstack", DT_IDENT_ACTFUNC, 0, DT_ACT_JSTACK, DT_ATTR_STABCMN, DT_VERS_1_0,
@@ -183,6 +255,8 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "void(@)" },
 { "min", DT_IDENT_AGGFUNC, 0, DTRACEAGG_MIN, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(@)" },
+{ "mod", DT_IDENT_ACTFUNC, 0, DT_ACT_MOD, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_symaddr(uintptr_t)" },
 { "msgdsize", DT_IDENT_FUNC, 0, DIF_SUBR_MSGDSIZE,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "size_t(mblk_t *)" },
@@ -201,11 +275,19 @@ static const dt_ident_t _dtrace_globals[] = {
 { "mutex_type_spin", DT_IDENT_FUNC, 0, DIF_SUBR_MUTEX_TYPE_SPIN,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
 	&dt_idops_func, "int(genunix`kmutex_t *)" },
+{ "ntohl", DT_IDENT_FUNC, 0, DIF_SUBR_NTOHL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
+	&dt_idops_func, "uint32_t(uint32_t)" },
+{ "ntohll", DT_IDENT_FUNC, 0, DIF_SUBR_NTOHLL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
+	&dt_idops_func, "uint64_t(uint64_t)" },
+{ "ntohs", DT_IDENT_FUNC, 0, DIF_SUBR_NTOHS, DT_ATTR_EVOLCMN, DT_VERS_1_3,
+	&dt_idops_func, "uint16_t(uint16_t)" },
 { "normalize", DT_IDENT_ACTFUNC, 0, DT_ACT_NORMALIZE, DT_ATTR_STABCMN,
 	DT_VERS_1_0, &dt_idops_func, "void(...)" },
 { "panic", DT_IDENT_ACTFUNC, 0, DT_ACT_PANIC, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void()" },
 { "pid", DT_IDENT_SCALAR, 0, DIF_VAR_PID, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_type, "pid_t" },
+{ "ppid", DT_IDENT_SCALAR, 0, DIF_VAR_PPID, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "pid_t" },
 { "printa", DT_IDENT_ACTFUNC, 0, DT_ACT_PRINTA, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(@, ...)" },
@@ -224,11 +306,13 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "int(pid_t)" },
 { "quantize", DT_IDENT_AGGFUNC, 0, DTRACEAGG_QUANTIZE,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
-	&dt_idops_func, "void(@)" },
+	&dt_idops_func, "void(@, ...)" },
 { "raise", DT_IDENT_ACTFUNC, 0, DT_ACT_RAISE, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(int)" },
 { "rand", DT_IDENT_FUNC, 0, DIF_SUBR_RAND, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "int()" },
+{ "rindex", DT_IDENT_FUNC, 0, DIF_SUBR_RINDEX, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "int(const char *, const char *, [int])" },
 { "rw_iswriter", DT_IDENT_FUNC, 0, DIF_SUBR_RW_ISWRITER,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
 	&dt_idops_func, "int(genunix`krwlock_t *)" },
@@ -240,6 +324,8 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "int(genunix`krwlock_t *)" },
 { "self", DT_IDENT_PTR, 0, 0, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "void" },
+{ "setopt", DT_IDENT_ACTFUNC, 0, DT_ACT_SETOPT, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "void(const char *, [const char *])" },
 { "speculate", DT_IDENT_ACTFUNC, 0, DT_ACT_SPECULATE,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(int)" },
@@ -251,14 +337,28 @@ static const dt_ident_t _dtrace_globals[] = {
 { "stackdepth", DT_IDENT_SCALAR, 0, DIF_VAR_STACKDEPTH,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "uint32_t" },
+{ "stddev", DT_IDENT_AGGFUNC, 0, DTRACEAGG_STDDEV, DT_ATTR_STABCMN,
+	DT_VERS_1_6, &dt_idops_func, "void(@)" },
 { "stop", DT_IDENT_ACTFUNC, 0, DT_ACT_STOP, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void()" },
+{ "strchr", DT_IDENT_FUNC, 0, DIF_SUBR_STRCHR, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "string(const char *, char)" },
 { "strlen", DT_IDENT_FUNC, 0, DIF_SUBR_STRLEN, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "size_t(const char *)" },
 { "strjoin", DT_IDENT_FUNC, 0, DIF_SUBR_STRJOIN, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "string(const char *, const char *)" },
+{ "strrchr", DT_IDENT_FUNC, 0, DIF_SUBR_STRRCHR, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "string(const char *, char)" },
+{ "strstr", DT_IDENT_FUNC, 0, DIF_SUBR_STRSTR, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "string(const char *, const char *)" },
+{ "strtok", DT_IDENT_FUNC, 0, DIF_SUBR_STRTOK, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "string(const char *, const char *)" },
+{ "substr", DT_IDENT_FUNC, 0, DIF_SUBR_SUBSTR, DT_ATTR_STABCMN, DT_VERS_1_1,
+	&dt_idops_func, "string(const char *, int, [int])" },
 { "sum", DT_IDENT_AGGFUNC, 0, DTRACEAGG_SUM, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(@)" },
+{ "sym", DT_IDENT_ACTFUNC, 0, DT_ACT_SYM, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_symaddr(uintptr_t)" },
 { "system", DT_IDENT_ACTFUNC, 0, DT_ACT_SYSTEM, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void(@, ...)" },
 { "this", DT_IDENT_PTR, 0, 0, DT_ATTR_STABCMN, DT_VERS_1_0,
@@ -275,16 +375,31 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "void(@, size_t)" },
 { "trunc", DT_IDENT_ACTFUNC, 0, DT_ACT_TRUNC, DT_ATTR_STABCMN,
 	DT_VERS_1_0, &dt_idops_func, "void(...)" },
+{ "uaddr", DT_IDENT_ACTFUNC, 0, DT_ACT_UADDR, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_usymaddr(uintptr_t)" },
+{ "ucaller", DT_IDENT_SCALAR, 0, DIF_VAR_UCALLER, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_type, "uint64_t" },
+{ "ufunc", DT_IDENT_ACTFUNC, 0, DT_ACT_USYM, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_usymaddr(uintptr_t)" },
+{ "uid", DT_IDENT_SCALAR, 0, DIF_VAR_UID, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_type, "uid_t" },
+{ "umod", DT_IDENT_ACTFUNC, 0, DT_ACT_UMOD, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_usymaddr(uintptr_t)" },
 { "uregs", DT_IDENT_ARRAY, 0, DIF_VAR_UREGS, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_regs, NULL },
 { "ustack", DT_IDENT_ACTFUNC, 0, DT_ACT_USTACK, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "stack(...)" },
+{ "ustackdepth", DT_IDENT_SCALAR, 0, DIF_VAR_USTACKDEPTH,
+	DT_ATTR_STABCMN, DT_VERS_1_2,
+	&dt_idops_type, "uint32_t" },
+{ "usym", DT_IDENT_ACTFUNC, 0, DT_ACT_USYM, DT_ATTR_STABCMN,
+	DT_VERS_1_2, &dt_idops_func, "_usymaddr(uintptr_t)" },
 { "vtimestamp", DT_IDENT_SCALAR, 0, DIF_VAR_VTIMESTAMP,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "uint64_t" },
 { "walltimestamp", DT_IDENT_SCALAR, 0, DIF_VAR_WALLTIMESTAMP,
 	DT_ATTR_STABCMN, DT_VERS_1_0,
-	&dt_idops_type, "uint64_t" },
+	&dt_idops_type, "int64_t" },
 { "zonename", DT_IDENT_SCALAR, 0, DIF_VAR_ZONENAME,
 	DT_ATTR_STABCMN, DT_VERS_1_0, &dt_idops_type, "string" },
 { NULL, 0, 0, 0, { 0, 0, 0 }, 0, NULL, NULL }
@@ -518,11 +633,19 @@ const dtrace_attribute_t _dtrace_prvattr = {
 	DTRACE_CLASS_UNKNOWN
 };
 
+const dtrace_pattr_t _dtrace_prvdesc = {
+{ DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_COMMON },
+{ DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_COMMON },
+{ DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_COMMON },
+{ DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_COMMON },
+{ DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_COMMON },
+};
+
 const char *_dtrace_defcpp = "/usr/ccs/lib/cpp"; /* default cpp(1) to invoke */
 const char *_dtrace_defld = "/usr/ccs/bin/ld";   /* default ld(1) to invoke */
 
 const char *_dtrace_libdir = "/usr/lib/dtrace"; /* default library directory */
-const char *_dtrace_moddir = "dtrace";		/* kernel module directory */
+const char *_dtrace_provdir = "/dev/dtrace/provider"; /* provider directory */
 
 int _dtrace_strbuckets = 211;	/* default number of hash buckets (prime) */
 int _dtrace_intbuckets = 256;	/* default number of integer buckets (Pof2) */
@@ -530,6 +653,8 @@ uint_t _dtrace_strsize = 256;	/* default size of string intrinsic type */
 uint_t _dtrace_stkindent = 14;	/* default whitespace indent for stack/ustack */
 uint_t _dtrace_pidbuckets = 64; /* default number of pid hash buckets */
 uint_t _dtrace_pidlrulim = 8;	/* default number of pid handles to cache */
+size_t _dtrace_bufsize = 512;	/* default dt_buf_create() size */
+int _dtrace_argmax = 32;	/* default maximum number of probe arguments */
 
 int _dtrace_debug = 0;		/* debug messages enabled (off) */
 const char *const _dtrace_version = DT_VERS_STRING; /* API version string */
@@ -564,8 +689,7 @@ set_open_errno(dtrace_hdl_t *dtp, int *errp, int err)
 }
 
 static void
-dt_provmod_open(dt_provmod_t **provmod, dt_fdlist_t *dfp, const char *dirname,
-    const char *subdir, const char *isadir)
+dt_provmod_open(dt_provmod_t **provmod, dt_fdlist_t *dfp)
 {
 	dt_provmod_t *prov;
 	char path[PATH_MAX];
@@ -573,15 +697,7 @@ dt_provmod_open(dt_provmod_t **provmod, dt_fdlist_t *dfp, const char *dirname,
 	DIR *dirp;
 	int fd;
 
-	if (isadir) {
-		(void) snprintf(path, sizeof (path), "%s/%s/%s",
-		    dirname, subdir, isadir);
-	} else {
-		(void) snprintf(path, sizeof (path), "%s/%s",
-		    dirname, subdir);
-	}
-
-	if ((dirp = opendir(path)) == NULL)
+	if ((dirp = opendir(_dtrace_provdir)) == NULL)
 		return; /* failed to open directory; just skip it */
 
 	ep = alloca(sizeof (struct dirent) + PATH_MAX + 1);
@@ -602,8 +718,8 @@ dt_provmod_open(dt_provmod_t **provmod, dt_fdlist_t *dfp, const char *dirname,
 			dfp->df_size = size;
 		}
 
-		(void) snprintf(path, sizeof (path),
-		    "/devices/pseudo/%s@0:%s", dp->d_name, dp->d_name);
+		(void) snprintf(path, sizeof (path), "%s/%s",
+		    _dtrace_provdir, dp->d_name);
 
 		if ((fd = open(path, O_RDONLY)) == -1)
 			continue; /* failed to open driver; just skip it */
@@ -665,6 +781,7 @@ dt_vopen(int version, int flags, int *errp,
 	dt_module_t *dmp;
 	dt_provmod_t *provmod = NULL;
 	int i, err;
+	struct rlimit rl;
 
 	const dt_intrinsic_t *dinp;
 	const dt_typedef_t *dtyp;
@@ -675,9 +792,6 @@ dt_vopen(int version, int flags, int *errp,
 	ctf_arinfo_t ctr;
 
 	dt_fdlist_t df = { NULL, 0, 0 };
-	char *p, *q, *path = NULL;
-	const char *isadir = NULL;
-	int pathlen;
 
 	char isadef[32], utsdef[32];
 	char s1[64], s2[64];
@@ -687,6 +801,21 @@ dt_vopen(int version, int flags, int *errp,
 
 	if (version > DTRACE_VERSION)
 		return (set_open_errno(dtp, errp, EDT_VERSION));
+
+	if (version < DTRACE_VERSION) {
+		/*
+		 * Currently, increasing the library version number is used to
+		 * denote a binary incompatible change.  That is, a consumer
+		 * of the library cannot run on a version of the library with
+		 * a higher DTRACE_VERSION number than the consumer compiled
+		 * against.  Once the library API has been committed to,
+		 * backwards binary compatibility will be required; at that
+		 * time, this check should change to return EDT_OVERSION only
+		 * if the specified version number is less than the version
+		 * number at the time of interface commitment.
+		 */
+		return (set_open_errno(dtp, errp, EDT_OVERSION));
+	}
 
 	if (flags & ~DTRACE_O_MASK)
 		return (set_open_errno(dtp, errp, EINVAL));
@@ -704,55 +833,38 @@ dt_vopen(int version, int flags, int *errp,
 		goto alloc; /* do not attempt to open dtrace device */
 
 	/*
-	 * For each directory in the kernel's module path, build the name of
-	 * the corresponding dtrace provider subdirectory and attempt to open a
-	 * pseudo-driver whose name matches the name of each provider therein.
-	 * We hold them open in the df.df_fds list until we open the DTrace
-	 * driver itself, allowing us to see all of the probes provided on this
-	 * system.  Once we have the DTrace driver open, we can safely close
-	 * all the providers now that they have registered with the framework.
+	 * Before we get going, crank our limit on file descriptors up to the
+	 * hard limit.  This is to allow for the fact that libproc keeps file
+	 * descriptors to objects open for the lifetime of the proc handle;
+	 * without raising our hard limit, we would have an acceptably small
+	 * bound on the number of processes that we could concurrently
+	 * instrument with the pid provider.
 	 */
-	if (sysinfo(SI_ISALIST, isadef, sizeof (isadef)) > 0) {
-		if (strstr(isadef, "sparcv9") != NULL)
-			isadir = "sparcv9";
-		else if (strstr(isadef, "amd64") != NULL)
-			isadir = "amd64";
+	if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+		rl.rlim_cur = rl.rlim_max;
+		(void) setrlimit(RLIMIT_NOFILE, &rl);
 	}
 
-	if (modctl(MODGETPATHLEN, NULL, &pathlen) == 0 &&
-	    (path = malloc(pathlen + 1)) != NULL &&
-	    modctl(MODGETPATH, NULL, path) == 0) {
-		for (p = path; *p != '\0'; p = q) {
-			if ((q = strchr(p, ' ')) != NULL)
-				*q++ = '\0';
-			else
-				q = p + strlen(p);
-			dt_provmod_open(&provmod, &df, p,
-			    _dtrace_moddir, isadir);
-		}
-	}
+	/*
+	 * Get the device path of each of the providers.  We hold them open
+	 * in the df.df_fds list until we open the DTrace driver itself,
+	 * allowing us to see all of the probes provided on this system.  Once
+	 * we have the DTrace driver open, we can safely close all the providers
+	 * now that they have registered with the framework.
+	 */
+	dt_provmod_open(&provmod, &df);
 
-# if linux
-	dtfd = open("/dev/dtrace", O_RDWR);
-# else
-	dtfd = open("/devices/pseudo/dtrace@0:dtrace", O_RDWR);
-# endif
+	dtfd = open("/dev/dtrace/dtrace", O_RDWR);
 	err = errno; /* save errno from opening dtfd */
 
-# if linux
-	ftfd = open("/dev/fasttrap", O_RDWR);
-# else
-	ftfd = open("/devices/pseudo/fasttrap@0:fasttrap", O_RDWR);
-# endif
+	ftfd = open("/dev/dtrace/provider/fasttrap", O_RDWR);
 	fterr = ftfd == -1 ? errno : 0; /* save errno from open ftfd */
 
 	while (df.df_ents-- != 0)
 		(void) close(df.df_fds[df.df_ents]);
 
 	free(df.df_fds);
-	free(path);
 
-printf("dt_open.c:%d: got here\n", __LINE__);
 	/*
 	 * If we failed to open the dtrace device, fail dtrace_open().
 	 * We convert some kernel errnos to custom libdtrace errnos to
@@ -762,10 +874,7 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 		dt_provmod_destroy(&provmod);
 		switch (err) {
 		case ENOENT:
-			if (getzoneid() != GLOBAL_ZONEID)
-				err = EDT_ZNOENT;
-			else
-				err = EDT_GNOENT;
+			err = EDT_NOENT;
 			break;
 		case EBUSY:
 			err = EDT_BUSY;
@@ -778,9 +887,7 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 	}
 
 	(void) fcntl(dtfd, F_SETFD, FD_CLOEXEC);
-	if (ftfd >= 0) {
-		(void) fcntl(ftfd, F_SETFD, FD_CLOEXEC);
-	}
+	(void) fcntl(ftfd, F_SETFD, FD_CLOEXEC);
 
 alloc:
 	if ((dtp = malloc(sizeof (dtrace_hdl_t))) == NULL)
@@ -790,6 +897,8 @@ alloc:
 	dtp->dt_oflags = flags;
 	dtp->dt_prcmode = DT_PROC_STOP_PREINIT;
 	dtp->dt_linkmode = DT_LINK_KERNEL;
+	dtp->dt_linktype = DT_LTYP_ELF;
+	dtp->dt_xlatemode = DT_XL_STATIC;
 	dtp->dt_stdcmode = DT_STDC_XA;
 	dtp->dt_version = version;
 	dtp->dt_fd = dtfd;
@@ -797,6 +906,7 @@ alloc:
 	dtp->dt_fterr = fterr;
 	dtp->dt_cdefs_fd = -1;
 	dtp->dt_ddefs_fd = -1;
+	dtp->dt_stdout_fd = -1;
 	dtp->dt_modbuckets = _dtrace_strbuckets;
 	dtp->dt_mods = calloc(dtp->dt_modbuckets, sizeof (dt_module_t *));
 	dtp->dt_provbuckets = _dtrace_strbuckets;
@@ -811,6 +921,8 @@ alloc:
 	dtp->dt_provmod = provmod;
 	dtp->dt_vector = vector;
 	dtp->dt_varg = arg;
+	dt_dof_init(dtp);
+	(void) uname(&dtp->dt_uts);
 
 	if (dtp->dt_mods == NULL || dtp->dt_provs == NULL ||
 	    dtp->dt_procs == NULL || dtp->dt_ld_path == NULL ||
@@ -866,13 +978,13 @@ alloc:
 	 * compiles and __amd64 is defined for 64-bit compiles.  Unlike SPARC,
 	 * they are defined exclusive of one another (see PSARC 2004/619).
 	 */
-	if (dtp->dt_conf.dtc_ctfmodel == CTF_MODEL_LP64)
-		p = dt_cpp_add_arg(dtp, "-D__amd64");
-	else
-		p = dt_cpp_add_arg(dtp, "-D__i386");
-
-	if (p == NULL)
-		return (set_open_errno(dtp, errp, EDT_NOMEM));
+	if (dtp->dt_conf.dtc_ctfmodel == CTF_MODEL_LP64) {
+		if (dt_cpp_add_arg(dtp, "-D__amd64") == NULL)
+			return (set_open_errno(dtp, errp, EDT_NOMEM));
+	} else {
+		if (dt_cpp_add_arg(dtp, "-D__i386") == NULL)
+			return (set_open_errno(dtp, errp, EDT_NOMEM));
+	}
 #endif
 
 	if (dtp->dt_conf.dtc_difversion < DIF_VERSION)
@@ -884,7 +996,8 @@ alloc:
 		bcopy(_dtrace_ints_64, dtp->dt_ints, sizeof (_dtrace_ints_64));
 
 	dtp->dt_macros = dt_idhash_create("macro", NULL, 0, UINT_MAX);
-	dtp->dt_aggs = dt_idhash_create("aggregation", NULL, 0, UINT_MAX);
+	dtp->dt_aggs = dt_idhash_create("aggregation", NULL,
+	    DTRACE_AGGVARIDNONE + 1, UINT_MAX);
 
 	dtp->dt_globals = dt_idhash_create("global", _dtrace_globals,
 	    DIF_VAR_OTHER_UBASE, DIF_VAR_OTHER_MAX);
@@ -941,6 +1054,7 @@ alloc:
 	    dmp->dm_name, (void *)dmp->dm_ctfp);
 
 	(void) ctf_setmodel(dmp->dm_ctfp, dtp->dt_conf.dtc_ctfmodel);
+	ctf_setspecific(dmp->dm_ctfp, dmp);
 
 	dmp->dm_flags = DT_DM_LOADED; /* fake up loaded bit */
 	dmp->dm_modid = -1; /* no module ID */
@@ -949,7 +1063,6 @@ alloc:
 	 * Fill the dynamic "C" CTF container with all of the intrinsic
 	 * integer and floating-point types appropriate for this data model.
 	 */
-printf("dt_open.c:%d: got here\n", __LINE__);
 	for (; dinp->din_name != NULL; dinp++) {
 		if (dinp->din_kind == CTF_K_INTEGER) {
 			err = ctf_add_integer(dmp->dm_ctfp, CTF_ADD_ROOT,
@@ -973,7 +1086,6 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 		return (set_open_errno(dtp, errp, EDT_CTF));
 	}
 
-printf("dt_open.c:%d: got here\n", __LINE__);
 	/*
 	 * Add intrinsic pointer types that are needed to initialize printf
 	 * format dictionary types (see table in dt_printf.c).
@@ -1008,18 +1120,17 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 	    dmp->dm_name, (void *)dmp->dm_ctfp);
 
 	(void) ctf_setmodel(dmp->dm_ctfp, dtp->dt_conf.dtc_ctfmodel);
+	ctf_setspecific(dmp->dm_ctfp, dmp);
 
 	dmp->dm_flags = DT_DM_LOADED; /* fake up loaded bit */
 	dmp->dm_modid = -1; /* no module ID */
 
-printf("dt_open.c:%d: got here\n", __LINE__);
 	if (ctf_import(dmp->dm_ctfp, dtp->dt_cdefs->dm_ctfp) == CTF_ERR) {
 		dt_dprintf("failed to import D parent container: %s\n",
 		    ctf_errmsg(ctf_errno(dmp->dm_ctfp)));
 		return (set_open_errno(dtp, errp, EDT_CTF));
 	}
 
-printf("dt_open.c:%d: got here\n", __LINE__);
 	/*
 	 * Fill the dynamic "D" CTF container with all of the built-in typedefs
 	 * that we need to use for our D variable and function definitions.
@@ -1070,9 +1181,16 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 	dtp->dt_type_stack = ctf_add_typedef(dmp->dm_ctfp, CTF_ADD_ROOT,
 	    "stack", ctf_lookup_by_name(dmp->dm_ctfp, "void"));
 
+	dtp->dt_type_symaddr = ctf_add_typedef(dmp->dm_ctfp, CTF_ADD_ROOT,
+	    "_symaddr", ctf_lookup_by_name(dmp->dm_ctfp, "void"));
+
+	dtp->dt_type_usymaddr = ctf_add_typedef(dmp->dm_ctfp, CTF_ADD_ROOT,
+	    "_usymaddr", ctf_lookup_by_name(dmp->dm_ctfp, "void"));
+
 	if (dtp->dt_type_func == CTF_ERR || dtp->dt_type_fptr == CTF_ERR ||
 	    dtp->dt_type_str == CTF_ERR || dtp->dt_type_dyn == CTF_ERR ||
-	    dtp->dt_type_stack == CTF_ERR) {
+	    dtp->dt_type_stack == CTF_ERR || dtp->dt_type_symaddr == CTF_ERR ||
+	    dtp->dt_type_usymaddr == CTF_ERR) {
 		dt_dprintf("failed to add intrinsic to D container: %s\n",
 		    ctf_errmsg(ctf_errno(dmp->dm_ctfp)));
 		return (set_open_errno(dtp, errp, EDT_CTF));
@@ -1127,7 +1245,6 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 	 * Load hard-wired inlines into the definition cache by calling the
 	 * compiler on the raw definition string defined above.
 	 */
-printf("dt_open.c:%d: got here\n", __LINE__);
 	if ((pgp = dtrace_program_strcompile(dtp, _dtrace_hardwire,
 	    DTRACE_PROBESPEC_NONE, DTRACE_C_EMPTY, 0, NULL)) == NULL) {
 		dt_dprintf("failed to load hard-wired definitions: %s\n",
@@ -1135,8 +1252,7 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 		return (set_open_errno(dtp, errp, EDT_HARDWIRE));
 	}
 
-printf("dt_open.c:%d: got here\n", __LINE__);
-	dtrace_program_destroy(dtp, pgp);
+	dt_program_destroy(dtp, pgp);
 
 	/*
 	 * Set up the default DTrace library path.  Once set, the next call to
@@ -1145,7 +1261,6 @@ printf("dt_open.c:%d: got here\n", __LINE__);
 	 * compile, and to provide better error reporting (because the full
 	 * reporting of compiler errors requires dtrace_open() to succeed).
 	 */
-printf("dt_open.c:%d: got here\n", __LINE__);
 	if (dtrace_setopt(dtp, "libdir", _dtrace_libdir) != 0)
 		return (set_open_errno(dtp, errp, dtp->dt_errno));
 
@@ -1177,10 +1292,12 @@ dtrace_close(dtrace_hdl_t *dtp)
 	int i;
 
 	while ((pgp = dt_list_next(&dtp->dt_programs)) != NULL)
-		dtrace_program_destroy(dtp, pgp);
+		dt_program_destroy(dtp, pgp);
 
 	while ((dxp = dt_list_next(&dtp->dt_xlators)) != NULL)
 		dt_xlator_destroy(dtp, dxp);
+
+	dt_free(dtp, dtp->dt_xlatormap);
 
 	for (idp = dtp->dt_externs; idp != NULL; idp = ndp) {
 		ndp = idp->di_next;
@@ -1213,6 +1330,8 @@ dtrace_close(dtrace_hdl_t *dtp)
 		(void) close(dtp->dt_cdefs_fd);
 	if (dtp->dt_ddefs_fd != -1)
 		(void) close(dtp->dt_ddefs_fd);
+	if (dtp->dt_stdout_fd != -1)
+		(void) close(dtp->dt_stdout_fd);
 
 	dt_epid_destroy(dtp);
 	dt_aggid_destroy(dtp);
@@ -1222,6 +1341,7 @@ dtrace_close(dtrace_hdl_t *dtp)
 	free(dtp->dt_buf.dtbd_data);
 	dt_pfdict_destroy(dtp);
 	dt_provmod_destroy(&dtp->dt_provmod);
+	dt_dof_fini(dtp);
 
 	for (i = 1; i < dtp->dt_cpp_argc; i++)
 		free(dtp->dt_cpp_argv[i]);
@@ -1239,77 +1359,6 @@ dtrace_close(dtrace_hdl_t *dtp)
 	free(dtp->dt_mods);
 	free(dtp->dt_provs);
 	free(dtp);
-}
-
-int
-dtrace_go(dtrace_hdl_t *dtp)
-{
-	void *dof;
-	int err;
-
-	if (dtp->dt_active)
-		return (dt_set_errno(dtp, EINVAL));
-
-	/*
-	 * If a dtrace:::ERROR program and callback are registered, enable the
-	 * program before we start tracing.  If this fails for a vector open
-	 * with ENOTTY, we permit dtrace_go() to succeed so that vector clients
-	 * such as mdb's dtrace module can execute the rest of dtrace_go() even
-	 * though they do not provide support for the DTRACEIOC_ENABLE ioctl.
-	 */
-	if (dtp->dt_errprog != NULL &&
-	    dtrace_program_exec(dtp, dtp->dt_errprog, NULL) == -1 && (
-	    dtp->dt_errno != ENOTTY || dtp->dt_vector == NULL))
-		return (-1); /* dt_errno has been set for us */
-
-	if ((dof = dtrace_getopt_dof(dtp)) == NULL)
-		return (-1); /* dt_errno has been set for us */
-
-	err = dt_ioctl(dtp, DTRACEIOC_ENABLE, dof);
-	dtrace_dof_destroy(dof);
-
-	if (err == -1 && (errno != ENOTTY || dtp->dt_vector == NULL))
-		return (dt_set_errno(dtp, errno));
-
-	if (dt_ioctl(dtp, DTRACEIOC_GO, &dtp->dt_beganon) == -1) {
-		if (errno == EACCES)
-			return (dt_set_errno(dtp, EDT_DESTRUCTIVE));
-
-		if (errno == EALREADY)
-			return (dt_set_errno(dtp, EDT_ISANON));
-
-		if (errno == ENOENT)
-			return (dt_set_errno(dtp, EDT_NOANON));
-
-		if (errno == E2BIG)
-			return (dt_set_errno(dtp, EDT_ENDTOOBIG));
-
-		if (errno == ENOSPC)
-			return (dt_set_errno(dtp, EDT_BUFTOOSMALL));
-
-		return (dt_set_errno(dtp, errno));
-	}
-
-	dtp->dt_active = 1;
-
-	if (dt_options_load(dtp) == -1)
-		return (dt_set_errno(dtp, errno));
-
-	return (dt_aggregate_go(dtp));
-}
-
-int
-dtrace_stop(dtrace_hdl_t *dtp)
-{
-	if (dtp->dt_stopped)
-		return (0);
-
-	if (dt_ioctl(dtp, DTRACEIOC_STOP, &dtp->dt_endedon) == -1)
-		return (dt_set_errno(dtp, errno));
-
-	dtp->dt_stopped = 1;
-
-	return (0);
 }
 
 int

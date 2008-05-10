@@ -1,20 +1,33 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_DT_IMPL_H
 #define	_DT_IMPL_H
 
-#pragma ident	"@(#)dt_impl.h	1.12	04/12/18 SMI"
+#pragma ident	"@(#)dt_impl.h	1.22	08/01/29 SMI"
 
-# if linux
-#include <linux_types.h>
-# endif
 #include <sys/param.h>
 #include <sys/objfs.h>
 #include <setjmp.h>
@@ -35,59 +48,14 @@ extern "C" {
 #include <dt_decl.h>
 #include <dt_as.h>
 #include <dt_proc.h>
+#include <dt_dof.h>
+#include <dt_pcb.h>
 
 struct dt_module;		/* see below */
 struct dt_pfdict;		/* see <dt_printf.h> */
 struct dt_arg;			/* see below */
 struct dt_provider;		/* see <dt_provider.h> */
-
-typedef struct dt_pcb {
-	dtrace_hdl_t *pcb_hdl;	/* pointer to library handle */
-	FILE *pcb_fileptr;	/* pointer to input file (or NULL) */
-	char *pcb_filetag;	/* optional file name string (or NULL) */
-	const char *pcb_string;	/* pointer to input string (or NULL) */
-	const char *pcb_strptr;	/* pointer to input position */
-	size_t pcb_strlen;	/* length of pcb_string */
-	int pcb_sargc;		/* number of script arguments (if any) */
-	char *const *pcb_sargv;	/* script argument strings (if any) */
-	ushort_t *pcb_sflagv;	/* script argument flags (DT_IDFLG_* bits) */
-	dt_scope_t pcb_dstack;	/* declaration processing stack */
-	dt_node_t *pcb_list;	/* list of allocated parse tree nodes */
-	dt_node_t *pcb_hold;	/* parse tree nodes on hold until end of defn */
-	dt_node_t *pcb_root;	/* root of current parse tree */
-	dt_idhash_t *pcb_globals; /* current hash table of interposed globals */
-	dt_idhash_t *pcb_locals; /* current hash table of local identifiers */
-	dt_idhash_t *pcb_idents; /* current hash table of ambiguous idents */
-	dt_idhash_t *pcb_pragmas; /* current hash table of pending pragmas */
-	dt_inttab_t *pcb_inttab; /* integer table for constant references */
-	dt_strtab_t *pcb_strtab; /* string table for string references */
-	dt_regset_t *pcb_regs;	/* register set for code generation */
-	dt_irlist_t pcb_ir;	/* list of unrelocated IR instructions */
-	uint_t pcb_asvidx;	/* vartab index (used by assembler) */
-	const dtrace_probedesc_t *pcb_pdesc; /* probedesc for current context */
-	struct dt_arg *pcb_pargs; /* probe arguments (if any) */
-	dtrace_attribute_t pcb_attr; /* stability for current context */
-	dtrace_attribute_t pcb_amin; /* stability minimum for compilation */
-	dt_node_t *pcb_dret;	/* node containing return type for assembler */
-	dtrace_difo_t *pcb_difo; /* intermediate DIF object made by assembler */
-	dtrace_difo_t *pcb_pred; /* intermediate predicate made by compiler */
-	dtrace_prog_t *pcb_prog; /* intermediate program made by compiler */
-	dtrace_stmtdesc_t *pcb_stmt; /* intermediate stmt made by compiler */
-	dtrace_ecbdesc_t *pcb_ecbdesc; /* intermediate ecbdesc made by cmplr */
-	jmp_buf pcb_jmpbuf;	/* setjmp(3C) buffer for error return */
-	const char *pcb_region;	/* optional region name for yyerror() suffix */
-	dtrace_probespec_t pcb_pspec; /* probe description evaluation context */
-	uint_t pcb_cflags;	/* optional compilation flags (see dtrace.h) */
-	uint_t pcb_nprobes;	/* number of probes matched by description */
-	uint_t pcb_idepth;	/* preprocessor #include nesting depth */
-	yystate_t pcb_yystate;	/* lex/yacc parsing state (see yybegin()) */
-	int pcb_context;	/* yyparse() rules context (DT_CTX_* value) */
-	int pcb_token;		/* token to be returned by yylex() (if != 0) */
-	int pcb_cstate;		/* state to be restored by lexer at state end */
-	int pcb_braces;		/* number of open curly braces in lexer */
-	int pcb_brackets;	/* number of open square brackets in lexer */
-	int pcb_parens;		/* number of open parentheses in lexer */
-} dt_pcb_t;
+struct dt_xlator;		/* see <dt_xlator.h> */
 
 typedef struct dt_intrinsic {
 	const char *din_name;	/* string name of the intrinsic type */
@@ -178,7 +146,7 @@ typedef struct dt_ahashent {
 	uint64_t dtahe_hashval;			/* hash value */
 	size_t dtahe_size;			/* size of data */
 	dtrace_aggdata_t dtahe_data;		/* data */
-	void (*dtahe_aggregate)(uint64_t *, uint64_t *, size_t); /* function */
+	void (*dtahe_aggregate)(int64_t *, int64_t *, size_t); /* function */
 } dt_ahashent_t;
 
 typedef struct dt_ahash {
@@ -209,6 +177,16 @@ typedef struct dt_dirpath {
 	char *dir_path;			/* directory pathname */
 } dt_dirpath_t;
 
+typedef struct dt_lib_depend {
+	dt_list_t dtld_deplist;		/* linked-list forward/back pointers */
+	char *dtld_library;		/* library name */
+	char *dtld_libpath;		/* library pathname */
+	uint_t dtld_finish;		/* completion time in tsort for lib */
+	uint_t dtld_start;		/* starting time in tsort for lib */
+	dt_list_t dtld_dependencies;	/* linked-list of lib dependencies */
+	dt_list_t dtld_dependents;	/* linked-list of lib dependents */
+} dt_lib_depend_t;
+
 typedef uint32_t dt_version_t;		/* encoded version (see below) */
 
 struct dtrace_hdl {
@@ -221,6 +199,8 @@ struct dtrace_hdl {
 	ulong_t dt_gen;		/* compiler generation number */
 	dt_list_t dt_programs;	/* linked list of dtrace_prog_t's */
 	dt_list_t dt_xlators;	/* linked list of dt_xlator_t's */
+	struct dt_xlator **dt_xlatormap; /* dt_xlator_t's indexed by dx_id */
+	id_t dt_xlatorid;	/* next dt_xlator_t id to assign */
 	dt_ident_t *dt_externs;	/* linked list of external symbol identifiers */
 	dt_idhash_t *dt_macros;	/* hash table of macro variable identifiers */
 	dt_idhash_t *dt_aggs;	/* hash table of aggregation identifiers */
@@ -246,6 +226,8 @@ struct dtrace_hdl {
 	ctf_id_t dt_type_str;	/* cached CTF identifier for string type */
 	ctf_id_t dt_type_dyn;	/* cached CTF identifier for <DYN> type */
 	ctf_id_t dt_type_stack;	/* cached CTF identifier for stack type */
+	ctf_id_t dt_type_symaddr; /* cached CTF identifier for _symaddr type */
+	ctf_id_t dt_type_usymaddr; /* cached CTF ident. for _usymaddr type */
 	size_t dt_maxprobe;	/* max enabled probe ID */
 	dtrace_eprobedesc_t **dt_edesc; /* enabled probe descriptions */
 	dtrace_probedesc_t **dt_pdesc; /* probe descriptions for enabled prbs */
@@ -265,14 +247,18 @@ struct dtrace_hdl {
 	char *dt_ld_path;	/* pathname of ld(1) to invoke if needed */
 	dt_list_t dt_lib_path;	/* linked-list forming library search path */
 	uint_t dt_lazyload;	/* boolean:  set via -xlazyload */
+	uint_t dt_droptags;	/* boolean:  set via -xdroptags */
 	uint_t dt_active;	/* boolean:  set once tracing is active */
 	uint_t dt_stopped;	/* boolean:  set once tracing is stopped */
 	processorid_t dt_beganon; /* CPU that executed BEGIN probe (if any) */
 	processorid_t dt_endedon; /* CPU that executed END probe (if any) */
 	uint_t dt_oflags;	/* dtrace open-time options (see dtrace.h) */
 	uint_t dt_cflags;	/* dtrace compile-time options (see dtrace.h) */
+	uint_t dt_dflags;	/* dtrace link-time options (see dtrace.h) */
 	uint_t dt_prcmode;	/* dtrace process create mode (see dt_proc.h) */
 	uint_t dt_linkmode;	/* dtrace symbol linking mode (see below) */
+	uint_t dt_linktype;	/* dtrace link output file type (see below) */
+	uint_t dt_xlatemode;	/* dtrace translator linking mode (see below) */
 	uint_t dt_stdcmode;	/* dtrace stdc compatibility mode (see below) */
 	uint_t dt_treedump;	/* dtrace tree debug bitmap (see below) */
 	uint64_t dt_options[DTRACEOPT_MAX]; /* dtrace run-time options */
@@ -284,6 +270,7 @@ struct dtrace_hdl {
 	int dt_fterr;		/* saved errno from failed open of dt_ftfd */
 	int dt_cdefs_fd;	/* file descriptor for C CTF debugging cache */
 	int dt_ddefs_fd;	/* file descriptor for D CTF debugging cache */
+	int dt_stdout_fd;	/* file descriptor for saved stdout */
 	dtrace_handle_err_f *dt_errhdlr; /* error handler, if any */
 	void *dt_errarg;	/* error handler argument */
 	dtrace_prog_t *dt_errprog; /* error handler program, if any */
@@ -291,6 +278,8 @@ struct dtrace_hdl {
 	void *dt_droparg;	/* drop handler argument */
 	dtrace_handle_proc_f *dt_prochdlr; /* proc handler, if any */
 	void *dt_procarg;	/* proc handler argument */
+	dtrace_handle_setopt_f *dt_setopthdlr; /* setopt handler, if any */
+	void *dt_setoptarg;	/* setopt handler argument */
 	dtrace_status_t dt_status[2]; /* status cache */
 	int dt_statusgen;	/* current status generation */
 	hrtime_t dt_laststatus;	/* last status */
@@ -304,6 +293,10 @@ struct dtrace_hdl {
 	size_t dt_buffered_size; /* size of buffered buffer */
 	dtrace_handle_buffered_f *dt_bufhdlr; /* buffered handler, if any */
 	void *dt_bufarg;	/* buffered handler argument */
+	dt_dof_t dt_dof;	/* DOF generation buffers (see dt_dof.c) */
+	struct utsname dt_uts;	/* uname(2) information for system */
+	dt_list_t dt_lib_dep;	/* scratch linked-list of lib dependencies */
+	dt_list_t dt_lib_dep_sorted;	/* dependency sorted library list */
 };
 
 /*
@@ -320,6 +313,20 @@ struct dtrace_hdl {
 #define	DT_LINK_PRIMARY	1	/* primary kernel syms static, others dynamic */
 #define	DT_LINK_DYNAMIC	2	/* all symbols dynamic */
 #define	DT_LINK_STATIC	3	/* all symbols static */
+
+/*
+ * Values for the dt_linktype property, which is used by dtrace_program_link()
+ * to determine the type of output file that is desired by the client.
+ */
+#define	DT_LTYP_ELF	0	/* produce ELF containing DOF */
+#define	DT_LTYP_DOF	1	/* produce stand-alone DOF */
+
+/*
+ * Values for the dt_xlatemode property, which is used to determine whether
+ * references to dynamic translators are permitted.  Set using -xlate=<mode>.
+ */
+#define	DT_XL_STATIC	0	/* require xlators to be statically defined */
+#define	DT_XL_DYNAMIC	1	/* produce references to dynamic translators */
 
 /*
  * Values for the dt_stdcmode property, which is used by the compiler when
@@ -361,38 +368,57 @@ struct dtrace_hdl {
 #define	DT_STACK_CTFP(dtp)	((dtp)->dt_ddefs->dm_ctfp)
 #define	DT_STACK_TYPE(dtp)	((dtp)->dt_type_stack)
 
-typedef struct dt_stmt {
-	dt_list_t ds_list;	/* list forward/back pointers */
-	dtrace_stmtdesc_t *ds_desc; /* pointer to statement description */
-} dt_stmt_t;
+#define	DT_SYMADDR_CTFP(dtp)	((dtp)->dt_ddefs->dm_ctfp)
+#define	DT_SYMADDR_TYPE(dtp)	((dtp)->dt_type_symaddr)
 
-struct dtrace_prog {
-	dt_list_t dp_list;	/* list forward/back pointers */
-	dt_list_t dp_stmts;	/* linked list of dt_stmt_t's */
-};
+#define	DT_USYMADDR_CTFP(dtp)	((dtp)->dt_ddefs->dm_ctfp)
+#define	DT_USYMADDR_TYPE(dtp)	((dtp)->dt_type_usymaddr)
 
-#define	DT_ACT_PRINTF		0	/* printf() action */
-#define	DT_ACT_TRACE		1	/* trace() action */
-#define	DT_ACT_TRACEMEM		2	/* tracemem() action */
-#define	DT_ACT_STACK		3	/* stack() action */
-#define	DT_ACT_STOP		4	/* stop() action */
-#define	DT_ACT_BREAKPOINT	5	/* breakpoint() action */
-#define	DT_ACT_PANIC		6	/* panic() action */
-#define	DT_ACT_SPECULATE	7	/* speculate() action */
-#define	DT_ACT_COMMIT		8	/* commit() action */
-#define	DT_ACT_DISCARD		9	/* discard() action */
-#define	DT_ACT_CHILL		10	/* chill() action */
-#define	DT_ACT_EXIT		11	/* exit() action */
-#define	DT_ACT_USTACK		12	/* ustack() action */
-#define	DT_ACT_PRINTA		13	/* printa() action */
-#define	DT_ACT_RAISE		14	/* raise() action */
-#define	DT_ACT_CLEAR		15	/* clear() action */
-#define	DT_ACT_NORMALIZE	16	/* normalize() action */
-#define	DT_ACT_DENORMALIZE	17	/* denormalize() action */
-#define	DT_ACT_TRUNC		18	/* trunc() action */
-#define	DT_ACT_SYSTEM		19	/* system() action */
-#define	DT_ACT_JSTACK		20	/* jstack() action */
-#define	DT_ACT_FTRUNCATE	21	/* ftruncate() action */
+/*
+ * Actions and subroutines are both DT_NODE_FUNC nodes; to avoid confusing
+ * an action for a subroutine (or vice versa), we assure that the DT_ACT_*
+ * constants and the DIF_SUBR_* constants occupy non-overlapping ranges by
+ * starting the DT_ACT_* constants at DIF_SUBR_MAX + 1.
+ */
+#define	DT_ACT_BASE		DIF_SUBR_MAX + 1
+#define	DT_ACT(n)		(DT_ACT_BASE + (n))
+
+#define	DT_ACT_PRINTF		DT_ACT(0)	/* printf() action */
+#define	DT_ACT_TRACE		DT_ACT(1)	/* trace() action */
+#define	DT_ACT_TRACEMEM		DT_ACT(2)	/* tracemem() action */
+#define	DT_ACT_STACK		DT_ACT(3)	/* stack() action */
+#define	DT_ACT_STOP		DT_ACT(4)	/* stop() action */
+#define	DT_ACT_BREAKPOINT	DT_ACT(5)	/* breakpoint() action */
+#define	DT_ACT_PANIC		DT_ACT(6)	/* panic() action */
+#define	DT_ACT_SPECULATE	DT_ACT(7)	/* speculate() action */
+#define	DT_ACT_COMMIT		DT_ACT(8)	/* commit() action */
+#define	DT_ACT_DISCARD		DT_ACT(9)	/* discard() action */
+#define	DT_ACT_CHILL		DT_ACT(10)	/* chill() action */
+#define	DT_ACT_EXIT		DT_ACT(11)	/* exit() action */
+#define	DT_ACT_USTACK		DT_ACT(12)	/* ustack() action */
+#define	DT_ACT_PRINTA		DT_ACT(13)	/* printa() action */
+#define	DT_ACT_RAISE		DT_ACT(14)	/* raise() action */
+#define	DT_ACT_CLEAR		DT_ACT(15)	/* clear() action */
+#define	DT_ACT_NORMALIZE	DT_ACT(16)	/* normalize() action */
+#define	DT_ACT_DENORMALIZE	DT_ACT(17)	/* denormalize() action */
+#define	DT_ACT_TRUNC		DT_ACT(18)	/* trunc() action */
+#define	DT_ACT_SYSTEM		DT_ACT(19)	/* system() action */
+#define	DT_ACT_JSTACK		DT_ACT(20)	/* jstack() action */
+#define	DT_ACT_FTRUNCATE	DT_ACT(21)	/* ftruncate() action */
+#define	DT_ACT_FREOPEN		DT_ACT(22)	/* freopen() action */
+#define	DT_ACT_SYM		DT_ACT(23)	/* sym()/func() actions */
+#define	DT_ACT_MOD		DT_ACT(24)	/* mod() action */
+#define	DT_ACT_USYM		DT_ACT(25)	/* usym()/ufunc() actions */
+#define	DT_ACT_UMOD		DT_ACT(26)	/* umod() action */
+#define	DT_ACT_UADDR		DT_ACT(27)	/* uaddr() action */
+#define	DT_ACT_SETOPT		DT_ACT(28)	/* setopt() action */
+
+/*
+ * Sentinel to tell freopen() to restore the saved stdout.  This must not
+ * be ever valid for opening for write access via freopen(3C), which of
+ * course, "." never is.
+ */
+#define	DT_FREOPEN_RESTORE	"."
 
 #define	EDT_BASE	1000	/* base value for libdtrace errnos */
 
@@ -410,6 +436,7 @@ enum {
 	EDT_STR2BIG,		/* string limit exceeded */
 	EDT_NOMOD,		/* unknown module name */
 	EDT_NOPROV,		/* unknown provider name */
+	EDT_NOPROBE,		/* unknown probe name */
 	EDT_NOSYM,		/* unknown symbol name */
 	EDT_NOSYMADDR,		/* no symbol corresponds to address */
 	EDT_NOTYPE,		/* unknown type name */
@@ -429,6 +456,7 @@ enum {
 	EDT_DIFSIZE,		/* invalid DIF size */
 	EDT_DIFFAULT,		/* failed to copyin DIF program */
 	EDT_BADPROBE,		/* bad probe description */
+	EDT_BADPGLOB,		/* bad probe description globbing pattern */
 	EDT_NOSCOPE,		/* declaration scope stack underflow */
 	EDT_NODECL,		/* declaration stack underflow */
 	EDT_DMISMATCH,		/* record list does not match statement */
@@ -459,12 +487,16 @@ enum {
 	EDT_BADTRUNC,		/* invalid truncation */
 	EDT_BUSY,		/* device busy (active kernel debugger) */
 	EDT_ACCESS,		/* insufficient privileges to use DTrace */
-	EDT_GNOENT,		/* dtrace device not available in global zone */
-	EDT_ZNOENT,		/* dtrace device not available in local zone */
+	EDT_NOENT,		/* dtrace device not available */
 	EDT_BRICKED,		/* abort due to systemic unresponsiveness */
 	EDT_HARDWIRE,		/* failed to load hard-wired definitions */
 	EDT_ELFVERSION,		/* libelf is out-of-date w.r.t libdtrace */
-	EDT_NOBUFFERED		/* attempt to buffer output without handler */
+	EDT_NOBUFFERED,		/* attempt to buffer output without handler */
+	EDT_UNSTABLE,		/* description matched unstable set of probes */
+	EDT_BADSETOPT,		/* invalid setopt library action */
+	EDT_BADSTACKPC,		/* invalid stack program counter size */
+	EDT_BADAGGVAR,		/* invalid aggregation variable identifier */
+	EDT_OVERSION		/* client is requesting deprecated version */
 };
 
 /*
@@ -516,20 +548,29 @@ extern int dt_status(dtrace_hdl_t *, processorid_t);
 extern long dt_sysconf(dtrace_hdl_t *, int);
 extern ssize_t dt_write(dtrace_hdl_t *, int, const void *, size_t);
 extern int dt_printf(dtrace_hdl_t *, FILE *, const char *, ...);
+
 extern void *dt_zalloc(dtrace_hdl_t *, size_t);
 extern void *dt_alloc(dtrace_hdl_t *, size_t);
 extern void dt_free(dtrace_hdl_t *, void *);
+extern void dt_difo_free(dtrace_hdl_t *, dtrace_difo_t *);
+
+extern int dt_gmatch(const char *, const char *);
 extern char *dt_basename(char *);
+
+extern ulong_t dt_popc(ulong_t);
+extern ulong_t dt_popcb(const ulong_t *, ulong_t);
 
 extern int dt_buffered_enable(dtrace_hdl_t *);
 extern int dt_buffered_flush(dtrace_hdl_t *, dtrace_probedata_t *,
-    dtrace_recdesc_t *, dtrace_aggdata_t *);
+    const dtrace_recdesc_t *, const dtrace_aggdata_t *, uint32_t flags);
 extern void dt_buffered_disable(dtrace_hdl_t *);
 extern void dt_buffered_destroy(dtrace_hdl_t *);
 
 extern int dt_rw_read_held(pthread_rwlock_t *);
 extern int dt_rw_write_held(pthread_rwlock_t *);
 extern int dt_mutex_held(pthread_mutex_t *);
+
+extern uint64_t dt_stddev(uint64_t *, uint64_t);
 
 #define	DT_RW_READ_HELD(x)	dt_rw_read_held(x)
 #define	DT_RW_WRITE_HELD(x)	dt_rw_write_held(x)
@@ -547,6 +588,7 @@ extern void dt_pragma(dt_node_t *);
 extern int dt_reduce(dtrace_hdl_t *, dt_version_t);
 extern void dt_cg(dt_pcb_t *, dt_node_t *);
 extern dtrace_difo_t *dt_as(dt_pcb_t *);
+extern void dt_dis(const dtrace_difo_t *, FILE *);
 
 extern int dt_aggregate_go(dtrace_hdl_t *);
 extern int dt_aggregate_init(dtrace_hdl_t *);
@@ -565,23 +607,25 @@ extern int dt_print_quantize(dtrace_hdl_t *, FILE *,
     const void *, size_t, uint64_t);
 extern int dt_print_lquantize(dtrace_hdl_t *, FILE *,
     const void *, size_t, uint64_t);
-extern int dt_print_agg(dtrace_aggdata_t *, void *);
+extern int dt_print_agg(const dtrace_aggdata_t *, void *);
 
 extern int dt_handle(dtrace_hdl_t *, dtrace_probedata_t *);
+extern int dt_handle_liberr(dtrace_hdl_t *,
+    const dtrace_probedata_t *, const char *);
 extern int dt_handle_cpudrop(dtrace_hdl_t *, processorid_t,
     dtrace_dropkind_t, uint64_t);
 extern int dt_handle_status(dtrace_hdl_t *,
     dtrace_status_t *, dtrace_status_t *);
+extern int dt_handle_setopt(dtrace_hdl_t *, dtrace_setoptdata_t *);
+
+extern int dt_lib_depend_add(dtrace_hdl_t *, dt_list_t *, const char *);
+extern dt_lib_depend_t *dt_lib_depend_lookup(dt_list_t *, const char *);
 
 extern dt_pcb_t *yypcb;		/* pointer to current parser control block */
 extern char yyintprefix;	/* int token prefix for macros (+/-) */
 extern char yyintsuffix[4];	/* int token suffix ([uUlL]*) */
 extern int yyintdecimal;	/* int token is decimal (1) or octal/hex (0) */
-# if 1 || defined(sun)
 extern char yytext[];		/* lex input buffer */
-# else
-extern char *yytext;   /* lex input buffer */
-# endif
 extern int yylineno;		/* lex line number */
 extern int yydebug;		/* lex debugging */
 extern dt_node_t *yypragma;	/* lex token list for control lines */
@@ -591,6 +635,7 @@ extern const dtrace_attribute_t _dtrace_defattr; /* default attributes */
 extern const dtrace_attribute_t _dtrace_symattr; /* symbol ref attributes */
 extern const dtrace_attribute_t _dtrace_typattr; /* type ref attributes */
 extern const dtrace_attribute_t _dtrace_prvattr; /* provider attributes */
+extern const dtrace_pattr_t _dtrace_prvdesc;	 /* provider attribute bundle */
 
 extern const dt_version_t _dtrace_versions[];	 /* array of valid versions */
 extern const char *const _dtrace_version;	 /* current version string */
@@ -601,6 +646,8 @@ extern uint_t _dtrace_stkindent;	/* default indent for stack/ustack */
 extern uint_t _dtrace_pidbuckets;	/* number of hash buckets for pids */
 extern uint_t _dtrace_pidlrulim;	/* number of proc handles to cache */
 extern int _dtrace_debug;		/* debugging messages enabled */
+extern size_t _dtrace_bufsize;		/* default dt_buf_create() size */
+extern int _dtrace_argmax;		/* default maximum probe arguments */
 
 extern const char *_dtrace_libdir;	/* default library directory */
 extern const char *_dtrace_moddir;	/* default kernel module directory */

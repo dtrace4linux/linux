@@ -26,6 +26,8 @@ extern dtrace_probe_t	**dtrace_probes;	/* array of all probes */
 extern int		dtrace_nprobes;		/* number of probes */
 extern kmutex_t		dtrace_lock;		/* probe state lock */
 extern kmutex_t		dtrace_provider_lock;	/* provider state lock */
+extern int		dtrace_error;		/* temporary variable */
+extern dtrace_state_t	*dtrace_state;		/* temporary variable */
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -38,6 +40,16 @@ int	dtrace_match_priv(const dtrace_probe_t *prp, uint32_t priv, uid_t uid);
 int	dtrace_match_probe(const dtrace_probe_t *prp, const dtrace_probekey_t *pkp,
     uint32_t priv, uid_t uid);
 void	dtrace_probe_description(const dtrace_probe_t *prp, dtrace_probedesc_t *pdp);
+int dtrace_state_stop(dtrace_state_t *state, processorid_t *cpu);
+dof_hdr_t *dtrace_dof_copyin(uintptr_t uarg, int *errp);
+void dtrace_dof_destroy(dof_hdr_t *dof);
+int dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr, dtrace_enabling_t **enabp, uint64_t ubase, int noprobes);
+void dtrace_enabling_destroy(dtrace_enabling_t *enab);
+int dtrace_dof_options(dof_hdr_t *dof, dtrace_state_t *state);
+int dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_ecbdesc_t *ep);
+int dtrace_enabling_matchstate(dtrace_state_t *state, int *nmatched);
+int dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched);
+int dtrace_enabling_retain(dtrace_enabling_t *enab);
 
 /**********************************************************************/
 /*   Code to support the ioctl interface for /dev/dtrace.	      */
@@ -60,6 +72,8 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		state = state->dts_anon;
 	}
 # endif
+
+printk("cmd=%x\n", cmd);
 
 	switch (cmd) {
 	case DTRACEIOC_CONF: {
@@ -162,6 +176,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		dtrace_providerdesc_t pvd;
 		dtrace_provider_t *pvp;
 
+PRINT_CASE(DTRACEIOC_PROVIDER);
 		if (copyin((void *)arg, &pvd, sizeof (pvd)) != 0)
 			return (EFAULT);
 
@@ -196,6 +211,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		uintptr_t dest;
 		int nrecs;
 
+PRINT_CASE(DTRACEIOC_EPROBE);
 		if (copyin((void *)arg, &epdesc, sizeof (epdesc)) != 0)
 			return (EFAULT);
 
@@ -273,6 +289,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		size_t size;
 		uintptr_t dest;
 
+PRINT_CASE(DTRACEIOC_AGGDESC);
 		if (copyin((void *)arg, &aggdesc, sizeof (aggdesc)) != 0)
 			return (EFAULT);
 
@@ -340,26 +357,48 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		kmem_free(buf, size);
 		return (0);
 	}
+# endif
 
 	case DTRACEIOC_ENABLE: {
-		dof_hdr_t *dof = dtrace_dof_copyin(arg, &rval);
+		dof_hdr_t *dof;
 		dtrace_enabling_t *enab = NULL;
 		dtrace_vstate_t *vstate;
 		int i, err = 0;
 
-		if (dof == NULL)
+PRINT_CASE(DTRACEIOC_ENABLE);
+		*rv = 0;
+
+                /*
+                 * If a NULL argument has been passed, we take this as our
+                 * cue to reevaluate our enablings.
+                 */
+                if (arg == NULL) {
+                        mutex_enter(&cpu_lock);
+                        mutex_enter(&dtrace_lock);
+                        err = dtrace_enabling_matchstate(state, rv);
+                        mutex_exit(&dtrace_lock);
+                        mutex_exit(&cpu_lock);
+
+                        return (err);
+                }
+
+		if ((dof = dtrace_dof_copyin(arg, &rval)) == NULL)
 			return (rval);
 
+TODO();
 		mutex_enter(&cpu_lock);
 		mutex_enter(&dtrace_lock);
+TODO();
 		vstate = &state->dts_vstate;
 
 		if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE) {
+TODO();
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
 			return (EBUSY);
 		}
+TODO();
 
 		if (dtrace_dof_slurp(dof, vstate, cr, &enab, 0, B_TRUE) != 0) {
 			mutex_exit(&dtrace_lock);
@@ -367,53 +406,42 @@ printk("nprobes=%d\n", dtrace_nprobes);
 			dtrace_dof_destroy(dof);
 			return (EINVAL);
 		}
+TODO();
 
 		if ((rval = dtrace_dof_options(dof, state)) != 0) {
+TODO();
 			dtrace_enabling_destroy(enab);
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
 			return (rval);
 		}
+TODO();
 
-		dtrace_state = state;
-		*rv = 0;
-
-		for (i = 0; i < enab->dten_ndesc; i++) {
-			dtrace_ecbdesc_t *ep = enab->dten_desc[i];
-
-			dtrace_error = 0;
-			*rv += dtrace_probe_enable(&ep->dted_probe, ep);
-
-			if (dtrace_error != 0) {
-				/*
-				 * If we get an error half-way through
-				 * enabling the probes, we kick out -- perhaps
-				 * with some number of them enabled.  Leaving
-				 * enabled probes enabled may be slightly
-				 * confusing for user-level, but we expect
-				 * that no one will attempt to actually drive
-				 * on in the face of such errors.
-				 */
-				err = dtrace_error;
-				break;
-			}
-		}
-
+                if ((err = dtrace_enabling_match(enab, rv)) == 0) {
+                        err = dtrace_enabling_retain(enab);
+                } else {
+                        dtrace_enabling_destroy(enab);
+                }
+TODO();
 		dtrace_enabling_destroy(enab);
-		dtrace_state = NULL;
+
 		mutex_exit(&cpu_lock);
 		mutex_exit(&dtrace_lock);
+TODO();
 		dtrace_dof_destroy(dof);
+TODO();
 
 		return (err);
 	}
+
 
 	case DTRACEIOC_PROBEARG: {
 		dtrace_argdesc_t desc;
 		dtrace_probe_t *probe;
 		dtrace_provider_t *prov;
 
+PRINT_CASE(DTRACEIOC_PROBEARG);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 
@@ -468,7 +496,6 @@ printk("nprobes=%d\n", dtrace_nprobes);
 
 		return (0);
 	}
-# endif
 
 	case DTRACEIOC_GO: {
 		processorid_t cpuid;
@@ -476,10 +503,13 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		/***********************************************/
 		/*   Hack to avoid panicing kernel just yet.   */
 		/***********************************************/
+PRINT_CASE(DTRACEIOC_GO);
 		if (state == NULL)
 			return EIO;
 
+TODO();
 		rval = dtrace_state_go(state, &cpuid);
+TODO();
 
 		if (rval != 0)
 			return (rval);
@@ -490,10 +520,10 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		return (0);
 	}
 
-# if 0
 	case DTRACEIOC_STOP: {
 		processorid_t cpuid;
 
+PRINT_CASE(DTRACEIOC_STOP);
 		mutex_enter(&dtrace_lock);
 		rval = dtrace_state_stop(state, &cpuid);
 		mutex_exit(&dtrace_lock);
@@ -507,10 +537,12 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		return (0);
 	}
 
+# if 0
 	case DTRACEIOC_DOFGET: {
 		dof_hdr_t hdr, *dof;
 		uint64_t len;
 
+PRINT_CASE(DTRACEIOC_DOFGET);
 		if (copyin((void *)arg, &hdr, sizeof (hdr)) != 0)
 			return (EFAULT);
 
@@ -531,6 +563,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		caddr_t cached;
 		dtrace_buffer_t *buf;
 
+PRINT_CASE(DTRACEIOC_BUFSNAP);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 
@@ -662,6 +695,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		int i, j;
 		uint64_t nerrs;
 
+PRINT_CASE(DTRACEIOC_STATUS);
 		/*
 		 * See the comment in dtrace_state_deadman() for the reason
 		 * for setting dts_laststatus to INT64_MAX before setting
@@ -727,6 +761,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 		char *str;
 		int len;
 
+PRINT_CASE(DTRACEIOC_FORMAT);
 		if (copyin((void *)arg, &fmt, sizeof (fmt)) != 0)
 			return (EFAULT);
 
@@ -770,6 +805,7 @@ printk("nprobes=%d\n", dtrace_nprobes);
 
 	default:
 		PRINT_CASE(unknown_case_stmt_for_ioctl);
+		printk("cmd=%x\n", cmd);
 		break;
 	}
 

@@ -1,3 +1,6 @@
+# if !defined(SYS_BITMAP_H)
+# define SYS_BITMAP_H
+
 #ifdef _LP64
 #define BT_ULSHIFT      6 /* log base 2 of BT_NBIPUL, to extract word index */
 #define BT_ULSHIFT32    5 /* log base 2 of BT_NBIPUL, to extract word index */
@@ -42,3 +45,5 @@
         { BT_WIM((bitmap), (bitindex)) |= BT_BIW(bitindex); }
 #define BT_CLEAR(bitmap, bitindex) \
         { BT_WIM((bitmap), (bitindex)) &= ~BT_BIW(bitindex); }
+
+# endif

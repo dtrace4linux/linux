@@ -1,15 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)dt_printf.c	1.12	04/12/18 SMI"
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-#include <linux_types.h>
+#pragma ident	"@(#)dt_printf.c	1.20	06/04/29 SMI"
+
 #include <sys/sysmacros.h>
 #include <strings.h>
 #include <stdlib.h>
@@ -25,14 +41,53 @@
 
 /*ARGSUSED*/
 static int
-pfcheck_addr(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_addr(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	return (dt_node_is_pointer(dnp) || dt_node_is_integer(dnp));
 }
 
 /*ARGSUSED*/
 static int
-pfcheck_str(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_kaddr(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
+{
+	return (dt_node_is_pointer(dnp) || dt_node_is_integer(dnp) ||
+	    dt_node_is_symaddr(dnp));
+}
+
+/*ARGSUSED*/
+static int
+pfcheck_uaddr(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
+{
+	dtrace_hdl_t *dtp = pfv->pfv_dtp;
+	dt_ident_t *idp = dt_idhash_lookup(dtp->dt_macros, "target");
+
+	if (dt_node_is_usymaddr(dnp))
+		return (1);
+
+	if (idp == NULL || idp->di_id == 0)
+		return (0);
+
+	return (dt_node_is_pointer(dnp) || dt_node_is_integer(dnp));
+}
+
+/*ARGSUSED*/
+static int
+pfcheck_stack(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
+{
+	return (dt_node_is_stack(dnp));
+}
+
+/*ARGSUSED*/
+static int
+pfcheck_time(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
+{
+	return (dt_node_is_integer(dnp) &&
+	    dt_node_type_size(dnp) == sizeof (uint64_t));
+}
+
+/*ARGSUSED*/
+static int
+pfcheck_str(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	ctf_file_t *ctfp;
 	ctf_encoding_t e;
@@ -54,7 +109,7 @@ pfcheck_str(dt_pfargd_t *pfd, dt_node_t *dnp)
 
 /*ARGSUSED*/
 static int
-pfcheck_wstr(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_wstr(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	ctf_file_t *ctfp = dnp->dn_ctfp;
 	ctf_id_t base = ctf_type_resolve(ctfp, dnp->dn_type);
@@ -71,7 +126,7 @@ pfcheck_wstr(dt_pfargd_t *pfd, dt_node_t *dnp)
 
 /*ARGSUSED*/
 static int
-pfcheck_csi(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_csi(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	return (dt_node_is_integer(dnp) &&
 	    dt_node_type_size(dnp) <= sizeof (int));
@@ -79,20 +134,21 @@ pfcheck_csi(dt_pfargd_t *pfd, dt_node_t *dnp)
 
 /*ARGSUSED*/
 static int
-pfcheck_fp(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_fp(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	return (dt_node_is_float(dnp));
 }
 
 /*ARGSUSED*/
 static int
-pfcheck_xint(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_xint(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	return (dt_node_is_integer(dnp));
 }
 
+/*ARGSUSED*/
 static int
-pfcheck_dint(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_dint(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	if (dnp->dn_flags & DT_NF_SIGNED)
 		pfd->pfd_flags |= DT_PFCONV_SIGNED;
@@ -104,7 +160,7 @@ pfcheck_dint(dt_pfargd_t *pfd, dt_node_t *dnp)
 
 /*ARGSUSED*/
 static int
-pfcheck_xshort(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_xshort(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	ctf_file_t *ctfp = dnp->dn_ctfp;
 	ctf_id_t type = ctf_type_resolve(ctfp, dnp->dn_type);
@@ -117,7 +173,7 @@ pfcheck_xshort(dt_pfargd_t *pfd, dt_node_t *dnp)
 
 /*ARGSUSED*/
 static int
-pfcheck_xlong(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_xlong(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	ctf_file_t *ctfp = dnp->dn_ctfp;
 	ctf_id_t type = ctf_type_resolve(ctfp, dnp->dn_type);
@@ -130,7 +186,7 @@ pfcheck_xlong(dt_pfargd_t *pfd, dt_node_t *dnp)
 
 /*ARGSUSED*/
 static int
-pfcheck_xlonglong(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_xlonglong(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	ctf_file_t *ctfp = dnp->dn_ctfp;
 	ctf_id_t type = dnp->dn_type;
@@ -159,8 +215,9 @@ pfcheck_xlonglong(dt_pfargd_t *pfd, dt_node_t *dnp)
 	return (0);
 }
 
+/*ARGSUSED*/
 static int
-pfcheck_type(dt_pfargd_t *pfd, dt_node_t *dnp)
+pfcheck_type(dt_pfargv_t *pfv, dt_pfargd_t *pfd, dt_node_t *dnp)
 {
 	return (ctf_type_compat(dnp->dn_ctfp, ctf_type_resolve(dnp->dn_ctfp,
 	    dnp->dn_type), pfd->pfd_conv->pfc_dctfp, pfd->pfd_conv->pfc_dtype));
@@ -255,13 +312,9 @@ static int
 pfprint_addr(dtrace_hdl_t *dtp, FILE *fp, const char *format,
     const dt_pfargd_t *pfd, const void *addr, size_t size, uint64_t normal)
 {
-	dtrace_syminfo_t dts;
-	GElf_Sym sym;
-	GElf_Addr val;
-
-	size_t n = 20; /* for 0x%llx\0 */
 	char *s;
-	int err;
+	int n, len = 256;
+	uint64_t val;
 
 	switch (size) {
 	case sizeof (uint32_t):
@@ -274,32 +327,28 @@ pfprint_addr(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 		return (dt_set_errno(dtp, EDT_DMISMATCH));
 	}
 
-	if ((err = dtrace_lookup_by_addr(dtp, val, &sym, &dts)) == 0)
-		n += strlen(dts.dts_object) + strlen(dts.dts_name) + 2; /* +` */
-
-	s = alloca(n);
-
-	if (err == 0 && val != sym.st_value) {
-		(void) snprintf(s, n, "%s`%s+0x%llx", dts.dts_object,
-		    dts.dts_name, (u_longlong_t)val - sym.st_value);
-	} else if (err == 0) {
-		(void) snprintf(s, n, "%s`%s",
-		    dts.dts_object, dts.dts_name);
-	} else {
-		/*
-		 * We'll repeat the lookup, but this time we'll specify a NULL
-		 * GElf_Sym -- indicating that we're only interested in the
-		 * containing module.
-		 */
-		if (dtrace_lookup_by_addr(dtp, val, NULL, &dts) == 0) {
-			(void) snprintf(s, n, "%s`0x%llx", dts.dts_object,
-			    (u_longlong_t)val);
-		} else {
-			(void) snprintf(s, n, "0x%llx", (u_longlong_t)val);
-		}
-	}
+	do {
+		n = len;
+		s = alloca(n);
+	} while ((len = dtrace_addr2str(dtp, val, s, n)) >= n);
 
 	return (dt_printf(dtp, fp, format, s));
+}
+
+/*ARGSUSED*/
+static int
+pfprint_mod(dtrace_hdl_t *dtp, FILE *fp, const char *format,
+    const dt_pfargd_t *pfd, const void *addr, size_t size, uint64_t normal)
+{
+	return (dt_print_mod(dtp, fp, format, (caddr_t)addr));
+}
+
+/*ARGSUSED*/
+static int
+pfprint_umod(dtrace_hdl_t *dtp, FILE *fp, const char *format,
+    const dt_pfargd_t *pfd, const void *addr, size_t size, uint64_t normal)
+{
+	return (dt_print_umod(dtp, fp, format, (caddr_t)addr));
 }
 
 /*ARGSUSED*/
@@ -307,13 +356,11 @@ static int
 pfprint_uaddr(dtrace_hdl_t *dtp, FILE *fp, const char *format,
     const dt_pfargd_t *pfd, const void *addr, size_t size, uint64_t normal)
 {
-	u_longlong_t val;
+	char *s;
+	int n, len = 256;
+	uint64_t val, pid = 0;
+
 	dt_ident_t *idp = dt_idhash_lookup(dtp->dt_macros, "target");
-	char name[PATH_MAX], objname[PATH_MAX], c[PATH_MAX * 2];
-	struct ps_prochandle *P = NULL;
-	pid_t pid;
-	GElf_Sym sym;
-	char *obj;
 
 	switch (size) {
 	case sizeof (uint32_t):
@@ -322,42 +369,23 @@ pfprint_uaddr(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 	case sizeof (uint64_t):
 		val = (u_longlong_t)*((uint64_t *)addr);
 		break;
+	case sizeof (uint64_t) * 2:
+		pid = ((uint64_t *)(uintptr_t)addr)[0];
+		val = ((uint64_t *)(uintptr_t)addr)[1];
+		break;
 	default:
 		return (dt_set_errno(dtp, EDT_DMISMATCH));
 	}
 
-	if (dtp->dt_vector == NULL && idp != NULL && (pid = idp->di_id) != 0)
-		P = dt_proc_grab(dtp, pid, PGRAB_RDONLY | PGRAB_FORCE, 0);
+	if (pid == 0 && dtp->dt_vector == NULL && idp != NULL)
+		pid = idp->di_id;
 
-	if (P == NULL) {
-		(void) snprintf(c, sizeof (c), "0x%llx", val);
-		return (dt_printf(dtp, fp, format, c));
-	}
+	do {
+		n = len;
+		s = alloca(n);
+	} while ((len = dtrace_uaddr2str(dtp, pid, val, s, n)) >= n);
 
-	dt_proc_lock(dtp, P);
-
-	if (Plookup_by_addr(P, val, name, sizeof (name), &sym) == 0) {
-		(void) Pobjname(P, val, objname, sizeof (objname));
-
-		obj = dt_basename(objname);
-
-		if (val > sym.st_value) {
-			(void) snprintf(c, sizeof (c), "%s`%s+0x%llx", obj,
-			    name, (u_longlong_t)(val - sym.st_value));
-		} else {
-			(void) snprintf(c, sizeof (c), "%s`%s", obj, name);
-		}
-	} else if (Pobjname(P, val, objname, sizeof (objname)) != NULL) {
-		(void) snprintf(c, sizeof (c), "%s`0x%llx",
-		    dt_basename(objname), val);
-	} else {
-		(void) snprintf(c, sizeof (c), "0x%llx", val);
-	}
-
-	dt_proc_unlock(dtp, P);
-	dt_proc_release(dtp, P);
-
-	return (dt_printf(dtp, fp, format, c));
+	return (dt_printf(dtp, fp, format, s));
 }
 
 /*ARGSUSED*/
@@ -365,7 +393,7 @@ static int
 pfprint_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
     const dt_pfargd_t *pfd, const void *vaddr, size_t size, uint64_t normal)
 {
-	int depth = size / sizeof (pc_t), width;
+	int width;
 	dtrace_optval_t saved = dtp->dt_options[DTRACEOPT_STACKINDENT];
 	const dtrace_recdesc_t *rec = pfd->pfd_rec;
 	caddr_t addr = (caddr_t)vaddr;
@@ -398,7 +426,8 @@ pfprint_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 		break;
 
 	case DTRACEACT_STACK:
-		err = dt_print_stack(dtp, fp, format, addr, depth);
+		err = dt_print_stack(dtp, fp, format, addr, rec->dtrd_arg,
+		    rec->dtrd_size / rec->dtrd_arg);
 		break;
 
 	default:
@@ -542,6 +571,8 @@ static const char pfproto_xint[] = "char, short, int, long, or long long";
 static const char pfproto_csi[] = "char, short, or int";
 static const char pfproto_fp[] = "float, double, or long double";
 static const char pfproto_addr[] = "pointer or integer";
+static const char pfproto_uaddr[] =
+	"pointer or integer (with -p/-c) or _usymaddr (without -p/-c)";
 static const char pfproto_cstr[] = "char [] or string (or use stringof)";
 static const char pfproto_wstr[] = "wchar_t []";
 
@@ -553,8 +584,8 @@ static const char pfproto_wstr[] = "wchar_t []";
  * string of the types expected for use in error messages.
  */
 static const dt_pfconv_t _dtrace_conversions[] = {
-{ "a", "s", pfproto_addr, pfcheck_addr, pfprint_addr },
-{ "A", "s", pfproto_addr, pfcheck_addr, pfprint_uaddr },
+{ "a", "s", pfproto_addr, pfcheck_kaddr, pfprint_addr },
+{ "A", "s", pfproto_uaddr, pfcheck_uaddr, pfprint_uaddr },
 { "c", "c", pfproto_csi, pfcheck_csi, pfprint_sint },
 { "C", "s", pfproto_csi, pfcheck_csi, pfprint_echr },
 { "d", "d", pfproto_xint, pfcheck_dint, pfprint_dint },
@@ -570,7 +601,7 @@ static const dt_pfconv_t _dtrace_conversions[] = {
 { "hx", "x", "short", pfcheck_xshort, pfprint_uint },
 { "hX", "X", "short", pfcheck_xshort, pfprint_uint },
 { "i", "i", pfproto_xint, pfcheck_dint, pfprint_dint },
-{ "k", "s", "stack", pfcheck_type, pfprint_stack },
+{ "k", "s", "stack", pfcheck_stack, pfprint_stack },
 { "lc", "lc", "int", pfcheck_type, pfprint_sint }, /* a.k.a. wint_t */
 { "ld",	"d", "long", pfcheck_type, pfprint_sint },
 { "li",	"i", "long", pfcheck_type, pfprint_sint },
@@ -594,13 +625,13 @@ static const dt_pfconv_t _dtrace_conversions[] = {
 { "p", "x", pfproto_addr, pfcheck_addr, pfprint_uint },
 { "s", "s", "char [] or string (or use stringof)", pfcheck_str, pfprint_cstr },
 { "S", "s", pfproto_cstr, pfcheck_str, pfprint_estr },
-{ "T", "s", "uint64_t", pfcheck_type, pfprint_time822 },
+{ "T", "s", "int64_t", pfcheck_time, pfprint_time822 },
 { "u", "u", pfproto_xint, pfcheck_xint, pfprint_uint },
 { "wc",	"wc", "int", pfcheck_type, pfprint_sint }, /* a.k.a. wchar_t */
 { "ws", "ws", pfproto_wstr, pfcheck_wstr, pfprint_wstr },
 { "x", "x", pfproto_xint, pfcheck_xint, pfprint_uint },
 { "X", "X", pfproto_xint, pfcheck_xint, pfprint_uint },
-{ "Y", "s", "uint64_t", pfcheck_type, pfprint_time },
+{ "Y", "s", "int64_t", pfcheck_time, pfprint_time },
 { "%", "%", "void", pfcheck_type, pfprint_pct },
 { NULL, NULL, NULL, NULL, NULL }
 };
@@ -745,6 +776,7 @@ dt_printf_create(dtrace_hdl_t *dtp, const char *s)
 	pfv->pfv_argv = NULL;
 	pfv->pfv_argc = 0;
 	pfv->pfv_flags = 0;
+	pfv->pfv_dtp = dtp;
 
 	for (q = format; (p = strchr(q, '%')) != NULL; q = *p ? p + 1 : p) {
 		uint_t namelen = 0;
@@ -892,21 +924,6 @@ dt_printf_create(dtrace_hdl_t *dtp, const char *s)
 			name[namelen] = '\0';
 		}
 
-		if (strcmp(name, "A") == 0) {
-			dt_ident_t *idp;
-
-			idp = dt_idhash_lookup(dtp->dt_macros, "target");
-
-			if (idp == NULL || idp->di_id == 0) {
-				yywarn("format conversion #%u only "
-				    "valid when target process is specified\n",
-				    pfv->pfv_argc);
-
-				dt_printf_destroy(pfv);
-				return (dt_printf_error(dtp, EDT_COMPILER));
-			}
-		}
-
 		pfd->pfd_conv = dt_pfdict_lookup(dtp, name);
 
 		if (pfd->pfd_conv == NULL) {
@@ -970,12 +987,14 @@ dt_printf_validate(dt_pfargv_t *pfv, uint_t flags,
 		    "%s( ) format string is empty\n", func);
 	}
 
+	pfv->pfv_flags = flags;
+
 	/*
 	 * We fake up a parse node representing the type that can be used with
-	 * an aggregation result conversion.  For now we hardcode the signed
-	 * aggregations; this will be fixed later when sign issues are fixed.
+	 * an aggregation result conversion, which -- for all but count() --
+	 * is a signed quantity.
 	 */
-	if (kind == DTRACEAGG_QUANTIZE || kind == DTRACEAGG_LQUANTIZE)
+	if (kind != DTRACEAGG_COUNT)
 		aggtype = "int64_t";
 	else
 		aggtype = "uint64_t";
@@ -1083,7 +1102,7 @@ dt_printf_validate(dt_pfargv_t *pfv, uint_t flags,
 		 * string by concatenating together any required printf(3C)
 		 * size prefixes with the conversion's native format string.
 		 */
-		if (pfc->pfc_check(pfd, vnp) == 0) {
+		if (pfc->pfc_check(pfv, pfd, vnp) == 0) {
 			xyerror(D_PRINTF_ARG_TYPE,
 			    "%s( ) %s is incompatible with "
 			    "conversion #%d prototype:\n\tconversion: %%%s\n"
@@ -1098,8 +1117,63 @@ dt_printf_validate(dt_pfargv_t *pfv, uint_t flags,
 		    "%s( ) prototype mismatch: only %d arguments "
 		    "required by this format string\n", func, j);
 	}
+}
 
-	pfv->pfv_flags = flags;
+void
+dt_printa_validate(dt_node_t *lhs, dt_node_t *rhs)
+{
+	dt_ident_t *lid, *rid;
+	dt_node_t *lproto, *rproto;
+	int largc, rargc, argn;
+	char n1[DT_TYPE_NAMELEN];
+	char n2[DT_TYPE_NAMELEN];
+
+	assert(lhs->dn_kind == DT_NODE_AGG);
+	assert(rhs->dn_kind == DT_NODE_AGG);
+
+	lid = lhs->dn_ident;
+	rid = rhs->dn_ident;
+
+	lproto = ((dt_idsig_t *)lid->di_data)->dis_args;
+	rproto = ((dt_idsig_t *)rid->di_data)->dis_args;
+
+	/*
+	 * First, get an argument count on each side.  These must match.
+	 */
+	for (largc = 0; lproto != NULL; lproto = lproto->dn_list)
+		largc++;
+
+	for (rargc = 0; rproto != NULL; rproto = rproto->dn_list)
+		rargc++;
+
+	if (largc != rargc) {
+		xyerror(D_PRINTA_AGGKEY, "printa( ): @%s and @%s do not have "
+		    "matching key signatures: @%s has %d key%s, @%s has %d "
+		    "key%s", lid->di_name, rid->di_name,
+		    lid->di_name, largc, largc == 1 ? "" : "s",
+		    rid->di_name, rargc, rargc == 1 ? "" : "s");
+	}
+
+	/*
+	 * Now iterate over the keys to verify that each type matches.
+	 */
+	lproto = ((dt_idsig_t *)lid->di_data)->dis_args;
+	rproto = ((dt_idsig_t *)rid->di_data)->dis_args;
+
+	for (argn = 1; lproto != NULL; argn++, lproto = lproto->dn_list,
+	    rproto = rproto->dn_list) {
+		assert(rproto != NULL);
+
+		if (dt_node_is_argcompat(lproto, rproto))
+			continue;
+
+		xyerror(D_PRINTA_AGGPROTO, "printa( ): @%s[ ] key #%d is "
+		    "incompatible with @%s:\n%9s key #%d: %s\n"
+		    "%9s key #%d: %s\n",
+		    rid->di_name, argn, lid->di_name, lid->di_name, argn,
+		    dt_node_type_name(lproto, n1, sizeof (n1)), rid->di_name,
+		    argn, dt_node_type_name(rproto, n2, sizeof (n2)));
+	}
 }
 
 static int
@@ -1172,25 +1246,36 @@ pfprint_lquantize(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 static int
 dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
     const dtrace_recdesc_t *recs, uint_t nrecs, const void *buf,
-    size_t len, uint64_t normal)
+    size_t len, const dtrace_aggdata_t **aggsdata, int naggvars)
 {
 	dt_pfargd_t *pfd = pfv->pfv_argv;
 	const dtrace_recdesc_t *recp = recs;
-	const dtrace_recdesc_t *aggr = NULL;
-	uchar_t *lim = (uchar_t *)buf + len;
+	const dtrace_aggdata_t *aggdata;
+	dtrace_aggdesc_t *agg;
+	caddr_t lim = (caddr_t)buf + len, limit;
 	char format[64] = "%";
-	int i;
+	int i, aggrec, curagg = -1;
+	uint64_t normal;
 
 	/*
-	 * If we are formatting an aggregation, set 'aggr' to the final record
-	 * description (the aggregation result) so we can use this record with
-	 * any conversion where DT_PFCONV_AGG is set.  We then decrement nrecs
-	 * to prevent this record from being used with any other conversion.
+	 * If we are formatting an aggregation, set 'aggrec' to the index of
+	 * the final record description (the aggregation result) so we can use
+	 * this record index with any conversion where DT_PFCONV_AGG is set.
+	 * (The actual aggregation used will vary as we increment through the
+	 * aggregation variables that we have been passed.)  Finally, we
+	 * decrement nrecs to prevent this record from being used with any
+	 * other conversion.
 	 */
 	if (pfv->pfv_flags & DT_PRINTF_AGGREGATION) {
+		assert(aggsdata != NULL);
+		assert(naggvars > 0);
+
 		if (nrecs == 0)
 			return (dt_set_errno(dtp, EDT_DMISMATCH));
-		aggr = recp + nrecs - 1;
+
+		curagg = naggvars > 1 ? 1 : 0;
+		aggdata = aggsdata[0];
+		aggrec = aggdata->dtada_desc->dtagd_nrecs - 1;
 		nrecs--;
 	}
 
@@ -1203,8 +1288,9 @@ dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
 		char *f = format + 1; /* skip initial '%' */
 		const dtrace_recdesc_t *rec;
 		dt_pfprint_f *func;
-		uchar_t *addr;
+		caddr_t addr;
 		size_t size;
+		uint32_t flags;
 
 		if (pfd->pfd_preflen != 0) {
 			char *tmp = alloca(pfd->pfd_preflen + 1);
@@ -1214,6 +1300,22 @@ dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
 
 			if ((rval = dt_printf(dtp, fp, tmp)) < 0)
 				return (rval);
+
+			if (pfv->pfv_flags & DT_PRINTF_AGGREGATION) {
+				/*
+				 * For printa(), we flush the buffer after each
+				 * prefix, setting the flags to indicate that
+				 * this is part of the printa() format string.
+				 */
+				flags = DTRACE_BUFDATA_AGGFORMAT;
+
+				if (pfc == NULL && i == pfv->pfv_argc - 1)
+					flags |= DTRACE_BUFDATA_AGGLAST;
+
+				if (dt_buffered_flush(dtp, NULL, NULL,
+				    aggdata, flags) < 0)
+					return (-1);
+			}
 		}
 
 		if (pfc == NULL) {
@@ -1246,20 +1348,61 @@ dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
 			return (-1); /* errno is set for us */
 
 		if (pfd->pfd_flags & DT_PFCONV_AGG) {
-			if (aggr == NULL)
+			/*
+			 * This should be impossible -- the compiler shouldn't
+			 * create a DT_PFCONV_AGG conversion without an
+			 * aggregation present.  Still, we'd rather fail
+			 * gracefully than blow up...
+			 */
+			if (aggsdata == NULL)
 				return (dt_set_errno(dtp, EDT_DMISMATCH));
-			rec = aggr;
+
+			aggdata = aggsdata[curagg];
+			agg = aggdata->dtada_desc;
+
+			/*
+			 * We increment the current aggregation variable, but
+			 * not beyond the number of aggregation variables that
+			 * we're printing. This has the (desired) effect that
+			 * DT_PFCONV_AGG conversions beyond the number of
+			 * aggregation variables (re-)convert the aggregation
+			 * value of the last aggregation variable.
+			 */
+			if (curagg < naggvars - 1)
+				curagg++;
+
+			rec = &agg->dtagd_rec[aggrec];
+			addr = aggdata->dtada_data + rec->dtrd_offset;
+			limit = addr + aggdata->dtada_size;
+			normal = aggdata->dtada_normal;
+			flags = DTRACE_BUFDATA_AGGVAL;
 		} else {
 			if (nrecs == 0)
 				return (dt_set_errno(dtp, EDT_DMISMATCH));
+
+			if (pfv->pfv_flags & DT_PRINTF_AGGREGATION) {
+				/*
+				 * When printing aggregation keys, we always
+				 * set the aggdata to be the representative
+				 * (zeroth) aggregation.  The aggdata isn't
+				 * actually used here in this case, but it is
+				 * passed to the buffer handler and must
+				 * therefore still be correct.
+				 */
+				aggdata = aggsdata[0];
+				flags = DTRACE_BUFDATA_AGGKEY;
+			}
+
 			rec = recp++;
 			nrecs--;
+			addr = (caddr_t)buf + rec->dtrd_offset;
+			limit = lim;
+			normal = 1;
 		}
 
-		addr = (uchar_t *)buf + rec->dtrd_offset;
 		size = rec->dtrd_size;
 
-		if (addr + size > lim) {
+		if (addr + size > limit) {
 			dt_dprintf("bad size: addr=%p size=0x%x lim=%p\n",
 			    (void *)addr, rec->dtrd_size, (void *)lim);
 			return (dt_set_errno(dtp, EDT_DOFFSET));
@@ -1282,6 +1425,12 @@ dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
 		case DTRACEAGG_LQUANTIZE:
 			func = pfprint_lquantize;
 			break;
+		case DTRACEACT_MOD:
+			func = pfprint_mod;
+			break;
+		case DTRACEACT_UMOD:
+			func = pfprint_umod;
+			break;
 		default:
 			func = pfc->pfc_print;
 			break;
@@ -1291,7 +1440,7 @@ dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
 			*f++ = '#';
 		if (pfd->pfd_flags & DT_PFCONV_ZPAD)
 			*f++ = '0';
-		if (pfd->pfd_flags & DT_PFCONV_LEFT)
+		if (width < 0 || (pfd->pfd_flags & DT_PFCONV_LEFT))
 			*f++ = '-';
 		if (pfd->pfd_flags & DT_PFCONV_SPOS)
 			*f++ = '+';
@@ -1310,17 +1459,30 @@ dt_printf_format(dtrace_hdl_t *dtp, FILE *fp, const dt_pfargv_t *pfv,
 			width = 0;
 
 		if (width != 0)
-			f += snprintf(f, sizeof (format), "%d", width);
+			f += snprintf(f, sizeof (format), "%d", ABS(width));
 
-		if (prec != 0)
+		if (prec > 0)
 			f += snprintf(f, sizeof (format), ".%d", prec);
 
 		(void) strcpy(f, pfd->pfd_fmt);
 		pfd->pfd_rec = rec;
 
-		if (func(dtp, fp, format, pfd, addr, size,
-		    rec == aggr ? normal : 1) < 0)
+		if (func(dtp, fp, format, pfd, addr, size, normal) < 0)
 			return (-1); /* errno is set for us */
+
+		if (pfv->pfv_flags & DT_PRINTF_AGGREGATION) {
+			/*
+			 * For printa(), we flush the buffer after each tuple
+			 * element, inidicating that this is the last record
+			 * as appropriate.
+			 */
+			if (i == pfv->pfv_argc - 1)
+				flags |= DTRACE_BUFDATA_AGGLAST;
+
+			if (dt_buffered_flush(dtp, NULL,
+			    rec, aggdata, flags) < 0)
+				return (-1);
+		}
 	}
 
 	return ((int)(recp - recs));
@@ -1345,7 +1507,8 @@ dtrace_sprintf(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
 
 	bzero(dtp->dt_sprintf_buf, size);
 	dtp->dt_sprintf_buflen = size;
-	rval = dt_printf_format(dtp, fp, fmtdata, recp, nrecs, buf, len, 1);
+	rval = dt_printf_format(dtp, fp, fmtdata, recp, nrecs, buf, len,
+	    NULL, 0);
 	dtp->dt_sprintf_buflen = 0;
 
 	if (rval == -1)
@@ -1354,9 +1517,11 @@ dtrace_sprintf(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
 	return (rval);
 }
 
+/*ARGSUSED*/
 int
 dtrace_system(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
-    const dtrace_recdesc_t *recp, uint_t nrecs, const void *buf, size_t len)
+    const dtrace_probedata_t *data, const dtrace_recdesc_t *recp,
+    uint_t nrecs, const void *buf, size_t len)
 {
 	int rval = dtrace_sprintf(dtp, fp, fmtdata, recp, nrecs, buf, len);
 
@@ -1377,10 +1542,113 @@ dtrace_system(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
 }
 
 int
-dtrace_fprintf(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
-    const dtrace_recdesc_t *recp, uint_t nrecs, const void *buf, size_t len)
+dtrace_freopen(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
+    const dtrace_probedata_t *data, const dtrace_recdesc_t *recp,
+    uint_t nrecs, const void *buf, size_t len)
 {
-	return (dt_printf_format(dtp, fp, fmtdata, recp, nrecs, buf, len, 1));
+	char selfbuf[40], restorebuf[40], *filename;
+	FILE *nfp;
+	int rval, errval;
+	dt_pfargv_t *pfv = fmtdata;
+	dt_pfargd_t *pfd = pfv->pfv_argv;
+
+	rval = dtrace_sprintf(dtp, fp, fmtdata, recp, nrecs, buf, len);
+
+	if (rval == -1 || fp == NULL)
+		return (rval);
+
+	if (pfd->pfd_preflen != 0 &&
+	    strcmp(pfd->pfd_prefix, DT_FREOPEN_RESTORE) == 0) {
+		/*
+		 * The only way to have the format string set to the value
+		 * DT_FREOPEN_RESTORE is via the empty freopen() string --
+		 * denoting that we should restore the old stdout.
+		 */
+		assert(strcmp(dtp->dt_sprintf_buf, DT_FREOPEN_RESTORE) == 0);
+
+		if (dtp->dt_stdout_fd == -1) {
+			/*
+			 * We could complain here by generating an error,
+			 * but it seems like overkill:  it seems that calling
+			 * freopen() to restore stdout when freopen() has
+			 * never before been called should just be a no-op,
+			 * so we just return in this case.
+			 */
+			return (rval);
+		}
+
+		(void) snprintf(restorebuf, sizeof (restorebuf),
+		    "/dev/fd/%d", dtp->dt_stdout_fd);
+		filename = restorebuf;
+	} else {
+		filename = dtp->dt_sprintf_buf;
+	}
+
+	/*
+	 * freopen(3C) will always close the specified stream and underlying
+	 * file descriptor -- even if the specified file can't be opened.
+	 * Even for the semantic cesspool that is standard I/O, this is
+	 * surprisingly brain-dead behavior:  it means that any failure to
+	 * open the specified file destroys the specified stream in the
+	 * process -- which is particularly relevant when the specified stream
+	 * happens (or rather, happened) to be stdout.  This could be resolved
+	 * were there an "fdreopen()" equivalent of freopen() that allowed one
+	 * to pass a file descriptor instead of the name of a file, but there
+	 * is no such thing.  However, we can effect this ourselves by first
+	 * fopen()'ing the desired file, and then (assuming that that works),
+	 * freopen()'ing "/dev/fd/[fileno]", where [fileno] is the underlying
+	 * file descriptor for the fopen()'d file.  This way, if the fopen()
+	 * fails, we can fail the operation without destroying stdout.
+	 */
+	if ((nfp = fopen(filename, "aF")) == NULL) {
+		char *msg = strerror(errno), *faultstr;
+		int len = 80;
+
+		len += strlen(msg) + strlen(filename);
+		faultstr = alloca(len);
+
+		(void) snprintf(faultstr, len, "couldn't freopen() \"%s\": %s",
+		    filename, strerror(errno));
+
+		if ((errval = dt_handle_liberr(dtp, data, faultstr)) == 0)
+			return (rval);
+
+		return (errval);
+	}
+
+	(void) snprintf(selfbuf, sizeof (selfbuf), "/dev/fd/%d", fileno(nfp));
+
+	if (dtp->dt_stdout_fd == -1) {
+		/*
+		 * If this is the first time that we're calling freopen(),
+		 * we're going to stash away the file descriptor for stdout.
+		 * We don't expect the dup(2) to fail, so if it does we must
+		 * return failure.
+		 */
+		if ((dtp->dt_stdout_fd = dup(fileno(fp))) == -1) {
+			(void) fclose(nfp);
+			return (dt_set_errno(dtp, errno));
+		}
+	}
+
+	if (freopen(selfbuf, "aF", fp) == NULL) {
+		(void) fclose(nfp);
+		return (dt_set_errno(dtp, errno));
+	}
+
+	(void) fclose(nfp);
+
+	return (rval);
+}
+
+/*ARGSUSED*/
+int
+dtrace_fprintf(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
+    const dtrace_probedata_t *data, const dtrace_recdesc_t *recp,
+    uint_t nrecs, const void *buf, size_t len)
+{
+	return (dt_printf_format(dtp, fp, fmtdata,
+	    recp, nrecs, buf, len, NULL, 0));
 }
 
 void *
@@ -1517,51 +1785,108 @@ dtrace_printf_format(dtrace_hdl_t *dtp, void *fmtdata, char *s, size_t len)
 }
 
 static int
-dt_fprinta(dtrace_aggdata_t *adp, void *arg)
+dt_fprinta(const dtrace_aggdata_t *adp, void *arg)
 {
-	dtrace_aggdesc_t *agg = adp->dtada_desc;
+	const dtrace_aggdesc_t *agg = adp->dtada_desc;
 	const dtrace_recdesc_t *recp = &agg->dtagd_rec[0];
 	uint_t nrecs = agg->dtagd_nrecs;
 	dt_pfwalk_t *pfw = arg;
+	dtrace_hdl_t *dtp = pfw->pfw_argv->pfv_dtp;
 	int id;
 
-	if (dt_printf_getint(pfw->pfw_dtp, recp++, nrecs--,
+	if (dt_printf_getint(dtp, recp++, nrecs--,
 	    adp->dtada_data, adp->dtada_size, &id) != 0 || pfw->pfw_aid != id)
 		return (0); /* no aggregation id or id does not match */
 
-	if (dt_printf_format(pfw->pfw_dtp, pfw->pfw_fp, pfw->pfw_argv,
-	    recp, nrecs, adp->dtada_data, adp->dtada_size,
-	    adp->dtada_normal) == -1)
-		return (pfw->pfw_err = pfw->pfw_dtp->dt_errno);
+	if (dt_printf_format(dtp, pfw->pfw_fp, pfw->pfw_argv,
+	    recp, nrecs, adp->dtada_data, adp->dtada_size, &adp, 1) == -1)
+		return (pfw->pfw_err = dtp->dt_errno);
 
-	agg->dtagd_flags |= DTRACE_AGD_PRINTED;
-
-	if (dt_buffered_flush(pfw->pfw_dtp, NULL, &agg->dtagd_rec[0], adp) < 0)
-		return (-1);
+	/*
+	 * Cast away the const to set the bit indicating that this aggregation
+	 * has been printed.
+	 */
+	((dtrace_aggdesc_t *)agg)->dtagd_flags |= DTRACE_AGD_PRINTED;
 
 	return (0);
 }
 
+static int
+dt_fprintas(const dtrace_aggdata_t **aggsdata, int naggvars, void *arg)
+{
+	const dtrace_aggdata_t *aggdata = aggsdata[0];
+	const dtrace_aggdesc_t *agg = aggdata->dtada_desc;
+	const dtrace_recdesc_t *rec = &agg->dtagd_rec[1];
+	uint_t nrecs = agg->dtagd_nrecs - 1;
+	dt_pfwalk_t *pfw = arg;
+	dtrace_hdl_t *dtp = pfw->pfw_argv->pfv_dtp;
+	int i;
+
+	if (dt_printf_format(dtp, pfw->pfw_fp, pfw->pfw_argv,
+	    rec, nrecs, aggdata->dtada_data, aggdata->dtada_size,
+	    aggsdata, naggvars) == -1)
+		return (pfw->pfw_err = dtp->dt_errno);
+
+	/*
+	 * For each aggregation, indicate that it has been printed, casting
+	 * away the const as necessary.
+	 */
+	for (i = 1; i < naggvars; i++) {
+		agg = aggsdata[i]->dtada_desc;
+		((dtrace_aggdesc_t *)agg)->dtagd_flags |= DTRACE_AGD_PRINTED;
+	}
+
+	return (0);
+}
+/*ARGSUSED*/
 int
 dtrace_fprinta(dtrace_hdl_t *dtp, FILE *fp, void *fmtdata,
-    const dtrace_recdesc_t *recs, uint_t nrecs, const void *buf, size_t len)
+    const dtrace_probedata_t *data, const dtrace_recdesc_t *recs,
+    uint_t nrecs, const void *buf, size_t len)
 {
-	const dtrace_recdesc_t *recp = recs;
 	dt_pfwalk_t pfw;
-	int id;
+	int i, naggvars = 0;
+	dtrace_aggvarid_t *aggvars;
 
-	if (dt_printf_getint(dtp, recp++, nrecs--, buf, len, &id) == -1)
-		return (-1); /* errno is set for us */
+	aggvars = alloca(nrecs * sizeof (dtrace_aggvarid_t));
 
-	pfw.pfw_dtp = dtp;
+	/*
+	 * This might be a printa() with multiple aggregation variables.  We
+	 * need to scan forward through the records until we find a record from
+	 * a different statement.
+	 */
+	for (i = 0; i < nrecs; i++) {
+		const dtrace_recdesc_t *nrec = &recs[i];
+
+		if (nrec->dtrd_uarg != recs->dtrd_uarg)
+			break;
+
+		if (nrec->dtrd_action != recs->dtrd_action)
+			return (dt_set_errno(dtp, EDT_BADAGG));
+
+		aggvars[naggvars++] =
+		    /* LINTED - alignment */
+		    *((dtrace_aggvarid_t *)((caddr_t)buf + nrec->dtrd_offset));
+	}
+
+	if (naggvars == 0)
+		return (dt_set_errno(dtp, EDT_BADAGG));
+
 	pfw.pfw_argv = fmtdata;
-	pfw.pfw_aid = id;
 	pfw.pfw_fp = fp;
 	pfw.pfw_err = 0;
 
-	if (dtrace_aggregate_walk_valsorted(dtp, dt_fprinta, &pfw) == -1 ||
-	    pfw.pfw_err != 0)
-		return (-1); /* errno is set for us */
+	if (naggvars == 1) {
+		pfw.pfw_aid = aggvars[0];
 
-	return ((int)(recp - recs));
+		if (dtrace_aggregate_walk_sorted(dtp,
+		    dt_fprinta, &pfw) == -1 || pfw.pfw_err != 0)
+			return (-1); /* errno is set for us */
+	} else {
+		if (dtrace_aggregate_walk_joined(dtp, aggvars, naggvars,
+		    dt_fprintas, &pfw) == -1 || pfw.pfw_err != 0)
+			return (-1); /* errno is set for us */
+	}
+
+	return (i);
 }

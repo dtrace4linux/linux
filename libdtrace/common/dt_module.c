@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_module.c	1.8	04/11/22 SMI"
+#pragma ident	"@(#)dt_module.c	1.13	07/08/07 SMI"
 
 #include <sys/types.h>
 #include <sys/modctl.h>
@@ -25,11 +41,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <errno.h>
-#include <alloca.h>
-
-#define	_POSIX_PTHREAD_SEMANTICS
 #include <dirent.h>
-#undef	_POSIX_PTHREAD_SEMANTICS
 
 #include <dt_strtab.h>
 #include <dt_module.h>
@@ -440,18 +452,11 @@ dt_module_lookup_by_name(dtrace_hdl_t *dtp, const char *name)
 	return (NULL);
 }
 
+/*ARGSUSED*/
 dt_module_t *
 dt_module_lookup_by_ctf(dtrace_hdl_t *dtp, ctf_file_t *ctfp)
 {
-	dt_module_t *dmp;
-
-	for (dmp = dt_list_next(&dtp->dt_modlist); dmp != NULL;
-	    dmp = dt_list_next(dmp)) {
-		if (dmp->dm_ctfp == ctfp)
-			return (dmp);
-	}
-
-	return (NULL);
+	return (ctfp ? ctf_getspecific(ctfp) : NULL);
 }
 
 static int
@@ -619,10 +624,13 @@ dt_module_getctf(dtrace_hdl_t *dtp, dt_module_t *dmp)
 	dmp->dm_ctfp = ctf_bufopen(&dmp->dm_ctdata,
 	    &dmp->dm_symtab, &dmp->dm_strtab, &dtp->dt_ctferr);
 
-	if (dmp->dm_ctfp == NULL || ctf_setmodel(dmp->dm_ctfp, model) != 0) {
+	if (dmp->dm_ctfp == NULL) {
 		(void) dt_set_errno(dtp, EDT_CTF);
 		return (NULL);
 	}
+
+	(void) ctf_setmodel(dmp->dm_ctfp, model);
+	ctf_setspecific(dmp->dm_ctfp, dmp);
 
 	if ((parent = ctf_parent_name(dmp->dm_ctfp)) != NULL) {
 		if ((pmp = dt_module_create(dtp, parent)) == NULL ||
@@ -890,12 +898,9 @@ dtrace_update(dtrace_hdl_t *dtp)
 	 */
 	if (!(dtp->dt_oflags & DTRACE_O_NOSYS) &&
 	    (dirp = opendir(OBJFS_ROOT)) != NULL) {
-		struct dirent *dp, *ep;
+		struct dirent *dp;
 
-		ep = alloca(sizeof (struct dirent) + PATH_MAX + 1);
-		bzero(ep, sizeof (struct dirent) + PATH_MAX + 1);
-
-		while (readdir_r(dirp, ep, &dp) == 0 && dp != NULL) {
+		while ((dp = readdir(dirp)) != NULL) {
 			if (dp->d_name[0] != '.')
 				dt_module_update(dtp, dp->d_name);
 		}
@@ -914,22 +919,21 @@ dtrace_update(dtrace_hdl_t *dtp)
 	dt_idhash_lookup(dtp->dt_macros, "pid")->di_id = getpid();
 	dt_idhash_lookup(dtp->dt_macros, "pgid")->di_id = getpgid(0);
 	dt_idhash_lookup(dtp->dt_macros, "ppid")->di_id = getppid();
-# if defined(sun)
 	dt_idhash_lookup(dtp->dt_macros, "projid")->di_id = getprojid();
-# endif
 	dt_idhash_lookup(dtp->dt_macros, "sid")->di_id = getsid(0);
-# if defined(sun)
 	dt_idhash_lookup(dtp->dt_macros, "taskid")->di_id = gettaskid();
-# endif
 	dt_idhash_lookup(dtp->dt_macros, "uid")->di_id = getuid();
 
 	/*
 	 * Cache the pointers to the modules representing the base executable
-	 * and the run-time linker in the dtrace client handle.  We should
-	 * probably have a more generic way of inquiring as to their names.
+	 * and the run-time linker in the dtrace client handle. Note that on
+	 * x86 krtld is folded into unix, so if we don't find it, use unix
+	 * instead.
 	 */
 	dtp->dt_exec = dt_module_lookup_by_name(dtp, "genunix");
 	dtp->dt_rtld = dt_module_lookup_by_name(dtp, "krtld");
+	if (dtp->dt_rtld == NULL)
+		dtp->dt_rtld = dt_module_lookup_by_name(dtp, "unix");
 
 	/*
 	 * If this is the first time we are initializing the module list,
@@ -1116,6 +1120,7 @@ dtrace_lookup_by_type(dtrace_hdl_t *dtp, const char *object, const char *name,
 	int found = 0;
 	ctf_id_t id;
 	uint_t n;
+	int justone;
 
 	uint_t mask = 0; /* mask of dt_module flags to match */
 	uint_t bits = 0; /* flag bits that must be present */
@@ -1129,6 +1134,7 @@ dtrace_lookup_by_type(dtrace_hdl_t *dtp, const char *object, const char *name,
 		if (dt_module_load(dtp, dmp) == -1)
 			return (-1); /* dt_errno is set for us */
 		n = 1;
+		justone = 1;
 
 	} else {
 		if (object == DTRACE_OBJ_KMODS)
@@ -1138,6 +1144,7 @@ dtrace_lookup_by_type(dtrace_hdl_t *dtp, const char *object, const char *name,
 
 		dmp = dt_list_next(&dtp->dt_modlist);
 		n = dtp->dt_nmods;
+		justone = 0;
 	}
 
 	if (tip == NULL)
@@ -1149,12 +1156,11 @@ dtrace_lookup_by_type(dtrace_hdl_t *dtp, const char *object, const char *name,
 
 		/*
 		 * If we can't load the CTF container, continue on to the next
-		 * module.  If our search was scoped to only one module (n = 1)
-		 * then return immediately, leaving dt_errno set to the error
-		 * from dt_module_getctf() on the module given by the caller.
+		 * module.  If our search was scoped to only one module then
+		 * return immediately leaving dt_errno unmodified.
 		 */
 		if (dt_module_getctf(dtp, dmp) == NULL) {
-			if (n == 1)
+			if (justone)
 				return (-1);
 			continue;
 		}

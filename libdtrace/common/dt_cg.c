@@ -1,15 +1,31 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_cg.c	1.9	04/12/27 SMI"
+#pragma ident	"@(#)dt_cg.c	1.13	05/07/31 SMI"
 
-#include <linux_types.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/isa_defs.h>
@@ -23,6 +39,7 @@
 #include <dt_impl.h>
 #include <dt_grammar.h>
 #include <dt_parser.h>
+#include <dt_provider.h>
 
 static void dt_cg_node(dt_node_t *, dt_irlist_t *, dt_regset_t *);
 
@@ -36,7 +53,7 @@ dt_cg_node_alloc(uint_t label, dif_instr_t instr)
 
 	dip->di_label = label;
 	dip->di_instr = instr;
-	dip->di_ident = NULL;
+	dip->di_extern = NULL;
 	dip->di_next = NULL;
 
 	return (dip);
@@ -85,7 +102,7 @@ dt_cg_xsetx(dt_irlist_t *dlp, dt_ident_t *idp, uint_t lbl, int reg, uint64_t x)
 	dt_irlist_append(dlp, dt_cg_node_alloc(lbl, instr));
 
 	if (idp != NULL)
-		dlp->dl_last->di_ident = idp;
+		dlp->dl_last->di_extern = idp;
 }
 
 static void
@@ -515,7 +532,7 @@ dt_cg_arglist(dt_ident_t *idp, dt_node_t *args,
 		uint_t op;
 		int reg;
 
-		dt_node_diftype(dnp, &t);
+		dt_node_diftype(yypcb->pcb_hdl, dnp, &t);
 
 		isp->dis_args[i].dn_reg = dnp->dn_reg; /* re-use register */
 		dt_cg_typecast(dnp, &isp->dis_args[i], dlp, drp);
@@ -956,6 +973,7 @@ static void
 dt_cg_asgn_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 {
 	dif_instr_t instr;
+	dt_ident_t *idp;
 
 	/*
 	 * If we are performing a structure assignment of a translated type,
@@ -963,10 +981,9 @@ dt_cg_asgn_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 	 * in scratch space.  We allocs a chunk of memory, generate code for
 	 * each member, and then set dnp->dn_reg to the scratch object address.
 	 */
-	if (dt_node_is_dynamic(dnp->dn_right) &&
-	    dnp->dn_right->dn_ident->di_kind == DT_IDENT_XLSOU) {
+	if ((idp = dt_node_resolve(dnp->dn_right, DT_IDENT_XLSOU)) != NULL) {
 		ctf_membinfo_t ctm;
-		dt_xlator_t *dxp;
+		dt_xlator_t *dxp = idp->di_data;
 		dt_node_t *mnp, dn, mn;
 		int r1, r2;
 
@@ -994,7 +1011,6 @@ dt_cg_asgn_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 		if ((r1 = dt_regset_alloc(drp)) == -1)
 			longjmp(yypcb->pcb_jmpbuf, EDT_NOREG);
 
-		dxp = dt_ident_resolve(dnp->dn_right->dn_ident)->di_data;
 		dt_cg_setx(dlp, r1,
 		    ctf_type_size(dxp->dx_dst_ctfp, dxp->dx_dst_base));
 
@@ -1073,8 +1089,10 @@ dt_cg_asgn_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 		dxp->dx_ident->di_flags &= ~DT_IDFLG_CGREG;
 		dxp->dx_ident->di_id = 0;
 
+		if (dnp->dn_right->dn_reg != -1)
+			dt_regset_free(drp, dnp->dn_right->dn_reg);
+
 		assert(dnp->dn_reg == dnp->dn_right->dn_reg);
-		dt_regset_free(drp, dnp->dn_right->dn_reg);
 		dnp->dn_reg = r1;
 	}
 
@@ -1086,7 +1104,7 @@ dt_cg_asgn_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 	 * In both paths, we assume dnp->dn_reg already has the new value.
 	 */
 	if (dnp->dn_left->dn_kind == DT_NODE_VAR) {
-		dt_ident_t *idp = dt_ident_resolve(dnp->dn_left->dn_ident);
+		idp = dt_ident_resolve(dnp->dn_left->dn_ident);
 
 		if (idp->di_kind == DT_IDENT_ARRAY)
 			dt_cg_arglist(idp, dnp->dn_left->dn_args, dlp, drp);
@@ -1189,33 +1207,36 @@ dt_cg_assoc_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 static void
 dt_cg_array_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 {
+	dt_probe_t *prp = yypcb->pcb_probe;
+	uintmax_t saved = dnp->dn_args->dn_value;
+	dt_ident_t *idp = dnp->dn_ident;
+
 	dif_instr_t instr;
 	uint_t op;
-	uintmax_t saved = dnp->dn_args->dn_value;
-	dt_arg_t *argp;
 	size_t size;
 	int reg, n;
 
 	assert(dnp->dn_kind == DT_NODE_VAR);
-	assert(!(dnp->dn_ident->di_flags & DT_IDFLG_LOCAL));
-	assert(dnp->dn_args != NULL);
+	assert(!(idp->di_flags & DT_IDFLG_LOCAL));
 
 	assert(dnp->dn_args->dn_kind == DT_NODE_INT);
 	assert(dnp->dn_args->dn_list == NULL);
 
 	/*
-	 * If this is a reference in the args[] array, we're going to examine
-	 * our context to see if the value needs to be modified for the
-	 * purposes of remapping.
+	 * If this is a reference in the args[] array, temporarily modify the
+	 * array index according to the static argument mapping (if any),
+	 * unless the argument reference is provided by a dynamic translator.
+	 * If we're using a dynamic translator for args[], then just set dn_reg
+	 * to an invalid reg and return: DIF_OP_XLARG will fetch the arg later.
 	 */
-	if (dnp->dn_ident->di_id == DIF_VAR_ARGS) {
-		for (argp = yypcb->pcb_pargs; argp != NULL;
-		    argp = argp->da_next) {
-			if (argp->da_ndx == saved) {
-				dnp->dn_args->dn_value = argp->da_mapping;
-				break;
-			}
+	if (idp->di_id == DIF_VAR_ARGS) {
+		if ((idp->di_kind == DT_IDENT_XLPTR ||
+		    idp->di_kind == DT_IDENT_XLSOU) &&
+		    dt_xlator_dynamic(idp->di_data)) {
+			dnp->dn_reg = -1;
+			return;
 		}
+		dnp->dn_args->dn_value = prp->pr_mapping[saved];
 	}
 
 	dt_cg_node(dnp->dn_args, dlp, drp);
@@ -1223,14 +1244,14 @@ dt_cg_array_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 
 	dnp->dn_reg = dnp->dn_args->dn_reg;
 
-	if (dnp->dn_ident->di_flags & DT_IDFLG_TLS)
+	if (idp->di_flags & DT_IDFLG_TLS)
 		op = DIF_OP_LDTA;
 	else
 		op = DIF_OP_LDGA;
 
-	dnp->dn_ident->di_flags |= DT_IDFLG_DIFR;
+	idp->di_flags |= DT_IDFLG_DIFR;
 
-	instr = DIF_INSTR_LDA(op, dnp->dn_ident->di_id,
+	instr = DIF_INSTR_LDA(op, idp->di_id,
 	    dnp->dn_args->dn_reg, dnp->dn_reg);
 
 	dt_irlist_append(dlp, dt_cg_node_alloc(DT_LBL_NONE, instr));
@@ -1240,14 +1261,13 @@ dt_cg_array_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 	 * additional step of explicitly eliminating any bits larger than the
 	 * type size: the DIF interpreter in the kernel will always give us
 	 * the raw (64-bit) argument value, and any bits larger than the type
-	 * size may be junk.  As a practical matter, this arises only on
-	 * 64-bit architectures and only when the argument index is larger
-	 * than the number of arguments passed directly to DTrace:  if a 8-,
-	 * 16- or 32-bit argument must be retrieved from the stack, it is
-	 * possible (and it some cases, likely) that the upper bits will be
-	 * garbage.
+	 * size may be junk.  As a practical matter, this arises only on 64-bit
+	 * architectures and only when the argument index is larger than the
+	 * number of arguments passed directly to DTrace: if a 8-, 16- or
+	 * 32-bit argument must be retrieved from the stack, it is possible
+	 * (and it some cases, likely) that the upper bits will be garbage.
 	 */
-	if (dnp->dn_ident->di_id != DIF_VAR_ARGS || !dt_node_is_scalar(dnp))
+	if (idp->di_id != DIF_VAR_ARGS || !dt_node_is_scalar(dnp))
 		return;
 
 	if ((size = dt_node_type_size(dnp)) == sizeof (uint64_t))
@@ -1271,6 +1291,53 @@ dt_cg_array_op(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 	dt_regset_free(drp, reg);
 }
 
+/*
+ * Generate code for an inlined variable reference.  Inlines can be used to
+ * define either scalar or associative array substitutions.  For scalars, we
+ * simply generate code for the parse tree saved in the identifier's din_root,
+ * and then cast the resulting expression to the inline's declaration type.
+ * For arrays, we take the input parameter subtrees from dnp->dn_args and
+ * temporarily store them in the din_root of each din_argv[i] identifier,
+ * which are themselves inlines and were set up for us by the parser.  The
+ * result is that any reference to the inlined parameter inside the top-level
+ * din_root will turn into a recursive call to dt_cg_inline() for a scalar
+ * inline whose din_root will refer to the subtree pointed to by the argument.
+ */
+static void
+dt_cg_inline(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
+{
+	dt_ident_t *idp = dnp->dn_ident;
+	dt_idnode_t *inp = idp->di_iarg;
+
+	dt_idnode_t *pinp;
+	dt_node_t *pnp;
+	int i;
+
+	assert(idp->di_flags & DT_IDFLG_INLINE);
+	assert(idp->di_ops == &dt_idops_inline);
+
+	if (idp->di_kind == DT_IDENT_ARRAY) {
+		for (i = 0, pnp = dnp->dn_args;
+		    pnp != NULL; pnp = pnp->dn_list, i++) {
+			if (inp->din_argv[i] != NULL) {
+				pinp = inp->din_argv[i]->di_iarg;
+				pinp->din_root = pnp;
+			}
+		}
+	}
+
+	dt_cg_node(inp->din_root, dlp, drp);
+	dnp->dn_reg = inp->din_root->dn_reg;
+	dt_cg_typecast(inp->din_root, dnp, dlp, drp);
+
+	if (idp->di_kind == DT_IDENT_ARRAY) {
+		for (i = 0; i < inp->din_argc; i++) {
+			pinp = inp->din_argv[i]->di_iarg;
+			pinp->din_root = NULL;
+		}
+	}
+}
+
 static void
 dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 {
@@ -1280,6 +1347,7 @@ dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 	ctf_id_t type;
 
 	dif_instr_t instr;
+	dt_ident_t *idp;
 	ssize_t stroff;
 	uint_t op;
 	int reg;
@@ -1535,6 +1603,40 @@ dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 		break;
 
 	case DT_TOK_XLATE:
+		/*
+		 * An xlate operator appears in either an XLATOR, indicating a
+		 * reference to a dynamic translator, or an OP2, indicating
+		 * use of the xlate operator in the user's program.  For the
+		 * dynamic case, generate an xlate opcode with a reference to
+		 * the corresponding member, pre-computed for us in dn_members.
+		 */
+		if (dnp->dn_kind == DT_NODE_XLATOR) {
+			dt_xlator_t *dxp = dnp->dn_xlator;
+
+			assert(dxp->dx_ident->di_flags & DT_IDFLG_CGREG);
+			assert(dxp->dx_ident->di_id != 0);
+
+			if ((dnp->dn_reg = dt_regset_alloc(drp)) == -1)
+				longjmp(yypcb->pcb_jmpbuf, EDT_NOREG);
+
+			if (dxp->dx_arg == -1) {
+				instr = DIF_INSTR_MOV(
+				    dxp->dx_ident->di_id, dnp->dn_reg);
+				dt_irlist_append(dlp,
+				    dt_cg_node_alloc(DT_LBL_NONE, instr));
+				op = DIF_OP_XLATE;
+			} else
+				op = DIF_OP_XLARG;
+
+			instr = DIF_INSTR_XLATE(op, 0, dnp->dn_reg);
+			dt_irlist_append(dlp,
+			    dt_cg_node_alloc(DT_LBL_NONE, instr));
+
+			dlp->dl_last->di_extern = dnp->dn_xmember;
+			break;
+		}
+
+		assert(dnp->dn_kind == DT_NODE_OP2);
 		dt_cg_node(dnp->dn_right, dlp, drp);
 		dnp->dn_reg = dnp->dn_right->dn_reg;
 		break;
@@ -1557,16 +1659,15 @@ dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 		 * that is being accessed and run the code generator over it.
 		 * We then cast the result as if by the assignment operator.
 		 */
-		if (dt_node_is_dynamic(dnp->dn_left)) {
-			dt_ident_t *idp;
+		if ((idp = dt_node_resolve(
+		    dnp->dn_left, DT_IDENT_XLSOU)) != NULL ||
+		    (idp = dt_node_resolve(
+		    dnp->dn_left, DT_IDENT_XLPTR)) != NULL) {
+
 			dt_xlator_t *dxp;
 			dt_node_t *mnp;
 
-			idp = dt_ident_resolve(dnp->dn_left->dn_ident);
-			assert(idp->di_kind == DT_IDENT_XLSOU ||
-			    idp->di_kind == DT_IDENT_XLPTR);
 			dxp = idp->di_data;
-
 			mnp = dt_xlator_member(dxp, dnp->dn_right->dn_string);
 			assert(mnp != NULL);
 
@@ -1580,7 +1681,8 @@ dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 			dxp->dx_ident->di_flags &= ~DT_IDFLG_CGREG;
 			dxp->dx_ident->di_id = 0;
 
-			dt_regset_free(drp, dnp->dn_left->dn_reg);
+			if (dnp->dn_left->dn_reg != -1)
+				dt_regset_free(drp, dnp->dn_left->dn_reg);
 			break;
 		}
 
@@ -1682,27 +1784,18 @@ dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 		/*
 		 * Identifiers can represent function calls, variable refs, or
 		 * symbols.  First we check for inlined variables, and handle
-		 * them by generating code for the inline parse tree, and then
-		 * casting the result to the inline's output type.
+		 * them by generating code for the inline parse tree.
 		 */
 		if (dnp->dn_kind == DT_NODE_VAR &&
 		    (dnp->dn_ident->di_flags & DT_IDFLG_INLINE)) {
-			dt_idnode_t *inp = dnp->dn_ident->di_data;
-
-			dt_cg_node(inp->din_root, dlp, drp);
-			dnp->dn_reg = inp->din_root->dn_reg;
-			dt_cg_typecast(inp->din_root, dnp, dlp, drp);
-
+			dt_cg_inline(dnp, dlp, drp);
 			break;
 		}
 
 		switch (dnp->dn_kind) {
-		case DT_NODE_FUNC: {
-			dt_ident_t *idp = dnp->dn_ident;
-
-			if (idp->di_kind != DT_IDENT_FUNC) {
-				yylineno = dnp->dn_line;
-				xyerror(D_CG_EXPR, "%s %s( ) may not be "
+		case DT_NODE_FUNC:
+			if ((idp = dnp->dn_ident)->di_kind != DT_IDENT_FUNC) {
+				dnerror(dnp, D_CG_EXPR, "%s %s( ) may not be "
 				    "called from a D expression (D program "
 				    "context required)\n",
 				    dt_idkind_name(idp->di_kind), idp->di_name);
@@ -1720,14 +1813,13 @@ dt_cg_node(dt_node_t *dnp, dt_irlist_t *dlp, dt_regset_t *drp)
 			    dt_cg_node_alloc(DT_LBL_NONE, instr));
 
 			break;
-		}
 
 		case DT_NODE_VAR:
 			if (dnp->dn_ident->di_kind == DT_IDENT_XLSOU ||
 			    dnp->dn_ident->di_kind == DT_IDENT_XLPTR) {
 				/*
 				 * This can only happen if we have translated
-				 * args[].
+				 * args[].  See dt_idcook_args() for details.
 				 */
 				assert(dnp->dn_ident->di_id == DIF_VAR_ARGS);
 				dt_cg_array_op(dnp, dlp, drp);
@@ -1811,6 +1903,7 @@ void
 dt_cg(dt_pcb_t *pcb, dt_node_t *dnp)
 {
 	dif_instr_t instr;
+	dt_xlator_t *dxp;
 
 	if (pcb->pcb_regs == NULL && (pcb->pcb_regs =
 	    dt_regset_create(pcb->pcb_hdl->dt_conf.dtc_difintregs)) == NULL)
@@ -1842,8 +1935,26 @@ dt_cg(dt_pcb_t *pcb, dt_node_t *dnp)
 		    "of dynamic type\n");
 	}
 
+	/*
+	 * If we're generating code for a translator body, assign the input
+	 * parameter to the first available register (i.e. caller passes %r1).
+	 */
+	if (dnp->dn_kind == DT_NODE_MEMBER) {
+		dxp = dnp->dn_membxlator;
+		dnp = dnp->dn_membexpr;
+
+		dxp->dx_ident->di_flags |= DT_IDFLG_CGREG;
+		dxp->dx_ident->di_id = dt_regset_alloc(pcb->pcb_regs);
+	}
+
 	dt_cg_node(dnp, &pcb->pcb_ir, pcb->pcb_regs);
 	instr = DIF_INSTR_RET(dnp->dn_reg);
 	dt_regset_free(pcb->pcb_regs, dnp->dn_reg);
 	dt_irlist_append(&pcb->pcb_ir, dt_cg_node_alloc(DT_LBL_NONE, instr));
+
+	if (dnp->dn_kind == DT_NODE_MEMBER) {
+		dt_regset_free(pcb->pcb_regs, dxp->dx_ident->di_id);
+		dxp->dx_ident->di_id = 0;
+		dxp->dx_ident->di_flags &= ~DT_IDFLG_CGREG;
+	}
 }

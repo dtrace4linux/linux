@@ -1,16 +1,33 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_DT_ERRTAGS_H
 #define	_DT_ERRTAGS_H
 
-#pragma ident	"@(#)dt_errtags.h	1.6	04/09/27 SMI"
+#pragma ident	"@(#)dt_errtags.h	1.13	05/11/29 SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -34,7 +51,6 @@ typedef enum {
 	D_CG_DYN,			/* expression returns dynamic result */
 	D_ATTR_MIN,			/* attributes less than amin setting */
 	D_ID_OFLOW,			/* identifier space overflow */
-	D_PDESC_GLOB,			/* probedesc has too many glob chars */
 	D_PDESC_ZERO,			/* probedesc matches zero probes */
 	D_PDESC_INVAL,			/* probedesc is not valid */
 	D_PRED_SCALAR,			/* predicate must be of scalar type */
@@ -78,9 +94,6 @@ typedef enum {
 	D_XLATE_SOU,			/* dst must be struct or union type */
 	D_XLATE_INCOMPAT,		/* translator member type incompat */
 	D_XLATE_MEMB,			/* translator member is not valid */
-	D_INLINE_XLTYPE,		/* inline does not match xlator type */
-	D_INLINE_FUNC,			/* inline cannot be function type */
-	D_INLINE_INCOMPAT,		/* inline types not compatible */
 	D_CAST_INVAL,			/* invalid cast expression */
 	D_PRAGERR,			/* #pragma error message */
 	D_PRAGCTL_INVAL,		/* invalid control directive */
@@ -109,8 +122,10 @@ typedef enum {
 	D_VAR_UNSUP,			/* unsupported variable specification */
 	D_PROTO_LEN,			/* prototype length mismatch */
 	D_PROTO_ARG,			/* prototype argument mismatch */
-	D_ARGS_MULTI,			/* description matches >1 probe */
+	D_ARGS_MULTI,			/* description matches unstable set */
+	D_ARGS_XLATOR,			/* no args[] translator defined */
 	D_ARGS_NONE,			/* no args[] available */
+	D_ARGS_TYPE,			/* invalid args[] type */
 	D_ARGS_IDX,			/* invalid args[] index */
 	D_REGS_IDX,			/* invalid regs[] index */
 	D_KEY_TYPE,			/* invalid agg or array key type */
@@ -130,15 +145,10 @@ typedef enum {
 	D_DECL_CLASS,			/* more than one storage class given */
 	D_DECL_BADCLASS,		/* decl class not supported in D */
 	D_DECL_PARMCLASS,		/* invalid class for parameter type */
-	D_DECL_PARMNAME,		/* invalid name for parameter */
 	D_DECL_COMBO, 			/* bad decl specifier combination */
 	D_DECL_ARRSUB,			/* const int required for array size */
 	D_DECL_ARRNULL,			/* array decl requires dim or tuple */
-	D_DECL_ARRTYPE,			/* invalid type for array tuple parm */
-	D_DECL_ARRVA,			/* array tuple may not use varargs */
 	D_DECL_ARRBIG,			/* array size too big */
-	D_DECL_FUNCTYPE,		/* invalid type for function parm */
-	D_DECL_FUNCVOID,		/* void must be sole function parm */
 	D_DECL_IDRED,			/* decl identifier redeclared */
 	D_DECL_TYPERED,			/* decl type redeclared */
 	D_DECL_MNAME,			/* member name missing */
@@ -153,6 +163,11 @@ typedef enum {
 	D_DECL_VOIDOBJ,			/* attempt to decl void object */
 	D_DECL_DYNOBJ,			/* attempt to decl dynamic object */
 	D_DECL_INCOMPLETE,		/* declaration uses incomplete type */
+	D_DECL_PROTO_VARARGS,		/* varargs not allowed in prototype */
+	D_DECL_PROTO_TYPE,		/* type not allowed in prototype */
+	D_DECL_PROTO_VOID,		/* void must be sole parameter */
+	D_DECL_PROTO_NAME,		/* void parameter may not have a name */
+	D_DECL_PROTO_FORM,		/* parameter name has no formal */
 	D_COMM_COMM,			/* commit() after commit() */
 	D_COMM_DREC,			/* commit() after data action */
 	D_SPEC_SPEC,			/* speculate() after speculate() */
@@ -168,6 +183,8 @@ typedef enum {
 	D_PRINTA_PROTO,			/* printa() prototype mismatch */
 	D_PRINTA_AGGARG,		/* aggregation arg type mismatch */
 	D_PRINTA_AGGBAD,		/* printa() aggregation not defined */
+	D_PRINTA_AGGKEY,		/* printa() aggregation key mismatch */
+	D_PRINTA_AGGPROTO,		/* printa() aggregation mismatch */
 	D_TRACE_VOID,			/* trace() argument has void type */
 	D_TRACE_DYN,			/* trace() argument has dynamic type */
 	D_TRACEMEM_ADDR,		/* tracemem() address bad type */
@@ -186,6 +203,7 @@ typedef enum {
 	D_LQUANT_STEPVAL,		/* lquantize() bad step value */
 	D_LQUANT_STEPLARGE,		/* lquantize() step too large */
 	D_LQUANT_STEPSMALL,		/* lquantize() step too small */
+	D_QUANT_PROTO,			/* quantize() prototype mismatch */
 	D_PROC_OFF,			/* byte offset exceeds function size */
 	D_PROC_ALIGN,			/* byte offset has invalid alignment */
 	D_PROC_NAME,			/* invalid process probe name */
@@ -209,11 +227,15 @@ typedef enum {
 	D_TRUNC_SCALAR,			/* trunc() value must be scalar */
 	D_TRUNC_AGGARG,			/* aggregation arg type mismatch */
 	D_TRUNC_AGGBAD,			/* trunc() aggregation not def. */
-	D_PROV_NODEFS,			/* unexpected provider definition */
 	D_PROV_BADNAME,			/* invalid provider name */
-	D_PROV_EXISTS,			/* provider redeclared */
-	D_PROV_PREXISTS,		/* probe redeclared */
-	D_PROV_PRARGLEN			/* probe argument list too long */
+	D_PROV_INCOMPAT,		/* provider/probe interface mismatch */
+	D_PROV_PRDUP,			/* duplicate probe declaration */
+	D_PROV_PRARGLEN,		/* probe argument list too long */
+	D_PROV_PRXLATOR,		/* probe argument translator missing */
+	D_FREOPEN_INVALID,		/* frename() filename is invalid */
+	D_LQUANT_MATCHBASE,		/* lquantize() mismatch on base */
+	D_LQUANT_MATCHLIM,		/* lquantize() mismatch on limit */
+	D_LQUANT_MATCHSTEP		/* lquantize() mismatch on step */
 } dt_errtag_t;
 
 extern const char *dt_errtag(dt_errtag_t);

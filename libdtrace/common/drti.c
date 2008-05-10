@@ -1,13 +1,30 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)drti.c	1.4	04/08/31 SMI"
+#pragma ident	"@(#)drti.c	1.7	05/06/08 SMI"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -20,6 +37,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+
+/*
+ * In Solaris 10 GA, the only mechanism for communicating helper information
+ * is through the DTrace helper pseudo-device node in /devices; there is
+ * no /dev link. Because of this, USDT providers and helper actions don't
+ * work inside of non-global zones. This issue was addressed by adding
+ * the /dev and having this initialization code use that /dev link. If the
+ * /dev link doesn't exist it falls back to looking for the /devices node
+ * as this code may be embedded in a binary which runs on Solaris 10 GA.
+ *
+ * Users may set the following environment variable to affect the way
+ * helper initialization takes place:
+ *
+ *	DTRACE_DOF_INIT_DEBUG		enable debugging output
+ *	DTRACE_DOF_INIT_DISABLE		disable helper loading
+ *	DTRACE_DOF_INIT_DEVNAME		set the path to the helper node
+ */
+
+static const char *devname = "/dev/dtrace/helper";
+static const char *olddevname = "/devices/pseudo/dtrace@0:helper";
 
 static const char *modname;	/* Name of this load object */
 static int gen;			/* DOF helper generation */
@@ -62,6 +99,7 @@ dtrace_dof_init(void)
 	Link_map *lmp;
 	Lmid_t lmid;
 	int fd;
+	const char *p;
 
 	if (getenv("DTRACE_DOF_INIT_DISABLE") != NULL)
 		return;
@@ -102,9 +140,25 @@ dtrace_dof_init(void)
 		    "LM%lu`%s", lmid, modname);
 	}
 
-	if ((fd = open64("/devices/pseudo/dtrace@0:helper", O_RDWR)) < 0) {
-		dprintf(1, "failed to open helper device");
-		return;
+	if ((p = getenv("DTRACE_DOF_INIT_DEVNAME")) != NULL)
+		devname = p;
+
+	if ((fd = open64(devname, O_RDWR)) < 0) {
+		dprintf(1, "failed to open helper device %s", devname);
+
+		/*
+		 * If the device path wasn't explicitly set, try again with
+		 * the old device path.
+		 */
+		if (p != NULL)
+			return;
+
+		devname = olddevname;
+
+		if ((fd = open64(devname, O_RDWR)) < 0) {
+			dprintf(1, "failed to open helper device %s", devname);
+			return;
+		}
 	}
 
 	if ((gen = ioctl(fd, DTRACEHIOC_ADDDOF, &dh)) == -1)
@@ -121,8 +175,8 @@ dtrace_dof_fini(void)
 {
 	int fd;
 
-	if ((fd = open64("/devices/pseudo/dtrace@0:helper", O_RDWR)) < 0) {
-		dprintf(1, "failed to open helper device");
+	if ((fd = open64(devname, O_RDWR)) < 0) {
+		dprintf(1, "failed to open helper device %s", devname);
 		return;
 	}
 

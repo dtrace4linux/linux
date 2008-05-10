@@ -50,6 +50,7 @@ static struct map {
 	{"get_symbol_offset", NULL},
 	{"kallsyms_lookup_name", NULL},
 	{"modules", NULL},
+	{"__symbol_get", NULL},
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -59,6 +60,7 @@ static unsigned int (*xkallsyms_expand_symbol)(int, char *);
 static unsigned int (*xget_symbol_offset)(int);
 static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
+static void *(*x__symbol_get)(const char *);
 
 #define	FBT_PUSHL_EBP		0x55
 #define	FBT_MOVL_ESP_EBP0_V0	0x8b
@@ -99,7 +101,7 @@ typedef struct fbt_probe {
 	struct fbt_probe *fbtp_next;
 } fbt_probe_t;
 
-static dev_info_t		*fbt_devi;
+//static dev_info_t		*fbt_devi;
 static dtrace_provider_id_t	fbt_id;
 static fbt_probe_t		**fbt_probetab;
 static int			fbt_probetab_size;
@@ -195,11 +197,10 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	char *modname = mp->name;
 	char	*str = mp->strtab;
 	char	*name;
-	int	 size;
+	int	 size = -1;
 	fbt_probe_t *fbt, *retfbt;
 
-TODO();
-printk("ctl=%p name=%s\n", ctl, modname);
+return;
 # if 0
 	struct module *mp = ctl->mod_mp;
 	char *str = mp->strings;
@@ -254,7 +255,7 @@ TODO();
 	}
 # endif
 
-printk("num_symtab=%d\n", mp->num_symtab);
+printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
@@ -268,6 +269,9 @@ printk("num_symtab=%d\n", mp->num_symtab);
 		/***********************************************/
 		if (sym->st_info != 't' && sym->st_info != 'T')
 			continue;
+if (strstr(name, "init")) continue;
+printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
+//if (sym->st_info != 'T') {printk("skip -- %02d %c:%s\n", i, sym->st_info, name); continue;}
 
 #if 0
 		if (ELF_ST_TYPE(sym->st_info) != STT_FUNC)
@@ -347,12 +351,37 @@ printk("num_symtab=%d\n", mp->num_symtab);
 		instr = (uint8_t *)sym->st_value;
 		limit = (uint8_t *)(sym->st_value + sym->st_size);
 
-printk("sym %d: %s ty=%x %p %p %d\n", i, name,sym->st_info,
-instr, limit, sym->st_size);
-if (i > 100) break;
+//printk("sym %d: %s ty=%x %p %p %d\n", i, name,sym->st_info, instr, limit, sym->st_size);
+/*		{mm_segment_t fs = get_fs();
+		set_fs(KERNEL_DS);
+		if (!access_ok(VERIFY_READ, instr, limit - instr)) {
+			set_fs(fs);
+			continue;
+			}
+		set_fs(fs);
+		}
+*/
+		/***********************************************/
+		/*   We  do  have syms that apper to point to  */
+		/*   unmapped  pages.  Maybe  these are freed  */
+		/*   pages after a driver loads. Double check  */
+		/*   -  if /proc/kallsyms says its not there,  */
+		/*   then ignore it.			       */
+		/***********************************************/
+		{void *p;
+
+		if (x__symbol_get == NULL ||
+		    (p = x__symbol_get(name)) == NULL) {
+		    	printk("Skipping: %s\n", name);
+			continue;
+		}
+
+		}
+
 #ifdef __amd64
 		while (instr < limit) {
-printk("disasm: %p %02x\n", instr, *instr);
+printk("disasm: %p ", instr);
+printk("%02x\n", *instr);
 			if (*instr == FBT_PUSHL_EBP)
 				break;
 
@@ -385,7 +414,6 @@ printk("size=%d *instr=%02x %02x %d\n", size, *instr, FBT_PUSHL_EBP, limit-instr
 
 TODO();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-TODO();
 printk("fbt=%p\n", fbt);
 		
 		fbt->fbtp_name = name;
@@ -661,7 +689,7 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 	fbt_probe_t *fbt = parg;
 	struct modctl *ctl = fbt->fbtp_ctl;
 	struct module *mp = (struct module *) ctl;
-	ctf_file_t *fp = NULL, *pfp;
+	ctf_file_t *fp = NULL;
 	ctf_funcinfo_t f;
 	int error;
 	ctf_id_t argv[32], type;
@@ -696,6 +724,7 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 	 * If we have a parent container, we must manually import it.
 	 */
 	if ((parent = ctf_parent_name(fp)) != NULL) {
+		ctf_file_t *pfp;
 		TODO();
 		struct modctl *mod;
 
@@ -982,6 +1011,7 @@ fbt_write(struct file *file, const char __user *buf,
 	xget_symbol_offset 	= syms[4].m_ptr;
 	xkallsyms_lookup_name 	= syms[5].m_ptr;
 	xmodules 		= syms[6].m_ptr;
+	x__symbol_get		= syms[7].m_ptr;
 
 	/***********************************************/
 	/*   Dump out the symtab for debugging.	       */
@@ -1024,6 +1054,8 @@ static struct miscdevice fbt_dev = {
         "fbt",
         &fbt_fops
 };
+static int initted;
+
 int fbt_init(void)
 {	int	ret;
 
@@ -1059,11 +1091,15 @@ printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
 	dtrace_register("fbt", &fbt_attr, DTRACE_PRIV_KERNEL, 0,
 	    &fbt_pops, NULL, &fbt_id);
 
+	initted = 1;
+
 	return 0;
 }
 void fbt_exit(void)
 {
-	fbt_cleanup(NULL);
+	if (initted) {
+		fbt_cleanup(NULL);
+	}
 
 	printk(KERN_WARNING "fbt driver unloaded.\n");
 	misc_deregister(&fbt_dev);

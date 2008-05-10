@@ -40,6 +40,7 @@ int	panic_quiesce;
 sol_proc_t	*curthread;
 
 dtrace_vtime_state_t dtrace_vtime_active = 0;
+dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -47,6 +48,7 @@ dtrace_vtime_state_t dtrace_vtime_active = 0;
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
 void dtrace_probe_provide(dtrace_probedesc_t *desc);
+int dtrace_detach(void);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
 int dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
 int dtrace_attach(dev_info_t *devi, int cmd);
@@ -231,7 +233,7 @@ static int vm_id;
 void *
 vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {
-	return vm_id++;
+	return ++vm_id;
 	
 	printk("vmem_alloc: hdr=%x\n", hdr);
 	return kmem_cache_alloc(hdr, GFP_KERNEL);
@@ -251,6 +253,10 @@ vmem_free(vmem_t *hdr, void *ptr, size_t s)
 	return;
 
 	kmem_cache_free(hdr, ptr);
+}
+void 
+vmem_destroy(vmem_t *hdr)
+{
 }
 int
 priv_policy_only(const cred_t *a, int b, int c)
@@ -377,6 +383,8 @@ static struct proc_dir_entry *dir;
 }
 static void __exit dtracedrv_exit(void)
 {
+	dtrace_detach();
+
 	ctf_exit();
 	fasttrap_exit();
 	fbt_exit();

@@ -1,15 +1,32 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_as.c	1.2	04/11/13 SMI"
+#pragma ident	"@(#)dt_as.c	1.5	05/07/31 SMI"
 
-#include <linux_types.h>
+#include <sys/bitmap.h>
 #include <sys/types.h>
 #include <strings.h>
 #include <stdlib.h>
@@ -58,17 +75,19 @@ dt_irlist_label(dt_irlist_t *dlp)
 }
 
 /*ARGSUSED*/
-static void
+static int
 dt_countvar(dt_idhash_t *dhp, dt_ident_t *idp, void *data)
 {
 	size_t *np = data;
 
 	if (idp->di_flags & (DT_IDFLG_DIFR | DT_IDFLG_DIFW))
 		(*np)++; /* include variable in vartab */
+
+	return (0);
 }
 
 /*ARGSUSED*/
-static void
+static int
 dt_copyvar(dt_idhash_t *dhp, dt_ident_t *idp, void *data)
 {
 	dt_pcb_t *pcb = data;
@@ -77,7 +96,7 @@ dt_copyvar(dt_idhash_t *dhp, dt_ident_t *idp, void *data)
 	dt_node_t dn;
 
 	if (!(idp->di_flags & (DT_IDFLG_DIFR | DT_IDFLG_DIFW)))
-		return; /* omit variable from vartab */
+		return (0); /* omit variable from vartab */
 
 	dvp = &pcb->pcb_difo->dtdo_vartab[pcb->pcb_asvidx++];
 	stroff = dt_strtab_insert(pcb->pcb_strtab, idp->di_name);
@@ -108,9 +127,10 @@ dt_copyvar(dt_idhash_t *dhp, dt_ident_t *idp, void *data)
 
 	bzero(&dn, sizeof (dn));
 	dt_node_type_assign(&dn, idp->di_ctfp, idp->di_type);
-	dt_node_diftype(&dn, &dvp->dtdv_type);
+	dt_node_diftype(pcb->pcb_hdl, &dn, &dvp->dtdv_type);
 
 	idp->di_flags &= ~(DT_IDFLG_DIFR | DT_IDFLG_DIFW);
+	return (0);
 }
 
 static ssize_t
@@ -118,6 +138,51 @@ dt_copystr(const char *s, size_t n, size_t off, dt_pcb_t *pcb)
 {
 	bcopy(s, pcb->pcb_difo->dtdo_strtab + off, n);
 	return (n);
+}
+
+/*
+ * Rewrite the xlate/xlarg instruction at dtdo_buf[i] so that the instruction's
+ * xltab index reflects the offset 'xi' of the assigned dtdo_xlmtab[] location.
+ * We track the cumulative references to translators and members in the pcb's
+ * pcb_asxrefs[] array, a two-dimensional array of bitmaps indexed by the
+ * global translator id and then by the corresponding translator member id.
+ */
+static void
+dt_as_xlate(dt_pcb_t *pcb, dtrace_difo_t *dp,
+    uint_t i, uint_t xi, dt_node_t *dnp)
+{
+	dtrace_hdl_t *dtp = pcb->pcb_hdl;
+	dt_xlator_t *dxp = dnp->dn_membexpr->dn_xlator;
+
+	assert(i < dp->dtdo_len);
+	assert(xi < dp->dtdo_xlmlen);
+
+	assert(dnp->dn_kind == DT_NODE_MEMBER);
+	assert(dnp->dn_membexpr->dn_kind == DT_NODE_XLATOR);
+
+	assert(dxp->dx_id < dtp->dt_xlatorid);
+	assert(dnp->dn_membid < dxp->dx_nmembers);
+
+	if (pcb->pcb_asxrefs == NULL) {
+		pcb->pcb_asxreflen = dtp->dt_xlatorid;
+		pcb->pcb_asxrefs =
+		    dt_zalloc(dtp, sizeof (ulong_t *) * pcb->pcb_asxreflen);
+		if (pcb->pcb_asxrefs == NULL)
+			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
+	}
+
+	if (pcb->pcb_asxrefs[dxp->dx_id] == NULL) {
+		pcb->pcb_asxrefs[dxp->dx_id] =
+		    dt_zalloc(dtp, BT_SIZEOFMAP(dxp->dx_nmembers));
+		if (pcb->pcb_asxrefs[dxp->dx_id] == NULL)
+			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
+	}
+
+	dp->dtdo_buf[i] = DIF_INSTR_XLATE(
+	    DIF_INSTR_OP(dp->dtdo_buf[i]), xi, DIF_INSTR_RD(dp->dtdo_buf[i]));
+
+	BT_SET(pcb->pcb_asxrefs[dxp->dx_id], dnp->dn_membid);
+	dp->dtdo_xlmtab[xi] = dnp;
 }
 
 static void
@@ -153,11 +218,11 @@ dt_as(dt_pcb_t *pcb)
 	uint_t i;
 
 	uint_t kmask, kbits, umask, ubits;
-	uint_t krel = 0, urel = 0;
+	uint_t krel = 0, urel = 0, xlrefs = 0;
 
 	/*
 	 * Select bitmasks based upon the desired symbol linking policy.  We
-	 * test (di_ident->di_flags & xmask) == xbits to determine if the
+	 * test (di_extern->di_flags & xmask) == xbits to determine if the
 	 * symbol should have a relocation entry generated in the loop below.
 	 *
 	 * DT_LINK_KERNEL = kernel symbols static, user symbols dynamic
@@ -197,20 +262,18 @@ dt_as(dt_pcb_t *pcb)
 		    dtp->dt_linkmode);
 	}
 
-	if ((dp = malloc(sizeof (dtrace_difo_t))) == NULL)
+	assert(pcb->pcb_difo == NULL);
+	pcb->pcb_difo = dt_zalloc(dtp, sizeof (dtrace_difo_t));
+
+	if ((dp = pcb->pcb_difo) == NULL)
 		longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 
-	assert(yypcb->pcb_difo == NULL);
-	yypcb->pcb_difo = dp;
-
-	bzero(dp, sizeof (dtrace_difo_t));
-	dp->dtdo_refcnt = 1;
-	dp->dtdo_buf = malloc(sizeof (dif_instr_t) * dlp->dl_len);
+	dp->dtdo_buf = dt_alloc(dtp, sizeof (dif_instr_t) * dlp->dl_len);
 
 	if (dp->dtdo_buf == NULL)
 		longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 
-	if ((labels = malloc(sizeof (uint_t) * dlp->dl_label)) == NULL)
+	if ((labels = dt_alloc(dtp, sizeof (uint_t) * dlp->dl_label)) == NULL)
 		longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 
 	/*
@@ -227,13 +290,25 @@ dt_as(dt_pcb_t *pcb)
 		    dip->di_instr != DIF_INSTR_NOP)
 			dp->dtdo_buf[i++] = dip->di_instr;
 
-		if ((idp = dip->di_ident) == NULL)
-			continue; /* no relocation entry needed */
+		if (dip->di_extern == NULL)
+			continue; /* no external references needed */
 
-		if ((idp->di_flags & kmask) == kbits)
-			krel++;
-		else if ((idp->di_flags & umask) == ubits)
-			urel++;
+		switch (DIF_INSTR_OP(dip->di_instr)) {
+		case DIF_OP_SETX:
+			idp = dip->di_extern;
+			if ((idp->di_flags & kmask) == kbits)
+				krel++;
+			else if ((idp->di_flags & umask) == ubits)
+				urel++;
+			break;
+		case DIF_OP_XLATE:
+		case DIF_OP_XLARG:
+			xlrefs++;
+			break;
+		default:
+			xyerror(D_UNKNOWN, "unexpected assembler relocation "
+			    "for opcode 0x%x\n", DIF_INSTR_OP(dip->di_instr));
+		}
 	}
 
 	assert(i == dlp->dl_len);
@@ -262,28 +337,28 @@ dt_as(dt_pcb_t *pcb)
 		}
 	}
 
-	free(labels);
-	yypcb->pcb_asvidx = 0;
+	dt_free(dtp, labels);
+	pcb->pcb_asvidx = 0;
 
 	/*
 	 * Allocate memory for the appropriate number of variable records and
 	 * then fill in each variable record.  As we populate the variable
 	 * table we insert the corresponding variable names into the strtab.
 	 */
-	dt_idhash_iter(dtp->dt_tls, dt_countvar, &n);
-	dt_idhash_iter(dtp->dt_globals, dt_countvar, &n);
-	dt_idhash_iter(pcb->pcb_locals, dt_countvar, &n);
+	(void) dt_idhash_iter(dtp->dt_tls, dt_countvar, &n);
+	(void) dt_idhash_iter(dtp->dt_globals, dt_countvar, &n);
+	(void) dt_idhash_iter(pcb->pcb_locals, dt_countvar, &n);
 
 	if (n != 0) {
-		dp->dtdo_vartab = malloc(n * sizeof (dtrace_difv_t));
+		dp->dtdo_vartab = dt_alloc(dtp, n * sizeof (dtrace_difv_t));
 		dp->dtdo_varlen = (uint32_t)n;
 
 		if (dp->dtdo_vartab == NULL)
 			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 
-		dt_idhash_iter(dtp->dt_tls, dt_copyvar, pcb);
-		dt_idhash_iter(dtp->dt_globals, dt_copyvar, pcb);
-		dt_idhash_iter(pcb->pcb_locals, dt_copyvar, pcb);
+		(void) dt_idhash_iter(dtp->dt_tls, dt_copyvar, pcb);
+		(void) dt_idhash_iter(dtp->dt_globals, dt_copyvar, pcb);
+		(void) dt_idhash_iter(pcb->pcb_locals, dt_copyvar, pcb);
 	}
 
 	/*
@@ -291,7 +366,8 @@ dt_as(dt_pcb_t *pcb)
 	 * entries based upon our kernel and user counts from the first pass.
 	 */
 	if (krel != 0) {
-		dp->dtdo_kreltab = malloc(krel * sizeof (dof_relodesc_t));
+		dp->dtdo_kreltab = dt_alloc(dtp,
+		    krel * sizeof (dof_relodesc_t));
 		dp->dtdo_krelen = krel;
 
 		if (dp->dtdo_kreltab == NULL)
@@ -299,10 +375,19 @@ dt_as(dt_pcb_t *pcb)
 	}
 
 	if (urel != 0) {
-		dp->dtdo_ureltab = malloc(urel * sizeof (dof_relodesc_t));
+		dp->dtdo_ureltab = dt_alloc(dtp,
+		    urel * sizeof (dof_relodesc_t));
 		dp->dtdo_urelen = urel;
 
 		if (dp->dtdo_ureltab == NULL)
+			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
+	}
+
+	if (xlrefs != 0) {
+		dp->dtdo_xlmtab = dt_zalloc(dtp, sizeof (dt_node_t *) * xlrefs);
+		dp->dtdo_xlmlen = xlrefs;
+
+		if (dp->dtdo_xlmtab == NULL)
 			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 	}
 
@@ -310,12 +395,13 @@ dt_as(dt_pcb_t *pcb)
 	 * If any relocations are needed, make another pass through the
 	 * instruction list and fill in the relocation table entries.
 	 */
-	if (krel + urel != 0) {
+	if (krel + urel + xlrefs != 0) {
 		uint_t knodef = pcb->pcb_cflags & DTRACE_C_KNODEF;
 		uint_t unodef = pcb->pcb_cflags & DTRACE_C_UNODEF;
 
 		dof_relodesc_t *krp = dp->dtdo_kreltab;
 		dof_relodesc_t *urp = dp->dtdo_ureltab;
+		dt_node_t **xlp = dp->dtdo_xlmtab;
 
 		i = 0; /* dtdo_buf[] index */
 
@@ -330,7 +416,15 @@ dt_as(dt_pcb_t *pcb)
 
 			i++; /* advance dtdo_buf[] index */
 
-			if ((idp = dip->di_ident) == NULL)
+			if (DIF_INSTR_OP(dip->di_instr) == DIF_OP_XLATE ||
+			    DIF_INSTR_OP(dip->di_instr) == DIF_OP_XLARG) {
+				assert(dp->dtdo_buf[i - 1] == dip->di_instr);
+				dt_as_xlate(pcb, dp, i - 1, (uint_t)
+				    (xlp++ - dp->dtdo_xlmtab), dip->di_extern);
+				continue;
+			}
+
+			if ((idp = dip->di_extern) == NULL)
 				continue; /* no relocation entry needed */
 
 			if ((idp->di_flags & kmask) == kbits) {
@@ -362,6 +456,7 @@ dt_as(dt_pcb_t *pcb)
 
 		assert(krp == dp->dtdo_kreltab + dp->dtdo_krelen);
 		assert(urp == dp->dtdo_ureltab + dp->dtdo_urelen);
+		assert(xlp == dp->dtdo_xlmtab + dp->dtdo_xlmlen);
 		assert(i == dp->dtdo_len);
 	}
 
@@ -370,7 +465,7 @@ dt_as(dt_pcb_t *pcb)
 	 * chunks from the string table into the final string buffer.
 	 */
 	if ((n = dt_strtab_size(pcb->pcb_strtab)) != 0) {
-		if ((dp->dtdo_strtab = malloc(n)) == NULL)
+		if ((dp->dtdo_strtab = dt_alloc(dtp, n)) == NULL)
 			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 
 		(void) dt_strtab_write(pcb->pcb_strtab,
@@ -383,7 +478,8 @@ dt_as(dt_pcb_t *pcb)
 	 * integer constants from the table into the final integer buffer.
 	 */
 	if ((n = dt_inttab_size(pcb->pcb_inttab)) != 0) {
-		if ((dp->dtdo_inttab = malloc(n * sizeof (uint64_t))) == NULL)
+		if ((dp->dtdo_inttab = dt_alloc(dtp,
+		    n * sizeof (uint64_t))) == NULL)
 			longjmp(pcb->pcb_jmpbuf, EDT_NOMEM);
 
 		dt_inttab_write(pcb->pcb_inttab, dp->dtdo_inttab);
@@ -395,12 +491,12 @@ dt_as(dt_pcb_t *pcb)
 	 * node saved in pcb_dret, and then clear pcb_difo and pcb_dret
 	 * now that the assembler has completed successfully.
 	 */
-	dt_node_diftype(pcb->pcb_dret, &dp->dtdo_rtype);
+	dt_node_diftype(dtp, pcb->pcb_dret, &dp->dtdo_rtype);
 	pcb->pcb_difo = NULL;
 	pcb->pcb_dret = NULL;
 
 	if (pcb->pcb_cflags & DTRACE_C_DIFV)
-		dtrace_difo_print(dp, stderr);
+		dt_dis(dp, stderr);
 
 	return (dp);
 }

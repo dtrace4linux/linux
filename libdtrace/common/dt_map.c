@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_map.c	1.4	04/09/28 SMI"
+#pragma ident	"@(#)dt_map.c	1.8	06/12/13 SMI"
 
 #include <stdlib.h>
 #include <strings.h>
@@ -334,13 +350,26 @@ dt_aggid_add(dtrace_hdl_t *dtp, dtrace_aggid_t id)
 			}
 		}
 
-		if (agg->dtagd_rec[0].dtrd_uarg) {
+		/*
+		 * If we have a uarg, it's a pointer to the compiler-generated
+		 * statement; we'll use this value to get the name and
+		 * compiler-generated variable ID for the aggregation.  If
+		 * we're grabbing an anonymous enabling, this pointer value
+		 * is obviously meaningless -- and in this case, we can't
+		 * provide the compiler-generated aggregation information.
+		 */
+		if (dtp->dt_options[DTRACEOPT_GRABANON] == DTRACEOPT_UNSET &&
+		    agg->dtagd_rec[0].dtrd_uarg != NULL) {
 			dtrace_stmtdesc_t *sdp;
 			dt_ident_t *aid;
 
-			sdp = (dtrace_stmtdesc_t *)agg->dtagd_rec[0].dtrd_uarg;
+			sdp = (dtrace_stmtdesc_t *)(uintptr_t)
+			    agg->dtagd_rec[0].dtrd_uarg;
 			aid = sdp->dtsd_aggdata;
 			agg->dtagd_name = aid->di_name;
+			agg->dtagd_varid = aid->di_id;
+		} else {
+			agg->dtagd_varid = DTRACE_AGGVARIDNONE;
 		}
 
 		if ((epid = agg->dtagd_epid) >= dtp->dt_maxprobe ||

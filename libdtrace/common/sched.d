@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)sched.d	1.2	04/09/27 SMI"
+#pragma ident	"@(#)sched.d	1.4	06/04/21 SMI"
 
 #pragma D depends_on module unix
 #pragma D depends_on provider sched
@@ -25,8 +41,8 @@ typedef struct cpuinfo cpuinfo_t;
 translator cpuinfo_t < cpu_t *C > {
 	cpu_id = C->cpu_id;
 	cpu_pset = C->cpu_part->cp_id;
-	cpu_chip = C->cpu_chip->chip_id;
-	cpu_lgrp = C->cpu_chip->chip_lgrp->lgrp_id;
+	cpu_chip = C->cpu_physid->cpu_chipid;
+	cpu_lgrp = C->cpu_lpl->lpl_lgrpid;
 	cpu_info = (processor_info_t)C->cpu_type_info;
 }; 
 

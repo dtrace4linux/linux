@@ -1,14 +1,30 @@
 %{
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ *
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_grammar.y	1.4	04/10/22 SMI"
+#pragma ident	"@(#)dt_grammar.y	1.9	06/01/07 SMI"
 
 #include <dt_impl.h>
 
@@ -94,6 +110,7 @@
 %token	DT_TOK_EPRED
 %token	DT_CTX_DEXPR
 %token	DT_CTX_DPROG
+%token	DT_CTX_DTYPE
 %token	DT_TOK_EOF	0
 
 %left	DT_TOK_COMMA
@@ -119,6 +136,7 @@
 
 %type	<l_node>	d_expression
 %type	<l_node>	d_program
+%type	<l_node>	d_type
 
 %type	<l_node>	translation_unit
 %type	<l_node>	external_declaration
@@ -136,11 +154,9 @@
 %type	<l_node>	statement_list
 %type	<l_node>	statement
 %type	<l_node>	declaration
-%type	<l_node>	d_storage_class_specifier
 %type	<l_node>	init_declarator_list
 %type	<l_node>	init_declarator
 
-%type	<l_node>	declaration_specifiers
 %type	<l_decl>	type_specifier
 %type	<l_decl>	type_qualifier
 %type	<l_decl>	struct_or_union_specifier
@@ -157,10 +173,11 @@
 %type	<l_node>	parameter_type_list
 %type	<l_node>	parameter_list
 %type	<l_node>	parameter_declaration
-%type	<l_node>	parameter_declaration_specifiers
 
 %type	<l_node>	array
+%type	<l_node>	array_parameters
 %type	<l_node>	function
+%type	<l_node>	function_parameters
 
 %type	<l_node>	expression
 %type	<l_node>	assignment_expression
@@ -191,6 +208,7 @@
 
 dtrace_program: d_expression DT_TOK_EOF { return (dt_node_root($1)); }
 	|	d_program DT_TOK_EOF { return (dt_node_root($1)); }
+	|	d_type DT_TOK_EOF { return (dt_node_root($1)); }
 	;
 
 d_expression:	DT_CTX_DEXPR { $$ = NULL; }
@@ -199,6 +217,10 @@ d_expression:	DT_CTX_DEXPR { $$ = NULL; }
 
 d_program:	DT_CTX_DPROG { $$ = dt_node_program(NULL); }
 	|	DT_CTX_DPROG translation_unit { $$ = dt_node_program($2); }
+	;
+
+d_type:		DT_CTX_DTYPE { $$ = NULL; }
+	|	DT_CTX_DTYPE type_name { $$ = (dt_node_t *)$2; }
 	;
 
 translation_unit:
@@ -215,9 +237,18 @@ external_declaration:
 	;
 
 inline_definition:
-		DT_KEY_INLINE type_name DT_TOK_IDENT DT_TOK_ASGN
+		DT_KEY_INLINE declaration_specifiers declarator
+		    { dt_scope_push(NULL, CTF_ERR); } DT_TOK_ASGN
 		    assignment_expression ';' {
-			$$ = dt_node_inline($2, $3, $5);
+			/*
+			 * We push a new declaration scope before shifting the
+			 * assignment_expression in order to preserve ds_class
+			 * and ds_ident for use in dt_node_inline().  Once the
+			 * entire inline_definition rule is matched, pop the
+			 * scope and construct the inline using the saved decl.
+			 */
+			dt_scope_pop();
+			$$ = dt_node_inline($6);
 		}
 	;
 
@@ -259,10 +290,10 @@ provider_probe_list:
 
 provider_probe:
 		DT_KEY_PROBE DT_TOK_IDENT function DT_TOK_COLON function ';' {
-			$$ = dt_node_probe($2, $3, $5);
+			$$ = dt_node_probe($2, 2, $3, $5);
 		}
 	|	DT_KEY_PROBE DT_TOK_IDENT function ';' {
-			$$ = dt_node_probe($2, $3, NULL);
+			$$ = dt_node_probe($2, 1, $3, NULL);
 		}
 	;
 	
@@ -564,30 +595,19 @@ declaration:	declaration_specifiers ';' {
 declaration_specifiers:
 		d_storage_class_specifier
 	|	d_storage_class_specifier declaration_specifiers
-			{ $$ = NULL; }
 	|	type_specifier
-			{ $$ = NULL; }
 	|	type_specifier declaration_specifiers
-			{ $$ = NULL; }
 	|	type_qualifier
-			{ $$ = NULL; }
 	|	type_qualifier declaration_specifiers
-			{ $$ = NULL; }
 	;
 
 parameter_declaration_specifiers:
 		storage_class_specifier
-			{ $$ = NULL; }
 	|	storage_class_specifier declaration_specifiers
-			{ $$ = NULL; }
 	|	type_specifier
-			{ $$ = NULL; }
 	|	type_specifier declaration_specifiers
-			{ $$ = NULL; }
 	|	type_qualifier
-			{ $$ = NULL; }
 	|	type_qualifier declaration_specifiers
-			{ $$ = NULL; }
 	;
 
 storage_class_specifier:
@@ -600,7 +620,6 @@ storage_class_specifier:
 
 d_storage_class_specifier:
 		storage_class_specifier
-			{ $$ = NULL; }
 	|	DT_KEY_SELF { dt_decl_class(DT_DC_SELF); }
 	|	DT_KEY_THIS { dt_decl_class(DT_DC_THIS); }
 	;
@@ -623,6 +642,7 @@ type_specifier:	DT_KEY_VOID { $$ = dt_decl_spec(CTF_K_INTEGER, DUP("void")); }
 	;
 
 type_qualifier:	DT_KEY_CONST { $$ = dt_decl_attr(DT_DA_CONST); }
+	|	DT_KEY_RESTRICT { $$ = dt_decl_attr(DT_DA_RESTRICT); }
 	|	DT_KEY_VOLATILE { $$ = dt_decl_attr(DT_DA_VOLATILE); }
 	;
 
@@ -786,25 +806,29 @@ direct_abstract_declarator:
 	|	function { dt_decl_func(NULL, $1); }
 	;
 
-array:		DT_TOK_LBRAC DT_TOK_RBRAC { $$ = NULL; }
-	|	DT_TOK_LBRAC { dt_scope_push(NULL, CTF_ERR); }
-		    constant_expression DT_TOK_RBRAC {
-			dt_scope_pop();
-			$$ = $3;
-		}
-	|	DT_TOK_LBRAC { dt_scope_push(NULL, CTF_ERR); }
-		    parameter_type_list DT_TOK_RBRAC {
+array:		DT_TOK_LBRAC { dt_scope_push(NULL, CTF_ERR); }
+		    array_parameters DT_TOK_RBRAC {
 			dt_scope_pop();
 			$$ = $3;
 		}
 	;
 
-function:	DT_TOK_LPAR DT_TOK_RPAR { $$ = NULL; }
-	|	DT_TOK_LPAR { dt_scope_push(NULL, CTF_ERR); }
-		    parameter_type_list DT_TOK_RPAR {
+array_parameters:
+		/* empty */ 		{ $$ = NULL; }
+	|	constant_expression	{ $$ = $1; }
+	|	parameter_type_list	{ $$ = $1; }
+	;
+
+function:	DT_TOK_LPAR { dt_scope_push(NULL, CTF_ERR); }
+		    function_parameters DT_TOK_RPAR {
 			dt_scope_pop();
 			$$ = $3;
 		}
+	;
+
+function_parameters:
+		/* empty */ 		{ $$ = NULL; }
+	|	parameter_type_list	{ $$ = $1; }
 	;
 
 %%

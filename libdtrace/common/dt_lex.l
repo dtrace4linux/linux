@@ -1,14 +1,29 @@
 %{
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ *
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_lex.l	1.6	04/11/21 SMI"
+#pragma ident	"@(#)dt_lex.l	1.12	07/11/12 SMI"
 
 #include <string.h>
 #include <stdlib.h>
@@ -57,19 +72,21 @@ static void unput(int);
 
 /*
  * We first define a set of labeled states for use in the D lexer and then a
- * set of regular expressions to simplify things below.  The lexer states are:
+ * set of regular expressions to simplify things below. The lexer states are:
  *
  * S0 - D program clause and expression lexing
  * S1 - D comments (i.e. skip everything until end of comment)
  * S2 - D program outer scope (probe specifiers and declarations)
  * S3 - D control line parsing (i.e. after ^# is seen but before \n)
+ * S4 - D control line scan (locate control directives only and invoke S3)
  */
 %}
 
-%e 1400		/* maximum nodes */
+%e 1500		/* maximum nodes */
 %p 3700		/* maximum positions */
+%n 600		/* maximum states */
 
-%s S0 S1 S2 S3
+%s S0 S1 S2 S3 S4
 
 RGX_AGG		"@"[a-zA-Z_][0-9a-zA-Z_]*
 RGX_PSPEC	[-$:a-zA-Z_.?*\\\[\]!][-$:0-9a-zA-Z_.`?*\\\[\]!]*
@@ -89,8 +106,8 @@ RGX_CTL		^[\f\t\v ]*#
 /*
  * We insert a special prologue into yylex() itself: if the pcb contains a
  * context token, we return that prior to running the normal lexer.  This
- * allows libdtrace to force yacc into one of our two parsing contexts:
- * parsing a D expression (DT_CTX_DEXPR) or a D program (DT_CTX_DPROG).
+ * allows libdtrace to force yacc into one of our three parsing contexts: D
+ * expression (DT_CTX_DEXPR), D program (DT_CTX_DPROG) or D type (DT_CTX_DTYPE).
  * Once the token is returned, we clear it so this only happens once.
  */
 if (yypcb->pcb_token != 0) {
@@ -364,10 +381,13 @@ if (yypcb->pcb_token != 0) {
 			    dt_node_int(yylval.l_int));
 		}
 
-<S0>{RGX_FP}	yyerror("floating-point constants are not permitted\n");
+<S0>{RGX_FP}	{
+		yyerror("floating-point constants are not permitted\n");
+		}
 
-<S0>\"{RGX_STR}$ |
-<S3>\"{RGX_STR}$ xyerror(D_STR_NL, "newline encountered in string literal");
+<S0>\"{RGX_STR}$|<S3>\"{RGX_STR}$ {
+		xyerror(D_STR_NL, "newline encountered in string literal");
+		}
 
 <S0>\"{RGX_STR}\" |
 <S3>\"{RGX_STR}\" {
@@ -388,7 +408,7 @@ if (yypcb->pcb_token != 0) {
 			    dt_node_string(yylval.l_str));
 		}
 
-<S0>'{RGX_CHR}$	xyerror(D_CHR_NL, "newline encountered in character constant");
+<S0>'{RGX_CHR}$	{ xyerror(D_CHR_NL, "newline encountered in character constant"); }
 
 <S0>'{RGX_CHR}'	{
 			char *s, *p, *q;
@@ -431,7 +451,7 @@ if (yypcb->pcb_token != 0) {
 		}
 
 <S0>{RGX_INTERP} |
-<S2>{RGX_INTERP}	; /* discard any #! lines */
+<S2>{RGX_INTERP} ; 	/* discard any #! lines */
 
 <S0>{RGX_CTL}	|
 <S2>{RGX_CTL}	{
@@ -663,7 +683,7 @@ yybegin(yystate_t state)
 		return; /* nothing to do if we're in the state already */
 
 	if (yypcb->pcb_yystate == YYS_DEFINE) {
-        	yypcb->pcb_list = yypcb->pcb_hold;
+		yypcb->pcb_list = yypcb->pcb_hold;
         	yypcb->pcb_hold = NULL;
 	}
 
@@ -678,6 +698,11 @@ yybegin(yystate_t state)
 		/*FALLTHRU*/
 	case YYS_EXPR:
 		BEGIN(S0);
+		break;
+	case YYS_DONE:
+		break;
+	case YYS_CONTROL:
+		BEGIN(S4);
 		break;
 	default:
 		xyerror(D_UNKNOWN, "internal error -- bad yystate %d\n", state);
@@ -719,6 +744,7 @@ static int
 id_or_type(const char *s)
 {
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
+	dt_decl_t *ddp = yypcb->pcb_dstack.ds_decl;
 	int c0, c1, ttok = DT_TOK_TNAME;
 	dt_ident_t *idp;
 
@@ -729,9 +755,24 @@ id_or_type(const char *s)
 	 * If the lexeme is a global variable or likely identifier or *not* a
 	 * type_name, then it is an identifier token.
 	 */
-	if (dt_idhash_lookup(dtp->dt_globals, s) != NULL ||
+	if (dt_idstack_lookup(&yypcb->pcb_globals, s) != NULL ||
 	    dt_idhash_lookup(yypcb->pcb_idents, s) != NULL ||
 	    dt_type_lookup(s, NULL) != 0)
+		return (DT_TOK_IDENT);
+
+	/*
+	 * If we're in the midst of parsing a declaration and a type_specifier
+	 * has already been shifted, then return DT_TOK_IDENT instead of TNAME.
+	 * This semantic is necessary to permit valid ISO C code such as:
+	 *
+	 * typedef int foo;
+	 * struct s { foo foo; };
+	 *
+	 * without causing shift/reduce conflicts in the direct_declarator part
+	 * of the grammar.  The result is that we must check for conflicting
+	 * redeclarations of the same identifier as part of dt_node_decl().
+	 */
+	if (ddp != NULL && ddp->dd_name != NULL)
 		return (DT_TOK_IDENT);
 
 	/*

@@ -157,8 +157,12 @@
 %type	<l_node>	init_declarator_list
 %type	<l_node>	init_declarator
 
+%type	<l_node>	parameter_declaration_specifiers
+
+%type	<l_decl>	declaration_specifiers
 %type	<l_decl>	type_specifier
 %type	<l_decl>	type_qualifier
+%type	<l_decl>	storage_class_specifier
 %type	<l_decl>	struct_or_union_specifier
 %type	<l_decl>	specifier_qualifier_list
 %type	<l_decl>	enum_specifier
@@ -593,21 +597,21 @@ declaration:	declaration_specifiers ';' {
 	;
 
 declaration_specifiers:
-		d_storage_class_specifier
-	|	d_storage_class_specifier declaration_specifiers
-	|	type_specifier
+		d_storage_class_specifier { $$ = 0; }
+	|	d_storage_class_specifier declaration_specifiers { $$ = $2; }
+	|	type_specifier 
 	|	type_specifier declaration_specifiers
-	|	type_qualifier
+	|	type_qualifier 
 	|	type_qualifier declaration_specifiers
 	;
 
 parameter_declaration_specifiers:
-		storage_class_specifier
-	|	storage_class_specifier declaration_specifiers
-	|	type_specifier
-	|	type_specifier declaration_specifiers
-	|	type_qualifier
-	|	type_qualifier declaration_specifiers
+		storage_class_specifier { $$ = $1; }
+	|	storage_class_specifier declaration_specifiers { $$ = $2; }
+	|	type_specifier { $$ = $1;}
+	|	type_specifier declaration_specifiers { $$ = $2; }
+	|	type_qualifier { $$ = $1; }
+	|	type_qualifier declaration_specifiers { $$ = $2;}
 	;
 
 storage_class_specifier:
@@ -619,7 +623,7 @@ storage_class_specifier:
 	;
 
 d_storage_class_specifier:
-		storage_class_specifier
+		storage_class_specifier { }
 	|	DT_KEY_SELF { dt_decl_class(DT_DC_SELF); }
 	|	DT_KEY_THIS { dt_decl_class(DT_DC_THIS); }
 	;

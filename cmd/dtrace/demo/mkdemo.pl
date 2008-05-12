@@ -1,13 +1,29 @@
 #!/usr/perl5/bin/perl -w
 #
-# Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+# CDDL HEADER START
 #
 # The contents of this file are subject to the terms of the
-# Common Development and Distribution License, Version 1.0 only.
-# See the file usr/src/LICENSING.NOTICE in this distribution or
-# http://www.opensolaris.org/license/ for details.
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
 #
-# ident	"@(#)mkdemo.pl	1.1	04/10/25 SMI"
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+# ident	"@(#)mkdemo.pl	1.4	07/05/18 SMI"
 
 require 5.005;
 
@@ -85,14 +101,11 @@ sub demo_process {
 	open DEMO, "<$chap/$demo" or die "Can't open demo $chap/$demo";
 	open OUT, ">$demo" or die "Can't open $demo";
 
-	print OUT <<EOF;
-/*
- * Copyright $year Sun Microsystems, Inc.  All rights reserved.
- *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+	while (<DEMO>) {
+		print OUT $_;
+
+		if (/Use is subject to license terms/) {
+			print OUT <<EOF;
  *
  * This D script is used as an example in the Solaris Dynamic Tracing Guide
  * in Chapter $chaps{$chap}{number}, \"$chaps{$chap}{title}\".
@@ -107,12 +120,8 @@ sub demo_process {
  * corresponding chapters may be found here:
  *
  *   file:///usr/demo/dtrace/index.html
- */
-
 EOF
-
-	while (<DEMO>) {
-		print OUT $_;
+		}
 	}
 }
 
@@ -143,12 +152,7 @@ sub chaps_process {
 	print HTML "</head>\n<body bgcolor=\"#ffffff\">\n";
 
 	print HTML "<table width=\"85%\" border=0 align=\"center\"><tr><td>";
-	print HTML "<table width=\"100%\" border=0><tr>";
-	print HTML "<td align=\"left\">";
 	print HTML "<h2>DTrace Examples</h2>\n";
-	print HTML "</td>";
-	print HTML "<td align=\"right\">";
-	print HTML "<img src=\"sunlogo.gif\"></td></tr></table>\n";
 
 	print HTML "<hr><p>\n";
 	print HTML "Here are the <a href=\"$dtrace_url\">DTrace</a> scripts\n";
@@ -159,8 +163,8 @@ sub chaps_process {
 	print HTML "<p>\n<hr><p>\n";
 
 	print HTML "<left><table width=\"85%\" border=1 cellpadding=4 ";
-	print HTML "cellspacing=0 align=\"center\" bgcolor=\"#e8e8f0\">\n";
-	print HTML "<tr bgcolor=\"#455693\"><td width=\"50%\">";
+	print HTML "cellspacing=0 align=\"center\" bgcolor=\"#ffffff\">\n";
+	print HTML "<tr bgcolor=\"#5882a1\"><td width=\"50%\">";
 	print HTML "<font color=\"#ffffff\"><b>Chapter</b></td></font>\n";
 	print HTML "<td><font color=\"#ffffff\"><b>Script</b></td>\n";
 	print HTML "</font></tr>\n";
@@ -188,7 +192,7 @@ sub chaps_process {
 
 		print HTML "<td><table border=0>\n";
 
-		foreach $demo (@demos) {
+		foreach $demo (sort(@demos)) {
 			if ($demo !~ /^[a-z].*\.d$/) {
 				next;
 			}

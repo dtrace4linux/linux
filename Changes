@@ -1,3 +1,14 @@
+Tue May 13 21:56:09 2008  fox
+
+      17* cmd/dtrace/dtrace.c: Fix issue with getopt() not working when
+          presented with this command line:
+
+	  cmd/dtrace/dtrace cmd/dtrace/demo/agg/denorm.d /bin/ls
+
+      16* Update the cmd/dtrace demo to the latest version. They broke
+          backwards compatibility ! Why ?! The #pragma changed syntax.
+	  Thats very very naughty of them. I do hate lex+flex.
+
 Sun May 11 20:54:47 2008  fox
 
       15* Update libdtrace to latest opensolaris version.

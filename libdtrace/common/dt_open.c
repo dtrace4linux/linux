@@ -854,10 +854,18 @@ dt_vopen(int version, int flags, int *errp,
 	 */
 	dt_provmod_open(&provmod, &df);
 
+# if linux
+	dtfd = open("/dev/dtrace", O_RDWR);
+# else
 	dtfd = open("/dev/dtrace/dtrace", O_RDWR);
+# endif
 	err = errno; /* save errno from opening dtfd */
 
+# if linux
+	ftfd = open("/dev/fasttrap", O_RDWR);
+# else
 	ftfd = open("/dev/dtrace/provider/fasttrap", O_RDWR);
+# endif
 	fterr = ftfd == -1 ? errno : 0; /* save errno from open ftfd */
 
 	while (df.df_ents-- != 0)

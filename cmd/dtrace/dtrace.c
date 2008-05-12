@@ -1188,31 +1188,32 @@ main(int argc, char *argv[])
 	 * We also accumulate arguments that are not affiliated with getopt
 	 * options into g_argv[], and abort if any invalid options are found.
 	 */
-	for (optind = 1; optind < argc; optind++) {
-		while ((c = getopt(argc, argv, DTRACE_OPTSTR)) != EOF) {
-			switch (c) {
-			case '3':
-				if (strcmp(optarg, "2") != 0) {
-					(void) fprintf(stderr,
-					    "%s: illegal option -- 3%s\n",
-					    argv[0], optarg);
-					return (usage(stderr));
-				}
+	/***********************************************/
+	/*   PDF:  Under Ubuntu, the getopt is broke.  */
+	/*   Fix it by writing reasonable code.	       */
+	/***********************************************/
+	for (i = 1; i < argc; i++) {
+		char *cp = argv[i];
+		if (*cp != '-') {
+			g_argv[g_argc++] = cp;
+			continue;
+		}
+		cp++;
+
+		while (*cp) {
+			if (strcmp(cp, "32") == 0) {
 				g_oflags &= ~DTRACE_O_LP64;
 				g_oflags |= DTRACE_O_ILP32;
 				break;
-
-			case '6':
-				if (strcmp(optarg, "4") != 0) {
-					(void) fprintf(stderr,
-					    "%s: illegal option -- 6%s\n",
-					    argv[0], optarg);
-					return (usage(stderr));
-				}
+			}
+			if (strcmp(cp, "64") == 0) {
 				g_oflags &= ~DTRACE_O_ILP32;
 				g_oflags |= DTRACE_O_LP64;
 				break;
+			}
 
+			c = *cp++;
+			switch (c) {
 			case 'a':
 				g_grabanon++; /* also checked in pass 2 below */
 				break;
@@ -1256,13 +1257,9 @@ main(int argc, char *argv[])
 				break;
 
 			default:
-				if (strchr(DTRACE_OPTSTR, c) == NULL)
-					return (usage(stderr));
+				return (usage(stderr));
 			}
 		}
-
-		if (optind < argc)
-			g_argv[g_argc++] = argv[optind];
 	}
 
 	if (mode > 1) {

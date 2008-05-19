@@ -210,9 +210,10 @@
 
 %%
 
-dtrace_program: d_expression DT_TOK_EOF { return (dt_node_root($1)); }
-	|	d_program DT_TOK_EOF { return (dt_node_root($1)); }
-	|	d_type DT_TOK_EOF { return (dt_node_root($1)); }
+/* Removed DT_TOK_EOF due to portability issues amongst bison/yacc */
+dtrace_program: d_expression { return (dt_node_root($1)); }
+	|	d_program { return (dt_node_root($1)); }
+	|	d_type { return (dt_node_root($1)); }
 	;
 
 d_expression:	DT_CTX_DEXPR { $$ = NULL; }

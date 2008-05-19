@@ -1,3 +1,9 @@
+Tue May 20 23:50:24 2008  fox
+
+      18* cmd/dtrace/dtrace.c: Incorporate getopt() fixes from Apple/Darwin.
+          Fixes 'dtrace -n BEGIN', but note this will presently crash your
+	  kernel if you run it !
+
 Tue May 13 21:56:09 2008  fox
 
       17* cmd/dtrace/dtrace.c: Fix issue with getopt() not working when

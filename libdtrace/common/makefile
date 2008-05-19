@@ -48,8 +48,8 @@ $(LIB): $(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_ident.o) \
 	$(LIB)(dt_inttab.o) \
 	$(LIB)(dt_lex.o) \
-	$(LIB)(dt_link.o) \ \
 	$(LIB)(dt_list.o) \
+	$(LIB)(dt_link.o) \
 	$(LIB)(dt_module.o) \
 	$(LIB)(dt_map.o) \
 	$(LIB)(dt_names.o) \
@@ -80,7 +80,7 @@ $(LIB)(dt_grammar.o): dt_grammar.y $(H)
 	$(YACC) -d dt_grammar.y
 	mv y.tab.h dt_grammar.h
 	mv y.tab.c dt_grammar.c
-	$(CC) $(CPPFLAGS) -c dt_grammar.c
+	$(CC) -DYYDEBUG=1 -DYYERROR_VERBOSE $(CPPFLAGS) -c dt_grammar.c
 	ar rv $(LIB) dt_grammar.o
 	-rm -f dt_grammar.c dt_grammar.o
 
@@ -90,7 +90,7 @@ $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
 	lex -l -t -v dt_lex.l > dt_lex.c
 	$(CC) $(CPPFLAGS) -c dt_lex.c
 	ar rv $(LIB) dt_lex.o
-	-rm -f dt_lex.c dt_lex.o
+#	-rm -f dt_lex.c dt_lex.o
 
 clean:
 	-rm -f *.o *.a

@@ -98,6 +98,8 @@ static char *g_etcfile = "/etc/system";
 static const char *g_etcbegin = "* vvvv Added by DTrace";
 static const char *g_etcend = "* ^^^^ Added by DTrace";
 
+extern int yydebug;
+
 static const char *g_etc[] =  {
 "*",
 "* The following forceload directives were added by dtrace(1M) to allow for",
@@ -1160,10 +1162,17 @@ main(int argc, char *argv[])
 	dtrace_cmd_t *dcp;
 
 	int done = 0, mode = 0;
-	int err, i;
+	int err, i, k;
 	char c, *p, **v;
 	struct ps_prochandle *P;
 	pid_t pid;
+
+	/***********************************************/
+	/*   Allow   us   to   turn   on   yacc/bison  */
+	/*   debugging.				       */
+	/***********************************************/
+	if (getenv("YYDEBUG"))
+		yydebug = 1;
 
 	g_ofp = stdout;
 	g_pname = basename(argv[0]);
@@ -1188,35 +1197,74 @@ main(int argc, char *argv[])
 	 * We also accumulate arguments that are not affiliated with getopt
 	 * options into g_argv[], and abort if any invalid options are found.
 	 */
-	/***********************************************/
-	/*   PDF:  Under Ubuntu, the getopt is broke.  */
-	/*   Fix it by writing reasonable code.	       */
-	/***********************************************/
-	for (i = 1; i < argc; i++) {
-		char *cp = argv[i];
-		if (*cp != '-') {
-			g_argv[g_argc++] = cp;
-			continue;
-		}
-		cp++;
-
-		while (*cp) {
-			if (strcmp(cp, "32") == 0) {
+	optind = 1;
+	for (k = 1; k < argc; k++) {
+		int	cc;
+		while ((cc = getopt(argc, argv, DTRACE_OPTSTR)) != -1) {
+			c = cc;
+			switch (c) {
+			case '3':
+				if (strcmp(optarg, "2") != 0) {
+					(void) fprintf(stderr,
+					    "%s: illegal option -- 3%s\n",
+					    argv[0], optarg);
+					return (usage(stderr));
+				}
+#if !defined(__APPLE__)
 				g_oflags &= ~DTRACE_O_LP64;
 				g_oflags |= DTRACE_O_ILP32;
+#else
+				(void) fprintf(stderr, "%s: ignored option -- 3%s\n",
+					    argv[0], optarg);
+#endif /* __APPLE__ */
 				break;
-			}
-			if (strcmp(cp, "64") == 0) {
+
+			case '6':
+				if (strcmp(optarg, "4") != 0) {
+					(void) fprintf(stderr,
+					    "%s: illegal option -- 6%s\n",
+					    argv[0], optarg);
+					return (usage(stderr));
+				}
+#if !defined(__APPLE__)
 				g_oflags &= ~DTRACE_O_ILP32;
 				g_oflags |= DTRACE_O_LP64;
+#else
+				(void) fprintf(stderr, "%s: ignored option -- 6%s\n",
+					    argv[0], optarg);
+#endif /* __APPLE__ */
 				break;
-			}
-
-			c = *cp++;
-			switch (c) {
 			case 'a':
+#if !defined(__APPLE__)
 				g_grabanon++; /* also checked in pass 2 below */
 				break;
+#else
+				if (0 == strcmp(optarg, "rch")) {
+					if (optind < argc && '-' != argv[optind][0]) {
+						const char* arch_string = argv[optind++];
+						target_arch = arch_for_string(arch_string);
+						if(!target_arch) {
+							(void) fprintf(stderr,
+								"%s: invalid architecture -- %s\n",
+								argv[0], arch_string);
+							return usage(stderr);
+						}
+					}
+					else
+					{
+						(void) fprintf(stderr,
+							"%s: option requires an argument -- arch\n",
+							argv[0]);
+						return usage(stderr);
+					}
+				}
+				else
+				{
+					g_grabanon++;
+					optind--;
+				}
+				break;
+#endif
 
 			case 'A':
 				g_mode = DMODE_ANON;
@@ -1255,11 +1303,38 @@ main(int argc, char *argv[])
 				g_mode = DMODE_VERS;
 				mode++;
 				break;
+				
+#if defined(__APPLE__)
+			case ':':
+				if ('a' == optopt) { // dangling '-a' without optarg is OK
+					g_grabanon++;
+					break;
+				}
+				else
+				{
+					(void) fprintf(stderr,
+						"%s: option requires an argument -- %c\n",
+						argv[0], optopt);
+					return usage(stderr);
+				}
+				/* NOTREACHED */
+#endif /* __APPLE__ */
 
 			default:
-				return (usage(stderr));
+				if (strchr(DTRACE_OPTSTR, c) == NULL)
+					return (usage(stderr));
 			}
 		}
+
+		/* 'k' should track the advance of optind through argv.
+		 * When optind getopt() returns -1 and optind freezes, 'k' iterates 
+		 * over the remaining elements in argv.
+		 */
+		if (k < optind)
+			k = optind;
+
+		if (k < argc)
+			g_argv[g_argc++] = argv[k];
 	}
 
 	if (mode > 1) {

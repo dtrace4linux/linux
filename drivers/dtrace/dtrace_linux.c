@@ -52,6 +52,7 @@ int dtrace_detach(void);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
 int dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
 int dtrace_attach(dev_info_t *devi, int cmd);
+int dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p);
 int	ctf_init(void);
 void	ctf_exit(void);
 int	fasttrap_init(void);
@@ -280,8 +281,15 @@ dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
 static int
-dtracedrv_open(struct module *mp, int *error)
-{
+dtracedrv_open(struct inode *inode, struct file *file)
+{	int	ret;
+
+TODO();
+	ret = dtrace_open(inode, 0, 0, NULL);
+TODO();
+
+	return -ret;
+# if 0
 	/*
 	 * Ask all providers to provide their probes.
 	 */
@@ -290,6 +298,7 @@ dtracedrv_open(struct module *mp, int *error)
 	mutex_exit(&dtrace_provider_lock);
 
 	return 0;
+# endif
 }
 static int
 dtracedrv_read(ctf_file_t *fp, int fd)
@@ -324,8 +333,9 @@ static int dtracedrv_helper_read_proc(char *page, char **start, off_t off,
 static int dtracedrv_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
 {	int	ret;
+	int	rv;
 
-	ret = dtrace_ioctl(0, cmd, arg, 0, NULL, NULL);
+	ret = dtrace_ioctl(0, cmd, arg, 0, NULL, &rv);
         return -ret;
 }
 static const struct file_operations dtracedrv_fops = {

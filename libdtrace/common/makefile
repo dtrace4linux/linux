@@ -90,7 +90,7 @@ $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
 	lex -l -t -v dt_lex.l > dt_lex.c
 	$(CC) $(CPPFLAGS) -c dt_lex.c
 	ar rv $(LIB) dt_lex.o
-#	-rm -f dt_lex.c dt_lex.o
+	-rm -f dt_lex.c dt_lex.o
 
 clean:
 	-rm -f *.o *.a

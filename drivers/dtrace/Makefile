@@ -34,3 +34,5 @@ EXTRA_CFLAGS += \
 clean:
 	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers
 
+unl:
+	setuid root rmmod dtracedrv

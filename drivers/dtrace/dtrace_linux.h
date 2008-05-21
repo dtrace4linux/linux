@@ -32,6 +32,7 @@
 #include <sys/cyclic.h>
 #include <linux/sched.h>
 #include <linux/hardirq.h>
+#include <linux/device.h>
 #include <asm/uaccess.h>
 
 #define	current	_current /* is a macro in <current.h> */

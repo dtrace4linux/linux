@@ -366,6 +366,11 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 		int i, err = 0;
 
 PRINT_CASE(DTRACEIOC_ENABLE);
+		if (rv == 0) {
+			TODO();
+			printk("Sorry - but rv is null and should not be!\n");
+			return EFAULT;
+		}
 		*rv = 0;
 
                 /*
@@ -373,22 +378,30 @@ PRINT_CASE(DTRACEIOC_ENABLE);
                  * cue to reevaluate our enablings.
                  */
                 if (arg == NULL) {
+TODO();
                         mutex_enter(&cpu_lock);
                         mutex_enter(&dtrace_lock);
                         err = dtrace_enabling_matchstate(state, rv);
+TODO();
                         mutex_exit(&dtrace_lock);
                         mutex_exit(&cpu_lock);
 
                         return (err);
                 }
 
+TODO();
 		if ((dof = dtrace_dof_copyin(arg, &rval)) == NULL)
 			return (rval);
 
-TODO();
 		mutex_enter(&cpu_lock);
 		mutex_enter(&dtrace_lock);
 TODO();
+		if (state == NULL) {
+			TODO();
+			printk("Sorry - but state is null and it should not be!\n");
+			return EFAULT;
+		}
+
 		vstate = &state->dts_vstate;
 
 		if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE) {

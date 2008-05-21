@@ -1964,7 +1964,7 @@ dtrace_speculation_buffer(dtrace_state_t *state, processorid_t cpuid,
     dtrace_specid_t which)
 {
 	dtrace_speculation_t *spec;
-	dtrace_speculation_state_t current, new;
+	dtrace_speculation_state_t current, new = 0;
 	dtrace_buffer_t *buf;
 
 	if (which == 0)
@@ -3103,7 +3103,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 
 	uint8_t cc_n = 0, cc_z = 0, cc_v = 0, cc_c = 0;
 	int64_t cc_r;
-	uint_t pc = 0, id, opc;
+	uint_t pc = 0, id, opc = 0;
 	uint8_t ttop = 0;
 	dif_instr_t instr;
 	uint_t r1, r2, rd;
@@ -10963,7 +10963,7 @@ static void
 dtrace_anon_match(const char *name, dtrace_probespec_t what)
 {
 	dtrace_enabling_t *enab = dtrace_anon.dta_enabling;
-	uintptr_t offset;
+	uintptr_t offset = 0;
 	int i, len;
 
 	ASSERT(MUTEX_HELD(&cpu_lock));
@@ -12674,14 +12674,18 @@ dtrace_attach(dev_info_t *devi, int cmd)
 	return 0;
 }
 
+/**********************************************************************/
+/*   Invokked from dtrace_linux.c:dtracedrv_open		      */
+/**********************************************************************/
 /*ARGSUSED*/
-static int
+int
 dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 {
 	dtrace_state_t *state;
-	uint32_t priv;
-	uid_t uid;
+	uint32_t priv = 0;
+	uid_t uid = 0;
 
+# if defined(sun)
 	if (getminor(*devp) == DTRACEMNRN_HELPER)
 		return (0);
 
@@ -12698,6 +12702,7 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 	dtrace_cred2priv(cred_p, &priv, &uid);
 	if (priv == DTRACE_PRIV_NONE)
 		return (EACCES);
+# endif
 
 	/*
 	 * Ask all providers to provide their probes.
@@ -12706,10 +12711,12 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 	dtrace_probe_provide(NULL);
 	mutex_exit(&dtrace_provider_lock);
 
+TODO();
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);
 	dtrace_opens++;
 	dtrace_membar_producer();
+TODO();
 
 # if defined(sun)
 	/*
@@ -12726,9 +12733,7 @@ dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 	state = dtrace_state_create(devp, cred_p);
 # else
         state = dtrace_state_create(devp, NULL);
-	TODO();
-        /* dev->si_drv1 = state; */
-	TODO_END();
+	dev_set_drvdata(devp, state);
 # endif
 
 	mutex_exit(&cpu_lock);

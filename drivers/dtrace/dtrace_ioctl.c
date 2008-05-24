@@ -10,6 +10,7 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
+#include "dtrace_proto.h"
 #include <linux/cpumask.h>
 
 #include <linux/errno.h>
@@ -30,38 +31,17 @@ extern int		dtrace_error;		/* temporary variable */
 extern dtrace_state_t	*dtrace_state;		/* temporary variable */
 
 /**********************************************************************/
-/*   Prototypes.						      */
-/**********************************************************************/
-int dtrace_state_go(dtrace_state_t *state, processorid_t *cpu);
-void	dtrace_probe_provide(dtrace_probedesc_t *desc);
-void	dtrace_probekey(const dtrace_probedesc_t *pdp, dtrace_probekey_t *pkp);
-void	dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp);
-int	dtrace_match_priv(const dtrace_probe_t *prp, uint32_t priv, uid_t uid);
-int	dtrace_match_probe(const dtrace_probe_t *prp, const dtrace_probekey_t *pkp,
-    uint32_t priv, uid_t uid);
-void	dtrace_probe_description(const dtrace_probe_t *prp, dtrace_probedesc_t *pdp);
-int dtrace_state_stop(dtrace_state_t *state, processorid_t *cpu);
-dof_hdr_t *dtrace_dof_copyin(uintptr_t uarg, int *errp);
-void dtrace_dof_destroy(dof_hdr_t *dof);
-int dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr, dtrace_enabling_t **enabp, uint64_t ubase, int noprobes);
-void dtrace_enabling_destroy(dtrace_enabling_t *enab);
-int dtrace_dof_options(dof_hdr_t *dof, dtrace_state_t *state);
-int dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_ecbdesc_t *ep);
-int dtrace_enabling_matchstate(dtrace_state_t *state, int *nmatched);
-int dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched);
-int dtrace_enabling_retain(dtrace_enabling_t *enab);
-
-/**********************************************************************/
 /*   Code to support the ioctl interface for /dev/dtrace.	      */
 /**********************************************************************/
 int
-dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 {
-	minor_t minor = getminor(dev);
+//	minor_t minor = getminor(dev);
 	dtrace_state_t *state = NULL;
 	int rval;
 
-# if 0
+printk("fp=%p cmd=%x\n", fp, cmd);
+# if defined(sun)
 	if (minor == DTRACEMNRN_HELPER)
 		return (dtrace_ioctl_helper(cmd, arg, rv));
 
@@ -71,9 +51,17 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		ASSERT(dtrace_anon.dta_state == NULL);
 		state = state->dts_anon;
 	}
+# else
+TODO();
+	state = fp->private_data;
+printk("state=%p\n", state);
+TODO();
+	if (state->dts_anon) {
+		ASSERT(dtrace_anon.dta_state == NULL);
+		state = state->dts_anon;
+	}
 # endif
 
-printk("cmd=%x\n", cmd);
 
 	switch (cmd) {
 	case DTRACEIOC_CONF: {
@@ -117,7 +105,7 @@ PRINT_CASE(DTRACEIOC_PROBES);
 		 */
 		if (desc.dtpd_id == DTRACE_IDNONE) {
 			mutex_enter(&dtrace_provider_lock);
-			dtrace_probe_provide(&desc);
+			dtrace_probe_provide(&desc, NULL);
 			mutex_exit(&dtrace_provider_lock);
 			desc.dtpd_id++;
 		}

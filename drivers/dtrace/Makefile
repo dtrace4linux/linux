@@ -21,6 +21,8 @@ dtracedrv-objs := \
 
 obj-m := dtracedrv.o
 
+H	= dtrace_linux.h dtrace_proto.h
+
 EXTRA_CFLAGS += \
 	-I$(M) \
 	-I$(M)/../.. \

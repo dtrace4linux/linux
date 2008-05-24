@@ -10,9 +10,10 @@
 /**********************************************************************/
 
 #include "dtrace_linux.h"
-#include <sys/dtrace.h>
-#include <linux/cpumask.h>
+#include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
 
+#include <linux/cpumask.h>
 #include <linux/errno.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
@@ -47,12 +48,6 @@ dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
 /**********************************************************************/
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
-void dtrace_probe_provide(dtrace_probedesc_t *desc);
-int dtrace_detach(void);
-int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
-int dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
-int dtrace_attach(dev_info_t *devi, int cmd);
-int dtrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p);
 int	ctf_init(void);
 void	ctf_exit(void);
 int	fasttrap_init(void);
@@ -285,7 +280,8 @@ dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
 TODO();
-	ret = dtrace_open(inode, 0, 0, NULL);
+printk("inode=%x file=%x\n", inode, file);
+	ret = dtrace_open(file, 0, 0, NULL);
 TODO();
 
 	return -ret;
@@ -335,7 +331,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 {	int	ret;
 	int	rv;
 
-	ret = dtrace_ioctl(0, cmd, arg, 0, NULL, &rv);
+	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
         return -ret;
 }
 static const struct file_operations dtracedrv_fops = {

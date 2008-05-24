@@ -1,10 +1,27 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef _SYS_DTRACE_IMPL_H
@@ -91,6 +108,7 @@ struct dtrace_probe {
 	dtrace_probe_t *dtpr_prevfunc;		/* previous in function hash */
 	dtrace_probe_t *dtpr_nextname;		/* next in name hash */
 	dtrace_probe_t *dtpr_prevname;		/* previous in name hash */
+        dtrace_genid_t dtpr_gen;                /* probe generation ID */
 };
 
 typedef int dtrace_probekey_f(const char *, const char *, int);
@@ -385,6 +403,7 @@ typedef struct dtrace_aggregation {
 #define	DTRACEBUF_ERROR		0x0020		/* errors occurred */
 #define	DTRACEBUF_FULL		0x0040		/* "fill" buffer is full */
 #define	DTRACEBUF_CONSUMED	0x0080		/* buffer has been consumed */
+#define	DTRACEBUF_INACTIVE	0x0100		/* buffer is not yet active */
 
 typedef struct dtrace_buffer {
 	uint64_t dtb_offset;			/* current offset in buffer */
@@ -818,39 +837,36 @@ typedef struct dtrace_dstate {
  * The variable state tracks variables by both their scope and their allocation
  * type:
  *
- *  - The dtvs_globals member points to an array of dtrace_globvar structures.
- *    These structures contain both the variable metadata (dtrace_difv
- *    structures) and the underlying storage for all statically allocated
- *    DIFV_SCOPE_GLOBAL variables.
+ *  - The dtvs_globals and dtvs_locals members each point to an array of
+ *    dtrace_statvar structures.  These structures contain both the variable
+ *    metadata (dtrace_difv structures) and the underlying storage for all
+ *    statically allocated variables, including statically allocated
+ *    DIFV_SCOPE_GLOBAL variables and all DIFV_SCOPE_LOCAL variables.
  *
  *  - The dtvs_tlocals member points to an array of dtrace_difv structures for
  *    DIFV_SCOPE_THREAD variables.  As such, this array tracks _only_ the
  *    variable metadata for DIFV_SCOPE_THREAD variables; the underlying storage
  *    is allocated out of the dynamic variable space.
  *
- *  - The dtvs_locals member points to an array of uint64_t's that represent
- *    the underlying storage for DIFV_SCOPE_LOCAL variables.  As
- *    DIFV_SCOPE_LOCAL variables may only be scalars, there is no need to store
- *    any variable metadata other than the number of clause-local variables.
- *
  *  - The dtvs_dynvars member is the dynamic variable state associated with the
  *    variable state.  The dynamic variable state (described in "DTrace Dynamic
  *    Variables", above) tracks all DIFV_SCOPE_THREAD variables and all
  *    dynamically-allocated DIFV_SCOPE_GLOBAL variables.
  */
-typedef struct dtrace_globvar {
-	uint64_t dtgv_data;			/* data or pointer to it */
-	int dtgv_refcnt;			/* reference count */
-	dtrace_difv_t dtgv_var;			/* variable metadata */
-} dtrace_globvar_t;
+typedef struct dtrace_statvar {
+	uint64_t dtsv_data;			/* data or pointer to it */
+	size_t dtsv_size;			/* size of pointed-to data */
+	int dtsv_refcnt;			/* reference count */
+	dtrace_difv_t dtsv_var;			/* variable metadata */
+} dtrace_statvar_t;
 
 typedef struct dtrace_vstate {
-        dtrace_state_t *dtvs_state;             /* back pointer to state */
-	dtrace_globvar_t **dtvs_globals;	/* statically-allocated glbls */
+	dtrace_state_t *dtvs_state;		/* back pointer to state */
+	dtrace_statvar_t **dtvs_globals;	/* statically-allocated glbls */
 	int dtvs_nglobals;			/* number of globals */
 	dtrace_difv_t *dtvs_tlocals;		/* thread-local metadata */
 	int dtvs_ntlocals;			/* number of thread-locals */
-	uint64_t **dtvs_locals;			/* clause-local data */
+	dtrace_statvar_t **dtvs_locals;		/* clause-local data */
 	int dtvs_nlocals;			/* number of clause-locals */
 	dtrace_dstate_t dtvs_dynvars;		/* dynamic variable state */
 } dtrace_vstate_t;
@@ -888,6 +904,7 @@ typedef struct dtrace_mstate {
 	uintptr_t dtms_caller;			/* cached caller */
 	int dtms_ipl;				/* cached interrupt pri lev */
 	int dtms_fltoffs;			/* faulting DIFO offset */
+	uintptr_t dtms_strtok;			/* saved strtok() pointer */
 } dtrace_mstate_t;
 
 #define	DTRACE_COND_OWNER	0x1

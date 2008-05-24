@@ -127,6 +127,7 @@ typedef unsigned int mutex_t;
 	# define	p_parent parent
 
 	#define        MIN(a,b) (((a)<(b))?(a):(b))
+	#define UINT8_MAX       (255U)
 	#define	USHRT_MAX	0xffff
 	#define	UINT16_MAX	0xffff
 	#define	INT32_MAX	0x7fffffff

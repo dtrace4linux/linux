@@ -200,7 +200,6 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	int	 size = -1;
 	fbt_probe_t *fbt, *retfbt;
 
-return;
 # if 0
 	struct module *mp = ctl->mod_mp;
 	char *str = mp->strings;

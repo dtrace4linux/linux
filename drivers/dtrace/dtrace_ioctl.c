@@ -420,20 +420,22 @@ TODO();
 TODO();
 
                 if ((err = dtrace_enabling_match(enab, rv)) == 0) {
+TODO();
                         err = dtrace_enabling_retain(enab);
                 } else {
                         dtrace_enabling_destroy(enab);
                 }
 TODO();
-		dtrace_enabling_destroy(enab);
-
 		mutex_exit(&cpu_lock);
 		mutex_exit(&dtrace_lock);
 TODO();
 		dtrace_dof_destroy(dof);
 TODO();
+printk("err=%d rv=%d\n", err, *rv);
+//		if (err == 0)
+//			copy_to_user(arg , &rv, sizeof rv);
 
-		return (err);
+		return err;
 	}
 
 

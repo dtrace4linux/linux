@@ -22,10 +22,11 @@ int dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_enabling_t *ep);
 int dtrace_enabling_matchstate(dtrace_state_t *state, int *nmatched);
 int dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched);
 int dtrace_enabling_retain(dtrace_enabling_t *enab);
-int dtrace_detach(void);
+int dtrace_detach(dev_info_t *devi, ddi_detach_cmd_t cmd);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);
 int dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
-int dtrace_attach(dev_info_t *devi, int cmd);
+int dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd);
 int dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p);
+int dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p);
 # endif
 

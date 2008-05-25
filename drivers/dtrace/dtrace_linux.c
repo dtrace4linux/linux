@@ -130,7 +130,7 @@ dtrace_sync(void)
 void
 dtrace_vtime_enable(void)
 {
-	dtrace_vtime_state_t state, nstate;
+	dtrace_vtime_state_t state, nstate = 0;
 
 	do {
 		state = dtrace_vtime_active;
@@ -157,7 +157,7 @@ dtrace_vtime_enable(void)
 void
 dtrace_vtime_disable(void)
 {
-	dtrace_vtime_state_t state, nstate;
+	dtrace_vtime_state_t state, nstate = 0;
 
 	do {
 		state = dtrace_vtime_active;
@@ -224,35 +224,43 @@ kmem_free(void *ptr, int size)
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
 /**********************************************************************/
-static int vm_id;
+typedef struct seq_t {
+	struct mutex seq_mutex;
+	int	seq_id;
+	} seq_t;
 
 void *
 vmem_alloc(vmem_t *hdr, size_t s, int flags)
-{
-	return ++vm_id;
-	
-	printk("vmem_alloc: hdr=%x\n", hdr);
-	return kmem_cache_alloc(hdr, GFP_KERNEL);
+{	seq_t *seqp = (seq_t *) hdr;
+	void	*ret;
+
+	mutex_lock(&seqp->seq_mutex);
+	ret = (void *) ++seqp->seq_id;
+	mutex_unlock(&seqp->seq_mutex);
+	return ret;
 }
 
 void *
 vmem_create(const char *name, void *base, size_t size, size_t quantum,
         vmem_alloc_t *afunc, vmem_free_t *ffunc, vmem_t *source,
         size_t qcache_max, int vmflag)
-{
-	return NULL;
+{	seq_t *seqp = kmalloc(sizeof *seqp, GFP_KERNEL);
+
+	mutex_init(&seqp->seq_mutex);
+	seqp->seq_id = 0;
+
+	return seqp;
 }
 
 void
 vmem_free(vmem_t *hdr, void *ptr, size_t s)
 {
-	return;
 
-	kmem_cache_free(hdr, ptr);
 }
 void 
 vmem_destroy(vmem_t *hdr)
 {
+	kfree(hdr);
 }
 int
 priv_policy_only(const cred_t *a, int b, int c)
@@ -280,6 +288,8 @@ dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
 TODO();
+	dtrace_attach(NULL, 0);
+TODO();
 printk("inode=%x file=%x\n", inode, file);
 	ret = dtrace_open(file, 0, 0, NULL);
 TODO();
@@ -295,6 +305,13 @@ TODO();
 
 	return 0;
 # endif
+}
+static int
+dtracedrv_release(struct inode *inode, struct file *file)
+{
+	dtrace_close(file, 0, 0, NULL);
+	dtrace_detach(file, 0);
+	return 0;
 }
 static int
 dtracedrv_read(ctf_file_t *fp, int fd)
@@ -329,15 +346,18 @@ static int dtracedrv_helper_read_proc(char *page, char **start, off_t off,
 static int dtracedrv_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
 {	int	ret;
-	int	rv;
+	int	rv = 0;
 
 	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
-        return -ret;
+TODO();
+printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
+        return ret ? -ret : rv;
 }
 static const struct file_operations dtracedrv_fops = {
         .read = dtracedrv_read,
         .ioctl = dtracedrv_ioctl,
         .open = dtracedrv_open,
+        .release = dtracedrv_release,
 };
 
 static struct miscdevice dtracedrv_dev = {
@@ -348,7 +368,6 @@ static struct miscdevice dtracedrv_dev = {
 static int __init dtracedrv_init(void)
 {	int	ret;
 static struct proc_dir_entry *dir;
-	struct proc_dir_entry *ent;
 
 	/***********************************************/
 	/*   Create the parent directory.	       */
@@ -362,6 +381,7 @@ static struct proc_dir_entry *dir;
 	}
 
 # if 0
+	struct proc_dir_entry *ent;
 //	create_proc_read_entry("dtracedrv", 0, NULL, dtracedrv_read_proc, NULL);
 	ent = create_proc_entry("dtrace", S_IFREG | S_IRUGO | S_IWUGO, dir);
 	ent->read_proc = dtracedrv_read_proc;
@@ -380,7 +400,7 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
 
-	dtrace_attach(NULL, 0);
+//	dtrace_attach(NULL, 0);
 
 	ctf_init();
 	fasttrap_init();
@@ -389,11 +409,11 @@ static struct proc_dir_entry *dir;
 }
 static void __exit dtracedrv_exit(void)
 {
-	dtrace_detach();
+	fbt_exit();
+//	dtrace_detach();
 
 	ctf_exit();
 	fasttrap_exit();
-	fbt_exit();
 
 	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
 	remove_proc_entry("dtrace/dtrace", 0);

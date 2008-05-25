@@ -131,6 +131,11 @@ int priv_policy_choice(const cred_t *, int, int);
 #define PRIV_POLICY_ONLY(cred, priv, all) \
                 priv_policy_only((cred), (priv), (all))
 
+typedef int ddi_attach_cmd_t;
+typedef int ddi_detach_cmd_t;
+# define	DDI_FAILURE	-1
+# define	DDI_SUCCESS	0
+
 char	*getenv(char *);
 int	copyin(void *, void *, int);
 int kill_pid(struct pid *pid, int sig, int priv);

@@ -1,0 +1,1 @@
+dtrace -v -f log_wait_commit

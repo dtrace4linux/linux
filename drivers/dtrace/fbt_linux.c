@@ -379,8 +379,8 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 
 #ifdef __amd64
 		while (instr < limit) {
-printk("disasm: %p ", instr);
-printk("%02x\n", *instr);
+/*printk("disasm: %p ", instr);
+printk("%02x\n", *instr);*/
 			if (*instr == FBT_PUSHL_EBP)
 				break;
 

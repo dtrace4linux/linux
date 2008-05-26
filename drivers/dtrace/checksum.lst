@@ -11,10 +11,10 @@ df4b6018 size=113945  mtime=1209891480 ./dis_tables.c
 021c331d size=3096    mtime=1209891441 ./dis_tables.h
 62d4c308 size=50      mtime=1210514034 ./dt2
 3b7a929a size=29      mtime=1211818650 ./dt3
-e716e8dd size=361657  mtime=1211833196 ./dtrace.c
+d7b8d7ef size=366763  mtime=1211928317 ./dtrace.c
 94224da0 size=6493    mtime=1211652886 ./dtrace_asm.c
 95e2691f size=6716    mtime=1208466971 ./dtrace_asm.s
-a1b444c4 size=19256   mtime=1211834020 ./dtrace_ioctl.c
+ae7ae63b size=19664   mtime=1211928011 ./dtrace_ioctl.c
 a264f03a size=15206   mtime=1211652886 ./dtrace_isa.c
 871f7213 size=9761    mtime=1211834366 ./dtrace_linux.c
 2cd64b6c size=5190    mtime=1211735342 ./dtrace_linux.h

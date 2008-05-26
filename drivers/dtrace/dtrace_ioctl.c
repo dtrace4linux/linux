@@ -300,6 +300,20 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 		for (act = agg->dtag_first; ; act = act->dta_next) {
 			ASSERT(act->dta_intuple ||
 			    DTRACEACT_ISAGG(act->dta_kind));
+
+			/*
+			 * If this action has a record size of zero, it
+			 * denotes an argument to the aggregating action.
+			 * Because the presence of this record doesn't (or
+			 * shouldn't) affect the way the data is interpreted,
+			 * we don't copy it out to save user-level the
+			 * confusion of dealing with a zero-length record.
+			 */
+			if (act->dta_rec.dtrd_size == 0) {
+				ASSERT(agg->dtag_hasarg);
+				continue;
+			}
+
 			aggdesc.dtagd_nrecs++;
 
 			if (act == &agg->dtag_action)
@@ -323,6 +337,15 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 
 		for (act = agg->dtag_first; ; act = act->dta_next) {
 			dtrace_recdesc_t rec = act->dta_rec;
+
+			/*
+			 * See the comment in the above loop for why we pass
+			 * over zero-length records.
+			 */
+			if (rec.dtrd_size == 0) {
+				ASSERT(agg->dtag_hasarg);
+				continue;
+			}
 
 			if (nrecs-- == 0)
 				break;
@@ -503,13 +526,7 @@ PRINT_CASE(DTRACEIOC_PROBEARG);
 	case DTRACEIOC_GO: {
 		processorid_t cpuid;
 
-		/***********************************************/
-		/*   Hack to avoid panicing kernel just yet.   */
-		/***********************************************/
 PRINT_CASE(DTRACEIOC_GO);
-		if (state == NULL)
-			return EIO;
-
 TODO();
 		rval = dtrace_state_go(state, &cpuid);
 TODO();

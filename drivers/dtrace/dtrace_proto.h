@@ -20,7 +20,6 @@ void dtrace_enabling_destroy(dtrace_enabling_t *enab);
 int dtrace_dof_options(dof_hdr_t *dof, dtrace_state_t *state);
 int dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_enabling_t *ep);
 int dtrace_enabling_matchstate(dtrace_state_t *state, int *nmatched);
-int dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched);
 int dtrace_enabling_retain(dtrace_enabling_t *enab);
 int dtrace_detach(dev_info_t *devi, ddi_detach_cmd_t cmd);
 int dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv);

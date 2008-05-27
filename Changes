@@ -1,3 +1,8 @@
+Wed May 28 22:31:37 2008  fox
+
+      22* drivers/dtrace/dtrace_ioctl.c: Remove this - integrate back in
+          with dtrace.c since we are now more aligned and nearly working.
+
 Mon May 26 14:31:54 2008  fox
 
       21* drivers/dtrace/*: Fix issue where 'dtrace -l' would keep

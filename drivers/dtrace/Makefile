@@ -10,7 +10,6 @@ dtracedrv-objs := \
 	dis_tables.o \
 	dtrace.o \
 	dtrace_asm.o \
-	dtrace_ioctl.o \
 	dtrace_isa.o \
 	dtrace_linux.o \
 	dtrace_subr.o \

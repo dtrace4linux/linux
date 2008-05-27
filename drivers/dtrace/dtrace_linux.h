@@ -59,6 +59,8 @@
 #define	mutex_enter(x)	mutex_lock(x)
 #define	mutex_exit(x)	mutex_unlock(x)
 
+# define PRINT_CASE(x) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x)
+
 /*
 typedef int	major_t;
 typedef int	minor_t;

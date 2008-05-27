@@ -20,11 +20,11 @@
  */
 
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident   "@(#)dtrace.c   1.33    05/06/08 SMI"
+#pragma ident	"@(#)dtrace.c	1.61	08/01/29 SMI"
 
 /*
  * DTrace - Dynamic Tracing for Solaris
@@ -184,9 +184,9 @@ static dev_info_t	*dtrace_devi;		/* device info */
 static vmem_t		*dtrace_arena;		/* probe ID arena */
 static vmem_t		*dtrace_minor;		/* minor number arena */
 static taskq_t		*dtrace_taskq;		/* task queue */
-dtrace_probe_t	**dtrace_probes;	/* array of all probes */
-int		dtrace_nprobes;		/* number of probes */
-dtrace_provider_t *dtrace_provider;	/* provider list */
+static dtrace_probe_t	**dtrace_probes;	/* array of all probes */
+static int		dtrace_nprobes;		/* number of probes */
+static dtrace_provider_t *dtrace_provider;	/* provider list */
 static dtrace_meta_t	*dtrace_meta_pid;	/* user-land meta provider */
 static int		dtrace_opens;		/* number of opens */
 # if defined(sun)
@@ -204,11 +204,10 @@ static uint64_t		dtrace_vtime_references; /* number of vtimestamp refs */
 static kthread_t	*dtrace_panicked;	/* panicking thread */
 static dtrace_ecb_t	*dtrace_ecb_create_cache; /* cached created ECB */
 static dtrace_genid_t   dtrace_probegen;        /* current probe generation */
-static int		dtrace_double_errors;	/* ERRORs inducing error */
+static dtrace_helpers_t *dtrace_deferred_pid;	/* deferred helper list */
 static dtrace_enabling_t *dtrace_retained;      /* list of retained enablings */
 static dtrace_dynvar_t  dtrace_dynhash_sink;    /* end of dynamic hash chains */
 dtrace_state_t	*dtrace_state;		/* temporary variable */
-int		dtrace_error;		/* temporary variable */
 /*
  * List of helpers that must be processed once a 'pid' meta provider comes
  * along. This is protected by dtrace_lock.
@@ -441,7 +440,7 @@ dtrace_load##bits(uintptr_t addr)					\
 	rval = *((volatile uint##bits##_t *)addr);			\
 	*flags &= ~CPU_DTRACE_NOFAULT;					\
 									\
-	return (rval);							\
+	return (!(*flags & CPU_DTRACE_FAULT) ? rval : 0);		\
 }
 
 #ifdef _LP64
@@ -475,9 +474,10 @@ dtrace_load##bits(uintptr_t addr)					\
 	((act)->dta_kind == DTRACEACT_DIFEXPR &&			\
 	(act)->dta_difo->dtdo_rtype.dtdt_kind == DIF_TYPE_STRING)
 
+static size_t dtrace_strlen(const char *, size_t);
 static dtrace_probe_t *dtrace_probe_lookup_id(dtrace_id_t id);
 static void dtrace_enabling_provide(dtrace_provider_t *);
-int dtrace_enabling_match(dtrace_enabling_t *, int *);
+static int dtrace_enabling_match(dtrace_enabling_t *, int *);
 static void dtrace_enabling_matchall(void);
 static dtrace_state_t *dtrace_anon_grab(void);
 static uint64_t dtrace_helper(int, dtrace_mstate_t *,
@@ -489,6 +489,7 @@ static intptr_t dtrace_buffer_reserve(dtrace_buffer_t *, size_t, size_t,
 static int dtrace_state_option(dtrace_state_t *, dtrace_optid_t,
     dtrace_optval_t);
 static int dtrace_ecb_create_enable(dtrace_probe_t *, void *);
+static void dtrace_helper_provider_destroy(dtrace_helper_provider_t *);
 
 /*
  * DTrace Probe Context Functions
@@ -537,7 +538,7 @@ EXPORT_SYMBOL(dtrace_assfail);
  * Atomically increment a specified error counter from probe context.
  */
 static void
-TODO_dtrace_error(uint32_t *counter)
+dtrace_error(uint32_t *counter)
 {
 	/*
 	 * Most counters stored to in probe context are per-CPU counters.
@@ -608,8 +609,7 @@ dtrace_canstore_statvar(uint64_t addr, size_t sz,
 		if (svar == NULL || svar->dtsv_size == 0)
 			continue;
 
-		if (addr - svar->dtsv_data < svar->dtsv_size &&
-		    addr + sz <= svar->dtsv_data + svar->dtsv_size)
+		if (DTRACE_INRANGE(addr, sz, svar->dtsv_data, svar->dtsv_size))
 			return (1);
 	}
 
@@ -673,12 +673,50 @@ dtrace_canstore(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 		return (1);
 
 	return (0);
 }
 
 /*
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -874,6 +912,93 @@ dtrace_bzero(void *dst, size_t len)
 		*cp++ = 0;
 }
 
+static void
+dtrace_add_128(uint64_t *addend1, uint64_t *addend2, uint64_t *sum)
+{
+	uint64_t result[2];
+
+	result[0] = addend1[0] + addend2[0];
+	result[1] = addend1[1] + addend2[1] +
+	    (result[0] < addend1[0] || result[0] < addend2[0] ? 1 : 0);
+
+	sum[0] = result[0];
+	sum[1] = result[1];
+}
+
+/*
+ * Shift the 128-bit value in a by b. If b is positive, shift left.
+ * If b is negative, shift right.
+ */
+static void
+dtrace_shift_128(uint64_t *a, int b)
+{
+	uint64_t mask;
+
+	if (b == 0)
+		return;
+
+	if (b < 0) {
+		b = -b;
+		if (b >= 64) {
+			a[0] = a[1] >> (b - 64);
+			a[1] = 0;
+		} else {
+			a[0] >>= b;
+			mask = 1LL << (64 - b);
+			mask -= 1;
+			a[0] |= ((a[1] & mask) << (64 - b));
+			a[1] >>= b;
+		}
+	} else {
+		if (b >= 64) {
+			a[1] = a[0] << (b - 64);
+			a[0] = 0;
+		} else {
+			a[1] <<= b;
+			mask = a[0] >> (64 - b);
+			a[1] |= mask;
+			a[0] <<= b;
+		}
+	}
+}
+
+/*
+ * The basic idea is to break the 2 64-bit values into 4 32-bit values,
+ * use native multiplication on those, and then re-combine into the
+ * resulting 128-bit value.
+ *
+ * (hi1 << 32 + lo1) * (hi2 << 32 + lo2) =
+ *     hi1 * hi2 << 64 +
+ *     hi1 * lo2 << 32 +
+ *     hi2 * lo1 << 32 +
+ *     lo1 * lo2
+ */
+static void
+dtrace_multiply_128(uint64_t factor1, uint64_t factor2, uint64_t *product)
+{
+	uint64_t hi1, hi2, lo1, lo2;
+	uint64_t tmp[2];
+
+	hi1 = factor1 >> 32;
+	hi2 = factor2 >> 32;
+
+	lo1 = factor1 & DT_MASK_LO;
+	lo2 = factor2 & DT_MASK_LO;
+
+	product[0] = lo1 * lo2;
+	product[1] = hi1 * hi2;
+
+	tmp[0] = hi1 * lo2;
+	tmp[1] = 0;
+	dtrace_shift_128(tmp, 32);
+	dtrace_add_128(product, tmp, product);
+
+	tmp[0] = hi2 * lo1;
+	tmp[1] = 0;
+	dtrace_shift_128(tmp, 32);
+	dtrace_add_128(product, tmp, product);
+}
+
 /*
  * This privilege checks should be used by actions and subroutines to
  * verify the credentials of the process that enabled the invoking ECB.
@@ -917,6 +1042,22 @@ dtrace_priv_proc_common(dtrace_state_t *state)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	    !(proc->p_flag & SNOCD))
 		return (1);
 
@@ -932,6 +1073,10 @@ dtrace_priv_proc_destructive(dtrace_state_t *state)
 		return (1);
 
 	return (dtrace_priv_proc_common(state));
+
+
+
+
 
 
 }
@@ -1495,21 +1640,21 @@ retry:
 }
 
 static void
-dtrace_aggregate_min(uint64_t *oval, uint64_t nval)
+dtrace_aggregate_min(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
 	if (nval < *oval)
 		*oval = nval;
 }
 
 static void
-dtrace_aggregate_max(uint64_t *oval, uint64_t nval)
+dtrace_aggregate_max(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
 	if (nval > *oval)
 		*oval = nval;
 }
 
 static void
-dtrace_aggregate_quantize(uint64_t *quanta, uint64_t nval)
+dtrace_aggregate_quantize(uint64_t *quanta, uint64_t nval, uint64_t incr)
 {
 	int i, zero = DTRACE_QUANTIZE_ZEROBUCKET;
 	int64_t val = (int64_t)nval;
@@ -1517,19 +1662,19 @@ dtrace_aggregate_quantize(uint64_t *quanta, uint64_t nval)
 	if (val < 0) {
 		for (i = 0; i < zero; i++) {
 			if (val <= DTRACE_QUANTIZE_BUCKETVAL(i)) {
-				quanta[i]++;
+				quanta[i] += incr;
 				return;
 			}
 		}
 	} else {
 		for (i = zero + 1; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
 			if (val < DTRACE_QUANTIZE_BUCKETVAL(i)) {
-				quanta[i - 1]++;
+				quanta[i - 1] += incr;
 				return;
 			}
 		}
 
-		quanta[DTRACE_QUANTIZE_NBUCKETS - 1]++;
+		quanta[DTRACE_QUANTIZE_NBUCKETS - 1] += incr;
 		return;
 	}
 
@@ -1537,7 +1682,7 @@ dtrace_aggregate_quantize(uint64_t *quanta, uint64_t nval)
 }
 
 static void
-dtrace_aggregate_lquantize(uint64_t *lquanta, uint64_t nval)
+dtrace_aggregate_lquantize(uint64_t *lquanta, uint64_t nval, uint64_t incr)
 {
 	uint64_t arg = *lquanta++;
 	int32_t base = DTRACE_LQUANTIZE_BASE(arg);
@@ -1552,25 +1697,25 @@ dtrace_aggregate_lquantize(uint64_t *lquanta, uint64_t nval)
 		/*
 		 * This is an underflow.
 		 */
-		lquanta[0]++;
+		lquanta[0] += incr;
 		return;
 	}
 
 	level = (val - base) / step;
 
 	if (level < levels) {
-		lquanta[level + 1]++;
+		lquanta[level + 1] += incr;
 		return;
 	}
 
 	/*
 	 * This is an overflow.
 	 */
-	lquanta[levels + 1]++;
+	lquanta[levels + 1] += incr;
 }
 
 static void
-dtrace_aggregate_avg(uint64_t *data, uint64_t nval)
+dtrace_aggregate_avg(uint64_t *data, uint64_t nval, uint64_t arg)
 {
 	data[0]++;
 	data[1] += nval;
@@ -1578,14 +1723,39 @@ dtrace_aggregate_avg(uint64_t *data, uint64_t nval)
 
 /*ARGSUSED*/
 static void
-dtrace_aggregate_count(uint64_t *oval, uint64_t nval)
+dtrace_aggregate_stddev(uint64_t *data, uint64_t nval, uint64_t arg)
+{
+	int64_t snval = (int64_t)nval;
+	uint64_t tmp[2];
+
+	data[0]++;
+	data[1] += nval;
+
+	/*
+	 * What we want to say here is:
+	 *
+	 * data[2] += nval * nval;
+	 *
+	 * But given that nval is 64-bit, we could easily overflow, so
+	 * we do this as 128-bit arithmetic.
+	 */
+	if (snval < 0)
+		snval = -snval;
+
+	dtrace_multiply_128((uint64_t)snval, (uint64_t)snval, tmp);
+	dtrace_add_128(data + 2, tmp, data + 2);
+}
+
+/*ARGSUSED*/
+static void
+dtrace_aggregate_count(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
 	*oval = *oval + 1;
 }
 
 /*ARGSUSED*/
 static void
-dtrace_aggregate_sum(uint64_t *oval, uint64_t nval)
+dtrace_aggregate_sum(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
 	*oval += nval;
 }
@@ -1599,20 +1769,33 @@ dtrace_aggregate_sum(uint64_t *oval, uint64_t nval)
  */
 static void
 dtrace_aggregate(dtrace_aggregation_t *agg, dtrace_buffer_t *dbuf,
-    intptr_t offset, dtrace_buffer_t *buf, uint64_t arg)
+    intptr_t offset, dtrace_buffer_t *buf, uint64_t expr, uint64_t arg)
 {
 	dtrace_recdesc_t *rec = &agg->dtag_action.dta_rec;
 	uint32_t i, ndx, size, fsize;
 	uint32_t align = sizeof (uint64_t) - 1;
 	dtrace_aggbuffer_t *agb;
 	dtrace_aggkey_t *key;
-	uint32_t hashval = 0;
+	uint32_t hashval = 0, limit, isstr;
 	caddr_t tomax, data, kdata;
 	dtrace_actkind_t action;
+	dtrace_action_t *act;
 	uintptr_t offs;
 
 	if (buf == NULL)
 		return;
+
+	if (!agg->dtag_hasarg) {
+		/*
+		 * Currently, only quantize() and lquantize() take additional
+		 * arguments, and they have the same semantics:  an increment
+		 * value that defaults to 1 when not present.  If additional
+		 * aggregating actions take arguments, the setting of the
+		 * default argument value will presumably have to become more
+		 * sophisticated...
+		 */
+		arg = 1;
+	}
 
 	action = agg->dtag_action.dta_kind - DTRACEACT_AGGREGATION;
 	size = rec->dtrd_offset - agg->dtag_base;
@@ -1667,6 +1850,9 @@ dtrace_aggregate(dtrace_aggregation_t *agg, dtrace_buffer_t *dbuf,
 			agb->dtagb_hash[i] = NULL;
 	}
 
+	ASSERT(agg->dtag_first != NULL);
+	ASSERT(agg->dtag_first->dta_intuple);
+
 	/*
 	 * Calculate the hash value based on the key.  Note that we _don't_
 	 * include the aggid in the hashing (but we will store it as part of
@@ -1676,10 +1862,20 @@ dtrace_aggregate(dtrace_aggregation_t *agg, dtrace_buffer_t *dbuf,
 	 * algorithm (and a comparison with other algorithms) may be found by
 	 * running the ::dtrace_aggstat MDB dcmd.
 	 */
-	for (i = sizeof (dtrace_aggid_t); i < size; i++) {
-		hashval += data[i];
-		hashval += (hashval << 10);
-		hashval ^= (hashval >> 6);
+	for (act = agg->dtag_first; act->dta_intuple; act = act->dta_next) {
+		i = act->dta_rec.dtrd_offset - agg->dtag_base;
+		limit = i + act->dta_rec.dtrd_size;
+		ASSERT(limit <= size);
+		isstr = DTRACEACT_ISSTRING(act);
+
+		for (; i < limit; i++) {
+			hashval += data[i];
+			hashval += (hashval << 10);
+			hashval ^= (hashval >> 6);
+
+			if (isstr && data[i] == '\0')
+				break;
+		}
 	}
 
 	hashval += (hashval << 3);
@@ -1687,8 +1883,9 @@ dtrace_aggregate(dtrace_aggregation_t *agg, dtrace_buffer_t *dbuf,
 	hashval += (hashval << 15);
 
 	/*
-	 * Yes, the divide here is expensive.  If the cycle count here becomes
-	 * prohibitive, we can do tricks to eliminate it.
+	 * Yes, the divide here is expensive -- but it's generally the least
+	 * of the performance issues given the amount of data that we iterate
+	 * over to compute hash values, compare data, etc.
 	 */
 	ndx = hashval % agb->dtagb_hashsize;
 
@@ -1702,9 +1899,20 @@ dtrace_aggregate(dtrace_aggregation_t *agg, dtrace_buffer_t *dbuf,
 		kdata = key->dtak_data;
 		ASSERT(kdata >= tomax && kdata < tomax + buf->dtb_size);
 
-		for (i = sizeof (dtrace_aggid_t); i < size; i++) {
-			if (kdata[i] != data[i])
-				goto next;
+		for (act = agg->dtag_first; act->dta_intuple;
+		    act = act->dta_next) {
+			i = act->dta_rec.dtrd_offset - agg->dtag_base;
+			limit = i + act->dta_rec.dtrd_size;
+			ASSERT(limit <= size);
+			isstr = DTRACEACT_ISSTRING(act);
+
+			for (; i < limit; i++) {
+				if (kdata[i] != data[i])
+					goto next;
+
+				if (isstr && data[i] == '\0')
+					break;
+			}
 		}
 
 		if (action != key->dtak_action) {
@@ -1724,7 +1932,7 @@ dtrace_aggregate(dtrace_aggregation_t *agg, dtrace_buffer_t *dbuf,
 		 * This is a hit:  we need to apply the aggregator to
 		 * the value at this key.
 		 */
-		agg->dtag_aggregate((uint64_t *)(kdata + size), arg);
+		agg->dtag_aggregate((uint64_t *)(kdata + size), expr, arg);
 		return;
 next:
 		continue;
@@ -1765,6 +1973,34 @@ next:
 	for (i = sizeof (dtrace_aggid_t); i < size; i++)
 		kdata[i] = data[i];
 
+	/*
+	 * Because strings are not zeroed out by default, we need to iterate
+	 * looking for actions that store strings, and we need to explicitly
+	 * pad these strings out with zeroes.
+	 */
+	for (act = agg->dtag_first; act->dta_intuple; act = act->dta_next) {
+		int nul;
+
+		if (!DTRACEACT_ISSTRING(act))
+			continue;
+
+		i = act->dta_rec.dtrd_offset - agg->dtag_base;
+		limit = i + act->dta_rec.dtrd_size;
+		ASSERT(limit <= size);
+
+		for (nul = 0; i < limit; i++) {
+			if (nul) {
+				kdata[i] = '\0';
+				continue;
+			}
+
+			if (data[i] != '\0')
+				continue;
+
+			nul = 1;
+		}
+	}
+
 	for (i = size; i < fsize; i++)
 		kdata[i] = 0;
 
@@ -1778,7 +2014,7 @@ next:
 	 * Finally, apply the aggregator.
 	 */
 	*((uint64_t *)(key->dtak_data + size)) = agg->dtag_initial;
-	agg->dtag_aggregate((uint64_t *)(key->dtak_data + size), arg);
+	agg->dtag_aggregate((uint64_t *)(key->dtak_data + size), expr, arg);
 }
 
 /*
@@ -2361,6 +2597,10 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 
 
 
+
+
+
+
 	case DIF_VAR_PROBEMOD:
 		ASSERT(mstate->dtms_present & DTRACE_MSTATE_PROBE);
 		return ((uint64_t)(uintptr_t)
@@ -2368,10 +2608,16 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 
 
 
+
+
+
+
 	case DIF_VAR_PROBEFUNC:
 		ASSERT(mstate->dtms_present & DTRACE_MSTATE_PROBE);
 		return ((uint64_t)(uintptr_t)
 		    mstate->dtms_probe->dtpr_func);
+
+
 
 
 
@@ -2485,6 +2731,10 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 
 
 
+
+
+
+
 # if defined(sun)
 	union {
 		mutex_impl_t mi;
@@ -2512,6 +2762,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		break;
 
 	case DIF_SUBR_MUTEX_OWNER:
+
 		m.mx = dtrace_load64(tupregs[0].dttk_value);
 		if (MUTEX_TYPE_ADAPTIVE(&m.mi) &&
 		    MUTEX_OWNER(&m.mi) != MUTEX_NO_OWNER)
@@ -3356,6 +3607,10 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		    mstate->dtms_scratch_base + mstate->dtms_scratch_size) {
 
 
+
+
+
+
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOSCRATCH);
 			regs[rd] = NULL;
 			break;
@@ -3604,12 +3859,20 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 
 
 
+
+
+
+
 	uint8_t cc_n = 0, cc_z = 0, cc_v = 0, cc_c = 0;
 	int64_t cc_r;
 	uint_t pc = 0, id, opc = 0;
 	uint8_t ttop = 0;
 	dif_instr_t instr;
 	uint_t r1, r2, rd;
+
+
+
+
 
 
 
@@ -4863,7 +5126,16 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 				if (*flags & CPU_DTRACE_ERROR)
 					continue;
 
-				dtrace_aggregate(agg, buf, offs, aggbuf, v);
+				/*
+				 * Note that we always pass the expression
+				 * value from the previous iteration of the
+				 * action loop.  This value will only be used
+				 * if there is an expression argument to the
+				 * aggregating action, denoted by the
+				 * dtag_hasarg field.
+				 */
+				dtrace_aggregate(agg, buf,
+				    offs, aggbuf, v, val);
 				continue;
 			}
 
@@ -5104,9 +5376,11 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 			if (probe->dtpr_id == dtrace_probeid_error) {
 				/*
 				 * There's nothing we can do -- we had an
-				 * error on the error probe.
+				 * error on the error probe.  We bump an
+				 * error counter to at least indicate that
+				 * this condition happened.
 				 */
-				dtrace_double_errors++;
+				dtrace_error(&state->dts_dblerrors);
 				continue;
 			}
 
@@ -5134,18 +5408,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 
 			dtrace_probe_error(state, ecb->dte_epid, ndx,
 			    (mstate.dtms_present & DTRACE_MSTATE_FLTOFFS) ?
-			    mstate.dtms_fltoffs : -1,
-			    (*flags & CPU_DTRACE_BADADDR) ? DTRACEFLT_BADADDR :
-			    (*flags & CPU_DTRACE_ILLOP) ? DTRACEFLT_ILLOP :
-			    (*flags & CPU_DTRACE_DIVZERO) ? DTRACEFLT_DIVZERO :
-			    (*flags & CPU_DTRACE_KPRIV) ? DTRACEFLT_KPRIV :
-			    (*flags & CPU_DTRACE_UPRIV) ? DTRACEFLT_UPRIV :
-			    (*flags & CPU_DTRACE_TUPOFLOW) ?
-			    DTRACEFLT_TUPOFLOW :
-			    (*flags & CPU_DTRACE_BADALIGN) ?
-			    DTRACEFLT_BADALIGN :
-			    (*flags & CPU_DTRACE_NOSCRATCH) ?
-			    DTRACEFLT_NOSCRATCH : DTRACEFLT_UNKNOWN,
+			    mstate.dtms_fltoffs : -1, DTRACE_FLAGS2FLT(*flags),
 			    cpu_core[cpuid].cpuc_dtrace_illval);
 
 			continue;
@@ -9082,7 +9345,12 @@ TODO();
 		if (cpu != DTRACE_CPUALL && cpu != cp->cpu_id)
 			continue;
 
+TODO();
+printk("bugs=%p\n", bufs);
+printk("cp=%p\n", cp);
+printk("cpu_id=%x\n", cp->cpu_id);
 		buf = &bufs[cp->cpu_id];
+TODO();
 
 		/*
 		 * If there is already a buffer allocated for this CPU, it
@@ -9090,11 +9358,14 @@ TODO();
 		 * the buffer size must match our specified size.
 		 */
 		if (buf->dtb_tomax != NULL) {
+TODO();
 			ASSERT(buf->dtb_size == size);
 			continue;
 		}
+TODO();
 
 		ASSERT(buf->dtb_xamot == NULL);
+TODO();
 
 		if ((buf->dtb_tomax = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
 			goto err;
@@ -9103,6 +9374,7 @@ TODO();
 		buf->dtb_flags = flags;
 		buf->dtb_offset = 0;
 		buf->dtb_drops = 0;
+TODO();
 
 		if (flags & DTRACEBUF_NOSWITCH)
 			continue;
@@ -9110,11 +9382,13 @@ TODO();
 		if ((buf->dtb_xamot = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
 			goto err;
 	} while ((cp = cp->cpu_next) != cpu_list);
+TODO();
 
 	return (0);
 
 err:
 	cp = cpu_list;
+TODO();
 
 	do {
 		if (cpu != DTRACE_CPUALL && cpu != cp->cpu_id)
@@ -9745,7 +10019,7 @@ dtrace_enabling_retract(dtrace_state_t *state)
 	ASSERT(state->dts_nretained == 0);
 }
 
-int
+static int
 dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched)
 {
 	int i = 0;
@@ -11280,6 +11554,18 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 		}
 	}
 
@@ -11841,6 +12127,10 @@ dtrace_state_destroy(dtrace_state_t *state)
 	 * the ECBs:  in the first, we disable just DTRACE_PRIV_KERNEL probes,
 	 * and in the second we disable whatever is left over.
 	 */
+
+
+
+
 
 
 	for (match = DTRACE_PRIV_KERNEL; ; match = 0) {
@@ -12700,6 +12990,14 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 
 
 
+
+
+
+
+
+
+
+
 	gen = help->dthps_generation++;
 	dtrace_enabling_destroy(enab);
 
@@ -13231,8 +13529,6 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_cpustart_fini = dtrace_resume;
 	dtrace_debugger_init = dtrace_suspend;
 	dtrace_debugger_fini = dtrace_resume;
-	dtrace_kreloc_init = dtrace_suspend;
-	dtrace_kreloc_fini = dtrace_resume;
 
 	register_cpu_setup_func((cpu_setup_func_t *)dtrace_cpu_setup, NULL);
 # endif
@@ -13561,11 +13857,17 @@ dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv)
 /*ARGSUSED*/
 static int
 dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+#else
+int
+dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+# endif
 {
-	minor_t minor = getminor(dev);
-	dtrace_state_t *state;
+//	minor_t minor = getminor(dev);
+	dtrace_state_t *state = NULL;
 	int rval;
 
+printk("fp=%p cmd=%x\n", fp, cmd);
+# if defined(sun)
 	if (minor == DTRACEMNRN_HELPER)
 		return (dtrace_ioctl_helper(cmd, arg, rv));
 
@@ -13575,12 +13877,24 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		ASSERT(dtrace_anon.dta_state == NULL);
 		state = state->dts_anon;
 	}
+# else
+TODO();
+	state = fp->private_data;
+printk("state=%p\n", state);
+TODO();
+	if (state->dts_anon) {
+		ASSERT(dtrace_anon.dta_state == NULL);
+		state = state->dts_anon;
+	}
+# endif
+
 
 	switch (cmd) {
 	case DTRACEIOC_PROVIDER: {
 		dtrace_providerdesc_t pvd;
 		dtrace_provider_t *pvp;
 
+PRINT_CASE(DTRACEIOC_PROVIDER);
 		if (copyin((void *)arg, &pvd, sizeof (pvd)) != 0)
 			return (EFAULT);
 
@@ -13614,6 +13928,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		uintptr_t dest;
 		int nrecs;
 
+PRINT_CASE(DTRACEIOC_EPROBE);
 		if (copyin((void *)arg, &epdesc, sizeof (epdesc)) != 0)
 			return (EFAULT);
 
@@ -13691,6 +14006,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		size_t size;
 		uintptr_t dest;
 
+PRINT_CASE(DTRACEIOC_AGGDESC);
 		if (copyin((void *)arg, &aggdesc, sizeof (aggdesc)) != 0)
 			return (EFAULT);
 
@@ -13786,29 +14102,45 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		dof_hdr_t *dof;
 		dtrace_enabling_t *enab = NULL;
 		dtrace_vstate_t *vstate;
-		int err = 0;
+		int i, err = 0;
 
+PRINT_CASE(DTRACEIOC_ENABLE);
+		if (rv == 0) {
+			TODO();
+			printk("Sorry - but rv is null and should not be!\n");
+			return EFAULT;
+		}
 		*rv = 0;
 
-		/*
-		 * If a NULL argument has been passed, we take this as our
-		 * cue to reevaluate our enablings.
-		 */
-		if (arg == NULL) {
-			mutex_enter(&cpu_lock);
-			mutex_enter(&dtrace_lock);
-			err = dtrace_enabling_matchstate(state, rv);
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&cpu_lock);
+                /*
+                 * If a NULL argument has been passed, we take this as our
+                 * cue to reevaluate our enablings.
+                 */
+                if (arg == NULL) {
+TODO();
+                        mutex_enter(&cpu_lock);
+                        mutex_enter(&dtrace_lock);
+                        err = dtrace_enabling_matchstate(state, rv);
+TODO();
+                        mutex_exit(&dtrace_lock);
+                        mutex_exit(&cpu_lock);
 
-			return (err);
-		}
+                        return (err);
+                }
 
+TODO();
 		if ((dof = dtrace_dof_copyin(arg, &rval)) == NULL)
 			return (rval);
 
 		mutex_enter(&cpu_lock);
 		mutex_enter(&dtrace_lock);
+
+		if (state == NULL) {
+			TODO();
+			printk("Sorry - but state is null and it should not be!\n");
+			return EFAULT;
+		}
+
 		vstate = &state->dts_vstate;
 
 		if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE) {
@@ -13826,24 +14158,32 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		}
 
 		if ((rval = dtrace_dof_options(dof, state)) != 0) {
+TODO();
 			dtrace_enabling_destroy(enab);
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
 			return (rval);
 		}
+TODO();
 
-		if ((err = dtrace_enabling_match(enab, rv)) == 0) {
-			err = dtrace_enabling_retain(enab);
-		} else {
-			dtrace_enabling_destroy(enab);
-		}
-
+                if ((err = dtrace_enabling_match(enab, rv)) == 0) {
+TODO();
+                        err = dtrace_enabling_retain(enab);
+                } else {
+                        dtrace_enabling_destroy(enab);
+                }
+TODO();
 		mutex_exit(&cpu_lock);
 		mutex_exit(&dtrace_lock);
+TODO();
 		dtrace_dof_destroy(dof);
+TODO();
+printk("err=%d rv=%d\n", err, *rv);
+//		if (err == 0)
+//			copy_to_user(arg , &rv, sizeof rv);
 
-		return (err);
+		return err;
 	}
 
 	case DTRACEIOC_REPLICATE: {
@@ -13881,7 +14221,9 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		int m = 0;
 		uint32_t priv;
 		uid_t uid;
+		zoneid_t zoneid;
 
+PRINT_CASE(DTRACEIOC_PROBES);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 
@@ -13906,7 +14248,11 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 			pkey.dtpk_id = DTRACE_IDNONE;
 		}
 
-		uid = crgetuid(cr);
+# if linux
+                uid = get_current()->uid;
+# else
+                uid = crgetuid(cr);
+# endif
 		dtrace_cred2priv(cr, &priv, &uid);
 
 		mutex_enter(&dtrace_lock);
@@ -13925,6 +14271,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 			}
 
 		} else {
+printk("nprobes=%d\n", dtrace_nprobes);
 			for (i = desc.dtpd_id; i <= dtrace_nprobes; i++) {
 				if ((probe = dtrace_probes[i - 1]) != NULL &&
 				    dtrace_match_priv(probe, priv, uid))
@@ -13946,11 +14293,15 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		return (0);
 	}
 
+
+
+
 	case DTRACEIOC_PROBEARG: {
 		dtrace_argdesc_t desc;
 		dtrace_probe_t *probe;
 		dtrace_provider_t *prov;
 
+PRINT_CASE(DTRACEIOC_PROBEARG);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 
@@ -14008,7 +14359,11 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 
 	case DTRACEIOC_GO: {
 		processorid_t cpuid;
+
+PRINT_CASE(DTRACEIOC_GO);
+TODO();
 		rval = dtrace_state_go(state, &cpuid);
+TODO();
 
 		if (rval != 0)
 			return (rval);
@@ -14022,6 +14377,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 	case DTRACEIOC_STOP: {
 		processorid_t cpuid;
 
+PRINT_CASE(DTRACEIOC_STOP);
 		mutex_enter(&dtrace_lock);
 		rval = dtrace_state_stop(state, &cpuid);
 		mutex_exit(&dtrace_lock);
@@ -14039,6 +14395,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		dof_hdr_t hdr, *dof;
 		uint64_t len;
 
+PRINT_CASE(DTRACEIOC_DOFGET);
 		if (copyin((void *)arg, &hdr, sizeof (hdr)) != 0)
 			return (EFAULT);
 
@@ -14059,6 +14416,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		caddr_t cached;
 		dtrace_buffer_t *buf;
 
+PRINT_CASE(DTRACEIOC_BUFSNAP);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 
@@ -14186,6 +14544,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 	case DTRACEIOC_CONF: {
 		dtrace_conf_t conf;
 
+PRINT_CASE(DTRACEIOC_CONF);
 		bzero(&conf, sizeof (conf));
 		conf.dtc_difversion = DIF_VERSION;
 		conf.dtc_difintregs = DIF_DIR_NREGS;
@@ -14204,6 +14563,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		int i, j;
 		uint64_t nerrs;
 
+PRINT_CASE(DTRACEIOC_STATUS);
 		/*
 		 * See the comment in dtrace_state_deadman() for the reason
 		 * for setting dts_laststatus to INT64_MAX before setting
@@ -14252,8 +14612,8 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 
 		stat.dtst_specdrops_busy = state->dts_speculations_busy;
 		stat.dtst_specdrops_unavail = state->dts_speculations_unavail;
-                stat.dtst_stkstroverflows = state->dts_stkstroverflows;
-                stat.dtst_dblerrors = state->dts_dblerrors;
+		stat.dtst_stkstroverflows = state->dts_stkstroverflows;
+		stat.dtst_dblerrors = state->dts_dblerrors;
 		stat.dtst_killed =
 		    (state->dts_activity == DTRACE_ACTIVITY_KILLED);
 		stat.dtst_errors = nerrs;
@@ -14271,6 +14631,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		char *str;
 		int len;
 
+PRINT_CASE(DTRACEIOC_FORMAT);
 		if (copyin((void *)arg, &fmt, sizeof (fmt)) != 0)
 			return (EFAULT);
 
@@ -14313,12 +14674,13 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 	}
 
 	default:
+		PRINT_CASE(unknown_case_stmt_for_ioctl);
+		printk("cmd=%x\n", cmd);
 		break;
 	}
 
 	return (ENOTTY);
 }
-# endif
 
 /*ARGSUSED*/
 int
@@ -14398,8 +14760,6 @@ TODO();
 	dtrace_cpustart_fini = NULL;
 	dtrace_debugger_init = NULL;
 	dtrace_debugger_fini = NULL;
-        dtrace_kreloc_init = NULL;
-        dtrace_kreloc_fini = NULL;
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
 # endif

@@ -238,8 +238,9 @@ typedef struct dtrace_aggregation {
 	dtrace_ecb_t *dtag_ecb;			/* corresponding ECB */
 	dtrace_action_t *dtag_first;		/* first action in tuple */
 	uint32_t dtag_base;			/* base of aggregation */
+	uint8_t dtag_hasarg;			/* boolean:  has argument */
 	uint64_t dtag_initial;			/* initial value */
-	void (*dtag_aggregate)(uint64_t *, uint64_t);
+	void (*dtag_aggregate)(uint64_t *, uint64_t, uint64_t);
 } dtrace_aggregation_t;
 
 /*
@@ -1086,9 +1087,11 @@ struct dtrace_state {
 	int dts_naggregations;			/* number of aggregations */
 	dtrace_aggregation_t **dts_aggregations; /* aggregation array */
 	vmem_t *dts_aggid_arena;		/* arena for aggregation IDs */
+	uint64_t dts_errors;			/* total number of errors */
 	uint32_t dts_speculations_busy;		/* number of spec. busy */
 	uint32_t dts_speculations_unavail;	/* number of spec unavail */
-	uint64_t dts_errors;			/* total number of errors */
+	uint32_t dts_stkstroverflows;		/* stack string tab overflows */
+	uint32_t dts_dblerrors;			/* errors in ERROR probes */
 	uint32_t dts_reserve;			/* space reserved for END */
 	hrtime_t dts_laststatus;		/* time of last status */
 	cyclic_id_t dts_cleaner;		/* cleaning cyclic */
@@ -1110,7 +1113,6 @@ struct dtrace_provider {
 	char *dtpv_name;			/* provider name */
 	void *dtpv_arg;				/* provider argument */
 	uint_t dtpv_defunct;			/* boolean: defunct provider */
-	uint_t dtpv_anonmatched;		/* boolean: anonymous matched */
 	struct dtrace_provider *dtpv_next;	/* next provider */
 };
 

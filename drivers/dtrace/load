@@ -6,7 +6,7 @@ $SUDO rmmod dtracedrv
 sleep 1
 sync ; sync
 $SUDO insmod dtracedrv.ko
-sleep 2
+sleep 1
 $SUDO chmod 666 /dev/dtrace
 $SUDO chmod 666 /dev/fbt
 grep ' kallsyms' /proc/kallsyms >/dev/fbt

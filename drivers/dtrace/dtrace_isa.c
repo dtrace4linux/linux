@@ -1,10 +1,27 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #pragma ident	"@(#)dtrace_isa.c	1.10	04/12/18 SMI"
@@ -223,6 +240,43 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	while (pcstack_limit-- > 0)
 		*pcstack++ = NULL;
 # endif
+}
+
+int
+dtrace_getustackdepth(void)
+{
+# if 0
+	klwp_t *lwp = ttolwp(curthread);
+	proc_t *p = curproc;
+	struct regs *rp;
+	uintptr_t pc, sp;
+	int n = 0;
+
+	if (lwp == NULL || p == NULL || (rp = lwp->lwp_regs) == NULL)
+		return (0);
+
+	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_FAULT))
+		return (-1);
+
+	pc = rp->r_pc;
+	sp = rp->r_fp;
+
+	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_ENTRY)) {
+		n++;
+
+		if (p->p_model == DATAMODEL_NATIVE)
+			pc = dtrace_fulword((void *)rp->r_sp);
+		else
+			pc = dtrace_fuword32((void *)rp->r_sp);
+	}
+
+	n += dtrace_getustack_common(NULL, 0, pc, sp);
+	return (n);
+# else
+	TODO();
+	return 0;
+# endif
+
 }
 
 /*ARGSUSED*/
@@ -606,28 +660,32 @@ dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 }
 
 void
-dtrace_copyin(uintptr_t uaddr, uintptr_t kaddr, size_t size)
+dtrace_copyin(uintptr_t uaddr, uintptr_t kaddr, size_t size,
+    volatile uint16_t *flags)
 {
 	if (dtrace_copycheck(uaddr, kaddr, size))
 		dtrace_copy(uaddr, kaddr, size);
 }
 
 void
-dtrace_copyout(uintptr_t kaddr, uintptr_t uaddr, size_t size)
+dtrace_copyout(uintptr_t kaddr, uintptr_t uaddr, size_t size,
+    volatile uint16_t *flags)
 {
 	if (dtrace_copycheck(uaddr, kaddr, size))
 		dtrace_copy(kaddr, uaddr, size);
 }
 
 void
-dtrace_copyinstr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
+dtrace_copyinstr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
+    volatile uint16_t *flags)
 {
 	if (dtrace_copycheck(uaddr, kaddr, size))
 		dtrace_copystr(uaddr, kaddr, size);
 }
 
 void
-dtrace_copyoutstr(uintptr_t kaddr, uintptr_t uaddr, size_t size)
+dtrace_copyoutstr(uintptr_t kaddr, uintptr_t uaddr, size_t size,
+    volatile uint16_t *flags)
 {
 	if (dtrace_copycheck(uaddr, kaddr, size))
 		dtrace_copystr(kaddr, uaddr, size);

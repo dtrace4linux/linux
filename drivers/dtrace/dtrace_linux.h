@@ -66,6 +66,12 @@ typedef int	major_t;
 typedef int	minor_t;
 */
 
+# define crhold(x)
+# define priv_isequalset(a, b) 1
+# define priv_getset(a, b) 1
+
+typedef uint32_t ipaddr_t;
+
 /*
  * Macro for checking power of 2 address alignment.
  */
@@ -81,6 +87,7 @@ typedef struct	sol_proc_t {
 
 	uint32_t	p_flag;
 	pid_t pid;
+	pid_t ppid;
 
         uint_t          t_predcache;    /* DTrace predicate cache */
 	
@@ -92,10 +99,12 @@ typedef struct	sol_proc_t {
 
 	struct sol_proc *parent;
 	int		p_pid;
+	int		p_ppid;
 	int		t_sig_check;
 	struct task_struct *t_proc;
 	void            *p_dtrace_helpers; /* DTrace helpers, if any */
 	struct sol_proc_t *t_procp;
+        struct  cred    *p_cred;        /* process credentials */
 	} sol_proc_t;
 
 typedef sol_proc_t proc_t;
@@ -145,7 +154,7 @@ int kill_pid(struct pid *pid, int sig, int priv);
 //void	*new_unr(struct unrhdr *uh, void **p1, void **p2);
 void	*vmem_alloc(vmem_t *, size_t, int);
 void	*vmem_zalloc(vmem_t *, size_t, int);
-void	debug_enter(int);
+void	debug_enter(char *);
 void	dtrace_vtime_disable(void);
 void	dtrace_vtime_enable(void);
 void	freeenv(char *);

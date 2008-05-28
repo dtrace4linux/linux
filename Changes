@@ -1,3 +1,12 @@
+Thu May 29 23:07:39 2008  fox
+
+      25* dtrace_linux.c: Create the cpu_list[] structure which dtrace wants.
+          Avoids kernel panic when we hit DTRACEIOC_GO.
+
+      24* drivers/dtrace/dtrace.c: More merge-in from ON solaris.
+
+      23* Archive: 1.0020
+
 Wed May 28 22:31:37 2008  fox
 
       22* drivers/dtrace/dtrace_ioctl.c: Remove this - integrate back in

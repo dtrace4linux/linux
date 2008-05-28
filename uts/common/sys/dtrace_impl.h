@@ -890,6 +890,8 @@ typedef struct dtrace_vstate {
 #define	DTRACE_MSTATE_IPL		0x00000040
 #define	DTRACE_MSTATE_FLTOFFS		0x00000080
 #define	DTRACE_MSTATE_WALLTIMESTAMP	0x00000100
+#define	DTRACE_MSTATE_USTACKDEPTH	0x00000200
+#define	DTRACE_MSTATE_UCALLER		0x00000400
 
 typedef struct dtrace_mstate {
 	uintptr_t dtms_scratch_base;		/* base of scratch space */
@@ -901,17 +903,27 @@ typedef struct dtrace_mstate {
 	uint64_t dtms_timestamp;		/* cached timestamp */
 	hrtime_t dtms_walltimestamp;		/* cached wall timestamp */
 	int dtms_stackdepth;			/* cached stackdepth */
+	int dtms_ustackdepth;			/* cached ustackdepth */
 	struct dtrace_probe *dtms_probe;	/* current probe */
 	uintptr_t dtms_caller;			/* cached caller */
+	uint64_t dtms_ucaller;			/* cached user-level caller */
 	int dtms_ipl;				/* cached interrupt pri lev */
 	int dtms_fltoffs;			/* faulting DIFO offset */
 	uintptr_t dtms_strtok;			/* saved strtok() pointer */
+	uint32_t dtms_access;			/* memory access rights */
+	dtrace_difo_t *dtms_difo;		/* current dif object */
 } dtrace_mstate_t;
 
 #define	DTRACE_COND_OWNER	0x1
 #define	DTRACE_COND_USERMODE	0x2
+#define	DTRACE_COND_ZONEOWNER	0x4
 
 #define	DTRACE_PROBEKEY_MAXDEPTH	8	/* max glob recursion depth */
+
+/*
+ * Access flag used by dtrace_mstate.dtms_access.
+ */
+#define	DTRACE_ACCESS_KERNEL	0x1		/* the priv to read kmem */
 
 /*
  * DTrace Activity
@@ -1040,22 +1052,29 @@ typedef struct dtrace_helptrace {
  */
 #define	DTRACE_CRV_ALLPROC		0x01
 #define	DTRACE_CRV_KERNEL		0x02
+#define	DTRACE_CRV_ALLZONE		0x04
 
-#define	DTRACE_CRV_ALL		(DTRACE_CRV_ALLPROC | DTRACE_CRV_KERNEL)
+#define	DTRACE_CRV_ALL		(DTRACE_CRV_ALLPROC | DTRACE_CRV_KERNEL | \
+	DTRACE_CRV_ALLZONE)
 
-#define	DTRACE_CRA_PROC			0x0001
-#define	DTRACE_CRA_PROC_DESTRUCTIVE	0x0002
-#define	DTRACE_CRA_PROC_CONTROL		0x0004
-#define	DTRACE_CRA_KERNEL		0x0008
-#define	DTRACE_CRA_KERNEL_DESTRUCTIVE	0x0010
+#define	DTRACE_CRA_PROC				0x0001
+#define	DTRACE_CRA_PROC_CONTROL			0x0002
+#define	DTRACE_CRA_PROC_DESTRUCTIVE_ALLUSER	0x0004
+#define	DTRACE_CRA_PROC_DESTRUCTIVE_ALLZONE	0x0008
+#define	DTRACE_CRA_PROC_DESTRUCTIVE_CREDCHG	0x0010
+#define	DTRACE_CRA_KERNEL			0x0020
+#define	DTRACE_CRA_KERNEL_DESTRUCTIVE		0x0040
 
 #define	DTRACE_CRA_ALL		(DTRACE_CRA_PROC | \
-	DTRACE_CRA_PROC_DESTRUCTIVE | DTRACE_CRA_PROC_CONTROL | \
-	DTRACE_CRA_KERNEL | DTRACE_CRA_KERNEL_DESTRUCTIVE)
+	DTRACE_CRA_PROC_CONTROL | \
+	DTRACE_CRA_PROC_DESTRUCTIVE_ALLUSER | \
+	DTRACE_CRA_PROC_DESTRUCTIVE_ALLZONE | \
+	DTRACE_CRA_PROC_DESTRUCTIVE_CREDCHG | \
+	DTRACE_CRA_KERNEL | \
+	DTRACE_CRA_KERNEL_DESTRUCTIVE)
 
 typedef struct dtrace_cred {
-	uid_t			dcr_uid;
-	gid_t			dcr_gid;
+	cred_t			*dcr_cred;
 	uint8_t			dcr_destructive;
 	uint8_t			dcr_visible;
 	uint16_t		dcr_action;
@@ -1212,15 +1231,16 @@ extern int dtrace_getipl(void);
 extern uintptr_t dtrace_caller(int);
 extern uint32_t dtrace_cas32(uint32_t *, uint32_t, uint32_t);
 extern void *dtrace_casptr(void *, void *, void *);
-extern void dtrace_copyin(uintptr_t, uintptr_t, size_t);
-extern void dtrace_copyinstr(uintptr_t, uintptr_t, size_t);
-extern void dtrace_copyout(uintptr_t, uintptr_t, size_t);
-extern void dtrace_copyoutstr(uintptr_t, uintptr_t, size_t);
+extern void dtrace_copyin(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
+extern void dtrace_copyinstr(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
+extern void dtrace_copyout(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
+extern void dtrace_copyoutstr(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
 extern void dtrace_getpcstack(pc_t *, int, int, uint32_t *);
 extern ulong_t dtrace_getreg(struct regs *, uint_t);
 extern int dtrace_getstackdepth(int);
 extern void dtrace_getupcstack(uint64_t *, int);
 extern void dtrace_getufpstack(uint64_t *, uint64_t *, int);
+extern int dtrace_getustackdepth(void);
 extern uintptr_t dtrace_fulword(void *);
 extern uint8_t dtrace_fuword8(void *);
 extern uint16_t dtrace_fuword16(void *);

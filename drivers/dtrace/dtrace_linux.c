@@ -112,7 +112,7 @@ cmn_err(int type, const char *fmt, ...)
         va_end(ap);
 }
 void
-debug_enter(int arg)
+debug_enter(char *arg)
 {
 	printk("%s(%d): %s\n", __FILE__, __LINE__, __func__);
 }
@@ -366,7 +366,7 @@ static struct miscdevice dtracedrv_dev = {
         &dtracedrv_fops
 };
 static int __init dtracedrv_init(void)
-{	int	ret;
+{	int	i, ret;
 static struct proc_dir_entry *dir;
 
 	/***********************************************/
@@ -379,6 +379,18 @@ static struct proc_dir_entry *dir;
 			return -1;
 		}
 	}
+
+	/***********************************************/
+	/*   Initialise   the   cpu_list   which  the  */
+	/*   dtrace_buffer_alloc  code  wants when we  */
+	/*   go into a GO state.		       */
+	/***********************************************/
+	cpu_list = (cpu_t *) kzalloc(sizeof *cpu_list * NR_CPUS, GFP_KERNEL);
+	for (i = 0; i < NR_CPUS; i++) {
+		cpu_list[i].cpuid = i;
+		cpu_list[i].cpu_next = &cpu_list[i+1];
+		}
+	cpu_list[NR_CPUS-1].cpu_next = cpu_list;
 
 # if 0
 	struct proc_dir_entry *ent;

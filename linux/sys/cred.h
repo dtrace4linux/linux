@@ -8,6 +8,7 @@ typedef struct cred {
 	int	cr_gid;
 	int	cr_rgid;
 	int	cr_sgid;
+	int	cr_zone;
 	} cred_t;
 
 cred_t *CRED(void);

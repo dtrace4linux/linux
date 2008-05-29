@@ -14,5 +14,10 @@ bison-1.35 or byacc
 lex or flex
 	Needed to compile dt_lex.l
 
+librt.so
+	Needed for the clock_gettime() function so we can implement
+	gethrtime().
+
 zlib
 	Need compression header file -- zlib.h and libz.so.1
+

@@ -498,9 +498,33 @@ long
 dt_sysconf(dtrace_hdl_t *dtp, int name)
 {
 	const dtrace_vector_t *v = dtp->dt_vector;
+	FILE	*fp;
+static	int	ncpu = -1;
 
-	if (v == NULL)
+	if (v == NULL) {
+		/***********************************************/
+		/*   On  my  Linux  boxes,  eg.  Ubuntu/FC8 -  */
+		/*   sysconf seems broken. Who cares!	       */
+		/***********************************************/
+		switch (name) {
+		  case _SC_CPUID_MAX: {
+			char	buf[BUFSIZ];
+
+			if (ncpu > 0)
+				return ncpu;
+
+		  	fp = fopen("/proc/cpuinfo", "r");
+			while (fgets(buf, sizeof buf, fp)) {
+				if (strncmp(buf, "processor", 9) == 0)
+					ncpu++;
+				}
+			fclose(fp);
+			return ncpu;
+			}
+		  }
+
 		return (sysconf(name));
+		}
 
 	return (v->dtv_sysconf(dtp->dt_varg, name));
 }

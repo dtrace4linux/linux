@@ -1,3 +1,9 @@
+
+/**********************************************************************/
+/*   Stubs which we have yet to implement. Just log we got called so  */
+/*   we can make porting progress and know what we forgot to do.      */
+/**********************************************************************/
+
 int	_libproc_debug;		/* set non-zero to enable debugging printfs */
 int	blockable_sigs;	/* signals to block when we need to be safe */
 
@@ -49,18 +55,12 @@ dt_pid_create_glob_offset_probes() { printf("%s\n", __func__); }
 dt_pid_create_offset_probe() { printf("%s\n", __func__); }
 dt_pid_create_return_probe() { printf("%s\n", __func__); }
 fork1() { printf("%s\n", __func__); }
-gethrtime() { printf("%s\n", __func__); }
-int
-getzoneid() 
-{
-	return 0;
-}
+
 int modctl() { printf("%s\n", __func__); return -1; }
 p_online() { printf("%s\n", __func__); }
 pr_close() { printf("%s\n", __func__); }
 pr_ioctl() { printf("%s\n", __func__); }
 pr_open() { printf("%s\n", __func__); }
-pthread_cond_reltimedwait_np() { printf("%s\n", __func__); }
 rd_errstr() { printf("%s\n", __func__); }
 rd_event_addr() { printf("%s\n", __func__); }
 rd_event_enable() { printf("%s\n", __func__); }

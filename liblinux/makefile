@@ -13,6 +13,7 @@ LIB = ../build/liblinux.a
 $(LIB): \
 	$(LIB)(gmatch.o) \
 	$(LIB)(proc.o) \
+	$(LIB)(proc2.o) \
 	$(LIB)(proc_names.o) \
 	$(LIB)(strlcpy.o) \
 

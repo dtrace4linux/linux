@@ -9,7 +9,7 @@ LIBS = \
 
 COMPILE = $(CC) $(CFLAGS) -o dtrace \
 		-L../../build \
-		dtrace.o -ldtrace -lctf -llinux -lz -lpthread $$libelf -ldl
+		dtrace.o -ldtrace -lctf -llinux -lz -lrt -lpthread $$libelf -ldl
 
 all:	dtrace
 

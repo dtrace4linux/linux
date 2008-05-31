@@ -49,7 +49,7 @@ int _libctf_debug = 0;			/* debugging messages enabled */
 # define	z_strerror ctf_zstrerror
 
 int ctf_uncompress (char *dest, int *destLen, char *source, int sourceLen);
-char	*ctf_zstrerror();
+char	*ctf_zstrerror(int);
 
 static ushort_t
 get_kind_v1(ushort_t info)

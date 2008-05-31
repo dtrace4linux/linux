@@ -267,19 +267,6 @@ priv_policy_only(const cred_t *a, int b, int c)
 {
         return 0;
 }
-/*
-void
-dtrace_copy(uintptr_t src, uintptr_t dest, size_t size)
-{
-	memcpy(dest, src, size);
-}
-void
-dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
-{
-	strlcpy(uaddr, kaddr, size);
-}
-
-*/
 /**********************************************************************/
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
@@ -287,12 +274,12 @@ static int
 dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
-TODO();
+HERE();
 	dtrace_attach(NULL, 0);
-TODO();
+HERE();
 printk("inode=%x file=%x\n", inode, file);
 	ret = dtrace_open(file, 0, 0, NULL);
-TODO();
+HERE();
 
 	return -ret;
 # if 0
@@ -316,7 +303,7 @@ dtracedrv_release(struct inode *inode, struct file *file)
 static int
 dtracedrv_read(ctf_file_t *fp, int fd)
 {
-TODO();
+HERE();
 	return -EIO;
 }
 static int proc_calc_metrics(char *page, char **start, off_t off,
@@ -349,7 +336,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 	int	rv = 0;
 
 	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
-TODO();
+HERE();
 printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }

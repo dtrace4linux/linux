@@ -29,7 +29,6 @@ EXTRA_CFLAGS += \
 	-I$(M)/../../linux \
 	-I$(M)/../../common/ctf \
 	-I$(M)/../../uts/common \
-	-I$(M)/../dtrace \
 	-D_KERNEL -DCTF_OLD_VERSIONS
 
 clean:
@@ -37,3 +36,6 @@ clean:
 
 unl:
 	setuid root rmmod dtracedrv
+
+echo:
+	echo $(EXTRA_CFLAGS)

@@ -7,7 +7,7 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)ctf_hash.c	1.3	04/05/04 SMI"
+//#pragma ident	"@(#)ctf_hash.c	1.3	04/05/04 SMI"
 
 #include <ctf_impl.h>
 

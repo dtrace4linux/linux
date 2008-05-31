@@ -27,7 +27,7 @@
 #ifndef _SYS_TYPES32_H
 #define _SYS_TYPES32_H
 
-#pragma ident   "@(#)types32.h  1.5     05/06/08 SMI"
+//#pragma ident   "@(#)types32.h  1.5     05/06/08 SMI"
 
 #include <sys/int_types.h>
 

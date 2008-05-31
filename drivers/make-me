@@ -4,6 +4,7 @@
 # the lets-get-it-together phase when there is so many errors which
 # swamp the output.
 
+# make-me Q=0
 warn=warn
 if [ ! -f /home/fox/bin/warn ]; then
 	warn=

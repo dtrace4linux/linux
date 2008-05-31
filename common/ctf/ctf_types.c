@@ -17,6 +17,8 @@
 # if !defined(MAX)
 #	define MAX(a, b) ((a) > (b) ? (a) : (b))
 # endif
+# undef NULL
+# define NULL 0
 
 ssize_t
 ctf_get_ctt_size(const ctf_file_t *fp, const ctf_type_t *tp, ssize_t *sizep,

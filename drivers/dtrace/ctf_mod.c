@@ -16,7 +16,12 @@
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
 #include <linux/module.h>
+
+# define ctf_open Xctf_open
+# define ctf_write Xctf_write
 #include <ctf_impl.h>
+# undef ctf_open
+# undef ctf_write
 
 MODULE_AUTHOR("Paul Fox");
 MODULE_LICENSE("CDDL");
@@ -61,10 +66,10 @@ ctf_open(const char *filename, int *errp)
 }
 # endif
 /*ARGSUSED*/
-int
-ctf_write(ctf_file_t *fp, int fd)
+ssize_t
+ctf_write(struct file *fp, const char __user *buf, size_t len, loff_t *off)
 {
-	return (ctf_set_errno(fp, ENOTSUP));
+	return -ENOTSUP;
 }
 
 int
@@ -85,7 +90,7 @@ static int ctf_ioctl(struct inode *inode, struct file *file,
 }
 /*ARGSUSED*/
 int
-ctf_open(struct module *mp, int *error)
+ctf_open(struct inode *ip, struct file *fp)
 {
 # if 1
 	return 0;

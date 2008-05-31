@@ -1899,7 +1899,7 @@ main(int argc, char *argv[])
 	} while (!done);
 
 	oprintf("\n");
-
+printf("we are done!\n");
 	if (!g_impatient) {
 		if (dtrace_aggregate_print(g_dtp, g_ofp, NULL) == -1 &&
 		    dtrace_errno(g_dtp) != EINTR)

@@ -1,14 +1,17 @@
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
+# define HERE()	printk("%s:%s:%d: we are here\n", __FILE__, __func__, __LINE__)
 # define TODO()	printk("%s:%s:%d: please fill me in\n", __FILE__, __func__, __LINE__)
 # define TODO_END()
 
 struct modctl;
 # if __KERNEL__
 
+# define zone Xzone /* mmzone.h conflicts with solaris zone struct */
 # include	<linux/time.h>
 # include	<linux/module.h>
+# undef zone
 
 # include	<sys/model.h>
 # include	<sys/bitmap.h>
@@ -120,7 +123,6 @@ typedef unsigned int mutex_t;
 # if __KERNEL__
 	# include <asm/signal.h>
 	# include <linux/sched.h>
-	//# include <sys/current.h>
 	# define	SNOCD	0
 
 	# define	t_did pid
@@ -134,10 +136,9 @@ typedef unsigned int mutex_t;
 	#define	UINT32_MAX	0xffffffff
 	#define	INT64_MAX	0x7fffffffffffffff
 	#define	UINT64_MAX	0xffffffffffffffff
+	#define INT64_MIN       (-9223372036854775807LL-1)
 	typedef int *greg_t;
 	typedef struct __dev_info *dev_info_t;
-	//typedef int 	processorid_t;
-//	typedef int 	model_t;
 	typedef long	intptr_t;
 	typedef unsigned long long off64_t;
 	typedef void *taskq_t;
@@ -209,7 +210,6 @@ typedef uint_t lwpid_t;
 typedef u_longlong_t    core_content_t;
 typedef unsigned long   psaddr_t;
 typedef int	ctid_t;                 /* contract ID type     */
-typedef int	zoneid_t;
 typedef int	prgreg32_t;
 typedef struct iovec iovec_t;
 # define	ino64_t	ino_t

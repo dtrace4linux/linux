@@ -90,7 +90,7 @@ dtrace_sleep(dtrace_hdl_t *dtp)
 	 * that a process is in an interesting state.  Regardless of why we
 	 * awaken, iterate over any pending notifications and process them.
 	 */
-	(void) pthread_cond_reltimedwait_np(&dph->dph_cv, &dph->dph_lock, &tv);
+	i = pthread_cond_reltimedwait_np(&dph->dph_cv, &dph->dph_lock, &tv);
 
 	while ((dprn = dph->dph_notify) != NULL) {
 		if (dtp->dt_prochdlr != NULL) {

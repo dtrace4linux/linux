@@ -24,8 +24,8 @@
  *
  */
 
+#include <linux/zone.h>
 #include <linux_types.h>
-
 #include <linux/smp.h>
 #include <linux/gfp.h>
 #include <linux/kdev_t.h>
@@ -36,6 +36,7 @@
 #include <linux/device.h>
 #include <asm/uaccess.h>
 
+#undef current
 #define	current	_current /* is a macro in <current.h> */
 #define PRIV_EFFECTIVE          (1 << 0)
 #define PRIV_DTRACE_KERNEL      (1 << 1)
@@ -118,7 +119,7 @@ extern sol_proc_t	*curthread;
 
 int priv_policy(const cred_t *, int, int, int, const char *);
 int priv_policy_only(const cred_t *, int, int);
-int priv_policy_choice(const cred_t *, int, int);
+//int priv_policy_choice(const cred_t *, int, int);
 
 /*
  * Test privilege. Audit success or failure, allow privilege debugging.

@@ -47,7 +47,7 @@ int ctf_uncompress (char *dest, int *destLen, char *source, int sourceLen)
 	return err;
 }
 char *
-ctf_zstrerror()
+ctf_zstrerror(void)
 {
 	return last_err;
 }

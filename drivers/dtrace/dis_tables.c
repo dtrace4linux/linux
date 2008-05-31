@@ -2217,8 +2217,8 @@ dtrace_disx86(dis86_t *x, uint_t cpu_mode)
 	/*
 	 * at this point we should have a correct (or invalid) opcode
 	 */
-	if (cpu_mode == SIZE64 && dp->it_invalid64 ||
-	    cpu_mode != SIZE64 && dp->it_invalid32)
+	if ((cpu_mode == SIZE64 && dp->it_invalid64) ||
+	    (cpu_mode != SIZE64 && dp->it_invalid32))
 		goto error;
 	if (dp->it_indirect != TERM)
 		goto error;

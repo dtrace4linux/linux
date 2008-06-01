@@ -146,7 +146,7 @@ cb6a4312 size=5520    mtime=1212275828 ./drivers/dtrace/dtrace_linux.h
 7fb91dfc size=8946    mtime=1211652887 ./drivers/dtrace/dtrace_subr.c
 c9e83bce size=62324   mtime=1209301111 ./drivers/dtrace/fasttrap.c
 1244180f size=2679    mtime=1211808684 ./drivers/dtrace/fasttrap_linux.c
-fa0f2b90 size=26641   mtime=1211808694 ./drivers/dtrace/fbt_linux.c
+c5f0f55d size=26906   mtime=1212439318 ./drivers/dtrace/fbt_linux.c
 88f5877e size=1311    mtime=1212270221 ./drivers/dtrace/gcc-literal
 3352dc34 size=3838    mtime=1209890275 ./drivers/dtrace/instr_size.c
 0c816f6b size=349     mtime=1212012720 ./drivers/dtrace/load

@@ -1,3 +1,8 @@
+Mon Jun  2 21:42:23 2008  fox
+
+      27* fbt_linux.c: Avoid issue with call to __symbol_get() cause
+          incremented mod ref count, which stops us unloading.
+
 Sun Jun  1 00:17:23 2008  fox
 
       26* Archive: 1.0021

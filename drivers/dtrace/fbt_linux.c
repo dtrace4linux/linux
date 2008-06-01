@@ -360,12 +360,19 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 		set_fs(fs);
 		}
 */
+
+# if 0
+	/***********************************************/
+	/*   If  we  enable  this, we end up with mod  */
+	/*   refcounts  and cannot unload the driver.  */
+	/*   Dont think we need this now.	       */
+	/***********************************************/
 		/***********************************************/
-		/*   We  do  have syms that apper to point to  */
+		/*   We  do have syms that appear to point to  */
 		/*   unmapped  pages.  Maybe  these are freed  */
 		/*   pages after a driver loads. Double check  */
 		/*   -  if /proc/kallsyms says its not there,  */
-		/*   then ignore it.			       */
+		/*   then ignore it. 			       */
 		/***********************************************/
 		{void *p;
 
@@ -374,8 +381,8 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 		    	printk("Skipping: %s\n", name);
 			continue;
 		}
-
 		}
+# endif
 
 #ifdef __amd64
 		while (instr < limit) {

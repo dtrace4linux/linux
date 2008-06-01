@@ -1,3 +1,6 @@
+// most of this code commented out for now...til we work out how to
+// integrate it. --pdf
+
 /*
  * CDDL HEADER START
  *
@@ -23,23 +26,20 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)sdt.c	1.6	06/03/24 SMI"
+//#pragma ident	"@(#)sdt.c	1.6	06/03/24 SMI"
 
+#include <dtrace_linux.h>
+#include <linux/miscdevice.h>
 #include <sys/modctl.h>
-#include <sys/sunddi.h>
 #include <sys/dtrace.h>
-#include <sys/kobj.h>
-#include <sys/stat.h>
-#include <sys/conf.h>
-#include <vm/seg_kmem.h>
 #include <sys/stack.h>
+#include <sys/sdt.h>
 #include <sys/sdt_impl.h>
 
 #define	SDT_PATCHVAL	0xf0
 #define	SDT_ADDR2NDX(addr)	((((uintptr_t)(addr)) >> 4) & sdt_probetab_mask)
 #define	SDT_PROBETAB_SIZE	0x1000		/* 4k entries -- 16K total */
 
-static dev_info_t		*sdt_devi;
 static int			sdt_verbose = 0;
 static sdt_probe_t		**sdt_probetab;
 static int			sdt_probetab_size;
@@ -93,8 +93,10 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax)
 static void
 sdt_provide_module(void *arg, struct modctl *ctl)
 {
+# if defined(sun)
 	struct module *mp = ctl->mod_mp;
 	char *modname = ctl->mod_modname;
+# endif
 	sdt_probedesc_t *sdpd;
 	sdt_probe_t *sdp, *old;
 	sdt_provider_t *prov;
@@ -109,6 +111,7 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 			return;
 	}
 
+# if defined(sun)
 	if (mp->sdt_nprobes != 0 || (sdpd = mp->sdt_probes) == NULL)
 		return;
 
@@ -179,6 +182,7 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 		sdp->sdp_patchpoint = (uint8_t *)sdpd->sdpd_offset;
 		sdp->sdp_savedval = *sdp->sdp_patchpoint;
 	}
+# endif
 }
 
 /*ARGSUSED*/
@@ -189,12 +193,14 @@ sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 	struct modctl *ctl = sdp->sdp_ctl;
 	int ndx;
 
+# if defined(sun)
 	if (ctl != NULL && ctl->mod_loadcnt == sdp->sdp_loadcnt) {
 		if ((ctl->mod_loadcnt == sdp->sdp_loadcnt &&
 		    ctl->mod_loaded)) {
 			((struct module *)(ctl->mod_mp))->sdt_nprobes--;
 		}
 	}
+# endif
 
 	while (sdp != NULL) {
 		old = sdp;
@@ -228,6 +234,7 @@ sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 static void
 sdt_enable(void *arg, dtrace_id_t id, void *parg)
 {
+# if defined(sun)
 	sdt_probe_t *sdp = parg;
 	struct modctl *ctl = sdp->sdp_ctl;
 
@@ -266,12 +273,14 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 	}
 err:
 	;
+# endif
 }
 
 /*ARGSUSED*/
 static void
 sdt_disable(void *arg, dtrace_id_t id, void *parg)
 {
+# if defined(sun)
 	sdt_probe_t *sdp = parg;
 	struct modctl *ctl = sdp->sdp_ctl;
 
@@ -287,6 +296,7 @@ sdt_disable(void *arg, dtrace_id_t id, void *parg)
 
 err:
 	;
+# endif
 }
 
 static dtrace_pops_t sdt_pops = {
@@ -304,9 +314,10 @@ static dtrace_pops_t sdt_pops = {
 
 /*ARGSUSED*/
 static int
-sdt_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
+sdt_attach()
 {
 	sdt_provider_t *prov;
+# if defined(sun)
 
 	if (ddi_create_minor_node(devi, "sdt", S_IFCHR,
 	    0, DDI_PSEUDO, NULL) == DDI_FAILURE) {
@@ -317,6 +328,7 @@ sdt_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 
 	ddi_report_dev(devi);
 	sdt_devi = devi;
+# endif
 
 	if (sdt_probetab_size == 0)
 		sdt_probetab_size = SDT_PROBETAB_SIZE;
@@ -340,20 +352,9 @@ sdt_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 
 /*ARGSUSED*/
 static int
-sdt_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
+sdt_detach()
 {
 	sdt_provider_t *prov;
-
-	switch (cmd) {
-	case DDI_DETACH:
-		break;
-
-	case DDI_SUSPEND:
-		return (DDI_SUCCESS);
-
-	default:
-		return (DDI_FAILURE);
-	}
 
 	for (prov = sdt_providers; prov->sdtp_name != NULL; prov++) {
 		if (prov->sdtp_id != DTRACE_PROVNONE) {
@@ -372,93 +373,50 @@ sdt_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 
 /*ARGSUSED*/
 static int
-sdt_info(dev_info_t *dip, ddi_info_cmd_t infocmd, void *arg, void **result)
-{
-	int error;
-
-	switch (infocmd) {
-	case DDI_INFO_DEVT2DEVINFO:
-		*result = (void *)sdt_devi;
-		error = DDI_SUCCESS;
-		break;
-	case DDI_INFO_DEVT2INSTANCE:
-		*result = (void *)0;
-		error = DDI_SUCCESS;
-		break;
-	default:
-		error = DDI_FAILURE;
-	}
-	return (error);
-}
-
-/*ARGSUSED*/
-static int
 sdt_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 {
 	return (0);
 }
 
-static struct cb_ops sdt_cb_ops = {
-	sdt_open,		/* open */
-	nodev,			/* close */
-	nulldev,		/* strategy */
-	nulldev,		/* print */
-	nodev,			/* dump */
-	nodev,			/* read */
-	nodev,			/* write */
-	nodev,			/* ioctl */
-	nodev,			/* devmap */
-	nodev,			/* mmap */
-	nodev,			/* segmap */
-	nochpoll,		/* poll */
-	ddi_prop_op,		/* cb_prop_op */
-	0,			/* streamtab  */
-	D_NEW | D_MP		/* Driver compatibility flag */
+static const struct file_operations sdt_fops = {
+        .open = sdt_open,
 };
 
-static struct dev_ops sdt_ops = {
-	DEVO_REV,		/* devo_rev, */
-	0,			/* refcnt  */
-	sdt_info,		/* get_dev_info */
-	nulldev,		/* identify */
-	nulldev,		/* probe */
-	sdt_attach,		/* attach */
-	sdt_detach,		/* detach */
-	nodev,			/* reset */
-	&sdt_cb_ops,		/* driver operations */
-	NULL,			/* bus operations */
-	nodev			/* dev power */
+static struct miscdevice sdt_dev = {
+        MISC_DYNAMIC_MINOR,
+        "sdt",
+        &sdt_fops
 };
 
-/*
- * Module linkage information for the kernel.
- */
-static struct modldrv modldrv = {
-	&mod_driverops,		/* module type (this is a pseudo driver) */
-	"Statically Defined Tracing",	/* name of module */
-	&sdt_ops,		/* driver ops */
-};
+static int initted;
 
-static struct modlinkage modlinkage = {
-	MODREV_1,
-	(void *)&modldrv,
-	NULL
-};
+int sdt_init(void)
+{	int	ret;
 
-int
-_init(void)
+	ret = misc_register(&sdt_dev);
+	if (ret) {
+		printk(KERN_WARNING "sdt: Unable to register misc device\n");
+		return ret;
+		}
+
+	sdt_attach();
+
+	/***********************************************/
+	/*   Helper not presently implemented :-(      */
+	/***********************************************/
+	printk(KERN_WARNING "sdt loaded: /dev/sdt now available\n");
+
+	initted = 1;
+
+	return 0;
+}
+void sdt_exit(void)
 {
-	return (mod_install(&modlinkage));
+	if (initted) {
+		sdt_detach(NULL);
+	}
+
+	printk(KERN_WARNING "sdt driver unloaded.\n");
+	misc_deregister(&sdt_dev);
 }
 
-int
-_info(struct modinfo *modinfop)
-{
-	return (mod_info(&modlinkage, modinfop));
-}
-
-int
-_fini(void)
-{
-	return (mod_remove(&modlinkage));
-}

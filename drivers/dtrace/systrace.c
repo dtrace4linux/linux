@@ -23,16 +23,27 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
+//#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
 
+#include <dtrace_linux.h>
+#include <asm/uaccess.h>
+#include <asm/unistd.h>
+#include <asm/unistd_64.h>
+#include <linux/sys.h>
+#include <asm/asm-offsets.h>
+#include <linux/miscdevice.h>
+#include <linux/syscalls.h>
 #include <sys/dtrace.h>
 #include <sys/systrace.h>
+
+# if defined(sun)
 #include <sys/stat.h>
 #include <sys/systm.h>
 #include <sys/conf.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 #include <sys/atomic.h>
+# endif
 
 #define	SYSTRACE_ARTIFICIAL_FRAMES	1
 
@@ -42,15 +53,97 @@
 #define	SYSTRACE_ENTRY(id)		((1 << SYSTRACE_SHIFT) | (id))
 #define	SYSTRACE_RETURN(id)		(id)
 
+#define NSYSCALL __NR_syscall_max
+
 #if ((1 << SYSTRACE_SHIFT) <= NSYSCALL)
 #error 1 << SYSTRACE_SHIFT must exceed number of system calls
 #endif
 
-static dev_info_t *systrace_devi;
+/**********************************************************************/
+/*   Get a list of system call names here.			      */
+/**********************************************************************/
+static char *syscallnames[] = {
+
+# undef _ASM_X86_64_UNISTD_H_
+# undef __SYSCALL
+# define __SYSCALL(nr, func) [nr] = #nr,
+# undef __KERNEL_SYSCALLS_
+# include <asm/unistd.h>
+
+	};
+
+struct sysent {
+        int64_t         (*sy_callc)();  /* C-style call hander or wrapper */
+};
+
+#define LOADABLE_SYSCALL(s)     (s->sy_flags & SE_LOADABLE)
+#define LOADED_SYSCALL(s)       (s->sy_flags & SE_LOADED)
+#define SE_LOADABLE     0x08            /* syscall is loadable */
+#define SE_LOADED       0x10            /* syscall is completely loaded */
+
+systrace_sysent_t *systrace_sysent;
+
+struct sysent *sysent;
 static dtrace_provider_id_t systrace_id;
 
+/**********************************************************************/
+/*   This  needs to be defined in sysent.c - just need to figure out  */
+/*   the equivalent in Linux...					      */
+/**********************************************************************/
+void	*fbt_get_sys_call_table(void);
+void *dtrace_casptr(void *target, void *cmp, void *new);
+# define	casptr(a, b, c) dtrace_casptr(a, b, c)
+void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
+    uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+
+int64_t
+dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+{
+#if defined(sun)
+	int syscall = curthread->t_sysnum;
+#else
+	int syscall = 0;
+#endif
+        systrace_sysent_t *sy = &systrace_sysent[syscall];
+        dtrace_id_t id;
+        int64_t rval;
+
+        if ((id = sy->stsy_entry) != DTRACE_IDNONE)
+                (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
+
+        /*
+         * We want to explicitly allow DTrace consumers to stop a process
+         * before it actually executes the meat of the syscall.
+         */
+	TODO();
+# if defined(TODOxxx)
+        {proc_t *p = ttoproc(curthread);
+        mutex_enter(&p->p_lock);
+        if (curthread->t_dtrace_stop && !curthread->t_lwp->lwp_nostop) {
+                curthread->t_dtrace_stop = 0;
+                stop(PR_REQUESTED, 0);
+        }
+        mutex_exit(&p->p_lock);
+	}
+# endif
+
+        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+
+# if defined(TODOxxx)
+        if (ttolwp(curthread)->lwp_errno != 0)
+                rval = -1;
+# endif
+
+        if ((id = sy->stsy_return) != DTRACE_IDNONE)
+                (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
+                    (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
+
+        return (rval);
+}
+
 static void
-systrace_init(struct sysent *actual, systrace_sysent_t **interposed)
+systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed)
 {
 	systrace_sysent_t *sysent = *interposed;
 	int i;
@@ -60,12 +153,16 @@ systrace_init(struct sysent *actual, systrace_sysent_t **interposed)
 		    NSYSCALL, KM_SLEEP);
 	}
 
+HERE();
+printk("NSYSCALL=%d\n", NSYSCALL);
 	for (i = 0; i < NSYSCALL; i++) {
 		struct sysent *a = &actual[i];
 		systrace_sysent_t *s = &sysent[i];
 
+# if defined(sun)
 		if (LOADABLE_SYSCALL(a) && !LOADED_SYSCALL(a))
 			continue;
+# endif
 
 		if (a->sy_callc == dtrace_systrace_syscall)
 			continue;
@@ -84,30 +181,48 @@ static void
 systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 {
 	int i;
-
+HERE();
+printk("descr=%p\n", desc);
 	if (desc != NULL)
 		return;
 
-	systrace_init(sysent, &systrace_sysent);
-#ifdef _SYSCALL32_IMPL
-	systrace_init(sysent32, &systrace_sysent32);
-#endif
+	if (sysent == NULL)
+		sysent = fbt_get_sys_call_table();
 
+	systrace_do_init(sysent, &systrace_sysent);
+HERE();
+#ifdef _SYSCALL32_IMPL
+	systrace_do_init(sysent32, &systrace_sysent32);
+#endif
 	for (i = 0; i < NSYSCALL; i++) {
+		char	*name = syscallnames[i];
+
+		if (name == NULL)
+			continue;
+
+		if (strncmp(name, "__NR_", 5) == 0)
+			name += 5;
+
+printk("i=%d %p %p\n", i, systrace_sysent[i].stsy_underlying, name);
+//continue;
 		if (systrace_sysent[i].stsy_underlying == NULL)
 			continue;
 
+HERE();
 		if (dtrace_probe_lookup(systrace_id, NULL,
-		    syscallnames[i], "entry") != 0)
+		    name, "entry") != 0)
 			continue;
 
-		(void) dtrace_probe_create(systrace_id, NULL, syscallnames[i],
+HERE();
+		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
-		(void) dtrace_probe_create(systrace_id, NULL, syscallnames[i],
+HERE();
+		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));
 
+HERE();
 		systrace_sysent[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent[i].stsy_return = DTRACE_IDNONE;
 #ifdef _SYSCALL32_IMPL
@@ -207,6 +322,12 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 #endif
 	}
 }
+/*ARGSUSED*/
+void
+systrace_stub(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
+    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+{
+}
 
 static dtrace_pattr_t systrace_attr = {
 { DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_COMMON },
@@ -228,76 +349,37 @@ static dtrace_pops_t systrace_pops = {
 	NULL,
 	systrace_destroy
 };
+static int initted;
 
 static int
-systrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
+systrace_attach(void)
 {
-	switch (cmd) {
-	case DDI_ATTACH:
-		break;
-	case DDI_RESUME:
-		return (DDI_SUCCESS);
-	default:
-		return (DDI_FAILURE);
-	}
 
 	systrace_probe = (void (*)())dtrace_probe;
 	membar_enter();
 
-	if (ddi_create_minor_node(devi, "systrace", S_IFCHR, 0,
-	    DDI_PSEUDO, NULL) == DDI_FAILURE ||
-	    dtrace_register("syscall", &systrace_attr, DTRACE_PRIV_USER, NULL,
+	if (dtrace_register("syscall", &systrace_attr, DTRACE_PRIV_USER, NULL,
 	    &systrace_pops, NULL, &systrace_id) != 0) {
 		systrace_probe = systrace_stub;
-		ddi_remove_minor_node(devi, NULL);
-		return (DDI_FAILURE);
-	}
+		return DDI_FAILURE;
+		}
 
-	ddi_report_dev(devi);
-	systrace_devi = devi;
+	initted = 1;
 
 	return (DDI_SUCCESS);
 }
-
 static int
-systrace_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
+systrace_detach(void)
 {
-	switch (cmd) {
-	case DDI_DETACH:
-		break;
-	case DDI_SUSPEND:
-		return (DDI_SUCCESS);
-	default:
-		return (DDI_FAILURE);
-	}
+	if (!initted)
+		return DDI_SUCCESS;
+TODO();
 
 	if (dtrace_unregister(systrace_id) != 0)
 		return (DDI_FAILURE);
 
-	ddi_remove_minor_node(devi, NULL);
 	systrace_probe = systrace_stub;
 	return (DDI_SUCCESS);
-}
-
-/*ARGSUSED*/
-static int
-systrace_info(dev_info_t *dip, ddi_info_cmd_t infocmd, void *arg, void **result)
-{
-	int error;
-
-	switch (infocmd) {
-	case DDI_INFO_DEVT2DEVINFO:
-		*result = (void *)systrace_devi;
-		error = DDI_SUCCESS;
-		break;
-	case DDI_INFO_DEVT2INSTANCE:
-		*result = (void *)0;
-		error = DDI_SUCCESS;
-		break;
-	default:
-		error = DDI_FAILURE;
-	}
-	return (error);
 }
 
 /*ARGSUSED*/
@@ -307,67 +389,44 @@ systrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 	return (0);
 }
 
-static struct cb_ops systrace_cb_ops = {
-	systrace_open,		/* open */
-	nodev,			/* close */
-	nulldev,		/* strategy */
-	nulldev,		/* print */
-	nodev,			/* dump */
-	nodev,			/* read */
-	nodev,			/* write */
-	nodev,			/* ioctl */
-	nodev,			/* devmap */
-	nodev,			/* mmap */
-	nodev,			/* segmap */
-	nochpoll,		/* poll */
-	ddi_prop_op,		/* cb_prop_op */
-	0,			/* streamtab  */
-	D_NEW | D_MP		/* Driver compatibility flag */
+static const struct file_operations systrace_fops = {
+        .open = systrace_open,
 };
 
-static struct dev_ops systrace_ops = {
-	DEVO_REV,		/* devo_rev, */
-	0,			/* refcnt  */
-	systrace_info,		/* get_dev_info */
-	nulldev,		/* identify */
-	nulldev,		/* probe */
-	systrace_attach,	/* attach */
-	systrace_detach,	/* detach */
-	nodev,			/* reset */
-	&systrace_cb_ops,	/* driver operations */
-	NULL,			/* bus operations */
-	nodev			/* dev power */
+static struct miscdevice systrace_dev = {
+        MISC_DYNAMIC_MINOR,
+        "systrace",
+        &systrace_fops
 };
 
-/*
- * Module linkage information for the kernel.
- */
-static struct modldrv modldrv = {
-	&mod_driverops,		/* module type (this is a pseudo driver) */
-	"System Call Tracing",	/* name of module */
-	&systrace_ops,		/* driver ops */
-};
+static int initted;
 
-static struct modlinkage modlinkage = {
-	MODREV_1,
-	(void *)&modldrv,
-	NULL
-};
+int systrace_init(void)
+{	int	ret;
 
-int
-_init(void)
-{
-	return (mod_install(&modlinkage));
+	ret = misc_register(&systrace_dev);
+	if (ret) {
+		printk(KERN_WARNING "systrace: Unable to register misc device\n");
+		return ret;
+		}
+
+	systrace_attach();
+
+	/***********************************************/
+	/*   Helper not presently implemented :-(      */
+	/***********************************************/
+	printk(KERN_WARNING "systrace loaded: /dev/systrace now available\n");
+
+	initted = 1;
+
+	return 0;
 }
-
-int
-_info(struct modinfo *modinfop)
+void systrace_exit(void)
 {
-	return (mod_info(&modlinkage, modinfop));
-}
+HERE();
+	systrace_detach();
+HERE();
 
-int
-_fini(void)
-{
-	return (mod_remove(&modlinkage));
+	printk(KERN_WARNING "systrace driver unloaded.\n");
+	misc_deregister(&systrace_dev);
 }

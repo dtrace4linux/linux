@@ -17,13 +17,13 @@ dtracedrv-objs := \
 	fbt_linux.o \
 	sdt_linux.o \
 	sdt_subr.o \
+	systrace.o \
 	instr_size.o \
 	uncompress.o
 
 obj-m := dtracedrv.o
 
 H	= dtrace_linux.h dtrace_proto.h
-
 EXTRA_CFLAGS += \
 	-I$(M) \
 	-I$(M)/../.. \

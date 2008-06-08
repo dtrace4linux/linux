@@ -155,6 +155,7 @@ int kill_pid(struct pid *pid, int sig, int priv);
 //void	*new_unr(struct unrhdr *uh, void **p1, void **p2);
 void	*vmem_alloc(vmem_t *, size_t, int);
 void	*vmem_zalloc(vmem_t *, size_t, int);
+void	membar_enter(void);
 void	debug_enter(char *);
 void	dtrace_vtime_disable(void);
 void	dtrace_vtime_enable(void);
@@ -182,5 +183,7 @@ extern uintptr_t	_userlimit;
 # endif
 # define copyin(a, b, c) copy_from_user(b, a, c)
 # define copyout(a, b, c) copy_to_user(b, a, c)
+
+extern int validate_ptr(void *);
 
 # endif

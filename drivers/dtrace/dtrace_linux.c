@@ -54,6 +54,8 @@ int	fasttrap_init(void);
 void	fasttrap_exit(void);
 int	fbt_init(void);
 void	fbt_exit(void);
+int	systrace_init(void);
+void	systrace_exit(void);
 
 cred_t *
 CRED()
@@ -229,6 +231,35 @@ typedef struct seq_t {
 	int	seq_id;
 	} seq_t;
 
+/**********************************************************************/
+/*   Test if a pointer is vaid in kernel space.			      */
+/**********************************************************************/
+#define __validate_ptr(ptr, ret)        \
+ __asm__ __volatile__(      	      \
+  "  mov $1, %0\n" 		      \
+  "0: mov (%1), %1\n"                \
+  "2:\n"       			      \
+  ".section .fixup,\"ax\"\n"          \
+  "3: mov $0, %0\n"    	              \
+  " jmp 2b\n"     		      \
+  ".previous\n"      		      \
+  ".section __ex_table,\"a\"\n"       \
+  " .align 8\n"     		      \
+  " .quad 0b,3b\n"     		      \
+  ".previous"      		      \
+  : "=&a" (ret) 		      \
+  : "c" (ptr) 	                      \
+  )
+
+int
+validate_ptr(void *ptr)
+{	int	ret;
+
+	__validate_ptr(ptr, ret);
+	printk("validate: ptr=%p ret=%d\n", ptr, ret);
+
+	return ret;
+}
 void *
 vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {	seq_t *seqp = (seq_t *) hdr;
@@ -262,6 +293,16 @@ vmem_destroy(vmem_t *hdr)
 {
 	kfree(hdr);
 }
+/**********************************************************************/
+/*   Memory  barrier  used  by  atomic  cas instructions. We need to  */
+/*   implement  this if we are to be reliable in an SMP environment.  */
+/*   systrace.c calls us   					      */
+/**********************************************************************/
+void
+membar_enter(void)
+{
+}
+
 int
 priv_policy_only(const cred_t *a, int b, int c)
 {
@@ -398,19 +439,16 @@ static struct proc_dir_entry *dir;
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
 	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
-
-//	dtrace_attach(NULL, 0);
-
 	ctf_init();
 	fasttrap_init();
 	fbt_init();
+	systrace_init();
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
 {
+	systrace_exit();
 	fbt_exit();
-//	dtrace_detach();
-
 	ctf_exit();
 	fasttrap_exit();
 

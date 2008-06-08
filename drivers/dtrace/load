@@ -13,4 +13,6 @@ grep ' kallsyms' /proc/kallsyms >/dev/fbt
 grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
 grep ' modules' /proc/kallsyms >/dev/fbt
 grep ' __symbol_get' /proc/kallsyms >/dev/fbt
+grep ' sys_call_table' /proc/kallsyms >/dev/fbt
+grep ' kern_addr_valid' /proc/kallsyms >/dev/fbt
 

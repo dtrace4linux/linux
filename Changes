@@ -1,3 +1,10 @@
+Mon Jun  9 22:05:12 2008  fox
+
+      29* Archive: 1.0024
+
+      28* fbt_linux.c, dtrace_linux.c: Implement a validate_ptr() function
+          since we were dying due to bad VM inside the kernel.
+
 Mon Jun  2 21:42:23 2008  fox
 
       27* fbt_linux.c: Avoid issue with call to __symbol_get() cause

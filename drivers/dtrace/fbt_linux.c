@@ -29,6 +29,9 @@
 #include <linux/module.h>
 #include <linux/list.h>
 
+# undef NULL
+# define NULL 0
+
 MODULE_AUTHOR("Paul D. Fox");
 //MODULE_LICENSE("CDDL");
 MODULE_LICENSE("GPL");
@@ -51,6 +54,8 @@ static struct map {
 	{"kallsyms_lookup_name", NULL},
 	{"modules", NULL},
 	{"__symbol_get", NULL},
+	{"sys_call_table", NULL},
+	{"kern_addr_valid", NULL},
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -61,6 +66,8 @@ static unsigned int (*xget_symbol_offset)(int);
 static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void *(*x__symbol_get)(const char *);
+static void **xsys_call_table;
+int (*xkern_addr_valid)(unsigned long);
 
 #define	FBT_PUSHL_EBP		0x55
 #define	FBT_MOVL_ESP_EBP0_V0	0x8b
@@ -258,11 +265,12 @@ printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
-
+HERE();
 		name = str + sym->st_name;
 		if (sym->st_name == NULL || *name == '\0')
 			continue;
 
+HERE();
 		/***********************************************/
 		/*   Linux re-encodes the symbol types.	       */
 		/***********************************************/
@@ -296,7 +304,7 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 			 */
 			continue;
 		}
-
+HERE();
 		if (strstr(name, "kdi_") == name ||
 		    strstr(name, "kprobe") == name) {
 			/*
@@ -306,6 +314,7 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 			 */
 			continue;
 		}
+HERE();
 
 		/*
 		 * Due to 4524008, _init and _fini may have a bloated st_size.
@@ -325,6 +334,7 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 
 		if (strcmp(name, "_fini") == 0)
 			continue;
+HERE();
 
 		/*
 		 * In order to be eligible, the function must begin with the
@@ -349,6 +359,7 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 		 */
 		instr = (uint8_t *)sym->st_value;
 		limit = (uint8_t *)(sym->st_value + sym->st_size);
+HERE();
 
 //printk("sym %d: %s ty=%x %p %p %d\n", i, name,sym->st_info, instr, limit, sym->st_size);
 /*		{mm_segment_t fs = get_fs();
@@ -385,9 +396,17 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 # endif
 
 #ifdef __amd64
+{int ret;
+unsigned long pfn = (off64_t) instr / PAGE_SIZE;
+HERE();
+ret = validate_ptr(instr);
+printk("disasm: %p %d %d %d\n", instr, virt_addr_valid(instr), 
+pfn_valid(instr), ret);
+if (!ret)
+	continue;
+//printk("%02x\n", *instr);
+}
 		while (instr < limit) {
-/*printk("disasm: %p ", instr);
-printk("%02x\n", *instr);*/
 			if (*instr == FBT_PUSHL_EBP)
 				break;
 
@@ -404,10 +423,11 @@ printk("%02x\n", *instr);*/
 			 * screw-up.  Either way, we bail.
 			 */
 TODO();
-printk("size=%d *instr=%02x %02x %d\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
+printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
 			continue;
 		}
 #else
+HERE();
 		if (instr[0] != FBT_PUSHL_EBP)
 			continue;
 
@@ -420,13 +440,10 @@ printk("size=%d *instr=%02x %02x %d\n", size, *instr, FBT_PUSHL_EBP, limit-instr
 
 TODO();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-printk("fbt=%p\n", fbt);
 		
 		fbt->fbtp_name = name;
-TODO();
 		fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
 		    name, FBT_ENTRY, 3, fbt);
-TODO();
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
 		fbt->fbtp_loadcnt = get_refcount(mp);
@@ -442,11 +459,9 @@ TODO();
 		mp1->fbt_nentries++;
 # endif
 
-TODO();
 		retfbt = NULL;
 again:
 		if (instr >= limit) {
-TODO();
 			continue;
 		}
 
@@ -466,7 +481,6 @@ TODO();
 		 */
 		if (*instr != FBT_RET) {
 			instr += size;
-TODO();
 			goto again;
 		}
 #else
@@ -493,12 +507,13 @@ TODO();
 			retfbt->fbtp_next = fbt;
 			fbt->fbtp_id = retfbt->fbtp_id;
 		}
-
+HERE();
 		retfbt = fbt;
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
 		fbt->fbtp_loadcnt = get_refcount(mp);
 
+HERE();
 #ifndef __amd64
 		if (*instr == FBT_POPL_EBP) {
 			fbt->fbtp_rval = DTRACE_INVOP_POPL_EBP;
@@ -520,6 +535,7 @@ TODO();
 		fbt->fbtp_patchval = FBT_PATCHVAL;
 		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
 		fbt->fbtp_symndx = i;
+HERE();
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 # if 0
@@ -618,6 +634,11 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 		*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
 }
 
+void *
+fbt_get_sys_call_table()
+{
+	return xsys_call_table;
+}
 /*ARGSUSED*/
 static void
 fbt_disable(void *arg, dtrace_id_t id, void *parg)
@@ -944,8 +965,7 @@ static struct dev_ops fbt_ops = {
 /**********************************************************************/
 static int fbt_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
-{	int	ret;
-
+{
 	return -EIO;
 }
 static int
@@ -1012,12 +1032,14 @@ fbt_write(struct file *file, const char __user *buf,
 
 	if (syms[1].m_ptr)
 		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
-	xkallsyms_addresses 	= syms[2].m_ptr;
+	xkallsyms_addresses 	= (long *) syms[2].m_ptr;
 	xkallsyms_expand_symbol = syms[3].m_ptr;
 	xget_symbol_offset 	= syms[4].m_ptr;
 	xkallsyms_lookup_name 	= syms[5].m_ptr;
-	xmodules 		= syms[6].m_ptr;
+	xmodules 		= (void *) syms[6].m_ptr;
 	x__symbol_get		= syms[7].m_ptr;
+	xsys_call_table 	= (void **) syms[8].m_ptr;
+	xkern_addr_valid	= syms[9].m_ptr;
 
 	/***********************************************/
 	/*   Dump out the symtab for debugging.	       */

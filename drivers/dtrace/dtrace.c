@@ -2645,7 +2645,7 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 		return (mstate->dtms_arg[ndx]);
 
 	case DIF_VAR_UREGS: {
-# if TODO
+# if TODOxxx
 		klwp_t *lwp;
 
 		if (!dtrace_priv_proc(state))
@@ -5665,7 +5665,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 #ifdef lint
 		uint64_t val = 0;
 #else
-		uint64_t val;
+		uint64_t val = 0;
 #endif
 
 		mstate.dtms_present = DTRACE_MSTATE_ARGS | DTRACE_MSTATE_PROBE;
@@ -6593,7 +6593,7 @@ dtrace_match_probe(const dtrace_probe_t *prp, const dtrace_probekey_t *pkp,
 	dtrace_provider_t *pvp = prp->dtpr_provider;
 	int rv;
 
-printk("name=%s prp=%p pkp=%p\n", pvp->dtpv_name, prp, pkp);
+//printk("name=%s prp=%p pkp=%p\n", pvp->dtpv_name, prp, pkp);
 
 	if (pvp->dtpv_defunct)
 		return (0);
@@ -7328,6 +7328,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	dtrace_id_t id;
 
 HERE();
+printk("creating: %s:%s:%s\n", mod, func, name);
 	if (provider == dtrace_provider) {
 		ASSERT(MUTEX_HELD(&dtrace_lock));
 	} else {
@@ -9225,10 +9226,9 @@ dtrace_ecb_add(dtrace_state_t *state, dtrace_probe_t *probe)
 	ecb->dte_size = ecb->dte_needed = sizeof (dtrace_epid_t);
 	ecb->dte_alignment = sizeof (dtrace_epid_t);
 
-printk("ecb=%p state=%p\n", ecb, state);
+//printk("ecb=%p state=%p\n", ecb, state);
 	epid = state->dts_epid++;
 
-HERE();
 	if (epid - 1 >= state->dts_necbs) {
 		dtrace_ecb_t **oecbs = state->dts_ecbs, **ecbs;
 		int necbs = state->dts_necbs << 1;
@@ -10224,7 +10224,6 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 	ASSERT(MUTEX_HELD(&cpu_lock));
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 
-HERE();
 	if (size > dtrace_nonroot_maxsize &&
 	    !PRIV_POLICY_CHOICE(CRED(), PRIV_ALL, B_FALSE))
 		return (EFBIG);
@@ -10235,12 +10234,10 @@ HERE();
 		if (cpu != DTRACE_CPUALL && cpu != cp->cpu_id)
 			continue;
 
-HERE();
-printk("bugs=%p\n", bufs);
+/*printk("bugs=%p\n", bufs);
 printk("cp=%p\n", cp);
-printk("cpu_id=%x\n", cp->cpu_id);
+printk("cpu_id=%x\n", cp->cpu_id);*/
 		buf = &bufs[cp->cpu_id];
-HERE();
 
 		/*
 		 * If there is already a buffer allocated for this CPU, it
@@ -10248,14 +10245,11 @@ HERE();
 		 * the buffer size must match our specified size.
 		 */
 		if (buf->dtb_tomax != NULL) {
-HERE();
 			ASSERT(buf->dtb_size == size);
 			continue;
 		}
-HERE();
 
 		ASSERT(buf->dtb_xamot == NULL);
-HERE();
 
 		if ((buf->dtb_tomax = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
 			goto err;
@@ -10264,7 +10258,6 @@ HERE();
 		buf->dtb_flags = flags;
 		buf->dtb_offset = 0;
 		buf->dtb_drops = 0;
-HERE();
 
 		if (flags & DTRACEBUF_NOSWITCH)
 			continue;
@@ -10272,13 +10265,11 @@ HERE();
 		if ((buf->dtb_xamot = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
 			goto err;
 	} while ((cp = cp->cpu_next) != cpu_list);
-HERE();
 
 	return (0);
 
 err:
 	cp = cpu_list;
-HERE();
 
 	do {
 		if (cpu != DTRACE_CPUALL && cpu != cp->cpu_id)
@@ -12327,7 +12318,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 	m = minor;
 # else
 	TODO();
-# if TODO
+# if TODOxxxx
         if (devp != NULL) {
                 cr = devp->si_cred;
                 m = minor(devp);
@@ -14978,10 +14969,8 @@ printk("fp=%p cmd=%x\n", fp, cmd);
 		state = state->dts_anon;
 	}
 # else
-HERE();
 	state = fp->private_data;
-printk("state=%p\n", state);
-HERE();
+//printk("state=%p\n", state);
 	if (state->dts_anon) {
 		ASSERT(dtrace_anon.dta_state == NULL);
 		state = state->dts_anon;
@@ -15265,7 +15254,6 @@ HERE();
 			dtrace_dof_destroy(dof);
 			return (rval);
 		}
-HERE();
 
                 if ((err = dtrace_enabling_match(enab, rv)) == 0) {
 HERE();
@@ -15276,9 +15264,8 @@ HERE();
 HERE();
 		mutex_exit(&cpu_lock);
 		mutex_exit(&dtrace_lock);
-HERE();
 		dtrace_dof_destroy(dof);
-HERE();
+
 printk("err=%d rv=%d\n", err, *rv);
 //		if (err == 0)
 //			copy_to_user(arg , &rv, sizeof rv);

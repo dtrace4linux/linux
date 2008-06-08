@@ -234,12 +234,11 @@ sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 static void
 sdt_enable(void *arg, dtrace_id_t id, void *parg)
 {
-# if defined(sun)
 	sdt_probe_t *sdp = parg;
-	struct modctl *ctl = sdp->sdp_ctl;
 
+# if defined(sun)
 	ctl->mod_nenabled++;
-
+	{struct modctl *ctl = sdp->sdp_ctl;
 	/*
 	 * If this module has disappeared since we discovered its probes,
 	 * refuse to enable it.
@@ -250,7 +249,7 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 			    "(module %s unloaded)",
 			    sdp->sdp_name, ctl->mod_modname);
 		}
-		goto err;
+		return;
 	}
 
 	/*
@@ -264,39 +263,35 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 			    "(module %s reloaded)",
 			    sdp->sdp_name, ctl->mod_modname);
 		}
-		goto err;
+		return;
 	}
+# endif
 
 	while (sdp != NULL) {
 		*sdp->sdp_patchpoint = sdp->sdp_patchval;
 		sdp = sdp->sdp_next;
 	}
-err:
-	;
-# endif
 }
 
 /*ARGSUSED*/
 static void
 sdt_disable(void *arg, dtrace_id_t id, void *parg)
 {
-# if defined(sun)
 	sdt_probe_t *sdp = parg;
-	struct modctl *ctl = sdp->sdp_ctl;
 
+# if 0
 	ctl->mod_nenabled--;
-
+	{
+	struct modctl *ctl = sdp->sdp_ctl;
 	if (!ctl->mod_loaded || ctl->mod_loadcnt != sdp->sdp_loadcnt)
-		goto err;
+		return;
+	}
+# endif
 
 	while (sdp != NULL) {
 		*sdp->sdp_patchpoint = sdp->sdp_savedval;
 		sdp = sdp->sdp_next;
 	}
-
-err:
-	;
-# endif
 }
 
 static dtrace_pops_t sdt_pops = {
@@ -314,7 +309,7 @@ static dtrace_pops_t sdt_pops = {
 
 /*ARGSUSED*/
 static int
-sdt_attach()
+sdt_attach(void)
 {
 	sdt_provider_t *prov;
 # if defined(sun)
@@ -352,7 +347,7 @@ sdt_attach()
 
 /*ARGSUSED*/
 static int
-sdt_detach()
+sdt_detach(void)
 {
 	sdt_provider_t *prov;
 
@@ -413,7 +408,7 @@ int sdt_init(void)
 void sdt_exit(void)
 {
 	if (initted) {
-		sdt_detach(NULL);
+		sdt_detach();
 	}
 
 	printk(KERN_WARNING "sdt driver unloaded.\n");

@@ -5606,9 +5606,11 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	probe = dtrace_probes[id - 1];
 	cpuid = cpu_get_id();
 	onintr = CPU_ON_INTR(CPU);
+printk("dtrace_probe: cpuid=%d onintr=%d\n", cpuid, onintr);
 
 	if (!onintr && probe->dtpr_predcache != DTRACE_CACHEIDNONE &&
 	    probe->dtpr_predcache == curthread->t_predcache) {
+HERE();
 		/*
 		 * We have hit in the predicate cache; we know that
 		 * this predicate would evaluate to be false.
@@ -5621,13 +5623,16 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		/*
 		 * We don't trace anything if we're panicking.
 		 */
+HERE();
 		dtrace_interrupt_enable(cookie);
 		return;
 	}
 
+HERE();
 	now = dtrace_gethrtime();
 	vtime = dtrace_vtime_references != 0;
 
+HERE();
 	if (vtime && curthread->t_dtrace_start)
 		curthread->t_dtrace_vtime += now - curthread->t_dtrace_start;
 
@@ -5642,6 +5647,8 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 
 	flags = (volatile uint16_t *)&cpu_core[cpuid].cpuc_dtrace_flags;
 
+HERE();
+printk("dtpr_ecb=%p\n", probe->dtpr_ecb);
 	for (ecb = probe->dtpr_ecb; ecb != NULL; ecb = ecb->dte_next) {
 		dtrace_predicate_t *pred = ecb->dte_predicate;
 		dtrace_state_t *state = ecb->dte_state;
@@ -5671,6 +5678,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		mstate.dtms_present = DTRACE_MSTATE_ARGS | DTRACE_MSTATE_PROBE;
 		*flags &= ~CPU_DTRACE_ERROR;
 
+HERE();
 		if (prov == dtrace_provider) {
 			/*
 			 * If dtrace itself is the provider of this probe,
@@ -5683,6 +5691,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 				continue;
 		}
 
+HERE();
 		if (state->dts_activity != DTRACE_ACTIVITY_ACTIVE) {
 			/*
 			 * We're not currently active.  If our provider isn't
@@ -5705,6 +5714,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 				continue;
 			}
 		}
+HERE();
 
 		if (ecb->dte_cond) {
 			/*
@@ -5791,9 +5801,11 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 			}
 		}
 
+HERE();
 		if ((offs = dtrace_buffer_reserve(buf, ecb->dte_needed,
 		    ecb->dte_alignment, state, &mstate)) < 0)
 			continue;
+HERE();
 
 		tomax = buf->dtb_tomax;
 		ASSERT(tomax != NULL);
@@ -5865,6 +5877,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 				continue;
 			}
 
+HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_STOP:
 				if (dtrace_priv_proc_destructive(state))
@@ -6188,10 +6201,12 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 
 			continue;
 		}
+HERE();
 
 		if (!committed)
 			buf->dtb_offset = offs + ecb->dte_size;
 	}
+HERE();
 
 	if (vtime)
 		curthread->t_dtrace_start = dtrace_gethrtime();
@@ -9290,6 +9305,7 @@ dtrace_ecb_enable(dtrace_ecb_t *ecb)
 	ASSERT(MUTEX_HELD(&cpu_lock));
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(ecb->dte_next == NULL);
+HERE();
 
 	if (probe == NULL) {
 		/*
@@ -10224,6 +10240,9 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 	ASSERT(MUTEX_HELD(&cpu_lock));
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 
+HERE();
+printk("cpu=%d\n", cpu);
+
 	if (size > dtrace_nonroot_maxsize &&
 	    !PRIV_POLICY_CHOICE(CRED(), PRIV_ALL, B_FALSE))
 		return (EFBIG);
@@ -10324,6 +10343,7 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 	caddr_t tomax;
 	size_t total;
 
+HERE();
 	if (buf->dtb_flags & DTRACEBUF_INACTIVE)
 		return (-1);
 
@@ -15603,6 +15623,14 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		/*
 		 * We have our snapshot; now copy it out.
 		 */
+{unsigned char *cp = buf->dtb_xamot;
+int i = buf->dtb_xamot_offset;
+printk("cpu=%d copyout..%p\n", desc.dtbd_cpu, cp);
+while (i-- > 0) {
+	printk("%02x ", *cp++);
+}
+printk("\n");
+}
 		if (copyout(buf->dtb_xamot, desc.dtbd_data,
 		    buf->dtb_xamot_offset) != 0) {
 			mutex_exit(&dtrace_lock);
@@ -15621,7 +15649,7 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		 */
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
 			return (EFAULT);
-
+HERE();
 		return (0);
 	}
 

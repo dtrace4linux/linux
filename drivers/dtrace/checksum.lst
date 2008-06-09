@@ -12,7 +12,7 @@ d1e21501 size=2694    mtime=1212268299 ./ctf_util.c
 ceab99d8 size=49      mtime=1212276076 ./dt1
 62d4c308 size=50      mtime=1210514034 ./dt2
 3b7a929a size=29      mtime=1211818650 ./dt3
-14816feb size=407374  mtime=1212842925 ./dtrace.c
+fa0df8a1 size=407818  mtime=1213137095 ./dtrace.c
 94224da0 size=6493    mtime=1211652886 ./dtrace_asm.c
 95e2691f size=6716    mtime=1208466971 ./dtrace_asm.s
 d3b1f184 size=16544   mtime=1212098835 ./dtrace_isa.c
@@ -29,5 +29,5 @@ a5a2f75f size=27397   mtime=1213045393 ./fbt_linux.c
 ccc7df77 size=7109    mtime=1210512452 ./opensnoop
 a416564e size=9430    mtime=1212446320 ./sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./sdt_subr.c
-944acb95 size=11208   mtime=1213051518 ./systrace.c
+5f64436c size=11495   mtime=1213130791 ./systrace.c
 b69bbf60 size=1111    mtime=1212275983 ./uncompress.c

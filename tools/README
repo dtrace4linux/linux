@@ -1,0 +1,4 @@
+Mostly junk play/test files, e.g. mknod.c to stress test dtrace
+on a rare system call.
+
+Nothing of value here.

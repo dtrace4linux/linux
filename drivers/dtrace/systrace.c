@@ -109,8 +109,10 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
         dtrace_id_t id;
         int64_t rval;
 
-        if ((id = sy->stsy_entry) != DTRACE_IDNONE)
+        if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
+HERE();
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
+	}
 
         /*
          * We want to explicitly allow DTrace consumers to stop a process
@@ -135,9 +137,11 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
                 rval = -1;
 # endif
 
-        if ((id = sy->stsy_return) != DTRACE_IDNONE)
+        if ((id = sy->stsy_return) != DTRACE_IDNONE) {
+HERE();
                 (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
+		}
 
         return (rval);
 }
@@ -276,13 +280,21 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	}
 
 	if (enabled) {
-		ASSERT(sysent[sysnum].sy_callc == dtrace_systrace_syscall);
+		printk("panic: sysnum=%d callc=%p\n", sysnum, sysent[sysnum].sy_callc);
+//		ASSERT(sysent[sysnum].sy_callc == dtrace_systrace_syscall);
 		return;
 	}
+
+HERE();
+printk("enable: sysnum=%d %p %p %p\n", sysnum,
+	&sysent[sysnum].sy_callc,
+	    (void *)systrace_sysent[sysnum].stsy_underlying,
+	    (void *)dtrace_systrace_syscall);
 
 	(void) casptr(&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)dtrace_systrace_syscall);
+HERE();
 #ifdef _SYSCALL32_IMPL
 	(void) casptr(&sysent32[sysnum].sy_callc,
 	    (void *)systrace_sysent32[sysnum].stsy_underlying,

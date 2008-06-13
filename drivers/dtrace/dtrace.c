@@ -7349,21 +7349,16 @@ printk("creating: %s:%s:%s\n", mod, func, name);
 	} else {
 		mutex_enter(&dtrace_lock);
 	}
-HERE();
 
 	id = (dtrace_id_t)(uintptr_t)vmem_alloc(dtrace_arena, 1,
 	    VM_BESTFIT | VM_SLEEP);
-HERE();
+
 	probe = kmem_zalloc(sizeof (dtrace_probe_t), KM_SLEEP);
-HERE();
 
 	probe->dtpr_id = id;
 	probe->dtpr_gen = dtrace_probegen++;
-HERE();
 	probe->dtpr_mod = dtrace_strdup(mod);
-HERE();
 	probe->dtpr_func = dtrace_strdup(func);
-HERE();
 	probe->dtpr_name = dtrace_strdup(name);
 	probe->dtpr_arg = arg;
 	probe->dtpr_aframes = aframes;
@@ -7371,12 +7366,10 @@ HERE();
 
 HERE();
 	dtrace_hash_add(dtrace_bymod, probe);
-HERE();
 	dtrace_hash_add(dtrace_byfunc, probe);
-HERE();
 	dtrace_hash_add(dtrace_byname, probe);
 HERE();
-printk("id=%d\n", id);
+printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 
 	if (id - 1 >= dtrace_nprobes) {
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
@@ -9306,6 +9299,7 @@ dtrace_ecb_enable(dtrace_ecb_t *ecb)
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(ecb->dte_next == NULL);
 HERE();
+printk("probe=%p\n", probe);
 
 	if (probe == NULL) {
 		/*
@@ -9475,8 +9469,10 @@ dtrace_ecb_aggregation_create(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 	dtrace_aggid_t aggid;
 	dtrace_state_t *state = ecb->dte_state;
 
+HERE();	
 	agg = kmem_zalloc(sizeof (dtrace_aggregation_t), KM_SLEEP);
 	agg->dtag_ecb = ecb;
+HERE();	
 
 	ASSERT(DTRACEACT_ISAGG(desc->dtad_kind));
 
@@ -9532,12 +9528,14 @@ dtrace_ecb_aggregation_create(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 	default:
 		goto err;
 	}
+HERE();	
 
 	agg->dtag_action.dta_rec.dtrd_size = size;
 
 	if (ntuple == 0)
 		goto err;
 
+HERE();	
 	/*
 	 * We must make sure that we have enough actions for the n-tuple.
 	 */
@@ -9554,6 +9552,7 @@ dtrace_ecb_aggregation_create(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 		}
 	}
 
+HERE();	
 	/*
 	 * This n-tuple is short by ntuple elements.  Return failure.
 	 */
@@ -9607,6 +9606,7 @@ success:
 		state->dts_naggregations = naggs;
 	}
 
+HERE();	
 	ASSERT(state->dts_aggregations[aggid - 1] == NULL);
 	state->dts_aggregations[(agg->dtag_id = aggid) - 1] = agg;
 
@@ -9668,7 +9668,9 @@ dtrace_ecb_action_add(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 				return (EINVAL);
 		}
 
+HERE();	
 		action = dtrace_ecb_aggregation_create(ecb, desc);
+HERE();	
 
 		if (action == NULL)
 			return (EINVAL);
@@ -9679,6 +9681,7 @@ dtrace_ecb_action_add(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 			state->dts_destructive = 1;
 		}
 
+HERE();	
 		switch (desc->dtad_kind) {
 		case DTRACEACT_PRINTF:
 		case DTRACEACT_PRINTA:
@@ -10101,7 +10104,9 @@ HERE();
 		}
 	}
 
+HERE();	
 	dtrace_ecb_resize(ecb);
+HERE();	
 
 	return (dtrace_ecb_create_cache = ecb);
 }
@@ -12351,10 +12356,10 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 	state->dts_epid = DTRACE_EPIDNONE + 1;
 
 	(void) snprintf(c, sizeof (c), "dtrace_aggid_%d", m);
-
-# if defined(sun)
+# define VMC_IDENTIFIER 0
 	state->dts_aggid_arena = vmem_create(c, (void *)1, UINT32_MAX, 1,
 	    NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
+# if defined(sun)
 
 	if (devp != NULL) {
 		major = getemajor(*devp);
@@ -14648,7 +14653,6 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 
 	ASSERT(MUTEX_HELD(&cpu_lock));
 
-#define VMC_IDENTIFIER 0
 	dtrace_arena = vmem_create("dtrace", (void *)1, UINT32_MAX, 1,
 	    NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
 	dtrace_minor = vmem_create("dtrace_minor", (void *)DTRACEMNRN_CLONE,

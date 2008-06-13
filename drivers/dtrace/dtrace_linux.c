@@ -20,6 +20,7 @@
 #include <linux/proc_fs.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
@@ -224,14 +225,6 @@ kmem_free(void *ptr, int size)
 # endif
 
 /**********************************************************************/
-/*   Need to implement this or use the unr code from FreeBSD.	      */
-/**********************************************************************/
-typedef struct seq_t {
-	struct mutex seq_mutex;
-	int	seq_id;
-	} seq_t;
-
-/**********************************************************************/
 /*   Test if a pointer is vaid in kernel space.			      */
 /**********************************************************************/
 #define __validate_ptr(ptr, ret)        \
@@ -260,13 +253,21 @@ validate_ptr(void *ptr)
 
 	return ret;
 }
+/**********************************************************************/
+/*   Need to implement this or use the unr code from FreeBSD.	      */
+/**********************************************************************/
+typedef struct seq_t {
+	struct mutex seq_mutex;
+	int	seq_id;
+	} seq_t;
+
 void *
 vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {	seq_t *seqp = (seq_t *) hdr;
 	void	*ret;
 
 	mutex_lock(&seqp->seq_mutex);
-	ret = (void *) ++seqp->seq_id;
+	ret = (void *) (long) ++seqp->seq_id;
 	mutex_unlock(&seqp->seq_mutex);
 	return ret;
 }
@@ -318,7 +319,7 @@ dtracedrv_open(struct inode *inode, struct file *file)
 HERE();
 	dtrace_attach(NULL, 0);
 HERE();
-printk("inode=%x file=%x\n", inode, file);
+printk("inode=%p file=%p\n", inode, file);
 	ret = dtrace_open(file, 0, 0, NULL);
 HERE();
 

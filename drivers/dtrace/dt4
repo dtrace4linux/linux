@@ -1,0 +1,28 @@
+#! /bin/sh
+
+dtrace -n '
+dtrace:::BEGIN
+{
+	printf("Welcome to dtrace\n");
+	exit(0);
+}
+syscall::mknod:
+{
+	@func[execname] = count();
+	printf("mknod called!\n");
+}
+syscall::getpid:
+{
+	@func[execname] = count();
+	printf("getpid called!\n");
+}
+dtrace:::END
+{
+	printf("Goodbye to dtrace\n");
+	printa(@func);
+}
+/*tick-1sec
+{
+	printa(@func);
+}*/
+'

@@ -96,6 +96,8 @@ void *dtrace_casptr(void *target, void *cmp, void *new);
 void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
     uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
+# define linux_get_syscall() get_current()->thread.trap_no
+
 int64_t
 dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -103,14 +105,15 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #if defined(sun)
 	int syscall = curthread->t_sysnum;
 #else
-	int syscall = 0;
+	int syscall = linux_get_syscall();
 #endif
         systrace_sysent_t *sy = &systrace_sysent[syscall];
         dtrace_id_t id;
         int64_t rval;
 
-        if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
 HERE();
+printk("syscall=%d current=%p syscall=%d\n", syscall, get_current(), linux_get_syscall());
+        if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
 	}
 

@@ -73,7 +73,7 @@ static char *syscallnames[] = {
 	};
 
 struct sysent {
-        int64_t         (*sy_callc)();  /* C-style call hander or wrapper */
+        asmlinkage int64_t         (*sy_callc)();  /* C-style call hander or wrapper */
 };
 
 #define LOADABLE_SYSCALL(s)     (s->sy_flags & SE_LOADABLE)
@@ -98,7 +98,7 @@ void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
 
 # define linux_get_syscall() get_current()->thread.trap_no
 
-int64_t
+asmlinkage int64_t
 dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
@@ -107,12 +107,22 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #else
 	int syscall = linux_get_syscall();
 #endif
-        systrace_sysent_t *sy = &systrace_sysent[syscall];
+        systrace_sysent_t *sy;
         dtrace_id_t id;
         int64_t rval;
 
-HERE();
-printk("syscall=%d current=%p syscall=%d\n", syscall, get_current(), linux_get_syscall());
+{int i; 
+long *ptr = &arg0;
+//for (i = 0; i < 32; i++) {
+//printk("stack[%d] = %p\n", i, ptr[i]);
+//}
+syscall = ptr[12]; // horrid hack
+        sy = &systrace_sysent[syscall];
+}
+printk("syscall=%d %s current=%p syscall=%d\n", syscall, 
+	syscall >= 0 && syscall < NSYSCALL ? syscallnames[syscall] : "dont-know", 
+	get_current(), linux_get_syscall());
+//printk("arg0=%s %p %p %p %p %p\n", arg0, arg1, arg2, arg3, arg4, arg5);
         if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
 	}
@@ -141,7 +151,6 @@ printk("syscall=%d current=%p syscall=%d\n", syscall, get_current(), linux_get_s
 # endif
 
         if ((id = sy->stsy_return) != DTRACE_IDNONE) {
-HERE();
                 (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
 		}
@@ -370,7 +379,8 @@ static int
 systrace_attach(void)
 {
 
-	systrace_probe = (void (*)())dtrace_probe;
+	systrace_probe = (void (*)(dtrace_id_t, uintptr_t arg0, uintptr_t arg1,
+    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4))dtrace_probe;
 	membar_enter();
 
 	if (dtrace_register("syscall", &systrace_attr, DTRACE_PRIV_USER, NULL,
@@ -399,7 +409,7 @@ TODO();
 
 /*ARGSUSED*/
 static int
-systrace_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
+systrace_open(struct inode *inode, struct file *file)
 {
 	return (0);
 }

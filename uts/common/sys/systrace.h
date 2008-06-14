@@ -40,7 +40,7 @@ extern "C" {
 typedef struct systrace_sysent {
 	dtrace_id_t	stsy_entry;
 	dtrace_id_t	stsy_return;
-	int64_t		(*stsy_underlying)();
+	asmlinkage int64_t		(*stsy_underlying)();
 } systrace_sysent_t;
 
 extern systrace_sysent_t *systrace_sysent;

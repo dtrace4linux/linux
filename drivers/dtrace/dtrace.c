@@ -110,6 +110,7 @@
 # if linux
 # undef NULL
 # define NULL 0
+# undef current
 # endif
 
 /*
@@ -2899,7 +2900,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		    (uintptr_t)curthread->t_procp->p_user.u_comm,
 		    state, mstate));
 # else
-		return ((uint64_t)(uintptr_t) curthread->comm);
+		return (uint64_t)(uintptr_t) linux_get_proc_comm();
 # endif
 
 	case DIF_VAR_ZONENAME:
@@ -5623,16 +5624,13 @@ HERE();
 		/*
 		 * We don't trace anything if we're panicking.
 		 */
-HERE();
 		dtrace_interrupt_enable(cookie);
 		return;
 	}
 
-HERE();
 	now = dtrace_gethrtime();
 	vtime = dtrace_vtime_references != 0;
 
-HERE();
 	if (vtime && curthread->t_dtrace_start)
 		curthread->t_dtrace_vtime += now - curthread->t_dtrace_start;
 
@@ -5647,8 +5645,6 @@ HERE();
 
 	flags = (volatile uint16_t *)&cpu_core[cpuid].cpuc_dtrace_flags;
 
-HERE();
-printk("dtpr_ecb=%p\n", probe->dtpr_ecb);
 	for (ecb = probe->dtpr_ecb; ecb != NULL; ecb = ecb->dte_next) {
 		dtrace_predicate_t *pred = ecb->dte_predicate;
 		dtrace_state_t *state = ecb->dte_state;
@@ -5678,7 +5674,6 @@ printk("dtpr_ecb=%p\n", probe->dtpr_ecb);
 		mstate.dtms_present = DTRACE_MSTATE_ARGS | DTRACE_MSTATE_PROBE;
 		*flags &= ~CPU_DTRACE_ERROR;
 
-HERE();
 		if (prov == dtrace_provider) {
 			/*
 			 * If dtrace itself is the provider of this probe,
@@ -5691,7 +5686,6 @@ HERE();
 				continue;
 		}
 
-HERE();
 		if (state->dts_activity != DTRACE_ACTIVITY_ACTIVE) {
 			/*
 			 * We're not currently active.  If our provider isn't
@@ -5805,7 +5799,6 @@ HERE();
 		if ((offs = dtrace_buffer_reserve(buf, ecb->dte_needed,
 		    ecb->dte_alignment, state, &mstate)) < 0)
 			continue;
-HERE();
 
 		tomax = buf->dtb_tomax;
 		ASSERT(tomax != NULL);
@@ -6554,11 +6547,10 @@ int
 dtrace_match_priv(const dtrace_probe_t *prp, uint32_t priv, uid_t uid,
     zoneid_t zoneid)
 {
-HERE();
+
 	if (priv != DTRACE_PRIV_ALL) {
 		uint32_t ppriv = prp->dtpr_provider->dtpv_priv.dtpp_flags;
 		uint32_t match = priv & ppriv;
-HERE();
 
 		/*
 		 * No PRIV_DTRACE_* privileges...
@@ -6566,14 +6558,12 @@ HERE();
 		if ((priv & (DTRACE_PRIV_PROC | DTRACE_PRIV_USER |
 		    DTRACE_PRIV_KERNEL)) == 0)
 			return (0);
-HERE();
 
 		/*
 		 * No matching bits, but there were bits to match...
 		 */
 		if (match == 0 && ppriv != 0)
 			return (0);
-HERE();
 
 		/*
 		 * Need to have permissions to the process, but don't...
@@ -6582,7 +6572,6 @@ HERE();
 		    uid != prp->dtpr_provider->dtpv_priv.dtpp_uid) {
 			return (0);
 		}
-HERE();
 		/*
 		 * Need to be in the same zone unless we possess the
 		 * privilege to examine all zones.
@@ -7342,7 +7331,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	dtrace_provider_t *provider = (dtrace_provider_t *)prov;
 	dtrace_id_t id;
 
-HERE();
+//HERE();
 printk("creating: %s:%s:%s\n", mod, func, name);
 	if (provider == dtrace_provider) {
 		ASSERT(MUTEX_HELD(&dtrace_lock));
@@ -7364,7 +7353,6 @@ printk("creating: %s:%s:%s\n", mod, func, name);
 	probe->dtpr_aframes = aframes;
 	probe->dtpr_provider = provider;
 
-HERE();
 	dtrace_hash_add(dtrace_bymod, probe);
 	dtrace_hash_add(dtrace_byfunc, probe);
 	dtrace_hash_add(dtrace_byname, probe);
@@ -7375,16 +7363,13 @@ printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
 		size_t nsize = osize << 1;
 
-HERE();
 		if (nsize == 0) {
 			ASSERT(osize == 0);
 			ASSERT(dtrace_probes == NULL);
 			nsize = sizeof (dtrace_probe_t *);
 		}
 
-HERE();
 		probes = kmem_zalloc(nsize, KM_SLEEP);
-HERE();
 
 		if (dtrace_probes == NULL) {
 			ASSERT(osize == 0);
@@ -7413,7 +7398,6 @@ HERE();
 
 	ASSERT(dtrace_probes[id - 1] == NULL);
 	dtrace_probes[id - 1] = probe;
-HERE();
 
 	if (provider != dtrace_provider)
 		mutex_exit(&dtrace_lock);
@@ -7581,12 +7565,11 @@ HERE();
 
 			printk("dtrace_probe_provide: %p %s\n", modp, modp->name);
 
-printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
+//printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
 			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, modp);
-HERE();
+//HERE();
 		}
 		}
-HERE();
 # endif
 		mutex_exit(&mod_lock);
 	} while (all && (prv = prv->dtpv_next) != NULL);
@@ -10348,7 +10331,7 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 	caddr_t tomax;
 	size_t total;
 
-HERE();
+//HERE();
 	if (buf->dtb_flags & DTRACEBUF_INACTIVE)
 		return (-1);
 
@@ -14981,7 +14964,7 @@ dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv
 	dtrace_state_t *state = NULL;
 	int rval;
 
-printk("fp=%p cmd=%x\n", fp, cmd);
+//printk("fp=%p cmd=%x\n", fp, cmd);
 # if defined(sun)
 	if (minor == DTRACEMNRN_HELPER)
 		return (dtrace_ioctl_helper(cmd, arg, rv));
@@ -15629,11 +15612,11 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		 */
 {unsigned char *cp = buf->dtb_xamot;
 int i = buf->dtb_xamot_offset;
-printk("cpu=%d copyout..%p\n", desc.dtbd_cpu, cp);
-while (i-- > 0) {
+printk("cpu=%d copyout..%p offset=%d\n", desc.dtbd_cpu, cp, i);
+/*while (i-- > 0) {
 	printk("%02x ", *cp++);
 }
-printk("\n");
+*/
 }
 		if (copyout(buf->dtb_xamot, desc.dtbd_data,
 		    buf->dtb_xamot_offset) != 0) {

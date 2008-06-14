@@ -15,6 +15,7 @@ dtracedrv-objs := \
 	dtrace_subr.o \
 	fasttrap_linux.o \
 	fbt_linux.o \
+	linux_pure.o \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \

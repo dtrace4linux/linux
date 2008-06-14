@@ -1,0 +1,7 @@
+3df7ad38 size=111     mtime=1213132025 ./README
+aa001535 size=4776    mtime=1213131995 ./asm
+66866cee size=1636    mtime=1213045230 ./asm.c
+8732190e size=7448    mtime=1212919799 ./kmem
+41d1e78a size=606     mtime=1212919798 ./kmem.c
+d784d091 size=7002    mtime=1213476414 ./mknod
+aef9bd74 size=477     mtime=1213476452 ./mknod.c

@@ -1,6 +1,19 @@
+Sun Jun 15 09:39:19 2008  fox
+
+      34* dtrace_linux.c, fbt_linux.c: Add a (slow/horrid) parallel 
+          allocator. Avoids reprobing modules.
+
+      33* Archive: 1.0026
+
+      32* syscall tracing now working !
+
 Sat Jun 14 00:20:36 2008  fox
 
+      31* Archive: 1.0025
+
       30* dtrace.c: Fix kernel panic when creating an ecb event.
+          dt4 now works for BEGIN/END functionality but syscalls not
+	  being triggered.
 
 Mon Jun  9 22:05:12 2008  fox
 

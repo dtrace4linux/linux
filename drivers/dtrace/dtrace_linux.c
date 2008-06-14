@@ -21,6 +21,9 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/sys.h>
+#include <linux/thread_info.h>
+#include <asm/current.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
@@ -249,9 +252,52 @@ validate_ptr(void *ptr)
 {	int	ret;
 
 	__validate_ptr(ptr, ret);
-	printk("validate: ptr=%p ret=%d\n", ptr, ret);
+//	printk("validate: ptr=%p ret=%d\n", ptr, ret);
 
 	return ret;
+}
+
+/**********************************************************************/
+/*   Parallel allocator to avoid touching kernel data structures. We  */
+/*   need  to  make  this  a  hash  table,  and provide free/garbage  */
+/*   collection semantics.					      */
+/**********************************************************************/
+static struct par_alloc_t *hd_par;
+
+void *
+par_alloc(void *ptr, int size)
+{	par_alloc_t *p;
+
+	for (p = hd_par; p; p = p->pa_next) {
+		if (p->pa_ptr == ptr)
+			return p;
+		}
+
+	p = kmalloc(size + sizeof(*p), GFP_KERNEL);
+	p->pa_ptr = ptr;
+	p->pa_next = hd_par;
+	hd_par = p;
+
+	return p;
+}
+/**********************************************************************/
+/*   Free the parallel pointer.					      */
+/**********************************************************************/
+void
+par_free(void *ptr)
+{	par_alloc_t *p = (par_alloc_t *) ptr;
+	par_alloc_t *p1;
+
+	if (hd_par == p) {
+		hd_par = hd_par->pa_next;
+		kfree(ptr);
+		return;
+		}
+	for (p1 = hd_par; p1->pa_next != p; p1 = p1->pa_next)
+		;
+	if (p1->pa_next == p)
+		p1->pa_next = p->pa_next;
+	kfree(ptr);
 }
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
@@ -317,9 +363,6 @@ dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
 HERE();
-	dtrace_attach(NULL, 0);
-HERE();
-printk("inode=%p file=%p\n", inode, file);
 	ret = dtrace_open(file, 0, 0, NULL);
 HERE();
 
@@ -339,7 +382,6 @@ static int
 dtracedrv_release(struct inode *inode, struct file *file)
 {
 	dtrace_close(file, 0, 0, NULL);
-	dtrace_detach(file, 0);
 	return 0;
 }
 static int
@@ -440,6 +482,9 @@ static struct proc_dir_entry *dir;
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
 	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
+
+	dtrace_attach(NULL, 0);
+
 	ctf_init();
 	fasttrap_init();
 	fbt_init();
@@ -448,6 +493,10 @@ static struct proc_dir_entry *dir;
 }
 static void __exit dtracedrv_exit(void)
 {
+	if (dtrace_attached()) {
+		dtrace_detach(NULL, 0);
+		}
+
 	systrace_exit();
 	fbt_exit();
 	ctf_exit();

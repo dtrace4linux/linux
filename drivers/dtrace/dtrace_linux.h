@@ -36,8 +36,6 @@
 #include <linux/device.h>
 #include <asm/uaccess.h>
 
-#undef current
-#define	current	_current /* is a macro in <current.h> */
 #define PRIV_EFFECTIVE          (1 << 0)
 #define PRIV_DTRACE_KERNEL      (1 << 1)
 #define PRIV_DTRACE_PROC        (1 << 2)
@@ -48,7 +46,6 @@
 
 #define LOCK_LEVEL      10
 
-//#define ttoproc(x)      ((x)->t_procp)
 #define ttoproc(x)      ((x))
 #define	makedevice	MKDEV
 #define	getminor(x)	MINOR(x)
@@ -61,11 +58,6 @@
 #define	mutex_exit(x)	mutex_unlock(x)
 
 # define PRINT_CASE(x) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x)
-
-/*
-typedef int	major_t;
-typedef int	minor_t;
-*/
 
 # define crhold(x)
 # define priv_isequalset(a, b) 1
@@ -184,6 +176,26 @@ extern uintptr_t	_userlimit;
 # define copyin(a, b, c) copy_from_user(b, a, c)
 # define copyout(a, b, c) copy_to_user(b, a, c)
 
-extern int validate_ptr(void *);
+char *linux_get_proc_comm(void);
+int validate_ptr(void *);
+
+/**********************************************************************/
+/*   Parallel  alloc  mechanism functions. We dont want to patch the  */
+/*   kernel  but  we need per-structure additions, so we need a hash  */
+/*   table or list so we can go from kernel object to dtrace object.  */
+/**********************************************************************/
+typedef struct par_alloc_t {
+	void	*pa_ptr;
+	struct par_alloc_t *pa_next;
+	} par_alloc_t;
+
+typedef struct par_module_t {
+	void	*pa_ptr;
+	struct par_alloc_t *pa_next;
+	int	fbt_nentries;
+	} par_module_t;
+
+void *par_alloc(void *, int);
+void par_free(void *ptr);
 
 # endif

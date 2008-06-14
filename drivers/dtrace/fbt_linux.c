@@ -206,6 +206,7 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	char	*name;
 	int	 size = -1;
 	fbt_probe_t *fbt, *retfbt;
+    	par_module_t *pmp;
 
 # if 0
 	struct module *mp = ctl->mod_mp;
@@ -252,25 +253,26 @@ TODO();
 
 	symsize = symhdr->sh_entsize;
 
-	if (mp->fbt_nentries) {
+# endif
+
+	pmp = par_alloc(mp, sizeof *pmp);
+	if (pmp->fbt_nentries) {
 		/*
 		 * This module has some FBT entries allocated; we're afraid
 		 * to screw with it.
 		 */
 		return;
 	}
-# endif
 
 printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
-HERE();
+
 		name = str + sym->st_name;
 		if (sym->st_name == NULL || *name == '\0')
 			continue;
 
-HERE();
 		/***********************************************/
 		/*   Linux re-encodes the symbol types.	       */
 		/***********************************************/
@@ -304,7 +306,7 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 			 */
 			continue;
 		}
-HERE();
+
 		if (strstr(name, "kdi_") == name ||
 		    strstr(name, "kprobe") == name) {
 			/*
@@ -314,7 +316,6 @@ HERE();
 			 */
 			continue;
 		}
-HERE();
 
 		/*
 		 * Due to 4524008, _init and _fini may have a bloated st_size.
@@ -334,7 +335,6 @@ HERE();
 
 		if (strcmp(name, "_fini") == 0)
 			continue;
-HERE();
 
 		/*
 		 * In order to be eligible, the function must begin with the
@@ -396,16 +396,9 @@ HERE();
 # endif
 
 #ifdef __amd64
-{int ret;
-unsigned long pfn = (off64_t) instr / PAGE_SIZE;
-HERE();
-ret = validate_ptr(instr);
-printk("disasm: %p %d %d %d\n", instr, virt_addr_valid(instr), 
-pfn_valid(instr), ret);
-if (!ret)
-	continue;
-//printk("%02x\n", *instr);
-}
+		if (!validate_ptr(instr))
+			continue;
+
 		while (instr < limit) {
 			if (*instr == FBT_PUSHL_EBP)
 				break;
@@ -422,8 +415,8 @@ if (!ret)
 			 * function, or we ran into some disassembly
 			 * screw-up.  Either way, we bail.
 			 */
-TODO();
-printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
+//HERE();
+//printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
 			continue;
 		}
 #else
@@ -438,7 +431,6 @@ HERE();
 			continue;
 #endif
 
-TODO();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		
 		fbt->fbtp_name = name;
@@ -455,9 +447,7 @@ TODO();
 		fbt->fbtp_symndx = i;
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
-# if 0
-		mp1->fbt_nentries++;
-# endif
+		pmp->fbt_nentries++;
 
 		retfbt = NULL;
 again:
@@ -496,7 +486,6 @@ again:
 		/*
 		 * We have a winner!
 		 */
-TODO();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		fbt->fbtp_name = name;
 
@@ -507,7 +496,6 @@ TODO();
 			retfbt->fbtp_next = fbt;
 			fbt->fbtp_id = retfbt->fbtp_id;
 		}
-HERE();
 		retfbt = fbt;
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
@@ -538,9 +526,7 @@ HERE();
 HERE();
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
-# if 0
-		mp->fbt_nentries++;
-# endif
+		pmp->fbt_nentries++;
 
 		instr += size;
 		goto again;
@@ -560,10 +546,9 @@ fbt_destroy(void *arg, dtrace_id_t id, void *parg)
 		if (mp != NULL && get_refcount(mp) == fbt->fbtp_loadcnt) {
 			if ((get_refcount(mp) == fbt->fbtp_loadcnt &&
 			    mp->state == MODULE_STATE_LIVE)) {
-# if 0
-				((struct module *)
-				    (ctl->mod_mp))->fbt_nentries--;
-# endif
+			    	par_module_t *pmp = par_alloc(mp, sizeof *pmp);
+				if (--pmp->fbt_nentries == 0)
+					par_free(pmp);
 			}
 		}
 
@@ -1056,6 +1041,8 @@ fbt_write(struct file *file, const char __user *buf,
 			}
 	}
 # endif
+
+# if 0
 	if (xget_symbol_offset && xkallsyms_expand_symbol) {
 		int	i;
 		unsigned int off = 0;
@@ -1066,6 +1053,7 @@ fbt_write(struct file *file, const char __user *buf,
 			printk("%d: %p '%s'\n", i, addr, buf);
 			}
 	}
+# endif
 
 	return orig_count;
 }

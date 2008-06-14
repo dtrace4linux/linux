@@ -1,0 +1,645 @@
+Author: Paul D Fox
+URL: http://www.crisp.demon.co.uk
+Dtrace: http://www.crisp.demon.co.uk/tools.html
+June 2008
+
+Welcome to Dtrace/Linux
+=======================
+
+This document describes the porting of dtrace to Linux - a project
+which was conceived of as being impossible, technically and logistically
+due to clashes of licenses.
+
+This guide talks about how the Linux port was done, the tricks and pitfalls,
+and offers guidance for people, not only for dtrace itself, and porting
+to other operating systems, but also as an insight to 'how to hack' the
+kernel, without actually hacking the kernel.
+
+Thanks
+======
+
+Before getting in to this too much 
+
+Who am I?
+=========
+
+I am not an experienced Linux kernel developer - I have patched it
+occasionally in the past, to fix bugs in 2.0/2.1 type kernels.
+I understand how the kernel works, having worked on SVR4 kernels
+in the past, and having written my own Unix-like driver for some
+work I did earlier in my career. I have used Unix for nearly 3
+decades now, and little surprises me about how things work, but I
+do know a difficult task when I see it.
+
+I like low level systems tools such as debuggers, top, gdb, and
+other tools, which can help in writing good software. I have
+written my own replacements for top, strace/truss, to solve
+and add to my own toolkit.
+
+I rarely use Solaris these days, and I need dtrace - to debug
+systems level issues. Having waited more than 2 years for dtrace
+to appear on Linux, and realising there was merely a hot
+air community about the rights and wrongs of GPL vs CDDL, and
+given Linux has a tendency to ignore everything out there, and
+create its own (usually suboptimal) version, I decided enough was
+enough.
+
+This was triggered by issues in the workplace which could probably
+be solved in hours with dtrace, but months or more without it.
+
+I am the author of CRiSP - a programmers editor of over 20 years
+vintage on multiple platforms, and where possible, will
+give me a free advert to and for dtrace and vice versa.
+
+I am not a dtrace expert !
+==========================
+
+Until this project, i had only literally toyed with dtrace a couple
+of times. My main work machines are Linux, and although I
+immediately understood what dtrace was doing, I would never use
+it because it wasn't on my platform of choice. Unless you
+use this tool regularly and understand it, you will never be able
+to use it in anger - during a production crisis.
+
+Which is sad. Having used lots of Unix and non-Unix tools over
+the years, one of the key important ones was not available.
+
+So, this porting project was started with me, not being an expert
+in all the switches or any of the D language syntax, but that
+didnt hinder me.
+
+Throughout the project I have learned a lot - about the
+code, about the kernel and about dtrace. I am still not
+an expert, but I do know how Linux and Dtrace can work together.
+
+The Basics of Dtrace
+====================
+
+Dtrace is a systems monitoring tool which goes beyond traditional
+debuggers and tools, such as gdb, strace/truss, top, ps, in that it 
+provides a deep level of kernel level interception.
+
+A user can put monitoring points into the kernel, without fear
+of crashing the system, and do very advanced things which cannot easily
+be achieved by normal tools.
+
+The power of dtrace is that you are effectively placing a breakpoint
+in the *kernel*, and not a user land utility. This means, when a target
+probe (as dtrace refers to them) is hit, you can gather information about
+the *process* or the *system* at the time of the probe point.
+
+You cannot do this with normal debugging tools. With something like
+gdb or dbx, you can place a breakpoint, wait for it to hit, and go
+for lunch. When you come back, your application is still stopped and waiting
+for you to proceed. No-one else in the system knows you did this (or cares).
+
+Do this on a kernel, and everyone and everything will notice -- the
+whole system will have paused/stopped/halted, and this will break
+applications. Certainly, doing this on live production systems is
+a no-no.
+
+With a probe point, you can tell dtrace that when a probe is hit, to gather
+system level information. 
+
+For example, truss/strace lets you monitor all system calls *a* process
+executes. With dtrace, you can monitor all system calls that *all* processes
+execute. When such a probe is reached, you may want to attribute the
+probe match against which process executed the call. So you
+can increment a hash-table counter and attribute the match to the
+specific process that executed the call. Or, you may want to monitor
+a call, but see how much free memory is available at the time of the call.
+
+There is an elegant power and simplicity to dtrace to the user, and
+even to the code implementation itself.
+
+Kernel Monitoring
+=================
+
+There are many tools which can be used to help debug systems, with
+the open source arena having tools like probes, kgdb, kdb, systemtap.
+The advanced tools like systemtap are similar in goals to dtrace - letting
+you put a breakpoint anywhere in the kernel, but have a down side: the
+complexity of doing something when a probe is hit can cause bugs in your
+action routines. systemtap relies on using the C language.
+
+C is *not* a difficult language, but the kernel itself is full
+of ever changing structure; so, even if you get something to work,
+it can be invalidated in future kernel releases.
+
+Dtrace utilises an in-kernel virtual machine to execute scripts
+(not dissimilar to javascript or java), so you can write apps in a high
+level language (the 'D' language) which then get compiled down
+to byte-code, and the kernel will run your byte code without any
+concern for compiling or error reporting, inside the kernel.
+The language does not allow constructs which could hang or panic
+the kernel. (In some ways, reminiscent of a scripting language like
+perl - in perl, you dont have core dumps (in general!)).
+
+What is dtrace - the code ?
+===========================
+
+There are a number of parts to dtrace. Each needs to be ported.
+
+- /usr/bin/dtrace - the userland binary
+- lib*.a - various libraries used to build the userland binary
+- dtrace kernel driver - what /usr/bin/dtrace talks to
+- providers - the things that make available probe points for you
+to probe against
+
+Each is a separate project in itself but the whole must be consistent.
+
+Porting - Steps
+===============
+
+Porting foreign code to linux can be tricky, especially
+kernel level code, so lets see the steps I had - at a very
+high level - before contemplating this could be done.
+
+- Compile the libraries
+- Compile /usr/bin/dtrace
+- Compile the main dtrace kernel driver
+- Fill out the various probe machines
+- Test. Test. Test.
+
+dtrace is complicated because its probing the kernel. Such issues
+as "How many cpus are there?" is very platform dependent.
+
+Fortunately, the work that Sun did to split dtrace away from
+the Solaris platform helped enormously.
+
+The above steps are not in order - you would build the libraries, build
+the binary, go back to the libraries to fix issues, start on the
+kernel driver; go back to the libraries, and general move in all
+directions as your understanding of what some piece of code does
+is fleshed out.
+
+Tactics
+=======
+
+There are many issues in doing this work. Heres some of them:
+
+- the include structure (/usr/include) is very different for
+different operating systems, so most code is 'invalid' up front -
+all those includes of kernel headers just wont work.
+
+- Solaris has a mature driver model (the DDI); Linux has
+a different driver model. So the way a driver is constructed is different
+
+- Solaris and Linux proc/user kernel structures are different;
+in Linux, a thread is like a process. In Solaris they arent
+
+- The dtrace kernel driver wants access to lots of kernel structures
+and using functions or macros to hide these accesses from the code
+mostly doesnt work.
+
+
+Tools
+=====
+
+C language source can be a pain to port - the very things that
+allow for structured and object oriented code, are exactly those 
+that are painful to learn and diagnose. For example include files -
+where is something defined.
+
+The Solaris kernel structure is very simple:
+
+- all userland, POSIX and C standard includes in /usr/include
+- all kernel and machine specific stuff in /usr/include/sys
+  (or uts/ for the kernel)
+
+On Linux, we have to take account of:
+
+- /usr/include
+- /usr/include/sys
+- /usr/include/asm-*
+- /usr/include/bits
+- Kernel headers being a part of the kernel tree and not the system tree
+- Every version/release of the kernel is likely to break any/everything
+you rely on.
+
+So, what did I use to get this job done?
+
+CRiSP - the editor
+------------------
+
+CRiSP is like emacs, but better. Why? Because I wrote it. I wont
+go into why its better than emacs here, this is not the place, but, seriously,
+a decent editor you know well (vim, emacs, etc). CRiSP provides multiple
+window and xref tagging support.
+
+crtags - xref tool
+------------------
+crtags is a cross reference tool which creates a binary database of
+source code, so you can jump to definitions of entities, such
+as functions, macros, structs, members, etc. This was ideally
+suited to wade around dtrace, but also to wade around the other kernels.
+
+I ended up making a couple of minor modifications to crtags because
+in many Linux headers, we have something like this:
+
+	struct mutex;
+
+and when you would ask CRiSP to show where 'mutex' is defined, you
+would see a lot of definitions such as the above - all of which are
+useless; they are simply syntactic sugar for normal C forward
+definitions.
+
+grep
+----
+Sometimes, xref isnt what you need - but being able to search a whole
+tree of code to find references to help you understand the code is
+very useful. CRiSP contains a builtin grep tool that lets you
+visit the site of each match.
+
+VMware
+------
+I knew this work was going to crash/panic the kernel, so I chose to
+use VMware so I could sandbox the development. Most editing was
+done on my master machine, and using VMware for the debug host avoided
+those horror stories if I totally nuked the filesystem and lost my valuable
+code. (I have tried Xen, and other VM tools; VMware works for me. One
+day I may switch).
+
+mkarchive.sh
+------------
+mkarchive.sh is a very simple script to take a snapshot of the code.
+At each point of progress, I would take a snapshot of the code so I could
+refer back to it, in case I mutilated things too far. A very simple
+source code control system. One day I will use something better but I
+have yet to find any I like (commercial or otherwise, although
+git/svn come close).
+
+Kernels, Kernels, Kernels
+-------------------------
+I am lucky. I started this work knowing the code for Apple's MacOSX
+dtrace and FreeBSD was available. I needed these to get a handle on what
+dtrace was and what the porting issues/decisions were.
+
+Solaris and the source - Without the source, I wouldnt be doing this
+project.
+
+printk
+------
+
+Pretty much most of the debugging was done with printk(). I created
+a couple of macros: TODO() to highlight areas where more examination
+is required, and HERE() which simply dumps the file/function/line-number
+to the console (actually, /var/log/messages).
+
+As long as the kernel doesnt panic, you have a record of what happened.
+I would have to sprinkle the kernel with lots of HERE()s to find
+where we got to or on what line the driver would blow up, and I didnt
+need to resort to an in-kernel debugger (such as kgdb) - especially as in
+99% of the times, the system was still operable after a segmentation violation
+in the kernel. This is nice. However, most of the time after such a 
+fault, I would need to reboot the kernel.
+
+VMware has a nice checkpoint facility, so I could snapshot the VM prior
+to loading the driver and doing a test, and resume from the snapshot
+if the kernel wouldnt let me unload the driver.
+
+Mistakes
+--------
+Off we go with a brand new VM, armed with the source code to dtrace.
+
+I grabbed the 2005 source code for dtrace and made some good strong progress.
+I realised after a while that this wasnt the latest code. So I had to waste
+some time trying to upgrade my codebase - especially as some parts
+of the exercise were going downhill. I realised that the Apple, FreeBSD
+and 2 versions of Solaris dtrace were different so I eventually bit
+the bullet and did the diff/upgrade to the latest OpenSolaris release.
+
+In a sense, this helped - as I tackled the bits I was interested in, e.g.
+dtrace binary, libs, and then the driver - each time helping to reinforce
+my understanding of the code.
+
+Licensing - CDDL vs GPL
+=======================
+
+The Sun source is labelled under the CDDL - whereas Linux
+is released under the GPL. You have source to both, so its
+easy enough to work together. But releasing the results or
+asking for payment, or trying to get dtrace into the official
+Linux kernel, may not happen due to politics and Law.
+
+The port of dtrace to Linux was done because its needed, not
+to take part in the licensing issues and differences, and if your
+believes are strongly in one camp or another, then you can
+research the details.
+
+Personally, I have (I believe) found a way to let the project
+continue without these concerns, and only distributions will need
+to understand how to package up dual licensed software.
+
+Part 0 - The Layout
+===================
+
+Before embarking on touching any of dtrace, its worth highlighting
+what the source looks like - how it is broken down.
+
+The official Sun source is different from Apples MacOSX and the 
+FreeBSD source. Sun have divided the software up into different
+categories:
+
+- user land dtrace binary
+- user land libraries
+- kernel source
+- kernel headers
+- code inside non-dtrace kernel components (eg providers)
+- machine specific components (eg sparc vs x86 vs x86-64)
+
+This is confusing at first because there are lots of directories.
+FreeBSD and MacOSX flattened and co-located the source so it
+is not so spread out through the entire kernel.
+
+When starting a port, requires discarding the makefiles (since they
+rely on Sun's make and build infrastructure) and writing your own.
+
+Fortunately, to do this is easy - the rules are almost
+vanilla .c -> .o and lib.a type rules. 
+
+For Linux, the kernel build system is not bad - it helps to simplify
+Makefile generation, but at the same time, obscures some of what
+goes on, but there is a lot of examples in the kernel tree and on
+the net of writing a vanilla module.
+
+Here are key components of dtrace:
+
+cmd/dtrace
+
+	This is the dtrace user land command. Its a single file and
+	relatively short since most of the dtrace complexity is in the
+	libraries.
+
+libdtrace
+
+	There are a lot of files in this which acts as the interface
+	between the dtrace command and the kernel driver. Much of this
+	is portable C code with few operating system dependencies.
+
+	The code in here includes the Yacc grammar and Lex parser for
+	the D language - very key parts of dtrace.
+
+	There are issues with the grammar and lexer since they rely
+	on Sun's derived versions of yacc and lex, whereas Linux
+	systems tend to come with bison and flex. The differences are
+	subtle and minor, but confusing enough.
+
+libproc
+
+	This library tries to abstract the notion of a process as seen
+	by dtrace. It contains system specific code.
+
+libctf
+	The compact type framework - a strange library which tries
+	to act as an interface between user and kernel land by abstracting
+	the data types and memory layout for compiled D programs.
+
+liblinux
+
+	This is a collection of miscellaneous routines which dtrace
+	relies on - mostly simple routines (eg gmatch() for wild
+	card matching), and for which Linux provides many equivalents
+	but not with the same name.
+
+drivers/dtrace
+
+	The main dtrace execution engine. Most of the code is in a single
+	large file -- dtrace.c
+
+	All the drivers in dtrace are in the shape of Solaris DDI
+	drivers with appropriate entry points such as attach/detach/init/fini.
+
+	Porting this to Linux isnt hugely difficult but a key part to 
+	the bootstrap of the drivers.
+
+Sun provide makefiles and fragments of makefiles, but they are designed
+to be called as nodes in the grand build of Solaris, so they seem to be
+missing something. A cursory glance at them showed they didnt hide
+any gems - the build process was fairly straightforward - very
+little in the way of command line -D switches, so the key to building
+was to create some generic makefiles.
+
+Sun have tried to split many of the libraries and kernel parts into
+generic (common) code and chip or OS specific code (eg, sparc, x86, x86-64,
+intel).
+
+Theres some assembler in the kernel - mainly to handle things like
+CAS (atomic compare and swap) and digging around in the stack frame
+of the calling process. They have provided C equivalents - so working
+out what is going on is easy, but the assembler is needed. Alas,
+the format of the assembler is different from GCC, but this is not
+a major problem.
+
+CPU Architecture: Sparc, x86, x86-64
+====================================
+
+Dtrace runs on the above architectures. I would normally
+opt for 32-bit x86 mode, and treat x86-64 as a separate project, but
+I decided this would be silly for dtrace - nearly everyone has
+64-bit capable machines, and by the time dtrace may spread to other
+kernels, 32-bit will be more of a dim and distant future, so I
+decided to start with x86-64 mode first. Dtrace contains code for
+all three platforms.
+
+64-bit x86 is interesting, because Linux and Solaris supports both
+32-bit and 64-bit applications on the same kernel; the Solaris
+kernel has 32-bit structs for many of the 64-bit structs, which was
+a pain to wade through in the code. Solaris and Linux do this differently
+but eventually I found this not to be too big an issue.
+
+I really needed to concentrate on one thing: so the current software
+is validated for 64-bit Linux kernels, and I may go back and clean
+up the build to work on 32-bit kernels (especially as I still have many 
+32-bit machines).
+
+I ripped out the Sparc code - theres little point at the moment
+having a sparc build of dtrace, since there are so few Sparc Linux
+boxes out there.
+
+Part I - Compiling 
+==================
+
+Half the battle is compiling the foreign source. The makefile structure,
+source code structure and dependencies are different to what you may be
+used to.
+
+There are a number of ways to tackle this. I tried to maintain the
+Sun code - even if I didnt want it, by use of:
+
+	# if defined(sun)
+	....
+	# endif
+
+so I could work on an equivalent piece of code and refer to what I had
+commented out.
+
+The include files structure really had to be resolved up front - nearly
+nothing would compile, since many of the files relied upon by dtrace
+either dont exist on Linux, or are in a different location.
+
+
+	# if linux
+	#include "dtrace_linux.h"
+	#include <sys/dtrace_impl.h>
+	#include "dtrace_proto.h"
+	# undef ASSERT
+	# define ASSERT(x) {if (!(x)) {printk("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x);}}
+	# define KERNELBASE 0
+	# define MUTEX_HELD mutex_is_locked
+	# endif
+
+	# if defined(sun)
+	#include <sys/errno.h>
+	#include <sys/stat.h>
+	#include <sys/modctl.h>
+	#include <sys/conf.h>
+	#include <sys/systm.h>
+	#include <sys/ddi.h>
+	#include <sys/sunddi.h>
+	#include <sys/cpuvar.h>
+	#include <sys/kmem.h>
+	#include <sys/strsubr.h>
+	#include <sys/sysmacros.h>
+	# endif
+
+
+I decided up front to use the tactic of mostly trying
+to emulate Solaris's include file structure. This was a painful
+necessary first step.
+
+I created a directory (src/dtrace/linux) and started populating it with
+the include files the user land wanted. I started with the libs and
+the userland dtrace binary as a target - ignoring the kernel.
+
+Once armed with a dtrace binary, I would be able to play with the
+command line options and the D language, and if I could get this far,
+then starting kernel development would make me feel 'stronger'
+since I would have achieved a milestone.
+
+I wanted to avoid whole-hearted copying of Solaris include files;
+these files contain a lot of stuff we dont need, and it would
+simply obscure the goal. So I worked my way through the first file,
+populating stubs in the include directory, and gradually cutting/pasting
+#defines and struct definitions in which I would need.
+
+I went on a two pronged path. I decided I would create a universal
+include file which would shield much of the Sun code from Linux, and
+avoid me having to visit and revisit each and every source file
+as progress went on. So I invented an include file:
+
+	# include <linux_types.h>
+
+with the view that this could handle all the #defines and #includes
+to try and avoid man-handling the Sun files as much as possible.
+This helped enormously; it was a bit unstructured so if you look at
+the file, you will see a lot of stuff which should go into the right
+file. Theres no easy way to do this except trial and error.
+
+The easy bit is the compiler would tell you what you had got wrong.
+
+This is very much an iterative approach - make a change to 
+<linux_types.h>, recompile, fix the next error, recompile everything,
+possibly breaking something early in the compile sequence.
+
+Eventually I got very close.
+
+More tools - 'warn'
+===================
+
+One problem I have with todays compilers, especially gcc, is that
+the number of warnings you get is insurmountable. The C language is broken
+and lacking facilities to write maintainable code. For example, consider
+the following:
+
+	int func(unsigned char *str)
+	{
+		....
+	}
+
+	....
+	func("hello world");
+
+will result in a pointer conversion error since "unsigned char *" and
+"char *" are not treated as the same time. This means that its easy
+to get a lot of warnings from the compiler; its very tedious to clean
+up code, and what you end up doing is gratuitous type casting which
+breaks cleanliness:
+
+	func((unsigned char *) "hello world");
+
+Now, when compiling foreign code - although Sun have done a brilliant
+job of good and clean code - they have used Sun's C compiler, and gcc
+generates a lot more errors/warnings than Sun's compiler.
+
+The problem here is seeing the wood for the trees - in amongst 100+
+warnings/errors, I really couldnt see the error messages.
+
+As part of the CRiSP build environment, I wrote a very simple
+coloring tool which can run make/gcc and color code the output
+so that warnings are in yellow, errors in red. This makes it much
+easier to distinguish the errors and quickly address them.
+
+Some of the dtrace release contains a tool to help build and
+show the errors this way (eg the make-me) script.
+
+Compiling (continued)
+=====================
+
+So, there we have it - a technique to help in the porting process.
+Try and put everything in a single header file -- linux_types.h.
+
+Also, creating an include directory structure which would allow me to
+avoid linux_types.h getting too overbloated and try where possible
+to minimise changes to the Sun files in terms of #include.
+
+Compiling -- for the kernel
+===========================
+
+Compiling for the kernel was a problem to start with.
+I had written one or two Linux drivers (modules), and I know
+from building many Linux kernels, that a proprietary makefile
+system is used. It took me a good few goes to get this write, so that
+it would build a driver for the kernel.
+
+I did have major issues with Ubuntu (mainly due to lack of familiarity)
+since the system does not come with kernel sources. I decided to
+avoid this situation and just use the latest release (at the time -
+2.6.24.4) so I would have a complete set of kernel sources and headers,
+since I was sure I would need to patch the kernel.
+
+I tried to simplify the build/makefile structure by using the normal
+technique of a top-level makefile which recurses into the subdirectories
+to build everything. I added a 'clean' to help when fighting tricky
+issues or rcp-ing files around so a clean native build could be done.
+
+Many of the makefiles are not perfect - they dont support autodetection
+of include files changes and all dependent sources needing to be built;
+a quick 'make clean' can help here.
+
+
+Part II - Linking
+=================
+Once compiling gets under way, and the issues of missing files and
+definitions is resolved, we come to the link step - one step away
+from having a working dtrace binary.
+
+Of course, in the attempts to build the libraries, I had left out
+many things, so I had to revisit what I had left out. I either 
+re-enabled the commented out functions (and then went through build-hell,
+as I had to tweak the master include file -- linux_types.h -- which in
+turn broke nearly everything that had compiled previously).
+
+I had to bite the bullet and get through this - linux_types.h was never
+written as a well structured include file, so inevitably something
+would come along and cause breakage, e.g. type redefinitions, and working
+out where I had gone wrong was a little painful sometimes.
+
+Eventually, at the link phase, we have missing functions; I couldnt
+really evaluate how important these missing functions are.
+
+(I was surprised to find a lot of ELF code in dtrace, and as I write
+this, I havent totally worked out "why"!; I thought this would be a problem
+but fortunately Linux has common ELF libraries, such as <link.h> and <elf.h>,
+so I didnt have too much pain to get this stuff to build).
+

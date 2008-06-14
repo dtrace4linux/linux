@@ -1,14 +1,20 @@
 SUDO="setuid root"
 
-set -x
 sync ; sync
-$SUDO rmmod dtracedrv
-sleep 1
-sync ; sync
+if [ -e /dev/dtrace ]; then
+	echo rmmod dtracedrv
+	$SUDO rmmod dtracedrv
+	#sleep 1
+	sync ; sync
+fi
+
+echo "Loading: dtracedrv.ko"
 $SUDO insmod dtracedrv.ko
 sleep 1
 $SUDO chmod 666 /dev/dtrace
 $SUDO chmod 666 /dev/fbt
+
+echo "Preparing symbols..."
 grep ' kallsyms' /proc/kallsyms >/dev/fbt
 grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
 grep ' modules' /proc/kallsyms >/dev/fbt
@@ -16,3 +22,5 @@ grep ' __symbol_get' /proc/kallsyms >/dev/fbt
 grep ' sys_call_table' /proc/kallsyms >/dev/fbt
 grep ' kern_addr_valid' /proc/kallsyms >/dev/fbt
 
+echo "Probes available:"
+dtrace -l | wc -l 

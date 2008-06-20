@@ -31,6 +31,7 @@ typedef int	cpupartid_t;
 
 typedef struct cpupart {
 	cpupartid_t	cp_id;		/* partition ID */
+        int             cp_ncpus;       /* number of online processors */
 } cpupart_t;
 
 #endif /* _COMPAT_OPENSOLARIS_SYS_CPUPART_H */

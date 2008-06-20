@@ -1,4 +1,4 @@
-CFLAGS=-g -W
+CFLAGS=-g -W $(PTR32)
 LIBELF=/usr/lib/libelf.so.1
 BINDIR=../../build
 LIBS = \
@@ -17,6 +17,8 @@ dtrace: dtrace.o $(LIBS)
 	@libelf=$(LIBELF) ; \
 	if [ -f /usr/lib64/libelf.so.1 ]; then \
 		libelf=/usr/lib64/libelf.so.1 ; \
+	elif [ -f /usr/local/lib/libelf.a ]; then \
+		libelf=/usr/local/lib/libelf.a ; \
 	fi ; \
 	echo $(COMPILE) ; \
 	$(COMPILE)

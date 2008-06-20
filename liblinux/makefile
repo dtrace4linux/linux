@@ -5,7 +5,7 @@ CPPFLAGS += -I../libproc/common \
 	-I../lib/libproc/common \
 	-I../libctf \
 	-I../uts/common \
-	-DCTF_OLD_VERSIONS
+	-DCTF_OLD_VERSIONS $(PTR32)
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 
 LIB = ../build/liblinux.a

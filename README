@@ -117,4 +117,5 @@ DRIVERS
 	and it the bit of magic which can plant breakpoints on any
 	kernel function.
 
-
+/dev/systrace
+	System call tracing driver.

@@ -92,11 +92,13 @@ pr_fcntl(struct ps_prochandle *Pr, int fd, int cmd, void *argp)
 /*		case 27:*/
 			adp->arg_size = sizeof (struct flock64_32);
 #else	/* _LP64 */
+#	if F_GETLK64 != F_GETLK
 		case F_GETLK64:
 		case F_SETLK64:
 		case F_SETLKW64:
 		case F_FREESP64:
 			adp->arg_size = sizeof (struct flock64);
+#	endif
 #endif	/* _LP64 */
 			break;
 		case F_SHARE:

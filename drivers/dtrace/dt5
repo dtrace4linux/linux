@@ -1,2 +1,2 @@
-#! /bin/ksh
+#! /bin/sh
 dtrace -n 'syscall::open:return { printf("exec=%s\n", execname); } '

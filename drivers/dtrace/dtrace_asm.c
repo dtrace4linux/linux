@@ -314,7 +314,9 @@ dtrace_interrupt_enable()
 	        "popfq\n"
 
 #elif defined(__i386)
-		UNIMPLEMENTED
+		"movl	4(%esp), %eax\n"
+		"push %eax\n"
+		"popf\n"
 #endif
 	);
 }
@@ -346,7 +348,6 @@ dtrace_probe_error(dtrace_state_t *state, dtrace_epid_t epid, int which,
 
 #elif defined(__i386)
 
-		"ENTRY(dtrace_probe_error)\n"
 		"pushl	%ebp\n"
 		"movl	%esp, %ebp\n"
 		"pushl	0x1c(%ebp)\n"
@@ -371,7 +372,7 @@ void dtrace_membar_consumer(void)
         /* AMD Software Optimization Guide - Section 6.2 */
 	__asm(
 		"rep\n"
-		"ret"
+		"ret\n"
 		);
 }
 void dtrace_membar_producer(void)
@@ -380,7 +381,7 @@ void dtrace_membar_producer(void)
         /* AMD Software Optimization Guide - Section 6.2 */
 	__asm(
 		"rep\n"
-		"ret"
+		"ret\n"
 		);
 }
 long
@@ -393,6 +394,10 @@ dtrace_interrupt_disable()
         	"cli\n"
         	"ret\n"
 #elif defined(__i386)
+		"pushf\n"
+		"pop %eax\n"
+		"cli\n"
+		"ret\n"
 # endif
 	);
 }

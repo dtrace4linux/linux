@@ -18,12 +18,14 @@ SUDO=setuid root
 #    								     #
 #   fbt  -  function  boundary  tracing - provider to intercept any  #
 #   function							     #
+#    								     #
+#   systrace - system call tracing.             		     #
 ######################################################################
 DRIVERS = dtrace 
 
 notice:
 	echo rel=$(rel)
-	@echo "make all        - build everything (which builds!)"
+	@echo "make all        - build everything - auto-detect (32 or 64 bit)"
 	@echo "make clean      - clean out *.o/*.a and binaries"
 	@echo "make release    - create a new tarball for distribution"
 
@@ -46,10 +48,16 @@ release:
 	ls -l /tmp/dtrace-$(rel).tar.bz2
 
 all:
+	if [ `arch` != x86_64 ]; then \
+	  	export PTR32=-D_ILP32 ; \
+		export BUILD_i386=1 ; \
+	fi ; \
 	if [ ! -d build ] ; then \
 		mkdir build ; \
-	fi
-	cd libctf ; $(MAKE)
+	fi ; \
+	$(MAKE) all0
+all0:
+	cd libctf ; $(MAKE) 
 	cd libdtrace/common ; $(MAKE)
 	cd liblinux ; $(MAKE)
 	cd libproc/common ; $(MAKE)

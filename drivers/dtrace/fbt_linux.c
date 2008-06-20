@@ -46,16 +46,19 @@ static struct map {
 	char		*m_name;
 	unsigned long	*m_ptr;
 	} syms[] = {
-	{"kallsyms_op", NULL},
-	{"kallsyms_num_syms", NULL},
-	{"kallsyms_addresses", NULL},
-	{"kallsyms_expand_symbol", NULL},
-	{"get_symbol_offset", NULL},
-	{"kallsyms_lookup_name", NULL},
-	{"modules", NULL},
-	{"__symbol_get", NULL},
-	{"sys_call_table", NULL},
-	{"kern_addr_valid", NULL},
+/* 0 */	{"kallsyms_op", NULL},
+/* 1 */	{"kallsyms_num_syms", NULL},
+/* 2 */	{"kallsyms_addresses", NULL},
+/* 3 */	{"kallsyms_expand_symbol", NULL},
+/* 4 */	{"get_symbol_offset", NULL},
+/* 5 */	{"kallsyms_lookup_name", NULL},
+/* 6 */	{"modules", NULL},
+/* 7 */	{"__symbol_get", NULL},
+/* 8 */	{"sys_call_table", NULL},
+/* 9 */	{"kern_addr_valid", NULL},
+/* 10 */{"hrtimer_cancel", NULL},
+/* 11 */{"hrtimer_start", NULL},
+/* 12 */{"hrtimer_init", NULL},
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -619,10 +622,31 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 		*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
 }
 
+/**********************************************************************/
+/*   Needed by systrace.c					      */
+/**********************************************************************/
 void *
 fbt_get_sys_call_table()
 {
 	return xsys_call_table;
+}
+/**********************************************************************/
+/*   Needed in cyclic.c						      */
+/**********************************************************************/
+void *
+fbt_get_hrtimer_cancel()
+{
+	return (void *) syms[10].m_ptr;
+}
+void *
+fbt_get_hrtimer_init()
+{
+	return (void *) syms[12].m_ptr;
+}
+void *
+fbt_get_hrtimer_start()
+{
+	return (void *) syms[11].m_ptr;
 }
 /*ARGSUSED*/
 static void

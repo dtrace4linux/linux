@@ -1,4 +1,9 @@
+#! /bin/sh
+
 SUDO="setuid root"
+if [ ! -f $HOME/bin/setuid ]; then
+	SUDO=sudo
+fi
 
 sync ; sync
 if [ -e /dev/dtrace ]; then
@@ -15,12 +20,19 @@ $SUDO chmod 666 /dev/dtrace
 $SUDO chmod 666 /dev/fbt
 
 echo "Preparing symbols..."
-grep ' kallsyms' /proc/kallsyms >/dev/fbt
-grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
-grep ' modules' /proc/kallsyms >/dev/fbt
-grep ' __symbol_get' /proc/kallsyms >/dev/fbt
-grep ' sys_call_table' /proc/kallsyms >/dev/fbt
-grep ' kern_addr_valid' /proc/kallsyms >/dev/fbt
+for s in \
+	kallsyms		\
+	get_symbol_offset	\
+	modules		        \
+	__symbol_get		\
+	sys_call_table		\
+	kern_addr_valid		\
+	hrtimer_init		\
+	hrtimer_start		\
+	hrtimer_cancel
+do
+	grep " $s" /proc/kallsyms >/dev/fbt
+done
 
 echo "Probes available:"
 dtrace -l | wc -l 

@@ -29,6 +29,10 @@ MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
 MODULE_DESCRIPTION("DTRACEDRV Driver");
 
+# if !defined(CONFIG_NR_CPUS)
+#	define	CONFIG_NR_CPUS	1
+# endif
+
 uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
 cpu_t	*cpu_list;
@@ -230,6 +234,24 @@ kmem_free(void *ptr, int size)
 /**********************************************************************/
 /*   Test if a pointer is vaid in kernel space.			      */
 /**********************************************************************/
+# if __i386
+#define __validate_ptr(ptr, ret)        \
+ __asm__ __volatile__(      	      \
+  "  mov $1, %0\n" 		      \
+  "0: mov (%1), %1\n"                \
+  "2:\n"       			      \
+  ".section .fixup,\"ax\"\n"          \
+  "3: mov $0, %0\n"    	              \
+  " jmp 2b\n"     		      \
+  ".previous\n"      		      \
+  ".section __ex_table,\"a\"\n"       \
+  " .align 4\n"     		      \
+  " .long 0b,3b\n"     		      \
+  ".previous"      		      \
+  : "=&a" (ret) 		      \
+  : "c" (ptr) 	                      \
+  )
+# else
 #define __validate_ptr(ptr, ret)        \
  __asm__ __volatile__(      	      \
   "  mov $1, %0\n" 		      \
@@ -246,6 +268,7 @@ kmem_free(void *ptr, int size)
   : "=&a" (ret) 		      \
   : "c" (ptr) 	                      \
   )
+# endif
 
 int
 validate_ptr(void *ptr)
@@ -349,6 +372,10 @@ void
 membar_enter(void)
 {
 }
+void
+membar_producer(void)
+{
+}
 
 int
 priv_policy_only(const cred_t *a, int b, int c)
@@ -381,6 +408,7 @@ HERE();
 static int
 dtracedrv_release(struct inode *inode, struct file *file)
 {
+HERE();
 	dtrace_close(file, 0, 0, NULL);
 	return 0;
 }

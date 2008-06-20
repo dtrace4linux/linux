@@ -6,7 +6,7 @@ dtracedrv-objs := \
 	ctf_mod.o \
 	ctf_open.o \
 	ctf_lookup.o \
-	cyclic.o \
+	cyclic_linux.o \
 	dis_tables.o \
 	dtrace.o \
 	dtrace_asm.o \
@@ -21,6 +21,9 @@ dtracedrv-objs := \
 	systrace.o \
 	instr_size.o \
 	uncompress.o
+ifdef BUILD_i386
+	dtracedrv-objs += ../../lib/libgcc.a
+endif
 
 obj-m := dtracedrv.o
 
@@ -32,7 +35,7 @@ EXTRA_CFLAGS += \
 	-I$(M)/../../linux \
 	-I$(M)/../../common/ctf \
 	-I$(M)/../../uts/common \
-	-D_KERNEL -DCTF_OLD_VERSIONS
+	-D_KERNEL -DCTF_OLD_VERSIONS $(PTR32)
 
 clean:
 	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers

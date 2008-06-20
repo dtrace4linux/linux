@@ -15,6 +15,31 @@ and offers guidance for people, not only for dtrace itself, and porting
 to other operating systems, but also as an insight to 'how to hack' the
 kernel, without actually hacking the kernel.
 
+Much of this guide is generic - the fact that dtrace
+was being ported is almost irrelevant; the salient issue
+in a port of this kind is having a reasonable understanding
+of the source, and of the target system/architecture.
+
+There were many issues in the porting process that I thought would
+be really difficult to resolve, but turned out to be easy. The
+converse was also true, simple things took a lot of time, mostly
+because "I was looking the wrong way".
+
+Determination
+=============
+
+I had determination to do this - I felt strongly that 
+"This isnt impossible or difficult, just time consuming."
+It has taken a good few months to get to where the code is now
+(mostly evenings and weekends), but the determination is that people
+want this, and no one else is doing it. 
+
+It would be very easy to abandon this work at each stage
+of development, but the reality is, that this would "make me look 
+stupid". This is what kept me going, and also, this exercise was
+an attempt to 'switch-off' from the day job.
+
+
 Thanks
 ======
 
@@ -642,4 +667,50 @@ really evaluate how important these missing functions are.
 this, I havent totally worked out "why"!; I thought this would be a problem
 but fortunately Linux has common ELF libraries, such as <link.h> and <elf.h>,
 so I didnt have too much pain to get this stuff to build).
+
+To solve this, I created a bunch of stubs - functions which
+did little more than print that they had been called. 
+
+This at last, let me get to the point of a compiled dtrace
+binary, and I could focus on what 'normally' gets called, rather
+than what 'might' be called if I exercised the binary more fully.
+
+Part III - The Kernel
+=====================
+
+This was a difficult precipice to consider - how to get a kernel
+driver in there, so i decided to bite the bullet and go for
+the main dtrace driver.
+
+The Sun code has many drivers - the dtrace driver, fbt, sdt,
+and a few more, but getting a driver to load and then, unload
+was a primary goal.
+
+The first part was creating a Linux compliant makefile and creating
+a Linux module. Creating a Linux module is not difficult, but there
+are salient differences between a Solaris driver and a Linux driver.
+
+A Solaris driver is loaded, and then 'attached'. Unloading a driver
+involves invoking the detach routine and then the exit routine.
+
+On Linux, there is no attach and detach operation, but this isnt
+a big deal, since we can just merge attach/detach into the
+init and fini functions.
+
+I had to do some kernel probing to find out how to create a /dev entry,
+and how to create a directory in /dev so I could create the appropriate
+dtrace and helper drivers. (Still not sure what the helper driver
+is, but I will likely find out at an appropriate point in time).
+
+Cobbling together the a driver took a little while, but nothing
+too major. Linux does a good job of attempting to stop you installing
+an invalid driver, e.g. one with missing undefined symbols, so I spent
+some time trying to resolve the undefined symbols.
+
+I did have some problems with the Linux build system - since
+Sun provide dtrace.c as the main code point, I tried to create a dtrace.o
+compiled output file, and thence, a dtrace.ko loadable kernel object
+file. But this didnt work. In the end I created a loadable module
+called dtracedrv.ko, and that loaded fine.
+
 

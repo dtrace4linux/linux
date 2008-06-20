@@ -72,7 +72,6 @@
 # undef ASSERT
 # define ASSERT(x) {if (!(x)) {printk("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x);}}
 # define KERNELBASE 0
-# define MUTEX_HELD mutex_is_locked
 # endif
 
 # if defined(sun)
@@ -5785,7 +5784,8 @@ HERE();
 			    dtrace_destructive_disallow) {
 				void *activity = &state->dts_activity;
 				dtrace_activity_t current;
-
+HERE();
+printk("tmp=%lu alive=%lu =%lu dead=%lu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
 				do {
 					current = state->dts_activity;
 				} while (dtrace_cas32(activity, current,
@@ -12675,9 +12675,7 @@ HERE();
 	 * Before we can perform any checks, we must prime all of the
 	 * retained enablings that correspond to this state.
 	 */
-HERE();
 	dtrace_enabling_prime(state);
-HERE();
 
 	if (state->dts_destructive && !state->dts_cred.dcr_destructive) {
 		rval = EACCES;
@@ -12686,7 +12684,6 @@ HERE();
 
 HERE();
 	dtrace_state_prereserve(state);
-HERE();
 
 	/*
 	 * Now we want to do is try to allocate our speculations.
@@ -12696,15 +12693,12 @@ HERE();
 	nspec = opt[DTRACEOPT_NSPEC];
 	ASSERT(nspec != DTRACEOPT_UNSET);
 
-HERE();
 	if (nspec > INT_MAX) {
 		rval = ENOMEM;
 		goto out;
 	}
 
-HERE();
 	spec = kmem_zalloc(nspec * sizeof (dtrace_speculation_t), KM_NOSLEEP);
-HERE();
 
 	if (spec == NULL) {
 		rval = ENOMEM;
@@ -12856,12 +12850,10 @@ HERE();
 	if (opt[DTRACEOPT_CLEANRATE] > dtrace_cleanrate_max)
 		opt[DTRACEOPT_CLEANRATE] = dtrace_cleanrate_max;
 
-HERE();
 	hdlr.cyh_func = (cyc_func_t)dtrace_state_clean;
 	hdlr.cyh_arg = state;
 	hdlr.cyh_level = CY_LOW_LEVEL;
 
-HERE();
 	when.cyt_when = 0;
 	when.cyt_interval = opt[DTRACEOPT_CLEANRATE];
 
@@ -13072,6 +13064,7 @@ dtrace_state_destroy(dtrace_state_t *state)
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(MUTEX_HELD(&cpu_lock));
+HERE();
 
         /*
          * First, retract any retained enablings for this state.
@@ -13278,6 +13271,7 @@ dtrace_anon_property(void)
 			 * that we created.
 			 */
 			ASSERT(dtrace_anon.dta_enabling == NULL);
+HERE();
 			dtrace_state_destroy(state);
 			dtrace_anon.dta_state = NULL;
 			break;
@@ -15663,6 +15657,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		uint64_t nerrs;
 
 PRINT_CASE(DTRACEIOC_STATUS);
+printk("state=%d\n", state->dts_activity);
 		/*
 		 * See the comment in dtrace_state_deadman() for the reason
 		 * for setting dts_laststatus to INT64_MAX before setting

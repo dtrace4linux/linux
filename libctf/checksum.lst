@@ -1,0 +1,6 @@
+b720957c size=12868   mtime=1207775958 ./ctf_lib.c
+b25b8131 size=1802    mtime=1207775982 ./ctf_subr.c
+4bfecbb5 size=1837    mtime=1207776043 ./libctf.h
+ae64217e size=417     mtime=1106592645 ./llib-lctf
+054b84a1 size=2090    mtime=1213733696 ./makefile
+b69bbf60 size=1111    mtime=1212275983 ./uncompress.c

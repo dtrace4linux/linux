@@ -1,3 +1,11 @@
+/**********************************************************************/
+/*   Generic  barrier  include  file  to protect us from many of the  */
+/*   fiddly differences between Solaris and Linux. We define much of  */
+/*   whats  in  Solaris - deferring to specific files if it warrants  */
+/*   cleaning this mess up.					      */
+/**********************************************************************/
+
+
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
@@ -5,7 +13,12 @@
 # define TODO()	printk("%s:%s:%d: please fill me in\n", __FILE__, __func__, __LINE__)
 # define TODO_END()
 
+# if defined(__i386) && !defined(_LP32)
+#	define _LP32
+# endif
+
 struct modctl;
+
 # if __KERNEL__
 
 # define zone Xzone /* mmzone.h conflicts with solaris zone struct */
@@ -30,6 +43,14 @@ struct modctl;
 
 # else
 
+# define	_LARGEFILE_SOURCE	1
+# define	_LARGEFILE64_SOURCE	1
+# define	_FILE_OFFSET_BITS	64
+# define 	__USE_LARGEFILE64 1
+
+# include "/usr/include/sys/types.h"
+# include <pthread.h>
+
 # include	<features.h>
 
 # include	<time.h>
@@ -39,10 +60,6 @@ struct modctl;
 # include	<sys/systm.h>
 # include 	<sys/vmem.h>
 # include 	<sys/cred.h>
-
-# define	_LARGEFILE_SOURCE	1
-# define	_FILE_OFFSET_BITS	64
-# define 	__USE_LARGEFILE64 1
 
 /*# include	<sys/ucontext.h>*/
 /*# include	<sys/reg.h>*/
@@ -193,8 +210,8 @@ typedef unsigned char uchar_t;
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
-typedef int int32_t;
-typedef char * caddr_t;
+///typedef int int32_t;
+///typedef char * caddr_t;
 # endif
 typedef unsigned int uint_t;
 typedef unsigned int ulong_t;
@@ -232,9 +249,9 @@ typedef struct iovec iovec_t;
 	struct mutex {
 		long xxx;
 		};
-	typedef unsigned long long loff_t;
+//	typedef unsigned long long loff_t;
 	# define kmutex_t struct mutex
-	#define	NCPU 8
+	# define	NCPU 8 // arbitrary number we should use the real value
 	# include	<sys/types.h>
 	# include	<stdint.h>
 	# include	<unistd.h>
@@ -247,6 +264,14 @@ typedef struct iovec iovec_t;
 	#define EM_AMD64        EM_X86_64
 	#define SHT_PROGBITS    1               /* Program specific (private) data */
 	#define STT_OBJECT      1               /* Symbol is a data object */
+
+	/***********************************************/
+	/*   My SimplyMEPIS system doesnt define this  */
+	/*   - so lets see if we can autodetect this.  */
+	/***********************************************/
+	# if defined(_PTHREAD_DESCR_DEFINED)
+	typedef void *pthread_rwlock_t;
+	# endif
 # endif
 
 

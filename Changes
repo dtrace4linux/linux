@@ -1,3 +1,24 @@
+Wed Jun 18 23:19:11 2008  fox
+
+      38* Archive: 1.0027
+
+      37* More 32-bit portability changes.
+
+Tue Jun 17 23:02:33 2008  fox
+
+      36* Various: changes to build 32-bit dtrace + driver
+
+Mon Jun 16 22:57:02 2008  fox
+
+      35* cyclic.c: Need the full whack from Solaris. Without this, the
+          D Engine will kill us after a while because it thinks we are hanging
+	  and may endanger the system stability.
+
+	  We could just write our own, but its doing a lot of complex
+	  and well thought out issues to do with accuracy and 
+	  cpu alignment, and its not worth hacking this. FreeBSD has
+	  its own (slightly simplified) version of the Solaris code.
+
 Sun Jun 15 09:39:19 2008  fox
 
       34* dtrace_linux.c, fbt_linux.c: Add a (slow/horrid) parallel 

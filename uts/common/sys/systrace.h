@@ -51,7 +51,7 @@ extern void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
 extern void systrace_stub(dtrace_id_t, uintptr_t, uintptr_t,
     uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
-extern int64_t dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1,
+extern asmlinkage int64_t dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
 #ifdef _SYSCALL32_IMPL

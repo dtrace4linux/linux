@@ -3,7 +3,7 @@ COMMON = ../common/ctf
 CPPFLAGS += -I../common -I../common/ctf -I../uts/common/ \
 	-I$(COMMON) -I. \
 	-I../linux -DCTF_OLD_VERSIONS
-CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
+CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64
 BINDIR = ../build
 
 COMMON_OBJS = \

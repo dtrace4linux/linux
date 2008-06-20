@@ -46,6 +46,7 @@ typedef struct fpu {
  * It also allows SSE/SSE2 state to be accessed on machines that
  * possess such hardware capabilities.
  */
+# if 0
 typedef struct fpu {
         union {
                 struct fpchip_state {
@@ -63,6 +64,7 @@ typedef struct fpu {
                 uint32_t        f_fpregs[95];   /* union of the above */
         } fp_reg_set;
 } fpregset_t;
+# endif
 
 /*
  * (This structure definition is specified in the i386 ABI supplement)

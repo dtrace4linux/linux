@@ -26,8 +26,6 @@
 
 #pragma ident	"@(#)dt_program.c	1.11	06/09/19 SMI"
 
-typedef unsigned long long off64_t;
-
 #include <unistd.h>
 #include <strings.h>
 #include <stdlib.h>

@@ -28,7 +28,6 @@
 
 #include <sys/sysmacros.h>
 
-typedef unsigned long long off64_t;
 #include <sys/bitmap.h>
 #include <strings.h>
 #include <unistd.h>

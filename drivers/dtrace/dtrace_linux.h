@@ -36,6 +36,8 @@
 #include <linux/device.h>
 #include <asm/uaccess.h>
 
+# define MUTEX_HELD mutex_is_locked
+
 #define PRIV_EFFECTIVE          (1 << 0)
 #define PRIV_DTRACE_KERNEL      (1 << 1)
 #define PRIV_DTRACE_PROC        (1 << 2)
@@ -148,6 +150,7 @@ int kill_pid(struct pid *pid, int sig, int priv);
 void	*vmem_alloc(vmem_t *, size_t, int);
 void	*vmem_zalloc(vmem_t *, size_t, int);
 void	membar_enter(void);
+void	membar_producer(void);
 void	debug_enter(char *);
 void	dtrace_vtime_disable(void);
 void	dtrace_vtime_enable(void);
@@ -178,6 +181,16 @@ extern uintptr_t	_userlimit;
 
 char *linux_get_proc_comm(void);
 int validate_ptr(void *);
+
+/**********************************************************************/
+/*   Used by cyclic.c						      */
+/**********************************************************************/
+typedef unsigned long ksema_t;
+
+typedef enum {
+        SEMA_DEFAULT,
+        SEMA_DRIVER
+} ksema_type_t;
 
 /**********************************************************************/
 /*   Parallel  alloc  mechanism functions. We dont want to patch the  */

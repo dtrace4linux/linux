@@ -743,7 +743,7 @@ compile_str(dtrace_cmd_t *dcp)
 static void
 prochandler(struct ps_prochandle *P, const char *msg, void *arg)
 {
-	const psinfo_t *prp = Ppsinfo(P);
+	/*const*/ psinfo_t *prp = Ppsinfo(P); // avoid gcc-4.2.2/32bit bug
 	int pid = Pstatus(P)->pr_pid;
 	char name[SIG2STR_MAX];
 

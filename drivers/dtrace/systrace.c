@@ -28,7 +28,11 @@
 #include <dtrace_linux.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
-#include <asm/unistd_64.h>
+# if __i386
+#	include <asm-i386/unistd.h>
+# else
+#	include <asm/unistd_64.h>
+# endif
 #include <linux/sys.h>
 #include <asm/asm-offsets.h>
 #include <linux/miscdevice.h>
@@ -53,7 +57,11 @@
 #define	SYSTRACE_ENTRY(id)		((1 << SYSTRACE_SHIFT) | (id))
 #define	SYSTRACE_RETURN(id)		(id)
 
-#define NSYSCALL __NR_syscall_max
+# if !defined(__NR_syscall_max)
+#	define NSYSCALL NR_syscalls
+# else
+#	define NSYSCALL __NR_syscall_max
+# endif
 
 #if ((1 << SYSTRACE_SHIFT) <= NSYSCALL)
 #error 1 << SYSTRACE_SHIFT must exceed number of system calls

@@ -234,7 +234,7 @@ kmem_free(void *ptr, int size)
 /**********************************************************************/
 /*   Test if a pointer is vaid in kernel space.			      */
 /**********************************************************************/
-# if __i386
+# if defined(__i386)
 #define __validate_ptr(ptr, ret)        \
  __asm__ __volatile__(      	      \
   "  mov $1, %0\n" 		      \

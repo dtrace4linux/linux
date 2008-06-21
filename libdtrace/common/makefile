@@ -76,7 +76,7 @@ dt_errtags.c: dt_errtags.h mkerrtags.sh
 dt_names.c: mknames.sh
 	mknames.sh <../../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
 
-$(LIB)(dt_grammar.o): dt_grammar.y $(H) 
+dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H) 
 	$(YACC) -d dt_grammar.y
 	mv y.tab.h dt_grammar.h
 	mv y.tab.c dt_grammar.c
@@ -84,7 +84,7 @@ $(LIB)(dt_grammar.o): dt_grammar.y $(H)
 	ar rv $(LIB) dt_grammar.o
 	-rm -f dt_grammar.c dt_grammar.o
 
-dt_grammar.h: $(LIB)(dt_grammar.o)
+#dt_grammar.h: $(LIB)(dt_grammar.o)
 
 $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
 	lex -l -t -v dt_lex.l > dt_lex.c

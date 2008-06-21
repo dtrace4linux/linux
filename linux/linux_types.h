@@ -90,6 +90,7 @@ extern int pwrite(int, void *, int, unsigned long long);
 # define	REG_FS	1
 # define	REG_ES	2
 # define	REG_DS	3
+# if !defined(EFL)
 # define	EDI	4
 # define	ESI	5
 # define	EBP	6
@@ -105,6 +106,7 @@ extern int pwrite(int, void *, int, unsigned long long);
 # define	EFL	16
 # define	REG_RFL	16	/* ?? */
 # define	UESP	17
+# endif
 # define	REG_SS	18
 # define DS 7
 # define ES 8

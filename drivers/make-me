@@ -22,4 +22,9 @@ do
 	esac
 done
 
+if [ `uname -m` != x86_64 ]; then
+
+  	export PTR32=-D_ILP32
+	export BUILD_i386=1
+fi
 exec $warn make $flags -C /lib/modules/`uname -r`/build M=`pwd` $@

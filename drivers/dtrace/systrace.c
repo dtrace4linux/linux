@@ -28,11 +28,14 @@
 #include <dtrace_linux.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
+/*
 # if __i386
 #	include <asm-i386/unistd.h>
 # else
 #	include <asm/unistd_64.h>
 # endif
+*/
+#include <asm/unistd.h>
 #include <linux/sys.h>
 #include <asm/asm-offsets.h>
 #include <linux/miscdevice.h>
@@ -72,11 +75,20 @@
 /**********************************************************************/
 static char *syscallnames[] = {
 
+# if 0
+# undef _ASM_I386_UNISTD_H_
 # undef _ASM_X86_64_UNISTD_H_
 # undef __SYSCALL
 # define __SYSCALL(nr, func) [nr] = #nr,
 # undef __KERNEL_SYSCALLS_
 # include <asm/unistd.h>
+# endif
+
+# if __i386
+# include	"syscalls-x86.tbl"
+# else
+# include	"syscalls-x86-64.tbl"
+# endif
 
 	};
 
@@ -227,17 +239,13 @@ HERE();
 		if (strncmp(name, "__NR_", 5) == 0)
 			name += 5;
 
-printk("i=%d %p %p\n", i, systrace_sysent[i].stsy_underlying, name);
-//continue;
 		if (systrace_sysent[i].stsy_underlying == NULL)
 			continue;
 
-HERE();
 		if (dtrace_probe_lookup(systrace_id, NULL,
 		    name, "entry") != 0)
 			continue;
 
-HERE();
 		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
@@ -246,7 +254,6 @@ HERE();
 		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));
 
-HERE();
 		systrace_sysent[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent[i].stsy_return = DTRACE_IDNONE;
 #ifdef _SYSCALL32_IMPL

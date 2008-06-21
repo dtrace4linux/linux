@@ -7,7 +7,7 @@
 b33c7986 size=22411   mtime=1212251961 ./ctf_types.c
 d1e21501 size=2694    mtime=1212268299 ./ctf_util.c
 21ff7626 size=108179  mtime=1213994232 ./cyclic.c
-81677af8 size=4554    mtime=1214037662 ./cyclic_linux.c
+aab692d9 size=4563    mtime=1214088336 ./cyclic_linux.c
 10589bbe size=113949  mtime=1212273673 ./dis_tables.c
 021c331d size=3096    mtime=1209891441 ./dis_tables.h
 ceab99d8 size=49      mtime=1212276076 ./dt1
@@ -19,7 +19,7 @@ fa7f8351 size=407840  mtime=1213653358 ./dtrace.c
 7c5b0ba5 size=6548    mtime=1213826203 ./dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./dtrace_asm.s
 d3b1f184 size=16544   mtime=1212098835 ./dtrace_isa.c
-f2afc0a4 size=13111   mtime=1213994130 ./dtrace_linux.c
+df4af9de size=13120   mtime=1214126993 ./dtrace_linux.c
 57a30e55 size=6421    mtime=1213994142 ./dtrace_linux.h
 029fbd3f size=1203    mtime=1212248068 ./dtrace_proto.h
 7fb91dfc size=8946    mtime=1211652887 ./dtrace_subr.c
@@ -34,5 +34,6 @@ ccc7df77 size=7109    mtime=1210512452 ./opensnoop
 8bec2e2c size=13458   mtime=1213561776 ./profile.c
 a416564e size=9430    mtime=1212446320 ./sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./sdt_subr.c
-e65d4bac size=12197   mtime=1213742761 ./systrace.c
+64fda882 size=25390   mtime=1214132614 ./syscalls-x86-64.tbl
+c837f1d3 size=12431   mtime=1214132990 ./systrace.c
 b69bbf60 size=1111    mtime=1212275983 ./uncompress.c

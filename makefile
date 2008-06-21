@@ -48,9 +48,12 @@ release:
 	ls -l /tmp/dtrace-$(rel).tar.bz2
 
 all:
-	if [ `arch` != x86_64 ]; then \
+	if [ `uname -m` != x86_64 ]; then \
 	  	export PTR32=-D_ILP32 ; \
 		export BUILD_i386=1 ; \
+		tools/mksyscall.pl x86 ; \
+	else \
+		tools/mksyscall.pl x86-64 ; \
 	fi ; \
 	if [ ! -d build ] ; then \
 		mkdir build ; \

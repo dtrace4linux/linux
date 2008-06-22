@@ -22,6 +22,18 @@ dtracedrv-objs := \
 	instr_size.o \
 	uncompress.o
 ifdef BUILD_i386
+	###############################################
+	#   Kernel  may  be  using  -regparm, and we  #
+	#   cannot  call the funcs in libgcc.a since  #
+	#   they  are  the wrong calling convention.  #
+	#   Use  divmod64.c  to  trampoline into the  #
+	#   real functions.			      #
+	###############################################
+	dtracedrv-objs += divmod64.o
+	LDFLAGS += --wrap __moddi3 
+	LDFLAGS += --wrap __udivdi3 
+	LDFLAGS += --wrap __umoddi3 
+	LDFLAGS += --wrap __divdi3 
 	dtracedrv-objs += ../../lib/libgcc.a
 endif
 
@@ -36,7 +48,6 @@ EXTRA_CFLAGS += \
 	-I$(M)/../../common/ctf \
 	-I$(M)/../../uts/common \
 	-D_KERNEL -DCTF_OLD_VERSIONS $(PTR32)
-
 clean:
 	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers
 

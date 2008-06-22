@@ -27,7 +27,7 @@
 #ifndef _IA32_SYS_STACK_H
 #define	_IA32_SYS_STACK_H
 
-#pragma ident	"@(#)stack.h	1.4	05/06/08 SMI"
+//#pragma ident	"@(#)stack.h	1.4	05/06/08 SMI"
 
 #if !defined(_ASM)
 

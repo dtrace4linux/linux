@@ -1113,7 +1113,7 @@ dtrace_priv_proc_common_zone(dtrace_state_t *state)
  * verify that the process has not setuid or changed credentials.
  */
 static int
-dtrace_priv_proc_common_nocd()
+dtrace_priv_proc_common_nocd(void)
 {
 	proc_t *proc;
 
@@ -2645,7 +2645,7 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 		return (mstate->dtms_arg[ndx]);
 
 	case DIF_VAR_UREGS: {
-# if TODOxxx
+# if defined(TODOxxx)
 		klwp_t *lwp;
 
 		if (!dtrace_priv_proc(state))
@@ -5388,6 +5388,7 @@ dtrace_action_raise(uint64_t sig)
 	curthread->t_sig_check = 1;
 	aston(curthread);
 #else
+HERE();
 	kill_pid(curproc, sig, 0);
 #endif
 }
@@ -5785,7 +5786,7 @@ HERE();
 				void *activity = &state->dts_activity;
 				dtrace_activity_t current;
 HERE();
-printk("tmp=%lu alive=%lu =%lu dead=%lu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
+printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
 				do {
 					current = state->dts_activity;
 				} while (dtrace_cas32(activity, current,
@@ -6769,7 +6770,7 @@ dtrace_match(const dtrace_probekey_t *pkp, uint32_t priv, uid_t uid,
 	dtrace_id_t i;
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
-printk("dtrace_match: pkp=%p prv=%d uid=%d matched=%x arg=%x\n", pkp, priv, uid, matched, arg);
+printk("dtrace_match: pkp=%p prv=%ld uid=%d matched=%x arg=%x\n", pkp, priv, uid, matched, arg);
 	/*
 	 * If the probe ID is specified in the key, just lookup by ID and
 	 * invoke the match callback once if a matching probe is found.
@@ -7566,7 +7567,8 @@ HERE();
 			printk("dtrace_probe_provide: %p %s\n", modp, modp->name);
 
 //printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
-			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, modp);
+			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, 
+				(struct modctl *) modp);
 //HERE();
 		}
 		}
@@ -9251,7 +9253,6 @@ HERE();
 HERE();
 			if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE)
 				dtrace_sync();
-HERE();
 
 			kmem_free(oecbs, state->dts_necbs * sizeof (*ecbs));
 		}
@@ -9263,10 +9264,9 @@ HERE();
 	ecb->dte_state = state;
 
 	ASSERT(state->dts_ecbs[epid - 1] == NULL);
-HERE();
 	dtrace_membar_producer();
 HERE();
-printk("epid=%d", epid);
+printk("epid=%d\n", epid);
 	state->dts_ecbs[(ecb->dte_epid = epid) - 1] = ecb;
 HERE();
 
@@ -10225,11 +10225,11 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 	cpu_t *cp;
 	dtrace_buffer_t *buf;
 
-	ASSERT(MUTEX_HELD(&cpu_lock));
-	ASSERT(MUTEX_HELD(&dtrace_lock));
-
 HERE();
 printk("cpu=%d\n", cpu);
+
+	ASSERT(MUTEX_HELD(&cpu_lock));
+	ASSERT(MUTEX_HELD(&dtrace_lock));
 
 	if (size > dtrace_nonroot_maxsize &&
 	    !PRIV_POLICY_CHOICE(CRED(), PRIV_ALL, B_FALSE))
@@ -12326,7 +12326,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 	m = minor;
 # else
 	TODO();
-# if TODOxxxx
+# if defined(TODOxxxx)
         if (devp != NULL) {
                 cr = devp->si_cred;
                 m = minor(devp);
@@ -12358,7 +12358,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 	TODO();
         /*state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);*/
 
-        state->dts_dev = fp;
+        state->dts_dev = (dev_t) fp;
 # endif
 
 	/*
@@ -12547,6 +12547,8 @@ HERE();
 
 	if (opt[DTRACEOPT_CPU] != DTRACEOPT_UNSET)
 		cpu = opt[DTRACEOPT_CPU];
+printk("cpu=%d\n", cpu);
+cpu = 0;
 
 	if (which == DTRACEOPT_SPECSIZE)
 		flags |= DTRACEBUF_NOSWITCH;
@@ -12583,6 +12585,7 @@ HERE();
 		}
 
 HERE();
+printk("cpu=%d\n", cpu);
 		rval = dtrace_buffer_alloc(buf, size, flags, cpu);
 HERE();
 
@@ -14478,6 +14481,7 @@ dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
 	case CPU_CONFIG: {
 		dtrace_state_t *state;
 		dtrace_optval_t *opt, rs, c;
+PRINT_CASE(CPU_CONFIG);
 
 		/*
 		 * For now, we only allocate a new buffer for anonymous state.
@@ -14517,6 +14521,7 @@ dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
 		 * We don't free the buffer in the CPU_UNCONFIG case.  (The
 		 * buffer will be freed when the consumer exits.)
 		 */
+PRINT_CASE(CPU_UNCONFIG);
 		break;
 
 	default:
@@ -14760,10 +14765,10 @@ int
 dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 {
 	dtrace_state_t *state;
+# if defined(sun)
 	uint32_t priv = 0;
 	uid_t uid = 0;
 
-# if defined(sun)
 	if (getminor(*devp) == DTRACEMNRN_HELPER)
 		return (0);
 
@@ -14813,7 +14818,7 @@ HERE();
 # else
         state = dtrace_state_create(fp, NULL);
 HERE();
-printk("dev_set_drvdata(%x, %x)\n", fp, state);
+printk("dev_set_drvdata(%p, %p)\n", fp, state);
 	fp->private_data = state;
 # endif
 

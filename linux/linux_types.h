@@ -153,8 +153,8 @@ typedef unsigned int mutex_t;
 	#define	UINT16_MAX	0xffff
 	#define	INT32_MAX	0x7fffffff
 	#define	UINT32_MAX	0xffffffff
-	#define	INT64_MAX	0x7fffffffffffffff
-	#define	UINT64_MAX	0xffffffffffffffff
+	#define	INT64_MAX	0x7fffffffffffffffLL
+	#define	UINT64_MAX	0xffffffffffffffffLU
 	#define INT64_MIN       (-9223372036854775807LL-1)
 	typedef int *greg_t;
 	typedef struct __dev_info *dev_info_t;
@@ -203,21 +203,16 @@ typedef unsigned int mutex_t;
 /**********************************************************************/
 /*   Definitions for both kernel and non-kernel code.		      */
 /**********************************************************************/
-//typedef unsigned int *uintptr_t;
 typedef short   o_dev_t;                /* old device type      */
-//typedef int     processorid_t;
 typedef unsigned short ushort_t;
 typedef unsigned char uchar_t;
 # if !defined(__KERNEL__)
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
-///typedef int int32_t;
-///typedef char * caddr_t;
 # endif
 typedef unsigned int uint_t;
 typedef unsigned int ulong_t;
-//typedef unsigned long long uint64_t;
 typedef unsigned long long u_longlong_t;
 typedef long long longlong_t;
 typedef long long offset_t;
@@ -225,7 +220,6 @@ typedef unsigned long long rd_agent_t;
 typedef unsigned long pc_t;
 typedef ulong_t          Lmid_t;
 typedef uint_t lwpid_t;
-//typedef struct statvfs statvfs_t;
 typedef u_longlong_t    core_content_t;
 typedef unsigned long   psaddr_t;
 typedef int	ctid_t;                 /* contract ID type     */

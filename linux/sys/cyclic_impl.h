@@ -27,7 +27,7 @@
 #ifndef _SYS_CYCLIC_IMPL_H
 #define	_SYS_CYCLIC_IMPL_H
 
-#pragma ident	"@(#)cyclic_impl.h	1.5	05/06/08 SMI"
+//#pragma ident	"@(#)cyclic_impl.h	1.5	05/06/08 SMI"
 
 #ifdef	__cplusplus
 extern "C" {

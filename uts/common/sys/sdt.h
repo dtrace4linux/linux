@@ -26,7 +26,7 @@
 #ifndef _SYS_SDT_H
 #define	_SYS_SDT_H
 
-#pragma ident	"@(#)sdt.h	1.12	08/03/03 SMI"
+//#pragma ident	"@(#)sdt.h	1.12	08/03/03 SMI"
 
 #ifdef	__cplusplus
 extern "C" {

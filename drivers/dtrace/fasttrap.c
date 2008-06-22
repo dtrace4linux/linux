@@ -194,6 +194,7 @@ fasttrap_sigtrap(proc_t *p, kthread_t *t, uintptr_t pc)
 {
 	sigqueue_t *sqp = kmem_zalloc(sizeof (sigqueue_t), KM_SLEEP);
 
+HERE();
 	sqp->sq_info.si_signo = SIGTRAP;
 	sqp->sq_info.si_code = TRAP_DTRACE;
 	sqp->sq_info.si_addr = (caddr_t)pc;

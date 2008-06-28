@@ -1,2 +1,3 @@
 ./cmd/dtrace/dtrace
 ./libdtrace/common/dt_grammar.h
+./utils/mknod

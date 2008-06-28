@@ -28,6 +28,7 @@ notice:
 	@echo "make all        - build everything - auto-detect (32 or 64 bit)"
 	@echo "make clean      - clean out *.o/*.a and binaries"
 	@echo "make release    - create a new tarball for distribution"
+	@echo "make load       - install the driver"
 
 release:
 	cd .. ; mv dtrace dtrace-$(rel) ; \
@@ -89,13 +90,8 @@ clean:
 #   Load  the driver -- we chmod 666 til i work out how to make the  #
 #   driver do it. Otherwise dtrace needs to be setuid-root.	     #
 ######################################################################
-ins:
-	sync ; sync
-	-$(SUDO) insmod drivers/dtrace/dtracedrv.ko
-	sleep 1
-	$(SUDO) chmod 666 /dev/dtrace
-	$(SUDO) chmod 666 /dev/fbt
-	grep ' kallsyms' /proc/kallsyms >/dev/fbt
-	grep ' get_symbol_offset' /proc/kallsyms >/dev/fbt
+load:
+	cd drivers/dtrace ; ./load
+	 
 unl:
 	-$(SUDO) rmmod dtracedrv

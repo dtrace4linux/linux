@@ -79,12 +79,13 @@ dtrace_sleep(dtrace_hdl_t *dtp)
 
 	if (earliest < now) {
 		(void) pthread_mutex_unlock(&dph->dph_lock);
+//printf("time passed %llu %llu %lld: time=%lu\n", earliest, now, now - earliest, time(NULL));
 		return; /* sleep duration has already past */
 	}
 
 	tv.tv_sec = (earliest - now) / NANOSEC;
 	tv.tv_nsec = (earliest - now) % NANOSEC;
-
+//printf("waiting for %d.%06u\n", tv.tv_sec, tv.tv_nsec);
 	/*
 	 * Wait for either 'tv' nanoseconds to pass or to receive notification
 	 * that a process is in an interesting state.  Regardless of why we

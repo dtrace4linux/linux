@@ -1,8 +1,8 @@
 # if !defined(DTRACE_PROTO_H)
 # define	DTRACE_PROTO_H
 /**********************************************************************/
-/*   Prototypes  we  need  because  we  split dtrace.c up to make it  */
-/*   easier to debug.						      */
+/*   Prototypes  we  *used*  to need because we split dtrace.c up to  */
+/*   make it easier to debug.   				      */
 /**********************************************************************/
 void	dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *);
 void	dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp);
@@ -17,5 +17,6 @@ int dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int
 int dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd);
 int dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p);
 int dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p);
+void dump_mem(char *cp, int len);
 # endif
 

@@ -7,9 +7,16 @@
  * http://www.opensolaris.org/license/ for details.
  */
 
-#pragma ident	"@(#)dtrace_asm.s	1.5	04/11/17 SMI"
+//#pragma ident	"@(#)dtrace_asm.s	1.5	04/11/17 SMI"
 
 #include <linux_types.h>
+
+# define	SWAP_REG(a, b) \
+	"push " #a "\n" \
+	"push " #b "\n" \
+	"pop  " #a "\n" \
+	"pop  " #b "\n"
+
 
 int
 dtrace_getfp(void)
@@ -57,21 +64,17 @@ uint32_t
 dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 {
 	__asm(
-		" movl	4(%esp), %edx\n"
-		" movl	8(%esp), %eax\n"
-		" movl	12(%esp), %ecx\n"
+		SWAP_REG(%eax, %edx)
 		" lock\n"
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
 		);
 }
 void *
-dtrace_casptr(void *target, void *cmp, void *new)
+dtrace_casptr(void *target, void *cmp, void *new) 
 {
 	__asm(
-		" movl	4(%esp), %edx\n"
-		" movl	8(%esp), %eax\n"
-		" movl	12(%esp), %ecx\n"
+		SWAP_REG(%eax, %edx)
 		" lock\n"
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
@@ -81,7 +84,7 @@ dtrace_casptr(void *target, void *cmp, void *new)
 #endif	/* __i386 */
 
 long
-dtrace_caller()
+dtrace_caller(void)
 {
 
 	__asm(
@@ -101,11 +104,10 @@ dtrace_caller()
 
 /*ARGSUSED*/
 void
-dtrace_copy(uintptr_t src, uintptr_t dest, size_t size)
+dtrace_copy(uintptr_t src, uintptr_t dest, size_t size) 
 {
-	__asm(
 #if defined(__amd64)
-
+	__asm(
 		"pushq	%rbp\n"
 		"movq	%rsp, %rbp\n"
 
@@ -115,38 +117,21 @@ dtrace_copy(uintptr_t src, uintptr_t dest, size_t size)
 		"smovb\n"				/*   move from %ds:rsi to %ed:rdi */
 		"leave\n"
 		"ret\n"
+		);
 
 #elif defined(__i386)
-
-		"pushl	%ebp\n"
-		"movl	%esp, %ebp\n"
-		"pushl	%esi\n"
-		"pushl	%edi\n"
-
-		"movl	8(%ebp), %esi\n"	// Load source address
-		"movl	12(%ebp), %edi\n"	// Load destination address
-		"movl	16(%ebp), %ecx\n"	// Load count
-		"repz\n"			// Repeat for count...
-		"smovb\n"			//   move from %ds:si to %es:di
-
-		"popl	%edi\n"
-		"popl	%esi\n"
-		"movl	%ebp, %esp\n"
-		"popl	%ebp\n"
-		"ret\n"
-
+	memcpy(dest, src, size);
 #endif	/* __i386 */
-	);
 }
 
 /*ARGSUSED*/
 void
-dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
+dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size) 
 {
 
-	__asm(
 #if defined(__amd64)
 
+	__asm(
 		"pushq	%rbp\n"
 		"movq	%rsp, %rbp\n"
 
@@ -163,162 +148,127 @@ dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 "1:\n"
 		"leave\n"
 		"ret\n"
+		);
 
 #elif defined(__i386)
-
-		"pushl	%ebp\n"			// Setup stack frame
-		"movl	%esp, %ebp\n"
-		"pushl	%ebx\n"			// Save registers
-
-		"movl	8(%ebp), %ebx\n"	// Load source address
-		"movl	12(%ebp), %edx\n"	// Load destination address
-		"movl	16(%ebp), %ecx\n"	// Load count
-
-"0:\n"
-		"movb	(%ebx), %al\n"		// Load from source
-		"movb	%al, (%edx)\n"		// Store to destination
-		"incl	%ebx\n"			// Increment source pointer
-		"incl	%edx\n"			// Increment destination pointer
-		"decl	%ecx\n"			// Decrement remaining count
-		"cmpb	$0, %al\n"
-		"je	1f\n"
-		"cmpl	$0, %ecx\n"
-		"jne	0b\n"
-
-"1:\n"
-		"popl	%ebx\n"
-		"movl	%ebp, %esp\n"
-		"popl	%ebp\n"
-		"ret\n"
-
+	char *src = (char *) uaddr;
+	char *dst = (char *) kaddr;
+	while (size > 0) {
+		if ((*dst++ = *src++) == 0)
+			break;
+		size--;
+	}
 #endif	/* __i386 */
-		);
 }
 
 /*ARGSUSED*/
 uintptr_t
-dtrace_fulword(void *addr)
+dtrace_fulword(void *addr) 
 {
-
-	__asm(
 #if defined(__amd64)
-
+	__asm(
 		"movq	(%rdi), %rax\n"
 		"ret\n"
+		);
 
 #elif defined(__i386)
 
-		"movl	4(%esp), %ecx\n"
-		"xorl	%eax, %eax\n"
-		"movl	(%ecx), %eax\n"
-		"ret\n"
+	return *(uintptr_t *) addr;
 
 #endif	/* __i386 */
-		);
 }
 
 /*ARGSUSED*/
-uint8_t
+uint8_t 
 dtrace_fuword8_nocheck(void *addr)
 {
-	__asm(
 #if defined(__amd64)
-
+	__asm(
 		"xorq	%rax, %rax\n"
 		"movb	(%rdi), %al\n"
 		"ret\n"
+		);
 
 #elif defined(__i386)
 
-		"movl	4(%esp), %ecx\n"
-		"xorl	%eax, %eax\n"
-		"movzbl	(%ecx), %eax\n"
-		"ret\n"
-
+	return *(unsigned char *) addr;;
 #endif	/* __i386 */
-		);
 }
 
 /*ARGSUSED*/
-uint16_t
-dtrace_fuword16_nocheck(void *addr)
+uint16_t 
+dtrace_fuword16_nocheck(void *addr) 
 {
-	__asm(
 #if defined(__amd64)
 
+	__asm(
 		"xorq	%rax, %rax\n"
 		"movw	(%rdi), %ax\n"
 		"ret\n"
+		);
 
 #elif defined(__i386)
 
-		"movl	4(%esp), %ecx\n"
-		"xorl	%eax, %eax\n"
-		"movzwl	(%ecx), %eax\n"
-		"ret\n"
-
+	return *(uint16_t *) addr;
 #endif	/* __i386 */
-		);
 }
 
 /*ARGSUSED*/
-uint32_t
-dtrace_fuword32_nocheck(void *addr)
+uint32_t 
+dtrace_fuword32_nocheck(void *addr) 
 {
-	__asm(
 #if defined(__amd64)
+	__asm(
 
 		"xorq	%rax, %rax\n"
 		"movl	(%rdi), %eax\n"
 		"ret\n"
+	);
 
 #elif defined(__i386)
 
-		"movl	4(%esp), %ecx\n"
-		"xorl	%eax, %eax\n"
-		"movl	(%ecx), %eax\n"
-		"ret\n"
-
+	return *(uint32_t *) addr;
 #endif	/* __i386 */
-	);
 }
 
 /*ARGSUSED*/
-uint64_t
-dtrace_fuword64_nocheck(void *addr)
+uint64_t 
+dtrace_fuword64_nocheck(void *addr) 
 {
-	__asm(
 #if defined(__amd64)
-
+	__asm(
 		"movq	(%rdi), %rax\n"
 		"ret\n"
+		);
 
 #elif defined(__i386)
 
-		"movl	4(%esp), %ecx\n"
-		"xorl	%eax, %eax\n"
-		"xorl	%edx, %edx\n"
-		"movl	(%ecx), %eax\n"
-		"movl	4(%ecx), %edx\n"
-		"ret\n"
-
+	return *(uint64_t *) addr;
 #endif	/* __i386 */
-		);
 }
 void
-dtrace_interrupt_enable()
+dtrace_interrupt_enable(void)
 {
-	__asm(
 #if defined(__amd64)
+	__asm(
 	        "pushq   %rdi\n"
 	        "popfq\n"
 
+	);
 #elif defined(__i386)
+	/***********************************************/
+	/*   We  get kernel warnings because we break  */
+	/*   the  rules  if  we  do the equivalent to  */
+	/*   x86-64. This seems to work.	       */
+	/***********************************************/
+	native_irq_enable();
+	return;
+	__asm(
 		"movl	4(%esp), %eax\n"
 		"push %eax\n"
 		"popf\n"
-#endif
 	);
+#endif
 }
 
 typedef int dtrace_state_t;
@@ -385,19 +335,28 @@ void dtrace_membar_producer(void)
 		);
 }
 long
-dtrace_interrupt_disable()
+dtrace_interrupt_disable(void)
 {
-	__asm(
 #if defined(__amd64)
+	__asm(
         	"pushfq\n"
         	"popq    %rax\n"
         	"cli\n"
         	"ret\n"
+	);
 #elif defined(__i386)
+	/***********************************************/
+	/*   We  get kernel warnings because we break  */
+	/*   the  rules  if  we  do the equivalent to  */
+	/*   x86-64. This seems to work.	       */
+	/***********************************************/
+	native_irq_disable();
+	return 0;
+	__asm(
 		"pushf\n"
 		"pop %eax\n"
 		"cli\n"
 		"ret\n"
-# endif
 	);
+# endif
 }

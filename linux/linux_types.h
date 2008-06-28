@@ -17,6 +17,16 @@
 #	define _LP32
 # endif
 
+/**********************************************************************/
+/*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */
+/*   registers. Turn it off for some of the assembler code.	      */
+/**********************************************************************/
+# if defined(__i386)
+#	define ATTR__REGPARM0 __attribute__ ((regparm(0)))
+# else
+#	define ATTR__REGPARM0
+# endif
+
 struct modctl;
 
 # if __KERNEL__
@@ -464,5 +474,9 @@ enum seg_rw {
 #define	ASSERT(EX)	((void)((EX) || \
 			dtrace_assfail(#EX, __FILE__, __LINE__)))
 extern int dtrace_assfail(const char *, const char *, int);
+
+extern unsigned long long gethrtime(void);
+void *dtrace_casptr(void *target, void *cmp, void *new);
+# define	casptr(a, b, c) dtrace_casptr(a, b, c)
 
 # endif /* LINE_TYPES_H */

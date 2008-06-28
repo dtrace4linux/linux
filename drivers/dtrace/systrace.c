@@ -25,19 +25,18 @@
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
 
+#include <linux/mm.h>
+# define zone linux_zone
 #include <dtrace_linux.h>
+#include <linux/sched.h>
+#include <linux/sys.h>
+#include <linux/highmem.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
-/*
-# if __i386
-#	include <asm-i386/unistd.h>
-# else
-#	include <asm/unistd_64.h>
-# endif
-*/
-#include <asm/unistd.h>
-#include <linux/sys.h>
 #include <asm/asm-offsets.h>
+#include <asm/tlbflush.h>
+#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <linux/miscdevice.h>
 #include <linux/syscalls.h>
 #include <sys/dtrace.h>
@@ -111,8 +110,6 @@ static dtrace_provider_id_t systrace_id;
 /*   the equivalent in Linux...					      */
 /**********************************************************************/
 void	*fbt_get_sys_call_table(void);
-void *dtrace_casptr(void *target, void *cmp, void *new);
-# define	casptr(a, b, c) dtrace_casptr(a, b, c)
 void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
     uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
@@ -125,7 +122,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #if defined(sun)
 	int syscall = curthread->t_sysnum;
 #else
-	int syscall = linux_get_syscall();
+	int syscall; // = linux_get_syscall();
 #endif
         systrace_sysent_t *sy;
         dtrace_id_t id;
@@ -133,10 +130,14 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 
 {int i; 
 long *ptr = &arg0;
-//for (i = 0; i < 32; i++) {
-//printk("stack[%d] = %p\n", i, ptr[i]);
-//}
+for (i = 0; i < 20; i++) {
+printk("stack[%d] = %p\n", i, ptr[i]);
+}
+# if __i386
+syscall = ptr[6]; // horrid hack
+# else
 syscall = ptr[12]; // horrid hack
+# endif
         sy = &systrace_sysent[syscall];
 }
 printk("syscall=%d %s current=%p syscall=%d\n", syscall, 
@@ -165,12 +166,15 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
 
         rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
 
+HERE();
+printk("syscall returns %d\n", rval);
 # if defined(TODOxxx)
         if (ttolwp(curthread)->lwp_errno != 0)
                 rval = -1;
 # endif
 
         if ((id = sy->stsy_return) != DTRACE_IDNONE) {
+HERE();
                 (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
 		}
@@ -209,6 +213,7 @@ printk("NSYSCALL=%d\n", NSYSCALL);
 #endif
 
 		s->stsy_underlying = a->sy_callc;
+printk("stsy_underlying=%p\n", s->stsy_underlying);
 	}
 }
 
@@ -218,7 +223,7 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 {
 	int i;
 HERE();
-printk("descr=%p\n", desc);
+//printk("descr=%p\n", desc);
 	if (desc != NULL)
 		return;
 
@@ -246,10 +251,11 @@ HERE();
 		    name, "entry") != 0)
 			continue;
 
+printk("systrace_provide: patch syscall %s\n", name);
 		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
-HERE();
+//HERE();
 		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));
@@ -294,39 +300,54 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	int enabled = (systrace_sysent[sysnum].stsy_entry != DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return != DTRACE_IDNONE);
 
+//printk("\n\nsystrace_sysent[%p].stsy_entry = %x\n", parg, systrace_sysent[sysnum].stsy_entry);
+//printk("\n\nsystrace_sysent[%p].stsy_return = %x\n", parg, systrace_sysent[sysnum].stsy_return);
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
 		systrace_sysent[sysnum].stsy_entry = id;
-#ifdef _SYSCALL32_IMPL
-		systrace_sysent32[sysnum].stsy_entry = id;
-#endif
 	} else {
 		systrace_sysent[sysnum].stsy_return = id;
-#ifdef _SYSCALL32_IMPL
-		systrace_sysent32[sysnum].stsy_return = id;
-#endif
 	}
 
-	if (enabled) {
-		printk("panic: sysnum=%d callc=%p\n", sysnum, sysent[sysnum].sy_callc);
-//		ASSERT(sysent[sysnum].sy_callc == dtrace_systrace_syscall);
-		return;
-	}
+#if __i386
+	/***********************************************/
+	/*   The  x86  kernel  will  page protect the  */
+	/*   sys_call_table  and panic if we write to  */
+	/*   it.  So....lets just turn off write-only  */
+	/*   on  the  target page. We might even turn  */
+	/*   it  back  on  when  we are finished, but  */
+	/*   dont care for now.			       */
+	/***********************************************/
+#define kern_to_page(kaddr)     pfn_to_page(((unsigned long) kaddr) >> PAGE_SHIFT)
+	change_page_attr(kern_to_page(&sysent[sysnum].sy_callc), 1, PAGE_KERNEL);
+	HERE();
+	global_flush_tlb();
+# else
+	/***********************************************/
+	/*   In  2.6.24.4 and related kernels, x86-64  */
+	/*   isnt page protecting the sys_call_table.  */
+	/*   Dont  know why -- maybe its a bug and we  */
+	/*   may  have  to revisit this later if they  */
+	/*   turn it back on.			       */
+	/***********************************************/
+# endif
 
-HERE();
-printk("enable: sysnum=%d %p %p %p\n", sysnum,
+printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
 	&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)dtrace_systrace_syscall);
+	    (void *)dtrace_systrace_syscall,
+		sysent[sysnum].sy_callc);
+
+//sysent[sysnum].sy_callc = dtrace_systrace_syscall;
 
 	(void) casptr(&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)dtrace_systrace_syscall);
-HERE();
-#ifdef _SYSCALL32_IMPL
-	(void) casptr(&sysent32[sysnum].sy_callc,
-	    (void *)systrace_sysent32[sysnum].stsy_underlying,
-	    (void *)dtrace_systrace_syscall32);
-#endif
+
+printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
+	&sysent[sysnum].sy_callc,
+	    (void *)systrace_sysent[sysnum].stsy_underlying,
+	    (void *)dtrace_systrace_syscall,
+		sysent[sysnum].sy_callc);
 }
 
 /*ARGSUSED*/
@@ -342,23 +363,12 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 		    (void *)dtrace_systrace_syscall,
 		    (void *)systrace_sysent[sysnum].stsy_underlying);
 
-#ifdef _SYSCALL32_IMPL
-		(void) casptr(&sysent32[sysnum].sy_callc,
-		    (void *)dtrace_systrace_syscall32,
-		    (void *)systrace_sysent32[sysnum].stsy_underlying);
-#endif
 	}
 
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
 		systrace_sysent[sysnum].stsy_entry = DTRACE_IDNONE;
-#ifdef _SYSCALL32_IMPL
-		systrace_sysent32[sysnum].stsy_entry = DTRACE_IDNONE;
-#endif
 	} else {
 		systrace_sysent[sysnum].stsy_return = DTRACE_IDNONE;
-#ifdef _SYSCALL32_IMPL
-		systrace_sysent32[sysnum].stsy_return = DTRACE_IDNONE;
-#endif
 	}
 }
 /*ARGSUSED*/
@@ -381,11 +391,11 @@ static dtrace_pops_t systrace_pops = {
 	NULL,
 	systrace_enable,
 	systrace_disable,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
+	NULL, // dtps_suspend
+	NULL, // dtps_resume
+	NULL, // dtps_getargdesc
+	NULL, // dtps_getargval
+	NULL, // dtps_usermode
 	systrace_destroy
 };
 static int initted;
@@ -463,10 +473,8 @@ int systrace_init(void)
 }
 void systrace_exit(void)
 {
-HERE();
 	systrace_detach();
-HERE();
 
-	printk(KERN_WARNING "systrace driver unloaded.\n");
+//	printk(KERN_WARNING "systrace driver unloaded.\n");
 	misc_deregister(&systrace_dev);
 }

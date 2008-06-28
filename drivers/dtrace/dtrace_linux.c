@@ -23,6 +23,7 @@
 #include <linux/uaccess.h>
 #include <linux/sys.h>
 #include <linux/thread_info.h>
+#include <linux/smp.h>
 #include <asm/current.h>
 
 MODULE_AUTHOR("Paul D. Fox");
@@ -76,7 +77,7 @@ dtrace_gethrtime()
 {	struct timeval tv;
 
 	do_gettimeofday(&tv);
-	return tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
+	return (hrtime_t) tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
 }
 uint64_t
 dtrace_gethrestime()
@@ -125,6 +126,20 @@ void
 debug_enter(char *arg)
 {
 	printk("%s(%d): %s\n", __FILE__, __LINE__, __func__);
+}
+void
+dump_mem(char *cp, int len)
+{	char	buf[128];
+	int	i;
+
+	while (len > 0) {
+		sprintf(buf, "%p", cp);
+		for (i = 0; i < 16 && len-- > 0; i++) {
+			sprintf(buf + strlen(buf), "%02x ", *cp++ & 0xff);
+			}
+		strcat(buf, "\n");
+		printk(buf);
+		}
 }
 static void
 dtrace_sync_func(void)
@@ -201,13 +216,15 @@ dtrace_xcall_func(dtrace_xcall_t func, void *arg)
 void
 dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {
-	kpreempt_disable();
 	if (cpu == DTRACE_CPUALL) {
-		smp_call_function(func, arg, 0, TRUE);
+		/***********************************************/
+		/*   Dont   call  smp_call_function  as  this  */
+		/*   doesnt work.			       */
+		/***********************************************/
+		on_each_cpu(func, arg, 0, TRUE);
 	} else {
 		smp_call_function_single(cpu, func, arg, 0, TRUE);
 	}
-	kpreempt_enable();
 }
 
 # if 0
@@ -448,7 +465,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 	int	rv = 0;
 
 	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
-HERE();
+//HERE();
 printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }

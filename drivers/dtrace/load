@@ -5,6 +5,7 @@ if [ ! -f $HOME/bin/setuid ]; then
 	SUDO=sudo
 fi
 
+echo "Syncing..."
 sync ; sync
 if [ -e /dev/dtrace ]; then
 	echo rmmod dtracedrv
@@ -13,12 +14,21 @@ if [ -e /dev/dtrace ]; then
 	sync ; sync
 fi
 
+#####################################################################
+#   Here  goes...we could crash the kernel... We sleep for a bit at
+#   present  since we need the /dev entries to appear. Chmod 666 so
+#   we can avoid being root all the time whilst we debug.
+#####################################################################
 echo "Loading: dtracedrv.ko"
 $SUDO insmod dtracedrv.ko
 sleep 1
 $SUDO chmod 666 /dev/dtrace
 $SUDO chmod 666 /dev/fbt
 
+#####################################################################
+#   Need to 'export' GPL symbols to the driver so we can call these
+#   functions. Until this is done, the driver is a little unsafe(!)
+#####################################################################
 echo "Preparing symbols..."
 for s in \
 	kallsyms		\
@@ -34,5 +44,9 @@ do
 	grep " $s" /proc/kallsyms >/dev/fbt
 done
 
+#####################################################################
+#   Keep  a  copy of probes to avoid polluting /var/log/messages as
+#   we debug the driver..
+#####################################################################
 echo "Probes available:"
-dtrace -l | wc -l 
+dtrace -l | tee `date +/tmp/probes-%Y%m%d-%H:%M` | wc -l 

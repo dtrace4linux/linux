@@ -3042,11 +3042,13 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 
 	switch (subr) {
 	case DIF_SUBR_RAND:
+PRINT_CASE(DIF_SUBR_RAND);
 		regs[rd] = (dtrace_gethrtime() * 2416 + 374441) % 1771875;
 		break;
 
 # if defined(sun)
 	case DIF_SUBR_MUTEX_OWNED:
+PRINT_CASE(DIF_SUBR_MUTEX_OWNED);
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (kmutex_t),
 		    mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3061,6 +3063,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		break;
 
 	case DIF_SUBR_MUTEX_OWNER:
+PRINT_CASE(DIF_SUBR_MUTEX_OWNER);
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (kmutex_t),
 		    mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3076,6 +3079,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		break;
 
 	case DIF_SUBR_MUTEX_TYPE_ADAPTIVE:
+PRINT_CASE(DIF_SUBR_MUTEX_TYPE_ADAPTIVE);
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (kmutex_t),
 		    mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3087,6 +3091,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		break;
 
 	case DIF_SUBR_MUTEX_TYPE_SPIN:
+PRINT_CASE(DIF_SUBR_MUTEX_TYPE_SPIN);
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (kmutex_t),
 		    mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3099,6 +3104,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 
 	case DIF_SUBR_RW_READ_HELD: {
 		uintptr_t tmp;
+PRINT_CASE(DIF_SUBR_RW_READ_HELD);
 
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (uintptr_t),
 		    mstate, vstate)) {
@@ -3112,6 +3118,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 	}
 
 	case DIF_SUBR_RW_WRITE_HELD:
+PRINT_CASE(DIF_SUBR_RW_WRITE_HELD);
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (krwlock_t),
 		    mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3122,7 +3129,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		regs[rd] = _RW_WRITE_HELD(&r.ri);
 		break;
 
-	case DIF_SUBR_RW_ISWRITER:
+	case DIF_SUBR_RW_ISWRITERDPRINT_CASE(CPU_CONFIG);
 		if (!dtrace_canload(tupregs[0].dttk_value, sizeof (krwlock_t),
 		    mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3143,6 +3150,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uintptr_t dest = tupregs[1].dttk_value;
 		size_t size = tupregs[2].dttk_value;
 
+PRINT_CASE(DIF_SUBR_BCOPY);
 		if (!dtrace_inscratch(dest, size, mstate)) {
 			*flags |= CPU_DTRACE_BADADDR;
 			*illval = regs[rd];
@@ -3164,6 +3172,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uint64_t size =
 		    tupregs[subr == DIF_SUBR_ALLOCA ? 0 : 1].dttk_value;
 		size_t scratch_size = (dest - mstate->dtms_scratch_ptr) + size;
+PRINT_CASE(DIF_SUBR_ALLOCA);
 
 		/*
 		 * This action doesn't require any credential checks since
@@ -3197,6 +3206,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uint64_t size = tupregs[1].dttk_value;
 		uintptr_t dest = tupregs[2].dttk_value;
 
+PRINT_CASE(DIF_SUBR_COPYINTO);
 		/*
 		 * This action doesn't require any credential checks since
 		 * probes will not activate in user contexts to which the
@@ -3218,6 +3228,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uintptr_t dest = mstate->dtms_scratch_ptr;
 		uint64_t size = state->dts_options[DTRACEOPT_STRSIZE];
 
+PRINT_CASE(DTRACEOPT_STRSIZE);
 		if (nargs > 1 && tupregs[1].dttk_value < size)
 			size = tupregs[1].dttk_value + 1;
 
@@ -3307,6 +3318,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		proc_t *p;
 		int rval = 0;
 
+PRINT_CASE(DIF_SUBR_PROGENYOF);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 
 		for (p = curthread->t_procp; p != NULL; p = p->p_parent) {
@@ -3328,6 +3340,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 	}
 
 	case DIF_SUBR_SPECULATION:
+PRINT_CASE(DIF_SUBR_SPECULATION);
 		regs[rd] = dtrace_speculation(state);
 		break;
 
@@ -3336,6 +3349,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uintptr_t uaddr = tupregs[1].dttk_value;
 		uint64_t size = tupregs[2].dttk_value;
 
+PRINT_CASE(DIF_SUBR_COPYOUT);
 		if (!dtrace_destructive_disallow &&
 		    dtrace_priv_proc_control(state) &&
 		    !dtrace_istoxic(kaddr, size)) {
@@ -3351,6 +3365,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uintptr_t uaddr = tupregs[1].dttk_value;
 		uint64_t size = tupregs[2].dttk_value;
 
+PRINT_CASE(DIF_SUBR_COPYOUTSTR);
 		if (!dtrace_destructive_disallow &&
 		    dtrace_priv_proc_control(state) &&
 		    !dtrace_istoxic(kaddr, size)) {
@@ -3364,6 +3379,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 	case DIF_SUBR_STRLEN: {
 		size_t sz;
 		uintptr_t addr = (uintptr_t)tupregs[0].dttk_value;
+PRINT_CASE(DIF_SUBR_STRLEN);
 		sz = dtrace_strlen((char *)addr,
 		    state->dts_options[DTRACEOPT_STRSIZE]);
 
@@ -3391,6 +3407,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uintptr_t limit = addr + state->dts_options[DTRACEOPT_STRSIZE];
 		char c, target = (char)tupregs[1].dttk_value;
 
+PRINT_CASE(DTRACEOPT_STRSIZE);
 		for (regs[rd] = NULL; addr < limit; addr++) {
 			if ((c = dtrace_load8(addr)) == target) {
 				regs[rd] = addr;
@@ -3432,6 +3449,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		int notfound = subr == DIF_SUBR_STRSTR ? 0 : -1;
 		int inc = 1;
 
+PRINT_CASE(DIF_SUBR_STRSTR);
 		regs[rd] = notfound;
 
 		if (!dtrace_canload((uintptr_t)addr, len + 1, mstate, vstate)) {
@@ -3570,6 +3588,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		char *dest = (char *)mstate->dtms_scratch_ptr;
 		int i;
 
+PRINT_CASE(DTRACEOPT_STRSIZE);
 		/*
 		 * Check both the token buffer and (later) the input buffer,
 		 * since both could be non-scratch addresses.
@@ -3680,6 +3699,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		size_t len = dtrace_strlen((char *)s, size);
 		int64_t i = 0;
 
+PRINT_CASE(DTRACEOPT_STRSIZE);
 		if (!dtrace_canload(s, len + 1, mstate, vstate)) {
 			regs[rd] = NULL;
 			break;
@@ -3753,6 +3773,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		char *s;
 		int i, len, depth = 0;
 
+PRINT_CASE(DTRACEOPT_STRSIZE);
 		/*
 		 * Due to all the pointer jumping we do and context we must
 		 * rely upon, we just mandate that the user must have kernel
@@ -3939,6 +3960,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uintptr_t s2 = tupregs[1].dttk_value;
 		int i = 0;
 
+PRINT_CASE(DTRACEOPT_STRSIZE);
 		if (!dtrace_strcanload(s1, size, mstate, vstate) ||
 		    !dtrace_strcanload(s2, size, mstate, vstate)) {
 			regs[rd] = NULL;
@@ -3989,6 +4011,7 @@ dtrace_dif_subr(uint_t subr, uint_t rd, uint64_t *regs,
 		uint64_t size = 22;	/* enough room for 2^64 in decimal */
 		char *end = (char *)mstate->dtms_scratch_ptr + size - 1;
 
+PRINT_CASE(DIF_SUBR_LLTOSTR);
 		if (!DTRACE_INSCRATCH(mstate, size)) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOSCRATCH);
 			regs[rd] = NULL;
@@ -5796,10 +5819,10 @@ printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -stat
 			}
 		}
 
-HERE();
 		if ((offs = dtrace_buffer_reserve(buf, ecb->dte_needed,
-		    ecb->dte_alignment, state, &mstate)) < 0)
+		    ecb->dte_alignment, state, &mstate)) < 0) {
 			continue;
+		}
 
 		tomax = buf->dtb_tomax;
 		ASSERT(tomax != NULL);
@@ -6195,7 +6218,6 @@ HERE();
 
 			continue;
 		}
-HERE();
 
 		if (!committed)
 			buf->dtb_offset = offs + ecb->dte_size;
@@ -6807,20 +6829,17 @@ printk("nmatched=%d\n", nmatched);
 		hash = dtrace_byfunc;
 	}
 
-HERE();
 	if (pkp->dtpk_nmatch == &dtrace_match_string &&
 	    (len = dtrace_hash_collisions(dtrace_byname, &template)) < best) {
 		best = len;
 		hash = dtrace_byname;
 	}
 
-HERE();
 	/*
 	 * If we did not select a hash table, iterate over every probe and
 	 * invoke our callback for each one that matches our input probe key.
 	 */
 	if (hash == NULL) {
-HERE();
 		for (i = 0; i < dtrace_nprobes; i++) {
 			if ((probe = dtrace_probes[i]) == NULL ||
 			    dtrace_match_probe(probe, pkp, priv, uid,
@@ -6844,7 +6863,6 @@ HERE();
 	 */
 	for (probe = dtrace_hash_lookup(hash, &template); probe != NULL;
 	    probe = *(DTRACE_HASHNEXT(hash, probe))) {
-HERE();
 
 		if (dtrace_match_probe(probe, pkp, priv, uid, zoneid) <= 0)
 			continue;
@@ -6856,7 +6874,6 @@ printk("matched=%p\n", matched);
 			break;
 	}
 
-HERE();
 printk("dtrace_match: nmatched=%d\n", nmatched);
 	return (nmatched);
 }
@@ -7095,7 +7112,6 @@ HERE();
 			/*
 			 * There's another provider here; return failure.
 			 */
-HERE();
 			return (EBUSY);
 		}
 	} else {
@@ -7103,7 +7119,6 @@ HERE();
 		mutex_enter(&mod_lock);
 		mutex_enter(&dtrace_lock);
 	}
-HERE();
 
 	/*
 	 * If anyone has /dev/dtrace open, or if there are anonymous enabled
@@ -7118,7 +7133,6 @@ HERE();
 			mutex_exit(&mod_lock);
 			mutex_exit(&dtrace_provider_lock);
 		}
-HERE();
 		return (EBUSY);
 	}
 
@@ -7395,7 +7409,6 @@ printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 
 		ASSERT(id - 1 < dtrace_nprobes);
 	}
-HERE();
 
 	ASSERT(dtrace_probes[id - 1] == NULL);
 	dtrace_probes[id - 1] = probe;
@@ -7450,10 +7463,8 @@ dtrace_probe_lookup(dtrace_provider_id_t prid, const char *mod,
 	pkey.dtpk_id = DTRACE_IDNONE;
 
 	mutex_enter(&dtrace_lock);
-HERE();
 	match = dtrace_match(&pkey, DTRACE_PRIV_ALL, 0, 0,
 	    dtrace_probe_lookup_match, &id);
-HERE();
 	mutex_exit(&dtrace_lock);
 
 	ASSERT(match == 1 || match == 0);
@@ -7555,16 +7566,17 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 # else
 		{struct module *get_module(int n);
 		int i;
-HERE();
 
 		for (i = 0; ; i++) {
 			struct module *modp = get_module(i);
 			if (modp == NULL)
 				break;
-			if (modp->state != MODULE_STATE_LIVE)
+			if (modp->state != MODULE_STATE_LIVE) {
+				printk("dtrace_probe_provide: inactive module %s\n", modp->name);
 				continue;
+			}
 
-			printk("dtrace_probe_provide: %p %s\n", modp, modp->name);
+			printk("dtrace_probe_provide: #%d %p %s\n", i, modp, modp->name);
 
 //printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
 			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, 
@@ -7637,9 +7649,7 @@ HERE();
 		 * If we're passed a NULL description, we're being asked to
 		 * create an ECB with a NULL probe.
 		 */
-HERE();
 		(void) dtrace_ecb_create_enable(NULL, enab);
-HERE();
 		return (0);
 	}
 
@@ -9282,7 +9292,7 @@ dtrace_ecb_enable(dtrace_ecb_t *ecb)
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(ecb->dte_next == NULL);
 HERE();
-printk("probe=%p\n", probe);
+//printk("probe=%p\n", probe);
 
 	if (probe == NULL) {
 		/*
@@ -10202,6 +10212,8 @@ dtrace_buffer_activate(dtrace_state_t *state)
 	dtrace_buffer_t *buf;
 	dtrace_icookie_t cookie = dtrace_interrupt_disable();
 
+HERE();
+printk("CPU->cpu_id=%d\n", CPU->cpu_id);
 	buf = &state->dts_buffer[CPU->cpu_id];
 
 	if (buf->dtb_tomax != NULL) {
@@ -10331,14 +10343,16 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 	caddr_t tomax;
 	size_t total;
 
-//HERE();
+HERE();
 	if (buf->dtb_flags & DTRACEBUF_INACTIVE)
 		return (-1);
 
+HERE();
 	if ((tomax = buf->dtb_tomax) == NULL) {
 		dtrace_buffer_drop(buf);
 		return (-1);
 	}
+HERE();
 
 	if (!(buf->dtb_flags & (DTRACEBUF_RING | DTRACEBUF_FILL))) {
 		while (offs & (align - 1)) {
@@ -10351,6 +10365,7 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 			DTRACE_STORE(uint32_t, tomax, offs, DTRACE_EPIDNONE);
 			offs += sizeof (uint32_t);
 		}
+HERE();
 
 		if ((soffs = offs + needed) > buf->dtb_size) {
 			dtrace_buffer_drop(buf);
@@ -10366,6 +10381,7 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 
 		return (offs);
 	}
+HERE();
 
 	if (buf->dtb_flags & DTRACEBUF_FILL) {
 		if (state->dts_activity != DTRACE_ACTIVITY_COOLDOWN &&
@@ -10373,6 +10389,7 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 			return (-1);
 		goto out;
 	}
+HERE();
 
 	total = needed + (offs & (align - 1));
 
@@ -10927,8 +10944,8 @@ printk("dten_ndesc=%d\n", enab->dten_ndesc);
 		enab->dten_error = 0;
 HERE();
 		matched += dtrace_probe_enable(&ep->dted_probe, enab);
-printk("matched=%d\n", matched);
-HERE();
+//printk("matched=%d\n", matched);
+//HERE();
 
 		if (enab->dten_error != 0) {
 			/*
@@ -12355,7 +12372,6 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 	if (devp != NULL)
 		*devp = state->dts_dev;
 # else
-	TODO();
         /*state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);*/
 
         state->dts_dev = (dev_t) fp;
@@ -12541,13 +12557,12 @@ HERE();
 	    (state == dtrace_anon.dta_state &&
 	    state->dts_activity == DTRACE_ACTIVITY_ACTIVE));
 
-HERE();
 	if (opt[which] == DTRACEOPT_UNSET || opt[which] == 0)
 		return (0);
 
 	if (opt[DTRACEOPT_CPU] != DTRACEOPT_UNSET)
 		cpu = opt[DTRACEOPT_CPU];
-printk("cpu=%d\n", cpu);
+printk("cpu=%d which=%d\n", cpu, which);
 cpu = 0;
 
 	if (which == DTRACEOPT_SPECSIZE)
@@ -12564,6 +12579,7 @@ cpu = 0;
 		if (state != dtrace_anon.dta_state ||
 		    state->dts_activity != DTRACE_ACTIVITY_ACTIVE)
 			flags |= DTRACEBUF_INACTIVE;
+printk("flags=%x state=%p %p %x %x\n", flags, state, dtrace_anon.dta_state, state->dts_activity, DTRACE_ACTIVITY_ACTIVE);
 	}
 
 	for (size = opt[which]; size >= sizeof (uint64_t); size >>= 1) {
@@ -12585,8 +12601,8 @@ cpu = 0;
 		}
 
 HERE();
-printk("cpu=%d\n", cpu);
-		rval = dtrace_buffer_alloc(buf, size, flags, cpu);
+		rval = dtrace_buffer_alloc(buf, (size_t) size, flags, cpu);
+printk("cpu=%d size=0x%x rval=%d\n", cpu, (size_t) size, rval);
 HERE();
 
 		if (rval != ENOMEM) {
@@ -13014,8 +13030,10 @@ dtrace_state_option(dtrace_state_t *state, dtrace_optid_t option,
 	if (option != DTRACEOPT_CPU && val < 0)
 		return (EINVAL);
 
+HERE();
 	switch (option) {
 	case DTRACEOPT_DESTRUCTIVE:
+PRINT_CASE(DTRACEOPT_DESTRUCTIVE);
 		if (dtrace_destructive_disallow)
 			return (EACCES);
 
@@ -13027,6 +13045,7 @@ dtrace_state_option(dtrace_state_t *state, dtrace_optid_t option,
 	case DTRACEOPT_AGGSIZE:
 	case DTRACEOPT_SPECSIZE:
 	case DTRACEOPT_STRSIZE:
+PRINT_CASE(DTRACEOPT_BUFSIZE);
 		if (val < 0)
 			return (EINVAL);
 
@@ -13049,6 +13068,8 @@ dtrace_state_option(dtrace_state_t *state, dtrace_optid_t option,
 		}
 	}
 
+HERE();
+printk("opt=%d val=%llx\n", option, val);
 	state->dts_options[option] = val;
 
 	return (0);
@@ -15273,8 +15294,8 @@ HERE();
 		dtrace_dof_destroy(dof);
 
 printk("err=%d rv=%d\n", err, *rv);
-//		if (err == 0)
-//			copy_to_user(arg , &rv, sizeof rv);
+		if (err == 0)
+			copy_to_user(arg, &rv, sizeof rv);
 
 		return err;
 	}
@@ -15364,7 +15385,7 @@ PRINT_CASE(DTRACEIOC_PROBES);
 			}
 
 		} else {
-printk("nprobes=%d\n", dtrace_nprobes);
+//printk("nprobes=%d\n", dtrace_nprobes);
 			for (i = desc.dtpd_id; i <= dtrace_nprobes; i++) {
 				if ((probe = dtrace_probes[i - 1]) != NULL &&
 				    dtrace_match_priv(probe, priv, uid, zoneid))
@@ -15520,6 +15541,7 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		} else {
 			buf = &state->dts_aggbuffer[desc.dtbd_cpu];
 		}
+printk("snap cpu=%d flags=%x\n", desc.dtbd_cpu, buf->dtb_flags);
 
 		if (buf->dtb_flags & (DTRACEBUF_RING | DTRACEBUF_FILL)) {
 			size_t sz = buf->dtb_offset;
@@ -15581,6 +15603,7 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		if (buf->dtb_tomax == NULL) {
 			ASSERT(buf->dtb_xamot == NULL);
 			mutex_exit(&dtrace_lock);
+HERE();
 			return (ENOENT);
 		}
 
@@ -15609,14 +15632,10 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		/*
 		 * We have our snapshot; now copy it out.
 		 */
-{unsigned char *cp = buf->dtb_xamot;
-int i = buf->dtb_xamot_offset;
-printk("cpu=%d copyout..%p offset=%d\n", desc.dtbd_cpu, cp, i);
-/*while (i-- > 0) {
-	printk("%02x ", *cp++);
-}
-*/
-}
+//{unsigned char *cp = buf->dtb_xamot;
+//int i = buf->dtb_xamot_offset;
+//printk("cpu=%d copyout..%p offset=%d\n", desc.dtbd_cpu, cp, i);
+//}
 		if (copyout(buf->dtb_xamot, desc.dtbd_data,
 		    buf->dtb_xamot_offset) != 0) {
 			mutex_exit(&dtrace_lock);
@@ -15633,9 +15652,9 @@ printk("cpu=%d copyout..%p offset=%d\n", desc.dtbd_cpu, cp, i);
 		/*
 		 * Finally, copy out the buffer description.
 		 */
+//dump_mem(&desc, sizeof desc);
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
 			return (EFAULT);
-HERE();
 		return (0);
 	}
 
@@ -15718,7 +15737,7 @@ printk("state=%d\n", state->dts_activity);
 		stat.dtst_errors = nerrs;
 
 		mutex_exit(&dtrace_lock);
-
+//dump_mem(&stat, sizeof stat);
 		if (copyout(&stat, (void *)arg, sizeof (stat)) != 0)
 			return (EFAULT);
 
@@ -15787,7 +15806,6 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 {
 	dtrace_state_t *state;
 
-HERE();
 # if defined(sun)
 	switch (cmd) {
 	case DDI_DETACH:
@@ -15816,7 +15834,6 @@ printk("dtrace_detach: dtrace_opens=%d\n", dtrace_opens);
 	}
 
 	if (dtrace_unregister((dtrace_provider_id_t)dtrace_provider) != 0) {
-HERE();
 		mutex_exit(&dtrace_provider_lock);
 		mutex_exit(&dtrace_lock);
 		mutex_exit(&cpu_lock);
@@ -15825,9 +15842,7 @@ HERE();
 
 	dtrace_provider = NULL;
 
-HERE();
 	if ((state = dtrace_anon_grab()) != NULL) {
-HERE();
 		/*
 		 * If there were ECBs on this state, the provider should
 		 * have not been allowed to detach; assert that there is

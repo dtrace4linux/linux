@@ -268,6 +268,9 @@ TODO();
 	}
 
 printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
+	if (strcmp(modname, "dtracedrv") == 0)
+		return;
+
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
@@ -281,8 +284,9 @@ printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
 		/***********************************************/
 		if (sym->st_info != 't' && sym->st_info != 'T')
 			continue;
-if (strstr(name, "init")) continue;
-printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
+
+//		if (strstr(name, "init")) 
+//			continue;
 //if (sym->st_info != 'T') {printk("skip -- %02d %c:%s\n", i, sym->st_info, name); continue;}
 
 #if 0
@@ -309,6 +313,9 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 			 */
 			continue;
 		}
+
+		if (strstr(name, "dtracedrv_") == name)
+			continue;
 
 		if (strstr(name, "kdi_") == name ||
 		    strstr(name, "kprobe") == name) {
@@ -362,18 +369,8 @@ printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 		 */
 		instr = (uint8_t *)sym->st_value;
 		limit = (uint8_t *)(sym->st_value + sym->st_size);
+printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 HERE();
-
-//printk("sym %d: %s ty=%x %p %p %d\n", i, name,sym->st_info, instr, limit, sym->st_size);
-/*		{mm_segment_t fs = get_fs();
-		set_fs(KERNEL_DS);
-		if (!access_ok(VERIFY_READ, instr, limit - instr)) {
-			set_fs(fs);
-			continue;
-			}
-		set_fs(fs);
-		}
-*/
 
 # if 0
 	/***********************************************/
@@ -398,9 +395,9 @@ HERE();
 		}
 # endif
 
-#ifdef __amd64
 		if (!validate_ptr(instr))
 			continue;
+#ifdef __amd64
 
 		while (instr < limit) {
 			if (*instr == FBT_PUSHL_EBP)
@@ -423,7 +420,14 @@ HERE();
 			continue;
 		}
 #else
-HERE();
+HERE(); printk("instr %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
+# if 0
+	/***********************************************/
+	/*   GCC    generates   lots   of   different  */
+	/*   assembler  functions plus we have inline  */
+	/*   assembler  to  deal with - so we disable  */
+	/*   this for now.			       */
+	/***********************************************/
 		if (instr[0] != FBT_PUSHL_EBP)
 			continue;
 
@@ -432,7 +436,9 @@ HERE();
 		    !(instr[1] == FBT_MOVL_ESP_EBP0_V1 &&
 		    instr[2] == FBT_MOVL_ESP_EBP1_V1))
 			continue;
+# endif
 #endif
+HERE();
 
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		
@@ -451,6 +457,7 @@ HERE();
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 		pmp->fbt_nentries++;
+HERE();
 
 		retfbt = NULL;
 again:

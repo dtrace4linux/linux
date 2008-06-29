@@ -1,0 +1,4 @@
+syscall::open:
+{
+	trace(timestamp);
+}

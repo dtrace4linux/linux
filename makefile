@@ -36,6 +36,7 @@ release:
 		--exclude=.*.cmd \
 		--exclude=*.mod.c \
 		--exclude=dtrace/dtrace \
+		--exclude=libdtrace/common/dt_grammar.h \
 		--exclude=.tmp_versions \
 		--exclude=Module.symvers \
 		--exclude=*.ko \

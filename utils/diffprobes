@@ -1,0 +1,10 @@
+#! /bin/sh
+
+# compare the output of dtrace -l, because we keep getting random
+# differences and I need to debug this.
+
+sed -e 's/^ *[0-9][0-9]* *//' < /tmp/probes.current | awk '{printf "%s:%s:%s\n", $1, $2, $3; }' | sort > /tmp/current
+sed -e 's/^ *[0-9][0-9]* *//' < /tmp/probes.prev | awk '{printf "%s:%s:%s\n", $1, $2, $3; }' | sort > /tmp/prev
+
+sdiff /tmp/current /tmp/prev
+

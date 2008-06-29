@@ -1,3 +1,7 @@
+Mon Jun 30 20:50:07 2008  fox
+
+      45* cyclic_linux.c: Enable linux cyclic timer code.
+
 Sun Jun 29 11:50:58 2008  fox
 
       44* Archive: 1.0030

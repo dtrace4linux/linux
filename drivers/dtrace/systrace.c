@@ -83,7 +83,7 @@ static char *syscallnames[] = {
 # include <asm/unistd.h>
 # endif
 
-# if __i386
+# if defined(__i386)
 # include	"syscalls-x86.tbl"
 # else
 # include	"syscalls-x86-64.tbl"
@@ -127,19 +127,32 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
         systrace_sysent_t *sy;
         dtrace_id_t id;
         int64_t rval;
+	void **ptr = &arg0;
 
-{int i; 
-long *ptr = &arg0;
-for (i = 0; i < 20; i++) {
-printk("stack[%d] = %p\n", i, ptr[i]);
-}
-# if __i386
-syscall = ptr[6]; // horrid hack
+	/***********************************************/
+	/*   Following   useful   to  help  find  the  */
+	/*   syscall arg on the stack.		       */
+	/***********************************************/
+	if (0) {
+		int i; 
+		for (i = 0; i < 20; i++) {
+			printk("stack[%d] = %p\n", i, ptr[i]);
+		}
+	}
+
+	/***********************************************/
+	/*   We  need to use the appropriate framereg  */
+	/*   struct,  but  I  havent been bothered to  */
+	/*   dig  it out. These magic offsets seem to  */
+	/*   work.				       */
+	/***********************************************/
+# if defined(__i386)
+	syscall = ptr[6]; // horrid hack
 # else
-syscall = ptr[12]; // horrid hack
+	syscall = ptr[12]; // horrid hack
 # endif
         sy = &systrace_sysent[syscall];
-}
+
 printk("syscall=%d %s current=%p syscall=%d\n", syscall, 
 	syscall >= 0 && syscall < NSYSCALL ? syscallnames[syscall] : "dont-know", 
 	get_current(), linux_get_syscall());
@@ -166,15 +179,15 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
 
         rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
 
-HERE();
-printk("syscall returns %d\n", rval);
+//HERE();
+//printk("syscall returns %d\n", rval);
 # if defined(TODOxxx)
         if (ttolwp(curthread)->lwp_errno != 0)
                 rval = -1;
 # endif
 
         if ((id = sy->stsy_return) != DTRACE_IDNONE) {
-HERE();
+//HERE();
                 (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
 		}
@@ -308,7 +321,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 		systrace_sysent[sysnum].stsy_return = id;
 	}
 
-#if __i386
+#if defined(__i386)
 	/***********************************************/
 	/*   The  x86  kernel  will  page protect the  */
 	/*   sys_call_table  and panic if we write to  */

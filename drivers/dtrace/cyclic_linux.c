@@ -25,7 +25,7 @@
 # define	CYCLIC_LINUX	1
 # define	CYCLIC_DUMMY	2
 
-# define MODE CYCLIC_DUMMY
+# define MODE CYCLIC_LINUX
 
 # if MODE == CYCLIC_SUN
 // needed if we go the Sun route..

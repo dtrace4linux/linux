@@ -1,0 +1,8 @@
+syscall:::entry
+{
+	@func[execname] = count();
+}
+END
+{
+	printa(@func);
+}

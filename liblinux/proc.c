@@ -59,7 +59,7 @@ fork1() { printf("proc-stub:%s\n", __func__); }
 int modctl() { printf("proc-stub:%s\n", __func__); return -1; }
 int p_online(int processorid, int flag) 
 {
-	printf("proc-stub:%s: processorid=%d flag=%d\n", __func__, processorid, flag); 
+//	printf("proc-stub:%s: processorid=%d flag=%d\n", __func__, processorid, flag); 
 	return 2; // P_ONLINE
 }
 pr_close() { printf("proc-stub:%s\n", __func__); }

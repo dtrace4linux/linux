@@ -3228,7 +3228,7 @@ PRINT_CASE(DIF_SUBR_COPYINTO);
 		uintptr_t dest = mstate->dtms_scratch_ptr;
 		uint64_t size = state->dts_options[DTRACEOPT_STRSIZE];
 
-PRINT_CASE(DTRACEOPT_STRSIZE);
+PRINT_CASE(DIF_SUBR_COPYINSTR);
 		if (nargs > 1 && tupregs[1].dttk_value < size)
 			size = tupregs[1].dttk_value + 1;
 
@@ -6792,7 +6792,7 @@ dtrace_match(const dtrace_probekey_t *pkp, uint32_t priv, uid_t uid,
 	dtrace_id_t i;
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
-printk("dtrace_match: pkp=%p prv=%ld uid=%d matched=%x arg=%x\n", pkp, priv, uid, matched, arg);
+printk("dtrace_match: pkp=%p prv=%d uid=%d matched=%x arg=%x\n", pkp, priv, uid, matched, arg);
 	/*
 	 * If the probe ID is specified in the key, just lookup by ID and
 	 * invoke the match callback once if a matching probe is found.
@@ -10343,16 +10343,13 @@ dtrace_buffer_reserve(dtrace_buffer_t *buf, size_t needed, size_t align,
 	caddr_t tomax;
 	size_t total;
 
-HERE();
 	if (buf->dtb_flags & DTRACEBUF_INACTIVE)
 		return (-1);
 
-HERE();
 	if ((tomax = buf->dtb_tomax) == NULL) {
 		dtrace_buffer_drop(buf);
 		return (-1);
 	}
-HERE();
 
 	if (!(buf->dtb_flags & (DTRACEBUF_RING | DTRACEBUF_FILL))) {
 		while (offs & (align - 1)) {
@@ -10365,7 +10362,6 @@ HERE();
 			DTRACE_STORE(uint32_t, tomax, offs, DTRACE_EPIDNONE);
 			offs += sizeof (uint32_t);
 		}
-HERE();
 
 		if ((soffs = offs + needed) > buf->dtb_size) {
 			dtrace_buffer_drop(buf);
@@ -10381,7 +10377,6 @@ HERE();
 
 		return (offs);
 	}
-HERE();
 
 	if (buf->dtb_flags & DTRACEBUF_FILL) {
 		if (state->dts_activity != DTRACE_ACTIVITY_COOLDOWN &&
@@ -10389,7 +10384,6 @@ HERE();
 			return (-1);
 		goto out;
 	}
-HERE();
 
 	total = needed + (offs & (align - 1));
 
@@ -15274,7 +15268,6 @@ HERE();
 		}
 
 		if ((rval = dtrace_dof_options(dof, state)) != 0) {
-HERE();
 			dtrace_enabling_destroy(enab);
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&cpu_lock);
@@ -15283,19 +15276,18 @@ HERE();
 		}
 
                 if ((err = dtrace_enabling_match(enab, rv)) == 0) {
-HERE();
                         err = dtrace_enabling_retain(enab);
                 } else {
                         dtrace_enabling_destroy(enab);
                 }
-HERE();
+
 		mutex_exit(&cpu_lock);
 		mutex_exit(&dtrace_lock);
 		dtrace_dof_destroy(dof);
 
 printk("err=%d rv=%d\n", err, *rv);
 		if (err == 0)
-			copy_to_user(arg, &rv, sizeof rv);
+			copy_to_user((void *) arg, &rv, sizeof rv);
 
 		return err;
 	}
@@ -15541,7 +15533,7 @@ PRINT_CASE(DTRACEIOC_BUFSNAP);
 		} else {
 			buf = &state->dts_aggbuffer[desc.dtbd_cpu];
 		}
-printk("snap cpu=%d flags=%x\n", desc.dtbd_cpu, buf->dtb_flags);
+//printk("snap cpu=%d flags=%x\n", desc.dtbd_cpu, buf->dtb_flags);
 
 		if (buf->dtb_flags & (DTRACEBUF_RING | DTRACEBUF_FILL)) {
 			size_t sz = buf->dtb_offset;

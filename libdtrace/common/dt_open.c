@@ -782,6 +782,26 @@ dt_vopen(int version, int flags, int *errp,
 	dt_provmod_t *provmod = NULL;
 	int i, err;
 	struct rlimit rl;
+	int	fake = 0;
+
+	char	*dtrace_dev = "/dev/dtrace";
+	char	*fasttrap_dev = "/dev/fasttrap";
+
+	if (getenv("DTRACE_DEV"))
+		dtrace_dev = getenv("DTRACE_DEV");
+	if (getenv("DTRACE_DEV"))
+		fasttrap_dev = getenv("DTRACE_FASTTRAP");
+
+	/***********************************************/
+	/*   Allow  us to run dtrace, e.g. for script  */
+	/*   validation,    on   a   system   without  */
+	/*   /dev/dtrace.			       */
+	/***********************************************/
+	if (getenv("DTRACE_FAKE")) {
+		fake = 1;
+		dtrace_dev = "/dev/null";
+		fasttrap_dev = "/dev/null";
+		}
 
 	const dt_intrinsic_t *dinp;
 	const dt_typedef_t *dtyp;
@@ -802,7 +822,7 @@ dt_vopen(int version, int flags, int *errp,
 	if (version > DTRACE_VERSION)
 		return (set_open_errno(dtp, errp, EDT_VERSION));
 
-	if (version < DTRACE_VERSION) {
+	if (version < DTRACE_VERSION && !fake) {
 		/*
 		 * Currently, increasing the library version number is used to
 		 * denote a binary incompatible change.  That is, a consumer
@@ -855,14 +875,14 @@ dt_vopen(int version, int flags, int *errp,
 	dt_provmod_open(&provmod, &df);
 
 # if linux
-	dtfd = open("/dev/dtrace", O_RDWR);
+	dtfd = open(dtrace_dev, O_RDWR);
 # else
 	dtfd = open("/dev/dtrace/dtrace", O_RDWR);
 # endif
 	err = errno; /* save errno from opening dtfd */
 
 # if linux
-	ftfd = open("/dev/fasttrap", O_RDWR);
+	ftfd = open(fasttrap_dev, O_RDWR);
 # else
 	ftfd = open("/dev/dtrace/provider/fasttrap", O_RDWR);
 # endif
@@ -959,7 +979,7 @@ alloc:
 
 	if (flags & DTRACE_O_NODEV)
 		bcopy(&_dtrace_conf, &dtp->dt_conf, sizeof (_dtrace_conf));
-	else if (dt_ioctl(dtp, DTRACEIOC_CONF, &dtp->dt_conf) != 0)
+	else if (dt_ioctl(dtp, DTRACEIOC_CONF, &dtp->dt_conf) != 0 && !fake)
 		return (set_open_errno(dtp, errp, errno));
 
 	if (flags & DTRACE_O_LP64)
@@ -995,7 +1015,7 @@ alloc:
 	}
 #endif
 
-	if (dtp->dt_conf.dtc_difversion < DIF_VERSION)
+	if (dtp->dt_conf.dtc_difversion < DIF_VERSION && !fake)
 		return (set_open_errno(dtp, errp, EDT_DIFVERS));
 
 	if (dtp->dt_conf.dtc_ctfmodel == CTF_MODEL_ILP32)

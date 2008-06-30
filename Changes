@@ -1,3 +1,16 @@
+Tue Jul  1 21:53:15 2008  fox
+
+      49* dt_lex.l: Lets hope this works because I am mightily sick
+         of flex - getting it to work on all platforms. Its an
+	 embarrassment.
+
+      48* Archive: 1.0031
+
+      47* put dtrace binary in build/ directory.
+
+      46* dt_lex.l, makefile, dt_impl.h: Get lex to build us properly so
+          we can parse the scripts.
+
 Mon Jun 30 20:50:07 2008  fox
 
       45* cyclic_linux.c: Enable linux cyclic timer code.

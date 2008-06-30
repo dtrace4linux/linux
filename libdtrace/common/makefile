@@ -32,7 +32,9 @@ H = \
 
 all: $(LIB)
 
-$(LIB): $(LIB)(dt_aggregate.o) \
+$(LIB): \
+	$(LIB)(dt_lex.o) \
+	$(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_as.o) \
 	$(LIB)(dt_buf.o) \
 	$(LIB)(dt_cc.o) \
@@ -47,7 +49,6 @@ $(LIB): $(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_handle.o) \
 	$(LIB)(dt_ident.o) \
 	$(LIB)(dt_inttab.o) \
-	$(LIB)(dt_lex.o) \
 	$(LIB)(dt_list.o) \
 	$(LIB)(dt_link.o) \
 	$(LIB)(dt_module.o) \
@@ -87,10 +88,10 @@ dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H)
 #dt_grammar.h: $(LIB)(dt_grammar.o)
 
 $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
-	lex -l -t -v dt_lex.l > dt_lex.c
+	lex -t -v dt_lex.l > dt_lex.c
 	$(CC) $(CPPFLAGS) -c dt_lex.c
 	ar rv $(LIB) dt_lex.o
-	-rm -f dt_lex.c dt_lex.o
+	-rm -f dt_lex.o
 
 clean:
 	-rm -f *.o *.a

@@ -7,13 +7,13 @@ LIBS = \
 	$(BINDIR)/libdtrace.a \
 	$(BINDIR)/libproc.a
 
-COMPILE = $(CC) $(CFLAGS) -o dtrace \
+COMPILE = $(CC) $(CFLAGS) -o $(BINDIR)/dtrace \
 		-L../../build \
-		dtrace.o -ldtrace -lctf -llinux -lz -lrt -lpthread $$libelf -ldl
+		$(BINDIR)/dtrace.o -ldtrace -lctf -llinux -lz -lrt -lpthread $$libelf -ldl
 
-all:	dtrace
+all:	$(BINDIR)/dtrace
 
-dtrace: dtrace.o $(LIBS)
+$(BINDIR)/dtrace: $(BINDIR)/dtrace.o $(LIBS)
 	@libelf=$(LIBELF) ; \
 	if [ -f /usr/lib64/libelf.so.1 ]; then \
 		libelf=/usr/lib64/libelf.so.1 ; \
@@ -23,7 +23,7 @@ dtrace: dtrace.o $(LIBS)
 	echo $(COMPILE) ; \
 	$(COMPILE)
 
-dtrace.o: dtrace.c
+$(BINDIR)/dtrace.o: dtrace.c
 	$(CC) $(CFLAGS) -c \
 		-I../../uts/common \
 		-I../../libctf \
@@ -31,6 +31,7 @@ dtrace.o: dtrace.c
 		-I../../libproc/common \
 		-I../../linux \
 		dtrace.c
+	mv dtrace.o $(BINDIR)
 
 test:
 	./dtrace -x nolibs -n BEGIN -e -S

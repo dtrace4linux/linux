@@ -16,8 +16,8 @@ ceab99d8 size=49      mtime=1212276076 ./dt1
 3b7a929a size=29      mtime=1211818650 ./dt3
 9791213c size=340     mtime=1213400039 ./dt4
 0fe77a92 size=80      mtime=1213562488 ./dt5
-a8c03628 size=38      mtime=1214860741 ./dt6
-caa7190b size=72      mtime=1214860742 ./dt7
+a8c03628 size=38      mtime=1214861625 ./dt6
+caa7190b size=72      mtime=1214861626 ./dt7
 47f1f158 size=409100  mtime=1214861243 ./dtrace.c
 49e9c52f size=5983    mtime=1214745687 ./dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./dtrace_asm.s
@@ -38,6 +38,7 @@ ccc7df77 size=7109    mtime=1210512452 ./opensnoop
 8bec2e2c size=13458   mtime=1213561776 ./profile.c
 a416564e size=9430    mtime=1212446320 ./sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./sdt_subr.c
-64fda882 size=25390   mtime=1214132614 ./syscalls-x86-64.tbl
+64fda882 size=25390   mtime=1214949814 ./syscalls-x86-64.tbl
+dc626164 size=80      mtime=1214900692 ./syscalls-x86.tbl
 b5dd20bb size=13619   mtime=1214860949 ./systrace.c
 b69bbf60 size=1111    mtime=1212275983 ./uncompress.c

@@ -1,5 +1,9 @@
 #! /bin/make
 
+# Makefile for dtrace. Everything is put into the build/ dir
+# (well, nearly). Kernel litters the source directory, but dtrace
+# the userland binary is in build/
+
 rel=`date +%Y%m%d`
 
 MAKEFLAGS += --no-print-directory
@@ -37,6 +41,7 @@ release:
 		--exclude=*.mod.c \
 		--exclude=dtrace/dtrace \
 		--exclude=libdtrace/common/dt_grammar.h \
+		--exclude=libdtrace/common/dt_lex.c \
 		--exclude=.tmp_versions \
 		--exclude=Module.symvers \
 		--exclude=*.ko \
@@ -86,6 +91,13 @@ clean:
 		cd drivers/$$i ; make clean ; \
 		cd ../.. ; \
 	done
+
+newf:
+	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \
+		grep -v ./build | grep -v ./tags | \
+		grep -v ./cmd/dtrace/dtrace$$ | \
+		grep -v dt_grammar.h | \
+		grep -v '\.o$$'`
 
 ######################################################################
 #   Load  the driver -- we chmod 666 til i work out how to make the  #

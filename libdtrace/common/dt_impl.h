@@ -625,7 +625,11 @@ extern dt_pcb_t *yypcb;		/* pointer to current parser control block */
 extern char yyintprefix;	/* int token prefix for macros (+/-) */
 extern char yyintsuffix[4];	/* int token suffix ([uUlL]*) */
 extern int yyintdecimal;	/* int token is decimal (1) or octal/hex (0) */
+# if defined(sun)
 extern char yytext[];		/* lex input buffer */
+# else
+extern char *yytext;		/* lex input buffer */
+# endif
 extern int yylineno;		/* lex line number */
 extern int yydebug;		/* lex debugging */
 extern dt_node_t *yypragma;	/* lex token list for control lines */

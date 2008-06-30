@@ -1,6 +1,6 @@
 1530b884 size=72      mtime=1209304719 ./.gdbinit
-b7e72efa size=66      mtime=1214512637 ./.ignore
-0c590988 size=6024    mtime=1214855415 ./Changes
+6834b4e7 size=89      mtime=1214949214 ./.ignore
+3f1c3d2b size=6242    mtime=1214945642 ./Changes
 fed0c352 size=18945   mtime=1106593216 ./LICENSING.NOTICE
 faf39f64 size=605     mtime=1212185998 ./Packages
 ddfd33d1 size=3366    mtime=1213907614 ./README
@@ -88,7 +88,7 @@ c9d1d651 size=1004    mtime=1207686227 ./cmd/dtrace/demo/user/libc.d
 c7332e52 size=1276    mtime=1207686227 ./cmd/dtrace/demo/vars/rtime.d
 bba528b1 size=1576    mtime=1207686227 ./cmd/dtrace/demo/vminfo/soffice.d
 c4407504 size=47955   mtime=1214855271 ./cmd/dtrace/dtrace.c
-38fe15d8 size=796     mtime=1213740109 ./cmd/dtrace/makefile
+31e61084 size=879     mtime=1214941342 ./cmd/dtrace/makefile
 118f26ce size=801     mtime=1106592642 ./cmd/intrstat/Makefile
 0cba365e size=801     mtime=1106592642 ./cmd/intrstat/Makefile.com
 e9a8ff89 size=440     mtime=1106592642 ./cmd/intrstat/amd64/Makefile
@@ -122,7 +122,7 @@ d1e21501 size=2694    mtime=1212268299 ./common/ctf/ctf_util.c
 58b2be42 size=28236   mtime=1213561418 ./doc/porting-guide.txt
 dfd143c2 size=3598    mtime=1214145469 ./drivers/checksum.lst
 1408185d size=1275    mtime=1214165590 ./drivers/dtrace/Makefile
-afa00028 size=2132    mtime=1214854505 ./drivers/dtrace/checksum.lst
+12fd5da5 size=2280    mtime=1214949927 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 6bd2482c size=7768    mtime=1209976636 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -140,7 +140,9 @@ ceab99d8 size=49      mtime=1212276076 ./drivers/dtrace/dt1
 3b7a929a size=29      mtime=1211818650 ./drivers/dtrace/dt3
 9791213c size=340     mtime=1213400039 ./drivers/dtrace/dt4
 0fe77a92 size=80      mtime=1213562488 ./drivers/dtrace/dt5
-be1af3d0 size=409099  mtime=1214855256 ./drivers/dtrace/dtrace.c
+a8c03628 size=38      mtime=1214861625 ./drivers/dtrace/dt6
+caa7190b size=72      mtime=1214861626 ./drivers/dtrace/dt7
+47f1f158 size=409100  mtime=1214861243 ./drivers/dtrace/dtrace.c
 49e9c52f size=5983    mtime=1214745687 ./drivers/dtrace/dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./drivers/dtrace/dtrace_asm.s
 d3b1f184 size=16544   mtime=1214746375 ./drivers/dtrace/dtrace_isa.c
@@ -160,8 +162,9 @@ ccc7df77 size=7109    mtime=1210512452 ./drivers/dtrace/opensnoop
 8bec2e2c size=13458   mtime=1213561776 ./drivers/dtrace/profile.c
 a416564e size=9430    mtime=1212446320 ./drivers/dtrace/sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./drivers/dtrace/sdt_subr.c
-64fda882 size=25390   mtime=1214132614 ./drivers/dtrace/syscalls-x86-64.tbl
-46cad7c1 size=13112   mtime=1214854079 ./drivers/dtrace/systrace.c
+64fda882 size=25390   mtime=1214950806 ./drivers/dtrace/syscalls-x86-64.tbl
+dc626164 size=80      mtime=1214900692 ./drivers/dtrace/syscalls-x86.tbl
+b5dd20bb size=13619   mtime=1214860949 ./drivers/dtrace/systrace.c
 b69bbf60 size=1111    mtime=1212275983 ./drivers/dtrace/uncompress.c
 00000000 size=0       mtime=1207475588 ./drivers/include/features.h
 00000000 size=0       mtime=1207490163 ./drivers/include/sys/atomic.h
@@ -181,7 +184,7 @@ a3b5f536 size=13646   mtime=1214744473 ./drivers/include/sys/stdint.h
 03ac63a7 size=2603    mtime=1212251924 ./drivers/include/sys/types32.h
 00000000 size=0       mtime=1207492694 ./drivers/include/sys/zone.h
 00000000 size=0       mtime=1207475599 ./drivers/include/zone.h
-4d16c9c4 size=520     mtime=1214145463 ./drivers/make-me
+e008988f size=601     mtime=1214899984 ./drivers/make-me
 f226f35f size=146     mtime=1210013845 ./drivers/makefile
 a10ad157 size=308     mtime=1213736388 ./libctf/checksum.lst
 b720957c size=12868   mtime=1207775958 ./libctf/ctf_lib.c
@@ -213,10 +216,10 @@ aa9ebc33 size=7809    mtime=1210534719 ./libdtrace/common/dt_error.c
 78d877d0 size=11852   mtime=1210534739 ./libdtrace/common/dt_handle.c
 ca23dbf0 size=26658   mtime=1210534747 ./libdtrace/common/dt_ident.c
 4d14a7c7 size=7992    mtime=1210534753 ./libdtrace/common/dt_ident.h
-d155bd54 size=29933   mtime=1210534767 ./libdtrace/common/dt_impl.h
+c4b4700b size=30011   mtime=1214945785 ./libdtrace/common/dt_impl.h
 f9c65abb size=2635    mtime=1210534778 ./libdtrace/common/dt_inttab.c
 61c1a8e1 size=2345    mtime=1210534778 ./libdtrace/common/dt_inttab.h
-e64093c1 size=23585   mtime=1210710697 ./libdtrace/common/dt_lex.l
+f612f40e size=24535   mtime=1214950915 ./libdtrace/common/dt_lex.l
 73dd628b size=42967   mtime=1210535609 ./libdtrace/common/dt_link.c
 ec39e5c4 size=2751    mtime=1210534806 ./libdtrace/common/dt_list.c
 b068143b size=1567    mtime=1210534806 ./libdtrace/common/dt_list.h
@@ -224,7 +227,7 @@ b068143b size=1567    mtime=1210534806 ./libdtrace/common/dt_list.h
 c6039f8c size=34009   mtime=1210535001 ./libdtrace/common/dt_module.c
 1b6d5769 size=1799    mtime=1210534989 ./libdtrace/common/dt_module.h
 5fa545c2 size=2336    mtime=1210537492 ./libdtrace/common/dt_names.c
-1947f08c size=52353   mtime=1210625337 ./libdtrace/common/dt_open.c
+37d21e9c size=52940   mtime=1214900688 ./libdtrace/common/dt_open.c
 7f03932f size=23031   mtime=1210534855 ./libdtrace/common/dt_options.c
 f319e49b size=140198  mtime=1210533711 ./libdtrace/common/dt_parser.c
 c7b846e9 size=11375   mtime=1210534946 ./libdtrace/common/dt_parser.h
@@ -235,7 +238,7 @@ f16cdaf8 size=4498    mtime=1210535024 ./libdtrace/common/dt_pcb.h
 4771a0bb size=13759   mtime=1210534936 ./libdtrace/common/dt_pragma.c
 378d7213 size=51070   mtime=1210535668 ./libdtrace/common/dt_printf.c
 78460c83 size=5002    mtime=1210534844 ./libdtrace/common/dt_printf.h
-1152d1b6 size=34267   mtime=1210534929 ./libdtrace/common/dt_proc.c
+ef956fa4 size=34276   mtime=1214950110 ./libdtrace/common/dt_proc.c
 96d72759 size=4624    mtime=1210534910 ./libdtrace/common/dt_proc.h
 07bc8866 size=14073   mtime=1213825360 ./libdtrace/common/dt_program.c
 af7cfe36 size=1919    mtime=1210534900 ./libdtrace/common/dt_program.h
@@ -257,7 +260,7 @@ e5beba6b size=2001    mtime=1210534482 ./libdtrace/common/io.sed.in
 fe22e36c size=1104    mtime=1210534482 ./libdtrace/common/ip.d.in
 7c9ef8f0 size=1447    mtime=1210534482 ./libdtrace/common/ip.sed.in
 695e30c7 size=1051    mtime=1210534530 ./libdtrace/common/llib-ldtrace
-316b6c8c size=2111    mtime=1214145155 ./libdtrace/common/makefile
+838d60a1 size=2102    mtime=1214949205 ./libdtrace/common/makefile
 8306bae8 size=1321    mtime=1210534505 ./libdtrace/common/mkerrno.sh
 8be668f6 size=1547    mtime=1210534505 ./libdtrace/common/mkerrtags.sh
 b7aee578 size=1474    mtime=1210537459 ./libdtrace/common/mknames.sh
@@ -424,7 +427,7 @@ be00dda8 size=4354    mtime=1214159231 ./linux/sys/stack.h
 3c180ec7 size=644     mtime=1208808217 ./linux/sys/vmem.h
 58df35a2 size=16      mtime=1207260090 ./linux/sys/zmod.h
 2bf60cb4 size=353     mtime=1212259111 ./linux/zone.h
-c52da954 size=2647    mtime=1214854050 ./makefile
+18ab719a size=3037    mtime=1214949227 ./makefile
 32fa6128 size=1597    mtime=1214132701 ./tools/mksyscall.pl
 3df7ad38 size=111     mtime=1213132025 ./utils/README
 aa001535 size=4776    mtime=1213131995 ./utils/asm

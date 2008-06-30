@@ -350,7 +350,7 @@ dt_proc_attach(dt_proc_t *dpr, int exec)
 		dt_proc_rdwatch(dpr, RD_DLACTIVITY, "RD_DLACTIVITY");
 	} else {
 		dt_dprintf("pid %d: failed to enable rtld events: %s\n",
-		    (int)dpr->dpr_pid, dpr->dpr_rtld ? rd_errstr(err) :
+		    (int)dpr->dpr_pid, dpr->dpr_rtld ? (char *) rd_errstr(err) :
 		    "rtld_db agent initialization failed");
 	}
 

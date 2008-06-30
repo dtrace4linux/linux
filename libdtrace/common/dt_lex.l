@@ -41,10 +41,11 @@
  * We need to undefine lex's input and unput macros so that references to these
  * call the functions provided at the end of this source file.
  */
-#if defined(sun)
-#undef input
-#undef unput
-#else
+# undef unput
+# undef input
+
+void unput(int c);
+
 /* 
  * Define YY_INPUT for flex since input() can't be re-defined.
  */
@@ -60,15 +61,8 @@
 			buf[n] = *yypcb->pcb_strptr++; \
 		result = n; \
 	}
-#endif
 
 static int id_or_type(const char *);
-#if 1 || defined(sun)
-# undef input
-# undef unput
-static int input(void);
-static void unput(int);
-#endif
 
 /*
  * We first define a set of labeled states for use in the D lexer and then a
@@ -81,7 +75,6 @@ static void unput(int);
  * S4 - D control line scan (locate control directives only and invoke S3)
  */
 %}
-
 %e 1500		/* maximum nodes */
 %p 3700		/* maximum positions */
 %n 600		/* maximum states */
@@ -719,15 +712,12 @@ yybegin(yystate_t state)
 void
 yyinit(dt_pcb_t *pcb)
 {
-# if 0 && linux
-	yy_switch_to_buffer(yy_create_buffer(yyin, YY_BUF_SIZE));
-# endif
 
 	yypcb = pcb;
 	yylineno = 1;
 	yypragma = NULL;
 
-#if 1 || defined(sun)
+#if YY_FLEX_SUBMINOR_VERSION >= 33 || defined(sun)
 	yysptr = yysbuf;
 # endif
 }
@@ -825,15 +815,14 @@ id_or_type(const char *s)
 	return (ttok);
 }
 
-# if 1 || defined(sun)
-static int
+int
 input(void)
 {
 	int c;
 
-	if (yysptr > yysbuf)
+/*	if (yysptr > yysbuf)
 		c = *--yysptr;
-	else if (yypcb->pcb_fileptr != NULL)
+	else */ if (yypcb->pcb_fileptr != NULL)
 		c = fgetc(yypcb->pcb_fileptr);
 	else if (yypcb->pcb_strptr < yypcb->pcb_string + yypcb->pcb_strlen)
 		c = *yypcb->pcb_strptr++;
@@ -858,16 +847,41 @@ input(void)
 	return (0); /* EOF */
 }
 
-static void
+/**********************************************************************/
+/*   I  dont  understand  the Sun & Apple code & FreeBSD code - they  */
+/*   all  look wrong, but the versions of flex are sooo huge. I hate  */
+/*   flex and lex. Always have and always will.			      */
+/*   								      */
+/*   Look  -  the  converse  to input() is unput(), but we are using  */
+/*   YY_INPUT,  so  how  can  we  do lookahead via a different input  */
+/*   stream? This is definitely broken.				      */
+/*   								      */
+/*   Why  does flex 2.5.31 and 2.5.33 differ so much? How many years  */
+/*   has  it  been  out?  Why does yysptr not exist? Who knows. This  */
+/*   wants  rewriting all of it, in plain C, and get rid of the flex  */
+/*   dependency.						      */
+/**********************************************************************/
+void
 unput(int c)
 {
 	if (c == '\n')
 		yylineno--;
 
+# if 0
+	if (yypcb->pcb_fileptr)
+		ungetc(c, yypcb->pcb_fileptr);
+	else if (yypcb->pcb_strptr > yypcb->pcb_string)
+		yypcb->pcb_strptr--;
+	else {
+		/***********************************************/
+		/*   Panic				       */
+		/***********************************************/
+		printf("Lex panic!\n");
+		}
 	*yysptr++ = c;
+# endif
 # if defined(sun)
 	yytchar = c;
 # endif
 }
-#endif
 

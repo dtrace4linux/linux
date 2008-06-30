@@ -53,5 +53,6 @@ pname=`date +/tmp/probes-%Y%m%d-%H:%M`
 if [ -f /tmp/probes.current -a ! -f $pname ] ; then
 	mv /tmp/probes.current /tmp/probes.prev
 fi
-dtrace -l | tee $pname | wc -l 
+../../build/dtrace -l | tee $pname | wc -l 
+rm -f /tmp/probes.current
 ln -s $pname /tmp/probes.current

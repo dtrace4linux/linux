@@ -23,8 +23,23 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)profile.c	1.7	07/01/10 SMI"
+//#pragma ident	"@(#)profile.c	1.7	07/01/10 SMI"
 
+# if linux
+
+# define profile_tick linux_profile_tick
+#include "dtrace_linux.h"
+#include <sys/dtrace_impl.h>
+#include <linux/miscdevice.h>
+
+# undef profile_tick
+# if __i386 || __amd64
+# define __x86
+# endif
+
+# endif
+
+# if defined(sun)
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/modctl.h>
@@ -38,8 +53,8 @@
 #include <sys/dtrace.h>
 #include <sys/cyclic.h>
 #include <sys/atomic.h>
+# endif
 
-static dev_info_t *profile_devi;
 static dtrace_provider_id_t profile_id;
 
 /*
@@ -223,6 +238,7 @@ profile_provide(void *arg, const dtrace_probedesc_t *desc)
 		{ NULL }
 	};
 
+HERE();
 	if (desc == NULL) {
 		char n[PROF_NAMELEN];
 
@@ -251,6 +267,8 @@ profile_provide(void *arg, const dtrace_probedesc_t *desc)
 	}
 
 	name = desc->dtpd_name;
+
+printk("name=%s\n", name);
 
 	for (i = 0; types[i].prefix != NULL; i++) {
 		len = strlen(types[i].prefix);
@@ -435,142 +453,64 @@ static dtrace_pops_t profile_pops = {
 };
 
 static int
-profile_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
+profile_attach(void)
 {
-	switch (cmd) {
-	case DDI_ATTACH:
-		break;
-	case DDI_RESUME:
-		return (DDI_SUCCESS);
-	default:
-		return (DDI_FAILURE);
-	}
-
-	if (ddi_create_minor_node(devi, "profile", S_IFCHR, 0,
-	    DDI_PSEUDO, NULL) == DDI_FAILURE ||
-	    dtrace_register("profile", &profile_attr,
+	if (dtrace_register("profile", &profile_attr,
 	    DTRACE_PRIV_KERNEL | DTRACE_PRIV_USER, NULL,
 	    &profile_pops, NULL, &profile_id) != 0) {
-		ddi_remove_minor_node(devi, NULL);
+	    	printk("profile_attach: Failed to register 'profile' probes\n");
 		return (DDI_FAILURE);
 	}
 
-	profile_max = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
-	    "profile-max-probes", PROFILE_MAX_DEFAULT);
-
-	ddi_report_dev(devi);
-	profile_devi = devi;
 	return (DDI_SUCCESS);
 }
 
 static int
-profile_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
+profile_detach(void)
 {
-	switch (cmd) {
-	case DDI_DETACH:
-		break;
-	case DDI_SUSPEND:
-		return (DDI_SUCCESS);
-	default:
-		return (DDI_FAILURE);
-	}
-
 	if (dtrace_unregister(profile_id) != 0)
 		return (DDI_FAILURE);
 
-	ddi_remove_minor_node(devi, NULL);
 	return (DDI_SUCCESS);
 }
 
 /*ARGSUSED*/
 static int
-profile_info(dev_info_t *dip, ddi_info_cmd_t infocmd, void *arg, void **result)
-{
-	int error;
-
-	switch (infocmd) {
-	case DDI_INFO_DEVT2DEVINFO:
-		*result = (void *)profile_devi;
-		error = DDI_SUCCESS;
-		break;
-	case DDI_INFO_DEVT2INSTANCE:
-		*result = (void *)0;
-		error = DDI_SUCCESS;
-		break;
-	default:
-		error = DDI_FAILURE;
-	}
-	return (error);
-}
-
-/*ARGSUSED*/
-static int
-profile_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
+profile_open(struct inode *inode, struct file *file)
 {
 	return (0);
 }
 
-static struct cb_ops profile_cb_ops = {
-	profile_open,		/* open */
-	nodev,			/* close */
-	nulldev,		/* strategy */
-	nulldev,		/* print */
-	nodev,			/* dump */
-	nodev,			/* read */
-	nodev,			/* write */
-	nodev,			/* ioctl */
-	nodev,			/* devmap */
-	nodev,			/* mmap */
-	nodev,			/* segmap */
-	nochpoll,		/* poll */
-	ddi_prop_op,		/* cb_prop_op */
-	0,			/* streamtab  */
-	D_NEW | D_MP		/* Driver compatibility flag */
+static const struct file_operations profile_fops = {
+        .open = profile_open,
 };
 
-static struct dev_ops profile_ops = {
-	DEVO_REV,		/* devo_rev, */
-	0,			/* refcnt  */
-	profile_info,		/* get_dev_info */
-	nulldev,		/* identify */
-	nulldev,		/* probe */
-	profile_attach,		/* attach */
-	profile_detach,		/* detach */
-	nodev,			/* reset */
-	&profile_cb_ops,	/* driver operations */
-	NULL,			/* bus operations */
-	nodev			/* dev power */
+static struct miscdevice profile_dev = {
+        MISC_DYNAMIC_MINOR,
+        "dtrace_profile",
+        &profile_fops
 };
 
-/*
- * Module linkage information for the kernel.
- */
-static struct modldrv modldrv = {
-	&mod_driverops,		/* module type (this is a pseudo driver) */
-	"Profile Interrupt Tracing",	/* name of module */
-	&profile_ops,		/* driver ops */
-};
-
-static struct modlinkage modlinkage = {
-	MODREV_1,
-	(void *)&modldrv,
-	NULL
-};
+static int initted;
 
 int
-_init(void)
-{
-	return (mod_install(&modlinkage));
+dtrace_profile_init(void)
+{	int	ret;
+
+	ret = misc_register(&profile_dev);
+	if (ret) {
+		printk(KERN_WARNING "dtrace-profile: Unable to register misc device\n");
+		return ret;
+		}
+	printk("dtrace: Creating profiles\n");
+	profile_attach();
+	return 0;
 }
 
 int
-_info(struct modinfo *modinfop)
+dtrace_profile_fini(void)
 {
-	return (mod_info(&modlinkage, modinfop));
-}
-
-int
-_fini(void)
-{
-	return (mod_remove(&modlinkage));
+	profile_detach();
+	misc_deregister(&profile_dev);
+	return 0;
 }

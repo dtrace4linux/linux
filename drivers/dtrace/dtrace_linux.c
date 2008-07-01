@@ -59,6 +59,8 @@ dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
 int	ctf_init(void);
 void	ctf_exit(void);
+int	dtrace_profile_init(void);
+int	dtrace_profile_fini(void);
 int	fasttrap_init(void);
 void	fasttrap_exit(void);
 int	fbt_init(void);
@@ -141,6 +143,16 @@ dump_mem(char *cp, int len)
 		printk(buf);
 		}
 }
+/**********************************************************************/
+/*   CPU specific - used by profiles.c to handle amount of frames in  */
+/*   the clock ticks.						      */
+/**********************************************************************/
+int
+dtrace_mach_aframes(void)
+{
+	return 1;
+}
+
 static void
 dtrace_sync_func(void)
 {
@@ -534,6 +546,7 @@ static struct proc_dir_entry *dir;
 	fasttrap_init();
 	fbt_init();
 	systrace_init();
+	dtrace_profile_init();
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
@@ -542,6 +555,7 @@ static void __exit dtracedrv_exit(void)
 		dtrace_detach(NULL, 0);
 		}
 
+	dtrace_profile_fini();
 	systrace_exit();
 	fbt_exit();
 	ctf_exit();

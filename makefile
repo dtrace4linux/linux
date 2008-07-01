@@ -55,6 +55,7 @@ release:
 	ls -l /tmp/dtrace-$(rel).tar.bz2
 
 all:
+	tools/libgcc.pl
 	if [ `uname -m` != x86_64 ]; then \
 	  	export PTR32=-D_ILP32 ; \
 		export BUILD_i386=1 ; \

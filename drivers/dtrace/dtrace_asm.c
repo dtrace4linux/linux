@@ -261,7 +261,8 @@ dtrace_interrupt_enable(void)
 	/*   the  rules  if  we  do the equivalent to  */
 	/*   x86-64. This seems to work.	       */
 	/***********************************************/
-	native_irq_enable();
+	raw_local_irq_enable();
+//	native_irq_enable();
 	return;
 	__asm(
 		"movl	4(%esp), %eax\n"
@@ -350,7 +351,8 @@ dtrace_interrupt_disable(void)
 	/*   the  rules  if  we  do the equivalent to  */
 	/*   x86-64. This seems to work.	       */
 	/***********************************************/
-	native_irq_disable();
+	raw_local_irq_disable();
+//	native_irq_disable();
 	return 0;
 	__asm(
 		"pushf\n"

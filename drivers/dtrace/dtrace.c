@@ -14665,6 +14665,10 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 #if defined(sun)
 	    NULL, NULL, NULL, NULL, NULL, 0);
 # else
+	    /***********************************************/
+	    /*   Kernel  2.6.20  needs 3 args here, but I  */
+	    /*   see only 2 in 2.6.24.4			   */
+	    /***********************************************/
 	    0, NULL);
 # endif
 

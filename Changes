@@ -1,3 +1,17 @@
+Wed Jul  2 20:46:02 2008  fox
+
+      52* profile.c: Add missing profile driver. Not yet proven and the
+          omni support is missing...
+
+      51* utils/libgcc.pl: Script to locate your libgcc.a file rather than
+          me supply one.
+
+      50* Mojmir Svoboda: Fix for raw_local_irq_disable() /
+          raw_local_irq_enable() to be more backward kernel compliant.
+	  Mojmir suggests issues with kmem_cache_create - I think kernel
+	  code changed function calling so need to incorporate a kernel
+	  specific fix.
+
 Tue Jul  1 21:53:15 2008  fox
 
       49* dt_lex.l: Lets hope this works because I am mightily sick

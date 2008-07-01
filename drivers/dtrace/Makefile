@@ -16,6 +16,7 @@ dtracedrv-objs := \
 	fasttrap_linux.o \
 	fbt_linux.o \
 	linux_pure.o \
+	profile.o \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \
@@ -34,7 +35,7 @@ ifdef BUILD_i386
 	LDFLAGS += --wrap __udivdi3 
 	LDFLAGS += --wrap __umoddi3 
 	LDFLAGS += --wrap __divdi3 
-	dtracedrv-objs += ../../lib/libgcc.a
+	dtracedrv-objs += ../../build/libgcc.a
 endif
 
 obj-m := dtracedrv.o

@@ -474,9 +474,12 @@ enum seg_rw {
 #define	ASSERT(EX)	((void)((EX) || \
 			dtrace_assfail(#EX, __FILE__, __LINE__)))
 extern int dtrace_assfail(const char *, const char *, int);
+int	dtrace_mach_aframes(void);
 
 extern unsigned long long gethrtime(void);
 void *dtrace_casptr(void *target, void *cmp, void *new);
 # define	casptr(a, b, c) dtrace_casptr(a, b, c)
+
+# define atomic_add_32(a, b) atomic_add(b, (atomic_t *) (a))
 
 # endif /* LINE_TYPES_H */

@@ -141,6 +141,12 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 
 	return (cyclic_id_t) cp;
 }
+cyclic_id_t
+cyclic_add_omni(cyc_omni_handler_t *omni)
+{
+	TODO();
+	return 0;
+}
 void 
 cyclic_remove(cyclic_id_t id)
 {	struct c_timer *ctp = (struct c_timer *) id;
@@ -163,6 +169,12 @@ cyclic_init(cyc_backend_t *be, hrtime_t resolution)
 }
 cyclic_id_t 
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
+{
+	TODO();
+	return 0;
+}
+cyclic_id_t
+cyclic_add_omni(cyc_omni_handler_t *omni)
 {
 	TODO();
 	return 0;

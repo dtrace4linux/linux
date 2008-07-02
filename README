@@ -88,25 +88,29 @@ of compiler flags.
 INSTALLATION
 ============
 
-Run:
+Run 'make' with no arguments to see the current options.
 
-	make all
+make all
+	to compile the drivers and user space commands. Check the file
+	Packages, for hints on what you need (not much, but libelf, kernel
+	source, flex/yacc -- bison will do).
 
-to compile the drivers and user space commands. Check the file
-Packages, for hints on what you need (not much, but libelf, kernel
-source, flex/yacc -- bison will do).
+make load
+	To load the drivers, and then you can play with cmd/dtrace/dtrace.
 
+make unl
+	to unload the drivers.
 
-	make ins
-
-To load the drivers, and then you can play with cmd/dtrace/dtrace.
-
-	make unl
-
-to unload the drivers.
+make test
+	To run the userland cmd/dtrace regression test
 
 DRIVERS
 =======
+
+You dont really need to worry about the drivers (its all encapsulated into
+a single driver file -- dtracedrv.ko, assuming all goes well). You
+may find these pop into /dev on 'make load'.
+
 /dev/dtrace
 
 	The main component of the implementation.
@@ -116,6 +120,12 @@ DRIVERS
 	of features via dtrace. This is the function-boundary-tracing module,
 	and it the bit of magic which can plant breakpoints on any
 	kernel function.
+
+/dev/dtrace_profile
+	Used by the profile-NNN and tick-NNN probe provider.
+
+/dev/sdt
+	Static dtrace probe driver.
 
 /dev/systrace
 	System call tracing driver.

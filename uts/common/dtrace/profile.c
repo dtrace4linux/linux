@@ -128,8 +128,8 @@ static int profile_ticks[] = {
  * present in the profile.conf file.
  */
 #define	PROFILE_MAX_DEFAULT	1000	/* default max. number of probes */
-static uint32_t profile_max;		/* maximum number of profile probes */
-static uint32_t profile_total;	/* current number of profile probes */
+static uint32_t profile_max = 100;	/* maximum number of profile probes */
+static uint32_t profile_total;		/* current number of profile probes */
 
 static void
 profile_fire(void *arg)

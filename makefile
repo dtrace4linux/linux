@@ -33,6 +33,8 @@ notice:
 	@echo "make clean      - clean out *.o/*.a and binaries"
 	@echo "make release    - create a new tarball for distribution"
 	@echo "make load       - install the driver"
+	@echo "make unload     - remove the driver"
+	@echo "make test       - run cmd/dtrace regression tests."
 
 release:
 	cd .. ; mv dtrace dtrace-$(rel) ; \
@@ -48,6 +50,7 @@ release:
 		--exclude=*.a \
 		--exclude=*.mod \
 		--exclude=tags \
+		--exclude=lwn \
 		--exclude=dt_lex.c \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace
@@ -100,6 +103,9 @@ newf:
 		grep -v dt_grammar.h | \
 		grep -v '\.o$$'`
 
+test:
+	tools/runtests.pl
+
 ######################################################################
 #   Load  the driver -- we chmod 666 til i work out how to make the  #
 #   driver do it. Otherwise dtrace needs to be setuid-root.	     #
@@ -107,5 +113,6 @@ newf:
 load:
 	cd drivers/dtrace ; ./load
 	 
-unl:
+unl unload:
 	-$(SUDO) rmmod dtracedrv
+

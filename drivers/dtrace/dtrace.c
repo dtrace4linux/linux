@@ -5630,11 +5630,11 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	probe = dtrace_probes[id - 1];
 	cpuid = cpu_get_id();
 	onintr = CPU_ON_INTR(CPU);
-printk("dtrace_probe: cpuid=%d onintr=%d\n", cpuid, onintr);
+//printk("dtrace_probe: cpuid=%d onintr=%d\n", cpuid, onintr);
 
 	if (!onintr && probe->dtpr_predcache != DTRACE_CACHEIDNONE &&
 	    probe->dtpr_predcache == curthread->t_predcache) {
-HERE();
+//HERE();
 		/*
 		 * We have hit in the predicate cache; we know that
 		 * this predicate would evaluate to be false.
@@ -6987,9 +6987,11 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 		return (EINVAL);
 	}
 
+HERE();
 	if ((priv & DTRACE_PRIV_KERNEL) &&
 	    (priv & (DTRACE_PRIV_USER | DTRACE_PRIV_OWNER)) &&
 	    pops->dtps_usermode == NULL) {
+HERE();
 		cmn_err(CE_WARN, "failed to register provider '%s': need "
 		    "dtps_usermode() op for given privilege attributes", name);
 		return (EINVAL);
@@ -11054,9 +11056,7 @@ dtrace_enabling_prime(dtrace_state_t *state)
 
 		for (i = 0; i < enab->dten_ndesc; i++) {
 			enab->dten_current = enab->dten_desc[i];
-HERE();
 			(void) dtrace_probe_enable(NULL, enab);
-HERE();
 		}
 
 		enab->dten_primed = 1;

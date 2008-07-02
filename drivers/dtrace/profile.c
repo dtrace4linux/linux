@@ -143,7 +143,7 @@ static int profile_ticks[] = {
  * present in the profile.conf file.
  */
 #define	PROFILE_MAX_DEFAULT	1000	/* default max. number of probes */
-static uint32_t profile_max;		/* maximum number of profile probes */
+static uint32_t profile_max = 100;	/* maximum number of profile probes */
 static uint32_t profile_total;	/* current number of profile probes */
 
 static void
@@ -251,6 +251,7 @@ HERE();
 
 			(void) snprintf(n, PROF_NAMELEN, "%s%d",
 			    PROF_PREFIX_PROFILE, rate);
+printk("n=%s\n", n);
 			profile_create(NANOSEC / rate, n, PROF_PROFILE);
 		}
 
@@ -260,6 +261,7 @@ HERE();
 
 			(void) snprintf(n, PROF_NAMELEN, "%s%d",
 			    PROF_PREFIX_TICK, rate);
+printk("n1=%s\n", n);
 			profile_create(NANOSEC / rate, n, PROF_TICK);
 		}
 
@@ -480,9 +482,37 @@ profile_open(struct inode *inode, struct file *file)
 {
 	return (0);
 }
+/**********************************************************************/
+/*   Allow us to set the max profile counters.			      */
+/**********************************************************************/
+static ssize_t 
+profile_write(struct file *file, const char __user *buf,
+			      size_t count, loff_t *pos)
+{	int	n;
+	int	orig_count = count;
+	char	*bufend = buf + count;
+	char	*cp;
 
+//printk("write: '%*.*s'\n", count, count, buf);
+	/***********************************************/
+	/*   Allow for 'name=value'		       */
+	/***********************************************/
+	while (buf < bufend) {
+		count = bufend - buf;
+		if ((cp = memchr(buf, '\n', count)) == NULL) {
+			return -EIO;
+		}
+		if (strncmp(buf, "profile_max=", 12) == 0) {
+			profile_max = simple_strtoul(buf, NULL, 10);
+			printk("profile_max: set to %lu\n", profile_max);
+			}
+		buf = cp + 1;
+	}
+	return orig_count;
+}
 static const struct file_operations profile_fops = {
         .open = profile_open,
+        .write = profile_write,
 };
 
 static struct miscdevice profile_dev = {
@@ -490,8 +520,6 @@ static struct miscdevice profile_dev = {
         "dtrace_profile",
         &profile_fops
 };
-
-static int initted;
 
 int
 dtrace_profile_init(void)
@@ -502,8 +530,8 @@ dtrace_profile_init(void)
 		printk(KERN_WARNING "dtrace-profile: Unable to register misc device\n");
 		return ret;
 		}
-	printk("dtrace: Creating profiles\n");
 	profile_attach();
+	printk("profile loaded: /dev/dtrace-profile available\n");
 	return 0;
 }
 

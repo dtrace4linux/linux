@@ -1,10 +1,10 @@
 CC=gcc -g
-CPPFLAGS += -I../common \
-	-I../../../common/ctf \
-	-I../../uts/common \
-	-I../../linux \
-	-I../../libproc/common \
-	-I../../libctf/ \
+CPPFLAGS += -I. \
+	-I../../common/ctf \
+	-I../uts/common \
+	-I../linux \
+	-I../libproc/common \
+	-I../libctf/ \
 	-DCTF_OLD_VERSIONS $(PTR32)
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 CPPFLAGS += -DYY_NO_INPUT

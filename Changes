@@ -1,3 +1,8 @@
+Fri Jul  4 20:35:34 2008  fox
+
+      56* dtrace.c, fasttrap.c: Upgrade to latest ON Solaris release
+          20080623.
+
 Thu Jul  3 23:16:19 2008  fox
 
       55* Move cmd/dtrace/demo to toplevel dir so its more accessible.

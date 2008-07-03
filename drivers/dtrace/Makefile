@@ -35,7 +35,7 @@ ifdef BUILD_i386
 	LDFLAGS += --wrap __udivdi3 
 	LDFLAGS += --wrap __umoddi3 
 	LDFLAGS += --wrap __divdi3 
-	dtracedrv-objs += ../../build/libgcc.a
+	dtracedrv-objs += ../../build/x86-32/libgcc.a
 endif
 
 obj-m := dtracedrv.o

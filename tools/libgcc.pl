@@ -8,8 +8,13 @@ use strict;
 
 use FileHandle;
 
-if ( -f "build/libgcc.a" ) {
+unlink("build/libgcc.a");
+
+if ( -f "build/x86-32/libgcc.a" ) {
 	exit(0);
+}
+if ( ! -d "build/x86-32" ) {
+	mkdir("build/x86-32", 0755);
 }
 
 sub main
@@ -35,7 +40,7 @@ EOF
 				unlink("x");
 				unlink("x.c");
 				print "$wd\n";
-				if (!symlink("$wd/libgcc.a", "build/libgcc.a")) {
+				if (!symlink("$wd/libgcc.a", "build/x86-32/libgcc.a")) {
 					print "Error creating symlink build/libgcc.a -- $!\n";
 					exit(1);
 				}

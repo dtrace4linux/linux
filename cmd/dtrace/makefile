@@ -27,7 +27,7 @@ $(BINDIR)/dtrace.o: dtrace.c
 	$(CC) $(CFLAGS) -c \
 		-I../../uts/common \
 		-I../../libctf \
-		-I../../libdtrace/common \
+		-I../../libdtrace \
 		-I../../libproc/common \
 		-I../../linux \
 		dtrace.c

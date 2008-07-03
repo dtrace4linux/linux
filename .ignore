@@ -1,4 +1,4 @@
 ./build/dtrace
-./libdtrace/common/dt_grammar.h
-./libdtrace/common/dt_lex.c
+./libdtrace/dt_grammar.h
+./libdtrace/dt_lex.c
 ./utils/mknod

@@ -22,7 +22,7 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-# ident	"@(#)Makefile	1.4	08/04/02 SMI"
+# ident	"@(#)Makefile	1.5	08/06/13 SMI"
 
 include ../../Makefile.cmd
 
@@ -52,6 +52,8 @@ DFILES = \
 	iosnoop.d \
 	iothrough.d \
 	iotime.d \
+	ipio.d \
+	ipproto.d \
 	iprb.d \
 	kstat.d \
 	ksyms.d \

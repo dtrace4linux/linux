@@ -9,7 +9,7 @@ CPPFLAGS += -I. \
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 CPPFLAGS += -DYY_NO_INPUT
 
-LIB = ../../build/libdtrace.a
+LIB = ../build/libdtrace.a
 H = \
 	./dt_as.h		\
 	./dt_decl.h		\

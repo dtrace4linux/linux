@@ -41,9 +41,9 @@ release:
 	tar cvf - --exclude=*.o \
 		--exclude=.*.cmd \
 		--exclude=*.mod.c \
-		--exclude=dtrace/dtrace \
-		--exclude=libdtrace/common/dt_grammar.h \
-		--exclude=libdtrace/common/dt_lex.c \
+		--exclude=build/dtrace \
+		--exclude=libdtrace/dt_grammar.h \
+		--exclude=libdtrace/dt_lex.c \
 		--exclude=.tmp_versions \
 		--exclude=Module.symvers \
 		--exclude=*.ko \
@@ -72,7 +72,7 @@ all:
 	$(MAKE) all0
 all0:
 	cd libctf ; $(MAKE) 
-	cd libdtrace/common ; $(MAKE)
+	cd libdtrace ; $(MAKE)
 	cd liblinux ; $(MAKE)
 	cd libproc/common ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
@@ -86,14 +86,13 @@ all0:
 clean:
 	rm -f build/*
 	cd libctf ; $(MAKE) clean
-	cd libdtrace/common ; $(MAKE) clean
+	cd libdtrace ; $(MAKE) clean
 	cd liblinux ; $(MAKE) clean
 	cd libproc/common ; $(MAKE) clean
 	cd cmd/dtrace ; $(MAKE) clean
 	for i in $(DRIVERS) ; \
 	do \
-		cd drivers/$$i ; make clean ; \
-		cd ../.. ; \
+		(cd drivers/$$i ; make clean) ; \
 	done
 
 newf:

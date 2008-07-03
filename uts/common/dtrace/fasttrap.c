@@ -1,16 +1,30 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-/*      Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T */
-/*        All Rights Reserved   */
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-#pragma ident	"@(#)fasttrap.c	1.10	04/11/07 SMI"
+#pragma ident	"@(#)fasttrap.c	1.26	08/04/21 SMI"
 
 #include <sys/atomic.h>
 #include <sys/errno.h>
@@ -29,22 +43,10 @@
 #include <sys/dtrace.h>
 #include <sys/dtrace_impl.h>
 #include <sys/sysmacros.h>
-#include <sys/frame.h>
-#include <sys/stack.h>
 #include <sys/proc.h>
 #include <sys/priv.h>
 #include <sys/policy.h>
-#include <sys/ontrap.h>
-#include <sys/vmsystm.h>
-#include <sys/prsystm.h>
-
-
-#include <vm/as.h>
-#include <vm/seg.h>
-#include <vm/seg_dev.h>
-#include <vm/seg_vn.h>
-#include <vm/seg_spt.h>
-#include <vm/seg_kmem.h>
+#include <util/qsort.h>
 
 /*
  * User-Land Trap-Based Tracing
@@ -93,10 +95,37 @@
  * function are visible. Return probes must be fired _after_ we have
  * single-stepped the instruction whereas all other probes are fired
  * beforehand.
+ *
+ *
+ * Lock Ordering
+ * -------------
+ *
+ * The lock ordering below -- both internally and with respect to the DTrace
+ * framework -- is a little tricky and bears some explanation. Each provider
+ * has a lock (ftp_mtx) that protects its members including reference counts
+ * for enabled probes (ftp_rcount), consumers actively creating probes
+ * (ftp_ccount) and USDT consumers (ftp_mcount); all three prevent a provider
+ * from being freed. A provider is looked up by taking the bucket lock for the
+ * provider hash table, and is returned with its lock held. The provider lock
+ * may be taken in functions invoked by the DTrace framework, but may not be
+ * held while calling functions in the DTrace framework.
+ *
+ * To ensure consistency over multiple calls to the DTrace framework, the
+ * creation lock (ftp_cmtx) should be held. Naturally, the creation lock may
+ * not be taken when holding the provider lock as that would create a cyclic
+ * lock ordering. In situations where one would naturally take the provider
+ * lock and then the creation lock, we instead up a reference count to prevent
+ * the provider from disappearing, drop the provider lock, and acquire the
+ * creation lock.
+ *
+ * Briefly:
+ * 	bucket lock before provider lock
+ *	DTrace before provider lock
+ *	creation lock before DTrace
+ *	never hold the provider lock and creation lock simultaneously
  */
 
 static dev_info_t *fasttrap_devi;
-static dtrace_provider_id_t fasttrap_id;
 static dtrace_meta_provider_id_t fasttrap_meta_id;
 
 static timeout_id_t fasttrap_timeout;
@@ -122,27 +151,35 @@ static uint32_t fasttrap_total;
 
 #define	FASTTRAP_TPOINTS_DEFAULT_SIZE	0x4000
 #define	FASTTRAP_PROVIDERS_DEFAULT_SIZE	0x100
+#define	FASTTRAP_PROCS_DEFAULT_SIZE	0x100
 
 #define	FASTTRAP_PID_NAME		"pid"
 
 fasttrap_hash_t			fasttrap_tpoints;
 static fasttrap_hash_t		fasttrap_provs;
+static fasttrap_hash_t		fasttrap_procs;
 
-dtrace_id_t			fasttrap_probe_id;
-static int			fasttrap_count;		/* ref count */
-static int			fasttrap_pid_count;	/* pid ref count */
+static uint64_t			fasttrap_pid_count;	/* pid ref count */
 static kmutex_t			fasttrap_count_mtx;	/* lock on ref count */
+
+#define	FASTTRAP_ENABLE_FAIL	1
+#define	FASTTRAP_ENABLE_PARTIAL	2
 
 static int fasttrap_tracepoint_enable(proc_t *, fasttrap_probe_t *, uint_t);
 static void fasttrap_tracepoint_disable(proc_t *, fasttrap_probe_t *, uint_t);
 
 static fasttrap_provider_t *fasttrap_provider_lookup(pid_t, const char *,
     const dtrace_pattr_t *);
+static void fasttrap_provider_retire(pid_t, const char *, int);
 static void fasttrap_provider_free(fasttrap_provider_t *);
-static void fasttrap_provider_retire(fasttrap_provider_t *);
+
+static fasttrap_proc_t *fasttrap_proc_lookup(pid_t);
+static void fasttrap_proc_release(fasttrap_proc_t *);
 
 #define	FASTTRAP_PROVS_INDEX(pid, name) \
 	((fasttrap_hash_str(name) + (pid)) & fasttrap_provs.fth_mask)
+
+#define	FASTTRAP_PROCS_INDEX(pid) ((pid) & fasttrap_procs.fth_mask)
 
 static int
 fasttrap_highbit(ulong_t i)
@@ -252,7 +289,7 @@ fasttrap_pid_cleanup_cb(void *data)
 
 		/*
 		 * Iterate over all the providers trying to remove the marked
-		 * ones.  If a provider is marked, but not defunct, we just
+		 * ones. If a provider is marked but not retired, we just
 		 * have to take a crack at removing it -- it's no big deal if
 		 * we can't.
 		 */
@@ -270,18 +307,19 @@ fasttrap_pid_cleanup_cb(void *data)
 				mutex_enter(&fp->ftp_mtx);
 
 				/*
-				 * If this provider is referenced either
-				 * because it is a USDT provider or is being
-				 * modified, we can't unregister or even
-				 * condense.
+				 * If this provider has consumers actively
+				 * creating probes (ftp_ccount) or is a USDT
+				 * provider (ftp_mcount), we can't unregister
+				 * or even condense.
 				 */
-				if (fp->ftp_ccount != 0) {
+				if (fp->ftp_ccount != 0 ||
+				    fp->ftp_mcount != 0) {
 					mutex_exit(&fp->ftp_mtx);
 					fp->ftp_marked = 0;
 					continue;
 				}
 
-				if (!fp->ftp_defunct || fp->ftp_rcount != 0)
+				if (!fp->ftp_retired || fp->ftp_rcount != 0)
 					fp->ftp_marked = 0;
 
 				mutex_exit(&fp->ftp_mtx);
@@ -290,7 +328,7 @@ fasttrap_pid_cleanup_cb(void *data)
 				 * If we successfully unregister this
 				 * provider we can remove it from the hash
 				 * chain and free the memory. If our attempt
-				 * to unregister fails and this is a defunct
+				 * to unregister fails and this is a retired
 				 * provider, increment our flag to try again
 				 * pretty soon. If we've consumed more than
 				 * half of our total permitted number of
@@ -317,7 +355,7 @@ fasttrap_pid_cleanup_cb(void *data)
 	ASSERT(fasttrap_timeout != 0);
 
 	/*
-	 * If we were unable to remove a defunct provider, try again after
+	 * If we were unable to remove a retired provider, try again after
 	 * a second. This situation can occur in certain circumstances where
 	 * providers cannot be unregistered even though they have no probes
 	 * enabled because of an execution of dtrace -l or something similar.
@@ -352,7 +390,7 @@ fasttrap_pid_cleanup(void)
 
 /*
  * This is called from cfork() via dtrace_fasttrap_fork(). The child
- * process's address space is a (roughly) a copy of the parent process's so
+ * process's address space is (roughly) a copy of the parent process's so
  * we have to remove all the instrumentation we had previously enabled in the
  * parent.
  */
@@ -395,9 +433,19 @@ fasttrap_fork(proc_t *p, proc_t *cp)
 
 		mutex_enter(&bucket->ftb_mtx);
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
-			if (tp->ftt_pid == ppid && !tp->ftt_prov->ftp_defunct) {
+			if (tp->ftt_pid == ppid &&
+			    tp->ftt_proc->ftpc_acount != 0) {
 				int ret = fasttrap_tracepoint_remove(cp, tp);
 				ASSERT(ret == 0);
+
+				/*
+				 * The count of active providers can only be
+				 * decremented (i.e. to zero) during exec,
+				 * exit, and removal of a meta provider so it
+				 * should be impossible to drop the count
+				 * mid-fork.
+				 */
+				ASSERT(tp->ftt_proc->ftpc_acount != 0);
 			}
 		}
 		mutex_exit(&bucket->ftb_mtx);
@@ -415,8 +463,6 @@ fasttrap_fork(proc_t *p, proc_t *cp)
 static void
 fasttrap_exec_exit(proc_t *p)
 {
-	fasttrap_provider_t *provider;
-
 	ASSERT(p == curproc);
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
@@ -426,9 +472,7 @@ fasttrap_exec_exit(proc_t *p)
 	 * We clean up the pid provider for this process here; user-land
 	 * static probes are handled by the meta-provider remove entry point.
 	 */
-	if ((provider = fasttrap_provider_lookup(p->p_pid,
-	    FASTTRAP_PID_NAME, NULL)) != NULL)
-		fasttrap_provider_retire(provider);
+	fasttrap_provider_retire(p->p_pid, FASTTRAP_PID_NAME, 0);
 
 	mutex_enter(&p->p_lock);
 }
@@ -441,15 +485,6 @@ fasttrap_pid_provide(void *arg, const dtrace_probedesc_t *desc)
 	/*
 	 * There are no "default" pid probes.
 	 */
-}
-
-/*ARGSUSED*/
-static void
-fasttrap_provide(void *arg, const dtrace_probedesc_t *desc)
-{
-	if (dtrace_probe_lookup(fasttrap_id, NULL, "fasttrap", "fasttrap") == 0)
-		fasttrap_probe_id = dtrace_probe_create(fasttrap_id, NULL,
-		    "fasttrap", "fasttrap", FASTTRAP_AFRAMES, NULL);
 }
 
 static int
@@ -486,14 +521,19 @@ fasttrap_tracepoint_enable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	 * like to install. If we can't find a match, and have an allocated
 	 * tracepoint ready to go, enable that one now.
 	 *
-	 * Tracepoints whose provider is now defunct are also considered
-	 * defunct.
+	 * A tracepoint whose process is defunct is also considered defunct.
 	 */
 again:
 	mutex_enter(&bucket->ftb_mtx);
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
+		/*
+		 * Note that it's safe to access the active count on the
+		 * associated proc structure because we know that at least one
+		 * provider (this one) will still be around throughout this
+		 * operation.
+		 */
 		if (tp->ftt_pid != pid || tp->ftt_pc != pc ||
-		    tp->ftt_prov->ftp_defunct)
+		    tp->ftt_proc->ftpc_acount == 0)
 			continue;
 
 		/*
@@ -512,17 +552,26 @@ again:
 		 */
 		ASSERT(tp->ftt_ids != NULL || tp->ftt_retids != NULL);
 
-		if (probe->ftp_type == DTFTP_RETURN ||
-		    probe->ftp_type == DTFTP_POST_OFFSETS) {
-			id->fti_next = tp->ftt_retids;
-			membar_producer();
-			tp->ftt_retids = id;
-			membar_producer();
-		} else {
+		switch (id->fti_ptype) {
+		case DTFTP_ENTRY:
+		case DTFTP_OFFSETS:
+		case DTFTP_IS_ENABLED:
 			id->fti_next = tp->ftt_ids;
 			membar_producer();
 			tp->ftt_ids = id;
 			membar_producer();
+			break;
+
+		case DTFTP_RETURN:
+		case DTFTP_POST_OFFSETS:
+			id->fti_next = tp->ftt_retids;
+			membar_producer();
+			tp->ftt_retids = id;
+			membar_producer();
+			break;
+
+		default:
+			ASSERT(0);
 		}
 
 		mutex_exit(&bucket->ftb_mtx);
@@ -540,7 +589,7 @@ again:
 	 * we have the lock held and no one can screw with us.
 	 */
 	if (new_tp != NULL) {
-		int rc;
+		int rc = 0;
 
 		new_tp->ftt_next = bucket->ftb_data;
 		membar_producer();
@@ -549,19 +598,20 @@ again:
 		mutex_exit(&bucket->ftb_mtx);
 
 		/*
-		 * Activate the tracepoint in the isa-specific manner.
+		 * Activate the tracepoint in the ISA-specific manner.
+		 * If this fails, we need to report the failure, but
+		 * indicate that this tracepoint must still be disabled
+		 * by calling fasttrap_tracepoint_disable().
 		 */
-		if (fasttrap_tracepoint_install(p, new_tp) != 0) {
-			rc = 1;
-		} else {
-			/*
-			 * Increment the count of the number of tracepoints
-			 * active in the victim process.
-			 */
-			ASSERT(p->p_proc_flag & P_PR_LOCK);
-			p->p_dtrace_count++;
-			rc = 0;
-		}
+		if (fasttrap_tracepoint_install(p, new_tp) != 0)
+			rc = FASTTRAP_ENABLE_PARTIAL;
+
+		/*
+		 * Increment the count of the number of tracepoints active in
+		 * the victim process.
+		 */
+		ASSERT(p->p_proc_flag & P_PR_LOCK);
+		p->p_dtrace_count++;
 
 		return (rc);
 	}
@@ -575,30 +625,39 @@ again:
 
 	ASSERT(new_tp->ftt_pid == pid);
 	ASSERT(new_tp->ftt_pc == pc);
-	ASSERT(new_tp->ftt_prov == probe->ftp_prov);
+	ASSERT(new_tp->ftt_proc == probe->ftp_prov->ftp_proc);
 	ASSERT(new_tp->ftt_ids == NULL);
 	ASSERT(new_tp->ftt_retids == NULL);
 
-	if (probe->ftp_type == DTFTP_RETURN ||
-	    probe->ftp_type == DTFTP_POST_OFFSETS) {
-		id->fti_next = NULL;
-		new_tp->ftt_retids = id;
-	} else {
+	switch (id->fti_ptype) {
+	case DTFTP_ENTRY:
+	case DTFTP_OFFSETS:
+	case DTFTP_IS_ENABLED:
 		id->fti_next = NULL;
 		new_tp->ftt_ids = id;
+		break;
+
+	case DTFTP_RETURN:
+	case DTFTP_POST_OFFSETS:
+		id->fti_next = NULL;
+		new_tp->ftt_retids = id;
+		break;
+
+	default:
+		ASSERT(0);
 	}
 
 	/*
-	 * If the isa-dependent initialization goes to plan, go back to the
+	 * If the ISA-dependent initialization goes to plan, go back to the
 	 * beginning and try to install this freshly made tracepoint.
 	 */
-	if (fasttrap_tracepoint_init(p, probe, new_tp, pc) == 0)
+	if (fasttrap_tracepoint_init(p, new_tp, pc, id->fti_ptype) == 0)
 		goto again;
 
 	new_tp->ftt_ids = NULL;
 	new_tp->ftt_retids = NULL;
 
-	return (1);
+	return (FASTTRAP_ENABLE_FAIL);
 }
 
 static void
@@ -615,6 +674,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 
 	pid = probe->ftp_pid;
 	pc = probe->ftp_tps[index].fit_tp->ftt_pc;
+	id = &probe->ftp_tps[index].fit_id;
 
 	ASSERT(probe->ftp_tps[index].fit_tp->ftt_pid == pid);
 
@@ -626,7 +686,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	mutex_enter(&bucket->ftb_mtx);
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		if (tp->ftt_pid == pid && tp->ftt_pc == pc &&
-		    tp->ftt_prov == provider)
+		    tp->ftt_proc == provider->ftp_proc)
 			break;
 	}
 
@@ -635,13 +695,22 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	 */
 	ASSERT(tp != NULL);
 
-	if (probe->ftp_type == DTFTP_RETURN ||
-	    probe->ftp_type == DTFTP_POST_OFFSETS) {
-		ASSERT(tp->ftt_retids != NULL);
-		idp = &tp->ftt_retids;
-	} else {
+	switch (id->fti_ptype) {
+	case DTFTP_ENTRY:
+	case DTFTP_OFFSETS:
+	case DTFTP_IS_ENABLED:
 		ASSERT(tp->ftt_ids != NULL);
 		idp = &tp->ftt_ids;
+		break;
+
+	case DTFTP_RETURN:
+	case DTFTP_POST_OFFSETS:
+		ASSERT(tp->ftt_retids != NULL);
+		idp = &tp->ftt_retids;
+		break;
+
+	default:
+		ASSERT(0);
 	}
 
 	while ((*idp)->fti_probe != probe) {
@@ -673,10 +742,12 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 
 			if (tp->ftt_ids != NULL) {
 				tmp_probe = tp->ftt_ids->fti_probe;
+				/* LINTED - alignment */
 				tmp_index = FASTTRAP_ID_INDEX(tp->ftt_ids);
 				tmp_tp = &tmp_probe->ftp_tps[tmp_index].fit_tp;
 			} else {
 				tmp_probe = tp->ftt_retids->fti_probe;
+				/* LINTED - alignment */
 				tmp_index = FASTTRAP_ID_INDEX(tp->ftt_retids);
 				tmp_tp = &tmp_probe->ftp_tps[tmp_index].fit_tp;
 			}
@@ -688,7 +759,6 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 
 			probe->ftp_tps[index].fit_tp = *tmp_tp;
 			*tmp_tp = tp;
-
 		}
 
 		mutex_exit(&bucket->ftb_mtx);
@@ -756,11 +826,8 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	probe->ftp_gen = fasttrap_mod_gen;
 }
 
-typedef int fasttrap_probe_f(struct regs *);
-
 static void
-fasttrap_enable_common(int *count, fasttrap_probe_f **fptr, fasttrap_probe_f *f,
-    fasttrap_probe_f **fptr2, fasttrap_probe_f *f2)
+fasttrap_enable_callbacks(void)
 {
 	/*
 	 * We don't have to play the rw lock game here because we're
@@ -769,41 +836,39 @@ fasttrap_enable_common(int *count, fasttrap_probe_f **fptr, fasttrap_probe_f *f,
 	 * function pointer yet.
 	 */
 	mutex_enter(&fasttrap_count_mtx);
-	if (*count == 0) {
-		ASSERT(*fptr == NULL);
-		*fptr = f;
-		if (fptr2 != NULL)
-			*fptr2 = f2;
+	if (fasttrap_pid_count == 0) {
+		ASSERT(dtrace_pid_probe_ptr == NULL);
+		ASSERT(dtrace_return_probe_ptr == NULL);
+		dtrace_pid_probe_ptr = &fasttrap_pid_probe;
+		dtrace_return_probe_ptr = &fasttrap_return_probe;
 	}
-	ASSERT(*fptr == f);
-	ASSERT(fptr2 == NULL || *fptr2 == f2);
-	(*count)++;
+	ASSERT(dtrace_pid_probe_ptr == &fasttrap_pid_probe);
+	ASSERT(dtrace_return_probe_ptr == &fasttrap_return_probe);
+	fasttrap_pid_count++;
 	mutex_exit(&fasttrap_count_mtx);
 }
 
 static void
-fasttrap_disable_common(int *count, fasttrap_probe_f **fptr,
-    fasttrap_probe_f **fptr2)
+fasttrap_disable_callbacks(void)
 {
 	ASSERT(MUTEX_HELD(&cpu_lock));
 
 	mutex_enter(&fasttrap_count_mtx);
-	(*count)--;
-	ASSERT(*count >= 0);
-	if (*count == 0) {
+	ASSERT(fasttrap_pid_count > 0);
+	fasttrap_pid_count--;
+	if (fasttrap_pid_count == 0) {
 		cpu_t *cur, *cpu = CPU;
 
 		for (cur = cpu->cpu_next_onln; cur != cpu;
-			cur = cur->cpu_next_onln) {
+		    cur = cur->cpu_next_onln) {
 			rw_enter(&cur->cpu_ft_lock, RW_WRITER);
 		}
 
-		*fptr = NULL;
-		if (fptr2 != NULL)
-			*fptr2 = NULL;
+		dtrace_pid_probe_ptr = NULL;
+		dtrace_return_probe_ptr = NULL;
 
 		for (cur = cpu->cpu_next_onln; cur != cpu;
-			cur = cur->cpu_next_onln) {
+		    cur = cur->cpu_next_onln) {
 			rw_exit(&cur->cpu_ft_lock);
 		}
 	}
@@ -812,28 +877,11 @@ fasttrap_disable_common(int *count, fasttrap_probe_f **fptr,
 
 /*ARGSUSED*/
 static void
-fasttrap_enable(void *arg, dtrace_id_t id, void *parg)
-{
-	/*
-	 * Enable the probe that corresponds to statically placed trace
-	 * points which have not explicitly been placed in the process's text
-	 * by the fasttrap provider.
-	 */
-	ASSERT(arg == NULL);
-	ASSERT(id == fasttrap_probe_id);
-
-	fasttrap_enable_common(&fasttrap_count,
-	    &dtrace_fasttrap_probe_ptr, fasttrap_probe, NULL, NULL);
-}
-
-
-/*ARGSUSED*/
-static void
 fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	fasttrap_probe_t *probe = parg;
 	proc_t *p;
-	int i;
+	int i, rc;
 
 	ASSERT(probe != NULL);
 	ASSERT(!probe->ftp_enabled);
@@ -851,39 +899,72 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 	mutex_exit(&probe->ftp_prov->ftp_mtx);
 
 	/*
-	 * Bail out if we can't find the process for this probe or its
-	 * provider is defunct (meaning it was valid in a previously exec'ed
-	 * incarnation of this address space). The provider can't go away
-	 * while we're in this code path.
+	 * If this probe's provider is retired (meaning it was valid in a
+	 * previously exec'ed incarnation of this address space), bail out. The
+	 * provider can't go away while we're in this code path.
 	 */
-	if (probe->ftp_prov->ftp_defunct ||
-	    (p = sprlock(probe->ftp_pid)) == NULL)
+	if (probe->ftp_prov->ftp_retired)
 		return;
+
+	/*
+	 * If we can't find the process, it may be that we're in the context of
+	 * a fork in which the traced process is being born and we're copying
+	 * USDT probes. Otherwise, the process is gone so bail.
+	 */
+	if ((p = sprlock(probe->ftp_pid)) == NULL) {
+		if ((curproc->p_flag & SFORKING) == 0)
+			return;
+
+		mutex_enter(&pidlock);
+		p = prfind(probe->ftp_pid);
+
+		/*
+		 * Confirm that curproc is indeed forking the process in which
+		 * we're trying to enable probes.
+		 */
+		ASSERT(p != NULL);
+		ASSERT(p->p_parent == curproc);
+		ASSERT(p->p_stat == SIDL);
+
+		mutex_enter(&p->p_lock);
+		mutex_exit(&pidlock);
+
+		sprlock_proc(p);
+	}
 
 	ASSERT(!(p->p_flag & SVFORK));
 	mutex_exit(&p->p_lock);
 
 	/*
-	 * We have to enable the trap entry before any user threads have
+	 * We have to enable the trap entry point before any user threads have
 	 * the chance to execute the trap instruction we're about to place
 	 * in their process's text.
 	 */
-	fasttrap_enable_common(&fasttrap_pid_count,
-	    &dtrace_pid_probe_ptr, fasttrap_pid_probe,
-	    &dtrace_return_probe_ptr, fasttrap_return_probe);
+	fasttrap_enable_callbacks();
 
 	/*
 	 * Enable all the tracepoints and add this probe's id to each
 	 * tracepoint's list of active probes.
 	 */
 	for (i = 0; i < probe->ftp_ntps; i++) {
-		if (fasttrap_tracepoint_enable(p, probe, i) != 0) {
+		if ((rc = fasttrap_tracepoint_enable(p, probe, i)) != 0) {
+			/*
+			 * If enabling the tracepoint failed completely,
+			 * we don't have to disable it; if the failure
+			 * was only partial we must disable it.
+			 */
+			if (rc == FASTTRAP_ENABLE_FAIL)
+				i--;
+			else
+				ASSERT(rc == FASTTRAP_ENABLE_PARTIAL);
+
 			/*
 			 * Back up and pull out all the tracepoints we've
 			 * created so far for this probe.
 			 */
-			while (--i >= 0) {
+			while (i >= 0) {
 				fasttrap_tracepoint_disable(p, probe, i);
+				i--;
 			}
 
 			mutex_enter(&p->p_lock);
@@ -893,8 +974,7 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 			 * Since we're not actually enabling this probe,
 			 * drop our reference on the trap table entry.
 			 */
-			fasttrap_disable_common(&fasttrap_pid_count,
-			    &dtrace_pid_probe_ptr, &dtrace_return_probe_ptr);
+			fasttrap_disable_callbacks();
 			return;
 		}
 	}
@@ -905,22 +985,6 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 	probe->ftp_enabled = 1;
 }
 
-
-/*ARGSUSED*/
-static void
-fasttrap_disable(void *arg, dtrace_id_t id, void *parg)
-{
-	/*
-	 * Disable the probe the corresponds to statically placed trace
-	 * points.
-	 */
-	ASSERT(arg == NULL);
-	ASSERT(id == fasttrap_probe_id);
-	ASSERT(MUTEX_HELD(&cpu_lock));
-	fasttrap_disable_common(&fasttrap_count, &dtrace_fasttrap_probe_ptr,
-	    NULL);
-}
-
 /*ARGSUSED*/
 static void
 fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
@@ -929,14 +993,6 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 	fasttrap_provider_t *provider = probe->ftp_prov;
 	proc_t *p;
 	int i, whack = 0;
-
-	if (!probe->ftp_enabled) {
-		mutex_enter(&provider->ftp_mtx);
-		provider->ftp_rcount--;
-		ASSERT(provider->ftp_rcount >= 0);
-		mutex_exit(&provider->ftp_mtx);
-		return;
-	}
 
 	ASSERT(id == probe->ftp_id);
 
@@ -954,10 +1010,12 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 	mutex_enter(&provider->ftp_mtx);
 
 	/*
-	 * Disable all the associated tracepoints.
+	 * Disable all the associated tracepoints (for fully enabled probes).
 	 */
-	for (i = 0; i < probe->ftp_ntps; i++) {
-		fasttrap_tracepoint_disable(p, probe, i);
+	if (probe->ftp_enabled) {
+		for (i = 0; i < probe->ftp_ntps; i++) {
+			fasttrap_tracepoint_disable(p, probe, i);
+		}
 	}
 
 	ASSERT(provider->ftp_rcount > 0);
@@ -966,10 +1024,10 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 	if (p != NULL) {
 		/*
 		 * Even though we may not be able to remove it entirely, we
-		 * mark this defunct provider to get a chance to remove some
+		 * mark this retired provider to get a chance to remove some
 		 * of the associated probes.
 		 */
-		if (provider->ftp_defunct && !provider->ftp_marked)
+		if (provider->ftp_retired && !provider->ftp_marked)
 			whack = provider->ftp_marked = 1;
 		mutex_exit(&provider->ftp_mtx);
 
@@ -988,11 +1046,13 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 	if (whack)
 		fasttrap_pid_cleanup();
 
+	if (!probe->ftp_enabled)
+		return;
+
 	probe->ftp_enabled = 0;
 
 	ASSERT(MUTEX_HELD(&cpu_lock));
-	fasttrap_disable_common(&fasttrap_pid_count, &dtrace_pid_probe_ptr,
-	    &dtrace_return_probe_ptr);
+	fasttrap_disable_callbacks();
 }
 
 /*ARGSUSED*/
@@ -1002,25 +1062,22 @@ fasttrap_pid_getargdesc(void *arg, dtrace_id_t id, void *parg,
 {
 	fasttrap_probe_t *probe = parg;
 	char *str;
-	int i;
+	int i, ndx;
 
 	desc->dtargd_native[0] = '\0';
 	desc->dtargd_xlate[0] = '\0';
 
-	if (probe->ftp_prov->ftp_defunct != 0 ||
+	if (probe->ftp_prov->ftp_retired != 0 ||
 	    desc->dtargd_ndx >= probe->ftp_nargs) {
 		desc->dtargd_ndx = DTRACE_ARGNONE;
 		return;
 	}
 
-	/*
-	 * We only need to set this member if the argument is remapped.
-	 */
-	if (probe->ftp_argmap != NULL)
-		desc->dtargd_mapping = probe->ftp_argmap[desc->dtargd_ndx];
+	ndx = (probe->ftp_argmap != NULL) ?
+	    probe->ftp_argmap[desc->dtargd_ndx] : desc->dtargd_ndx;
 
 	str = probe->ftp_ntypes;
-	for (i = 0; i < desc->dtargd_mapping; i++) {
+	for (i = 0; i < ndx; i++) {
 		str += strlen(str) + 1;
 	}
 
@@ -1041,14 +1098,6 @@ fasttrap_pid_getargdesc(void *arg, dtrace_id_t id, void *parg,
 
 /*ARGSUSED*/
 static void
-fasttrap_destroy(void *arg, dtrace_id_t id, void *parg)
-{
-	ASSERT(arg == NULL);
-	ASSERT(id == fasttrap_probe_id);
-}
-
-/*ARGSUSED*/
-static void
 fasttrap_pid_destroy(void *arg, dtrace_id_t id, void *parg)
 {
 	fasttrap_probe_t *probe = parg;
@@ -1060,8 +1109,7 @@ fasttrap_pid_destroy(void *arg, dtrace_id_t id, void *parg)
 	ASSERT(fasttrap_total >= probe->ftp_ntps);
 
 	atomic_add_32(&fasttrap_total, -probe->ftp_ntps);
-	size = sizeof (fasttrap_probe_t) +
-	    sizeof (probe->ftp_tps[0]) * (probe->ftp_ntps - 1);
+	size = offsetof(fasttrap_probe_t, ftp_tps[probe->ftp_ntps]);
 
 	if (probe->ftp_gen + 1 >= fasttrap_mod_gen)
 		fasttrap_mod_barrier(probe->ftp_gen);
@@ -1074,27 +1122,6 @@ fasttrap_pid_destroy(void *arg, dtrace_id_t id, void *parg)
 	kmem_free(probe, size);
 }
 
-
-static const dtrace_pattr_t fasttrap_attr = {
-{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_ISA },
-{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_UNKNOWN },
-{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_UNKNOWN },
-{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_ISA },
-{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_ISA },
-};
-
-static dtrace_pops_t fasttrap_pops = {
-	fasttrap_provide,
-	NULL,
-	fasttrap_enable,
-	fasttrap_disable,
-	NULL,
-	NULL,
-	NULL,
-	fasttrap_getarg,
-	NULL,
-	fasttrap_destroy
-};
 
 static const dtrace_pattr_t pid_attr = {
 { DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_ISA },
@@ -1112,7 +1139,7 @@ static dtrace_pops_t pid_pops = {
 	NULL,
 	NULL,
 	fasttrap_pid_getargdesc,
-	fasttrap_getarg,
+	fasttrap_pid_getarg,
 	NULL,
 	fasttrap_pid_destroy
 };
@@ -1130,6 +1157,116 @@ static dtrace_pops_t usdt_pops = {
 	fasttrap_pid_destroy
 };
 
+static fasttrap_proc_t *
+fasttrap_proc_lookup(pid_t pid)
+{
+	fasttrap_bucket_t *bucket;
+	fasttrap_proc_t *fprc, *new_fprc;
+
+	bucket = &fasttrap_procs.fth_table[FASTTRAP_PROCS_INDEX(pid)];
+	mutex_enter(&bucket->ftb_mtx);
+
+	for (fprc = bucket->ftb_data; fprc != NULL; fprc = fprc->ftpc_next) {
+		if (fprc->ftpc_pid == pid && fprc->ftpc_acount != 0) {
+			mutex_enter(&fprc->ftpc_mtx);
+			mutex_exit(&bucket->ftb_mtx);
+			fprc->ftpc_rcount++;
+			atomic_add_64(&fprc->ftpc_acount, 1);
+			ASSERT(fprc->ftpc_acount <= fprc->ftpc_rcount);
+			mutex_exit(&fprc->ftpc_mtx);
+
+			return (fprc);
+		}
+	}
+
+	/*
+	 * Drop the bucket lock so we don't try to perform a sleeping
+	 * allocation under it.
+	 */
+	mutex_exit(&bucket->ftb_mtx);
+
+	new_fprc = kmem_zalloc(sizeof (fasttrap_proc_t), KM_SLEEP);
+	new_fprc->ftpc_pid = pid;
+	new_fprc->ftpc_rcount = 1;
+	new_fprc->ftpc_acount = 1;
+
+	mutex_enter(&bucket->ftb_mtx);
+
+	/*
+	 * Take another lap through the list to make sure a proc hasn't
+	 * been created for this pid while we weren't under the bucket lock.
+	 */
+	for (fprc = bucket->ftb_data; fprc != NULL; fprc = fprc->ftpc_next) {
+		if (fprc->ftpc_pid == pid && fprc->ftpc_acount != 0) {
+			mutex_enter(&fprc->ftpc_mtx);
+			mutex_exit(&bucket->ftb_mtx);
+			fprc->ftpc_rcount++;
+			atomic_add_64(&fprc->ftpc_acount, 1);
+			ASSERT(fprc->ftpc_acount <= fprc->ftpc_rcount);
+			mutex_exit(&fprc->ftpc_mtx);
+
+			kmem_free(new_fprc, sizeof (fasttrap_proc_t));
+
+			return (fprc);
+		}
+	}
+
+	new_fprc->ftpc_next = bucket->ftb_data;
+	bucket->ftb_data = new_fprc;
+
+	mutex_exit(&bucket->ftb_mtx);
+
+	return (new_fprc);
+}
+
+static void
+fasttrap_proc_release(fasttrap_proc_t *proc)
+{
+	fasttrap_bucket_t *bucket;
+	fasttrap_proc_t *fprc, **fprcp;
+	pid_t pid = proc->ftpc_pid;
+
+	mutex_enter(&proc->ftpc_mtx);
+
+	ASSERT(proc->ftpc_rcount != 0);
+	ASSERT(proc->ftpc_acount <= proc->ftpc_rcount);
+
+	if (--proc->ftpc_rcount != 0) {
+		mutex_exit(&proc->ftpc_mtx);
+		return;
+	}
+
+	mutex_exit(&proc->ftpc_mtx);
+
+	/*
+	 * There should definitely be no live providers associated with this
+	 * process at this point.
+	 */
+	ASSERT(proc->ftpc_acount == 0);
+
+	bucket = &fasttrap_procs.fth_table[FASTTRAP_PROCS_INDEX(pid)];
+	mutex_enter(&bucket->ftb_mtx);
+
+	fprcp = (fasttrap_proc_t **)&bucket->ftb_data;
+	while ((fprc = *fprcp) != NULL) {
+		if (fprc == proc)
+			break;
+
+		fprcp = &fprc->ftpc_next;
+	}
+
+	/*
+	 * Something strange has happened if we can't find the proc.
+	 */
+	ASSERT(fprc != NULL);
+
+	*fprcp = fprc->ftpc_next;
+
+	mutex_exit(&bucket->ftb_mtx);
+
+	kmem_free(fprc, sizeof (fasttrap_proc_t));
+}
+
 /*
  * Lookup a fasttrap-managed provider based on its name and associated pid.
  * If the pattr argument is non-NULL, this function instantiates the provider
@@ -1144,9 +1281,10 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	fasttrap_bucket_t *bucket;
 	char provname[DTRACE_PROVNAMELEN];
 	proc_t *p;
-	uid_t uid = (uid_t)-1;
+	cred_t *cred;
 
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
+	ASSERT(pattr != NULL);
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
 	mutex_enter(&bucket->ftb_mtx);
@@ -1156,7 +1294,7 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	 */
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
-		    !fp->ftp_defunct) {
+		    !fp->ftp_retired) {
 			mutex_enter(&fp->ftp_mtx);
 			mutex_exit(&bucket->ftb_mtx);
 			return (fp);
@@ -1169,23 +1307,21 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	 */
 	mutex_exit(&bucket->ftb_mtx);
 
-	if (pattr == NULL)
-		return (NULL);
-
 	/*
 	 * Make sure the process exists, isn't a child created as the result
-	 * of a vfork(2), and isn't a zombie (but may be in fork). Record the
-	 * process's uid to pass to dtrace_register().
+	 * of a vfork(2), and isn't a zombie (but may be in fork).
 	 */
 	mutex_enter(&pidlock);
-	if ((p = prfind(pid)) == NULL ||
-	    (p->p_flag & (SVFORK | SEXITLWPS)) ||
-	    (p->p_lwpcnt == 0 && p->p_lwpdir != NULL)) {
+	if ((p = prfind(pid)) == NULL) {
 		mutex_exit(&pidlock);
 		return (NULL);
 	}
 	mutex_enter(&p->p_lock);
 	mutex_exit(&pidlock);
+	if (p->p_flag & (SVFORK | SEXITING)) {
+		mutex_exit(&p->p_lock);
+		return (NULL);
+	}
 
 	/*
 	 * Increment p_dtrace_probes so that the process knows to inform us
@@ -1194,12 +1330,21 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	 */
 	p->p_dtrace_probes++;
 
+	/*
+	 * Grab the credentials for this process so we have
+	 * something to pass to dtrace_register().
+	 */
 	mutex_enter(&p->p_crlock);
-	uid = crgetruid(p->p_cred);
+	crhold(p->p_cred);
+	cred = p->p_cred;
 	mutex_exit(&p->p_crlock);
 	mutex_exit(&p->p_lock);
 
 	new_fp = kmem_zalloc(sizeof (fasttrap_provider_t), KM_SLEEP);
+	new_fp->ftp_pid = pid;
+	new_fp->ftp_proc = fasttrap_proc_lookup(pid);
+
+	ASSERT(new_fp->ftp_proc != NULL);
 
 	mutex_enter(&bucket->ftb_mtx);
 
@@ -1209,15 +1354,15 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	 */
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
-		    !fp->ftp_defunct) {
+		    !fp->ftp_retired) {
 			mutex_enter(&fp->ftp_mtx);
 			mutex_exit(&bucket->ftb_mtx);
 			fasttrap_provider_free(new_fp);
+			crfree(cred);
 			return (fp);
 		}
 	}
 
-	new_fp->ftp_pid = pid;
 	(void) strcpy(new_fp->ftp_name, name);
 
 	/*
@@ -1230,11 +1375,12 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	if (snprintf(provname, sizeof (provname), "%s%u", name, (uint_t)pid) >=
 	    sizeof (provname) ||
 	    dtrace_register(provname, pattr,
-	    DTRACE_PRIV_PROC | DTRACE_PRIV_OWNER, uid,
+	    DTRACE_PRIV_PROC | DTRACE_PRIV_OWNER | DTRACE_PRIV_ZONEOWNER, cred,
 	    pattr == &pid_attr ? &pid_pops : &usdt_pops, new_fp,
 	    &new_fp->ftp_provid) != 0) {
 		mutex_exit(&bucket->ftb_mtx);
 		fasttrap_provider_free(new_fp);
+		crfree(cred);
 		return (NULL);
 	}
 
@@ -1244,6 +1390,7 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	mutex_enter(&new_fp->ftp_mtx);
 	mutex_exit(&bucket->ftb_mtx);
 
+	crfree(cred);
 	return (new_fp);
 }
 
@@ -1254,11 +1401,24 @@ fasttrap_provider_free(fasttrap_provider_t *provider)
 	proc_t *p;
 
 	/*
-	 * There need to be no consumers using this provider and no
-	 * associated enabled probes.
+	 * There need to be no associated enabled probes, no consumers
+	 * creating probes, and no meta providers referencing this provider.
 	 */
-	ASSERT(provider->ftp_ccount == 0);
 	ASSERT(provider->ftp_rcount == 0);
+	ASSERT(provider->ftp_ccount == 0);
+	ASSERT(provider->ftp_mcount == 0);
+
+	/*
+	 * If this provider hasn't been retired, we need to explicitly drop the
+	 * count of active providers on the associated process structure.
+	 */
+	if (!provider->ftp_retired) {
+		atomic_add_64(&provider->ftp_proc->ftpc_acount, -1);
+		ASSERT(provider->ftp_proc->ftpc_acount <
+		    provider->ftp_proc->ftpc_rcount);
+	}
+
+	fasttrap_proc_release(provider->ftp_proc);
 
 	kmem_free(provider, sizeof (fasttrap_provider_t));
 
@@ -1283,29 +1443,81 @@ fasttrap_provider_free(fasttrap_provider_t *provider)
 }
 
 static void
-fasttrap_provider_retire(fasttrap_provider_t *provider)
+fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 {
-	dtrace_provider_id_t provid = provider->ftp_provid;
+	fasttrap_provider_t *fp;
+	fasttrap_bucket_t *bucket;
+	dtrace_provider_id_t provid;
+
+	ASSERT(strlen(name) < sizeof (fp->ftp_name));
+
+	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
+	mutex_enter(&bucket->ftb_mtx);
+
+	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
+		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
+		    !fp->ftp_retired)
+			break;
+	}
+
+	if (fp == NULL) {
+		mutex_exit(&bucket->ftb_mtx);
+		return;
+	}
+
+	mutex_enter(&fp->ftp_mtx);
+	ASSERT(!mprov || fp->ftp_mcount > 0);
+	if (mprov && --fp->ftp_mcount != 0)  {
+		mutex_exit(&fp->ftp_mtx);
+		mutex_exit(&bucket->ftb_mtx);
+		return;
+	}
 
 	/*
-	 * Mark the provider to be removed in our post-processing step
-	 * and mark it as defunct. The former indicates that we should try
-	 * to remove it, the latter indicates that even if we were unable
-	 * to remove it, this provider shouldn't be used to create probes
-	 * in the future.
+	 * Mark the provider to be removed in our post-processing step, mark it
+	 * retired, and drop the active count on its proc. Marking it indicates
+	 * that we should try to remove it; setting the retired flag indicates
+	 * that we're done with this provider; dropping the active the proc
+	 * releases our hold, and when this reaches zero (as it will during
+	 * exit or exec) the proc and associated providers become defunct.
+	 *
+	 * We obviously need to take the bucket lock before the provider lock
+	 * to perform the lookup, but we need to drop the provider lock
+	 * before calling into the DTrace framework since we acquire the
+	 * provider lock in callbacks invoked from the DTrace framework. The
+	 * bucket lock therefore protects the integrity of the provider hash
+	 * table.
 	 */
-	provider->ftp_defunct = 1;
-	provider->ftp_marked = 1;
-	mutex_exit(&provider->ftp_mtx);
+	atomic_add_64(&fp->ftp_proc->ftpc_acount, -1);
+	ASSERT(fp->ftp_proc->ftpc_acount < fp->ftp_proc->ftpc_rcount);
+
+	fp->ftp_retired = 1;
+	fp->ftp_marked = 1;
+	provid = fp->ftp_provid;
+	mutex_exit(&fp->ftp_mtx);
 
 	/*
 	 * We don't have to worry about invalidating the same provider twice
 	 * since fasttrap_provider_lookup() will ignore provider that have
-	 * been marked as defunct.
+	 * been marked as retired.
 	 */
 	dtrace_invalidate(provid);
 
+	mutex_exit(&bucket->ftb_mtx);
+
 	fasttrap_pid_cleanup();
+}
+
+static int
+fasttrap_uint32_cmp(const void *ap, const void *bp)
+{
+	return (*(const uint32_t *)ap - *(const uint32_t *)bp);
+}
+
+static int
+fasttrap_uint64_cmp(const void *ap, const void *bp)
+{
+	return (*(const uint64_t *)ap - *(const uint64_t *)bp);
 }
 
 static int
@@ -1315,8 +1527,13 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	fasttrap_probe_t *pp;
 	fasttrap_tracepoint_t *tp;
 	char *name;
-	size_t size;
 	int i, aframes, whack;
+
+	/*
+	 * There needs to be at least one desired trace point.
+	 */
+	if (pdata->ftps_noffs == 0)
+		return (EINVAL);
 
 	switch (pdata->ftps_type) {
 	case DTFTP_ENTRY:
@@ -1340,51 +1557,23 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 
 	/*
 	 * Increment this reference count to indicate that a consumer is
-	 * actively adding a new probe associated with this provider.
+	 * actively adding a new probe associated with this provider. This
+	 * prevents the provider from being deleted -- we'll need to check
+	 * for pending deletions when we drop this reference count.
 	 */
 	provider->ftp_ccount++;
 	mutex_exit(&provider->ftp_mtx);
 
-	if (name != NULL) {
-		if (dtrace_probe_lookup(provider->ftp_provid,
-		    pdata->ftps_mod, pdata->ftps_func, name) != 0)
-			goto done;
+	/*
+	 * Grab the creation lock to ensure consistency between calls to
+	 * dtrace_probe_lookup() and dtrace_probe_create() in the face of
+	 * other threads creating probes. We must drop the provider lock
+	 * before taking this lock to avoid a three-way deadlock with the
+	 * DTrace framework.
+	 */
+	mutex_enter(&provider->ftp_cmtx);
 
-		atomic_add_32(&fasttrap_total, pdata->ftps_noffs);
-
-		if (fasttrap_total > fasttrap_max) {
-			atomic_add_32(&fasttrap_total, -pdata->ftps_noffs);
-			goto no_mem;
-		}
-
-		ASSERT(pdata->ftps_noffs > 0);
-		size = sizeof (fasttrap_probe_t) +
-		    sizeof (pp->ftp_tps[0]) * (pdata->ftps_noffs - 1);
-
-		pp = kmem_zalloc(size, KM_SLEEP);
-
-		pp->ftp_prov = provider;
-		pp->ftp_faddr = pdata->ftps_pc;
-		pp->ftp_fsize = pdata->ftps_size;
-		pp->ftp_pid = pdata->ftps_pid;
-		pp->ftp_ntps = pdata->ftps_noffs;
-		pp->ftp_type = pdata->ftps_type;
-
-		for (i = 0; i < pdata->ftps_noffs; i++) {
-			tp = kmem_zalloc(sizeof (fasttrap_tracepoint_t),
-			    KM_SLEEP);
-
-			tp->ftt_prov = provider;
-			tp->ftt_pc = pdata->ftps_offs[i] + pdata->ftps_pc;
-			tp->ftt_pid = pdata->ftps_pid;
-
-			pp->ftp_tps[i].fit_tp = tp;
-			pp->ftp_tps[i].fit_id.fti_probe = pp;
-		}
-
-		pp->ftp_id = dtrace_probe_create(provider->ftp_provid,
-		    pdata->ftps_mod, pdata->ftps_func, name, aframes, pp);
-	} else {
+	if (name == NULL) {
 		for (i = 0; i < pdata->ftps_noffs; i++) {
 			char name_str[17];
 
@@ -1409,34 +1598,85 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 			pp->ftp_fsize = pdata->ftps_size;
 			pp->ftp_pid = pdata->ftps_pid;
 			pp->ftp_ntps = 1;
-			pp->ftp_type = pdata->ftps_type;
 
 			tp = kmem_zalloc(sizeof (fasttrap_tracepoint_t),
 			    KM_SLEEP);
 
-			tp->ftt_prov = provider;
+			tp->ftt_proc = provider->ftp_proc;
 			tp->ftt_pc = pdata->ftps_offs[i] + pdata->ftps_pc;
 			tp->ftt_pid = pdata->ftps_pid;
 
 			pp->ftp_tps[0].fit_tp = tp;
 			pp->ftp_tps[0].fit_id.fti_probe = pp;
+			pp->ftp_tps[0].fit_id.fti_ptype = pdata->ftps_type;
 
 			pp->ftp_id = dtrace_probe_create(provider->ftp_provid,
 			    pdata->ftps_mod, pdata->ftps_func, name_str,
 			    FASTTRAP_OFFSET_AFRAMES, pp);
 		}
+
+	} else if (dtrace_probe_lookup(provider->ftp_provid, pdata->ftps_mod,
+	    pdata->ftps_func, name) == 0) {
+		atomic_add_32(&fasttrap_total, pdata->ftps_noffs);
+
+		if (fasttrap_total > fasttrap_max) {
+			atomic_add_32(&fasttrap_total, -pdata->ftps_noffs);
+			goto no_mem;
+		}
+
+		/*
+		 * Make sure all tracepoint program counter values are unique.
+		 * We later assume that each probe has exactly one tracepoint
+		 * for a given pc.
+		 */
+		qsort(pdata->ftps_offs, pdata->ftps_noffs,
+		    sizeof (uint64_t), fasttrap_uint64_cmp);
+		for (i = 1; i < pdata->ftps_noffs; i++) {
+			if (pdata->ftps_offs[i] > pdata->ftps_offs[i - 1])
+				continue;
+
+			atomic_add_32(&fasttrap_total, -pdata->ftps_noffs);
+			goto no_mem;
+		}
+
+		ASSERT(pdata->ftps_noffs > 0);
+		pp = kmem_zalloc(offsetof(fasttrap_probe_t,
+		    ftp_tps[pdata->ftps_noffs]), KM_SLEEP);
+
+		pp->ftp_prov = provider;
+		pp->ftp_faddr = pdata->ftps_pc;
+		pp->ftp_fsize = pdata->ftps_size;
+		pp->ftp_pid = pdata->ftps_pid;
+		pp->ftp_ntps = pdata->ftps_noffs;
+
+		for (i = 0; i < pdata->ftps_noffs; i++) {
+			tp = kmem_zalloc(sizeof (fasttrap_tracepoint_t),
+			    KM_SLEEP);
+
+			tp->ftt_proc = provider->ftp_proc;
+			tp->ftt_pc = pdata->ftps_offs[i] + pdata->ftps_pc;
+			tp->ftt_pid = pdata->ftps_pid;
+
+			pp->ftp_tps[i].fit_tp = tp;
+			pp->ftp_tps[i].fit_id.fti_probe = pp;
+			pp->ftp_tps[i].fit_id.fti_ptype = pdata->ftps_type;
+		}
+
+		pp->ftp_id = dtrace_probe_create(provider->ftp_provid,
+		    pdata->ftps_mod, pdata->ftps_func, name, aframes, pp);
 	}
 
-done:
+	mutex_exit(&provider->ftp_cmtx);
+
 	/*
 	 * We know that the provider is still valid since we incremented the
-	 * reference count. If someone tried to free this provider while we
-	 * were using it (e.g. because the process called exec(2) or exit(2)),
-	 * take note of that and try to free it now.
+	 * creation reference count. If someone tried to clean up this provider
+	 * while we were using it (e.g. because the process called exec(2) or
+	 * exit(2)), take note of that and try to clean it up now.
 	 */
 	mutex_enter(&provider->ftp_mtx);
 	provider->ftp_ccount--;
-	whack = provider->ftp_defunct;
+	whack = provider->ftp_retired;
 	mutex_exit(&provider->ftp_mtx);
 
 	if (whack)
@@ -1451,6 +1691,7 @@ no_mem:
 	 * the user has accidentally created many more probes than was
 	 * intended (e.g. pid123:::).
 	 */
+	mutex_exit(&provider->ftp_cmtx);
 	mutex_enter(&provider->ftp_mtx);
 	provider->ftp_ccount--;
 	provider->ftp_marked = 1;
@@ -1493,15 +1734,15 @@ fasttrap_meta_provide(void *arg, dtrace_helper_provdesc_t *dhpv, pid_t pid)
 	 * The highest stability class that fasttrap supports is ISA; cap
 	 * the stability of the new provider accordingly.
 	 */
-	if (dhpv->dthpv_pattr.dtpa_provider.dtat_class >= DTRACE_CLASS_COMMON)
+	if (dhpv->dthpv_pattr.dtpa_provider.dtat_class > DTRACE_CLASS_ISA)
 		dhpv->dthpv_pattr.dtpa_provider.dtat_class = DTRACE_CLASS_ISA;
-	if (dhpv->dthpv_pattr.dtpa_mod.dtat_class >= DTRACE_CLASS_COMMON)
+	if (dhpv->dthpv_pattr.dtpa_mod.dtat_class > DTRACE_CLASS_ISA)
 		dhpv->dthpv_pattr.dtpa_mod.dtat_class = DTRACE_CLASS_ISA;
-	if (dhpv->dthpv_pattr.dtpa_func.dtat_class >= DTRACE_CLASS_COMMON)
+	if (dhpv->dthpv_pattr.dtpa_func.dtat_class > DTRACE_CLASS_ISA)
 		dhpv->dthpv_pattr.dtpa_func.dtat_class = DTRACE_CLASS_ISA;
-	if (dhpv->dthpv_pattr.dtpa_name.dtat_class >= DTRACE_CLASS_COMMON)
+	if (dhpv->dthpv_pattr.dtpa_name.dtat_class > DTRACE_CLASS_ISA)
 		dhpv->dthpv_pattr.dtpa_name.dtat_class = DTRACE_CLASS_ISA;
-	if (dhpv->dthpv_pattr.dtpa_args.dtat_class >= DTRACE_CLASS_COMMON)
+	if (dhpv->dthpv_pattr.dtpa_args.dtat_class > DTRACE_CLASS_ISA)
 		dhpv->dthpv_pattr.dtpa_args.dtat_class = DTRACE_CLASS_ISA;
 
 	if ((provider = fasttrap_provider_lookup(pid, dhpv->dthpv_provname,
@@ -1512,11 +1753,10 @@ fasttrap_meta_provide(void *arg, dtrace_helper_provdesc_t *dhpv, pid_t pid)
 	}
 
 	/*
-	 * We elevate the consumer count here to ensure that this provider
-	 * isn't removed until after the meta provider has been told to
-	 * remove it.
+	 * Up the meta provider count so this provider isn't removed until
+	 * the meta provider has been told to remove it.
 	 */
-	provider->ftp_ccount++;
+	provider->ftp_mcount++;
 
 	mutex_exit(&provider->ftp_mtx);
 
@@ -1531,50 +1771,99 @@ fasttrap_meta_create_probe(void *arg, void *parg,
 	fasttrap_provider_t *provider = parg;
 	fasttrap_probe_t *pp;
 	fasttrap_tracepoint_t *tp;
-	size_t size;
-	int i;
+	int i, j;
+	uint32_t ntps;
 
-	mutex_enter(&provider->ftp_mtx);
+	/*
+	 * Since the meta provider count is non-zero we don't have to worry
+	 * about this provider disappearing.
+	 */
+	ASSERT(provider->ftp_mcount > 0);
+
+	/*
+	 * The offsets must be unique.
+	 */
+	qsort(dhpb->dthpb_offs, dhpb->dthpb_noffs, sizeof (uint32_t),
+	    fasttrap_uint32_cmp);
+	for (i = 1; i < dhpb->dthpb_noffs; i++) {
+		if (dhpb->dthpb_base + dhpb->dthpb_offs[i] <=
+		    dhpb->dthpb_base + dhpb->dthpb_offs[i - 1])
+			return;
+	}
+
+	qsort(dhpb->dthpb_enoffs, dhpb->dthpb_nenoffs, sizeof (uint32_t),
+	    fasttrap_uint32_cmp);
+	for (i = 1; i < dhpb->dthpb_nenoffs; i++) {
+		if (dhpb->dthpb_base + dhpb->dthpb_enoffs[i] <=
+		    dhpb->dthpb_base + dhpb->dthpb_enoffs[i - 1])
+			return;
+	}
+
+	/*
+	 * Grab the creation lock to ensure consistency between calls to
+	 * dtrace_probe_lookup() and dtrace_probe_create() in the face of
+	 * other threads creating probes.
+	 */
+	mutex_enter(&provider->ftp_cmtx);
 
 	if (dtrace_probe_lookup(provider->ftp_provid, dhpb->dthpb_mod,
 	    dhpb->dthpb_func, dhpb->dthpb_name) != 0) {
-		mutex_exit(&provider->ftp_mtx);
+		mutex_exit(&provider->ftp_cmtx);
 		return;
 	}
 
-	atomic_add_32(&fasttrap_total, dhpb->dthpb_noffs);
+	ntps = dhpb->dthpb_noffs + dhpb->dthpb_nenoffs;
+	ASSERT(ntps > 0);
+
+	atomic_add_32(&fasttrap_total, ntps);
 
 	if (fasttrap_total > fasttrap_max) {
-		atomic_add_32(&fasttrap_total, -dhpb->dthpb_noffs);
-		mutex_exit(&provider->ftp_mtx);
+		atomic_add_32(&fasttrap_total, -ntps);
+		mutex_exit(&provider->ftp_cmtx);
 		return;
 	}
 
-	size = sizeof (fasttrap_probe_t) +
-	    sizeof (pp->ftp_tps[0]) * (dhpb->dthpb_noffs - 1);
-	pp = kmem_zalloc(size, KM_SLEEP);
+	pp = kmem_zalloc(offsetof(fasttrap_probe_t, ftp_tps[ntps]), KM_SLEEP);
 
 	pp->ftp_prov = provider;
 	pp->ftp_pid = provider->ftp_pid;
-	pp->ftp_ntps = dhpb->dthpb_noffs;
-#ifdef __sparc
-	pp->ftp_type = DTFTP_POST_OFFSETS;
-#else
-	pp->ftp_type = DTFTP_OFFSETS;
-#endif
+	pp->ftp_ntps = ntps;
 	pp->ftp_nargs = dhpb->dthpb_xargc;
 	pp->ftp_xtypes = dhpb->dthpb_xtypes;
 	pp->ftp_ntypes = dhpb->dthpb_ntypes;
 
-	for (i = 0; i < pp->ftp_ntps; i++) {
+	/*
+	 * First create a tracepoint for each actual point of interest.
+	 */
+	for (i = 0; i < dhpb->dthpb_noffs; i++) {
 		tp = kmem_zalloc(sizeof (fasttrap_tracepoint_t), KM_SLEEP);
 
-		tp->ftt_prov = provider;
+		tp->ftt_proc = provider->ftp_proc;
 		tp->ftt_pc = dhpb->dthpb_base + dhpb->dthpb_offs[i];
 		tp->ftt_pid = provider->ftp_pid;
 
 		pp->ftp_tps[i].fit_tp = tp;
 		pp->ftp_tps[i].fit_id.fti_probe = pp;
+#ifdef __sparc
+		pp->ftp_tps[i].fit_id.fti_ptype = DTFTP_POST_OFFSETS;
+#else
+		pp->ftp_tps[i].fit_id.fti_ptype = DTFTP_OFFSETS;
+#endif
+	}
+
+	/*
+	 * Then create a tracepoint for each is-enabled point.
+	 */
+	for (j = 0; i < ntps; i++, j++) {
+		tp = kmem_zalloc(sizeof (fasttrap_tracepoint_t), KM_SLEEP);
+
+		tp->ftt_proc = provider->ftp_proc;
+		tp->ftt_pc = dhpb->dthpb_base + dhpb->dthpb_enoffs[j];
+		tp->ftt_pid = provider->ftp_pid;
+
+		pp->ftp_tps[i].fit_tp = tp;
+		pp->ftp_tps[i].fit_id.fti_probe = pp;
+		pp->ftp_tps[i].fit_id.fti_ptype = DTFTP_IS_ENABLED;
 	}
 
 	/*
@@ -1595,26 +1884,20 @@ fasttrap_meta_create_probe(void *arg, void *parg,
 	pp->ftp_id = dtrace_probe_create(provider->ftp_provid, dhpb->dthpb_mod,
 	    dhpb->dthpb_func, dhpb->dthpb_name, FASTTRAP_OFFSET_AFRAMES, pp);
 
-	mutex_exit(&provider->ftp_mtx);
+	mutex_exit(&provider->ftp_cmtx);
 }
 
 /*ARGSUSED*/
 static void
 fasttrap_meta_remove(void *arg, dtrace_helper_provdesc_t *dhpv, pid_t pid)
 {
-	fasttrap_provider_t *provider;
-
-	if ((provider = fasttrap_provider_lookup(pid,
-	    dhpv->dthpv_provname, NULL)) != NULL) {
-		/*
-		 * Drop the consumer count now that we're done with this
-		 * provider. If there are no other consumers retire it now.
-		 */
-		if (--provider->ftp_ccount == 0)
-			fasttrap_provider_retire(provider);
-		else
-			mutex_exit(&provider->ftp_mtx);
-	}
+	/*
+	 * Clean up the USDT provider. There may be active consumers of the
+	 * provider busy adding probes, no damage will actually befall the
+	 * provider until that count has dropped to zero. This just puts
+	 * the provider on death row.
+	 */
+	fasttrap_provider_retire(pid, dhpv->dthpv_provname, 1);
 }
 
 static dtrace_mops_t fasttrap_mops = {
@@ -1758,7 +2041,7 @@ err:
 		while (tp != NULL) {
 			if (instr.ftiq_pid == tp->ftt_pid &&
 			    instr.ftiq_pc == tp->ftt_pc &&
-			    !tp->ftt_prov->ftp_defunct)
+			    tp->ftt_proc->ftpc_acount != 0)
 				break;
 
 			tp = tp->ftt_next;
@@ -1836,9 +2119,7 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	}
 
 	if (ddi_create_minor_node(devi, "fasttrap", S_IFCHR, 0,
-	    DDI_PSEUDO, NULL) == DDI_FAILURE ||
-	    dtrace_register("fasttrap", &fasttrap_attr, DTRACE_PRIV_USER, 0,
-	    &fasttrap_pops, NULL, &fasttrap_id) != 0) {
+	    DDI_PSEUDO, NULL) == DDI_FAILURE) {
 		ddi_remove_minor_node(devi, NULL);
 		return (DDI_FAILURE);
 	}
@@ -1863,7 +2144,7 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	nent = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
 	    "fasttrap-hash-size", FASTTRAP_TPOINTS_DEFAULT_SIZE);
 
-	if (nent <= 0 || nent > 0x1000000)
+	if (nent == 0 || nent > 0x1000000)
 		nent = FASTTRAP_TPOINTS_DEFAULT_SIZE;
 
 	if ((nent & (nent - 1)) == 0)
@@ -1876,7 +2157,7 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 
 	/*
-	 * ... and the providers hash table.
+	 * ... and the providers hash table...
 	 */
 	nent = FASTTRAP_PROVIDERS_DEFAULT_SIZE;
 	if ((nent & (nent - 1)) == 0)
@@ -1885,8 +2166,20 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 		fasttrap_provs.fth_nent = 1 << fasttrap_highbit(nent);
 	ASSERT(fasttrap_provs.fth_nent > 0);
 	fasttrap_provs.fth_mask = fasttrap_provs.fth_nent - 1;
-
 	fasttrap_provs.fth_table = kmem_zalloc(fasttrap_provs.fth_nent *
+	    sizeof (fasttrap_bucket_t), KM_SLEEP);
+
+	/*
+	 * ... and the procs hash table.
+	 */
+	nent = FASTTRAP_PROCS_DEFAULT_SIZE;
+	if ((nent & (nent - 1)) == 0)
+		fasttrap_procs.fth_nent = nent;
+	else
+		fasttrap_procs.fth_nent = 1 << fasttrap_highbit(nent);
+	ASSERT(fasttrap_procs.fth_nent > 0);
+	fasttrap_procs.fth_mask = fasttrap_procs.fth_nent - 1;
+	fasttrap_procs.fth_table = kmem_zalloc(fasttrap_procs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 
 	(void) dtrace_meta_register("fasttrap", &fasttrap_mops, NULL,
@@ -1958,7 +2251,7 @@ fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
 			 * waiting for any other consumer to finish with
 			 * this provider. A thread must first acquire the
 			 * bucket lock so there's no chance of another thread
-			 * blocking on the providers lock.
+			 * blocking on the provider's lock.
 			 */
 			mutex_enter(&fp->ftp_mtx);
 			mutex_exit(&fp->ftp_mtx);
@@ -1975,7 +2268,7 @@ fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
 		mutex_exit(&bucket->ftb_mtx);
 	}
 
-	if (fail || dtrace_unregister(fasttrap_id) != 0) {
+	if (fail) {
 		uint_t work;
 		/*
 		 * If we're failing to detach, we need to unblock timeouts
@@ -1998,7 +2291,7 @@ fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
 
 #ifdef DEBUG
 	mutex_enter(&fasttrap_count_mtx);
-	ASSERT(fasttrap_count == 0);
+	ASSERT(fasttrap_pid_count == 0);
 	mutex_exit(&fasttrap_count_mtx);
 #endif
 
@@ -2009,6 +2302,10 @@ fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
 	kmem_free(fasttrap_provs.fth_table,
 	    fasttrap_provs.fth_nent * sizeof (fasttrap_bucket_t));
 	fasttrap_provs.fth_nent = 0;
+
+	kmem_free(fasttrap_procs.fth_table,
+	    fasttrap_procs.fth_nent * sizeof (fasttrap_bucket_t));
+	fasttrap_procs.fth_nent = 0;
 
 	/*
 	 * We know there are no tracepoints in any process anywhere in
@@ -2076,361 +2373,4 @@ int
 _fini(void)
 {
 	return (mod_remove(&modlinkage));
-}
-
-/*
- * All of this is stolen lock stock and barrel from procfs.
- */
-
-extern struct seg_ops segdev_ops;	/* needs a header file */
-extern struct seg_ops segspt_shmops;	/* needs a header file */
-
-static int
-fasttrap_page_exists(struct seg *seg, caddr_t addr)
-{
-	struct segvn_data *svd;
-	vnode_t *vp;
-	vattr_t vattr;
-
-	/*
-	 * Fail if the page doesn't map to a page in the underlying
-	 * mapped file, if an underlying mapped file exists.
-	 */
-	vattr.va_mask = AT_SIZE;
-	if (seg->s_ops == &segvn_ops &&
-	    SEGOP_GETVP(seg, addr, &vp) == 0 &&
-	    vp != NULL && vp->v_type == VREG &&
-	    VOP_GETATTR(vp, &vattr, 0, CRED()) == 0) {
-		u_offset_t size = roundup(vattr.va_size, (u_offset_t)PAGESIZE);
-		u_offset_t offset = SEGOP_GETOFFSET(seg, addr);
-
-		if (offset >= size)
-			return (0);
-	}
-
-	/*
-	 * Fail if this is an ISM shared segment and the address is
-	 * not within the real size of the spt segment that backs it.
-	 */
-	if (seg->s_ops == &segspt_shmops &&
-	    addr >= seg->s_base + spt_realsize(seg))
-		return (0);
-
-	/*
-	 * Fail if the segment is mapped from /dev/null.
-	 * The key is that the mapping comes from segdev and the
-	 * type is neither MAP_SHARED nor MAP_PRIVATE.
-	 */
-	if (seg->s_ops == &segdev_ops &&
-	    ((SEGOP_GETTYPE(seg, addr) & (MAP_SHARED | MAP_PRIVATE)) == 0))
-		return (0);
-
-	/*
-	 * Fail if the page is a MAP_NORESERVE page that has
-	 * not actually materialized.
-	 * We cheat by knowing that segvn is the only segment
-	 * driver that supports MAP_NORESERVE.
-	 */
-	if (seg->s_ops == &segvn_ops &&
-	    (svd = (struct segvn_data *)seg->s_data) != NULL &&
-	    (svd->vp == NULL || svd->vp->v_type != VREG) &&
-	    (svd->flags & MAP_NORESERVE)) {
-		/*
-		 * Guilty knowledge here.  We know that
-		 * segvn_incore returns more than just the
-		 * low-order bit that indicates the page is
-		 * actually in memory.  If any bits are set,
-		 * then there is backing store for the page.
-		 */
-		char incore = 0;
-		(void) SEGOP_INCORE(seg, addr, PAGESIZE, &incore);
-		if (incore == 0)
-			return (0);
-	}
-	return (1);
-}
-
-/*
- * Use physmax to determine the highest physical page of DRAM memory
- * It is assumed that any physical addresses above physmax is in IO space.
- * We don't bother checking the low end because we assume that memory space
- * begins at physical page frame 0.
- *
- * Return 1 if the page frame is onboard DRAM memory, else 0.
- * Returns 0 for nvram so it won't be cached.
- */
-int
-fasttrap_pf_is_memory(pfn_t pf)
-{
-	/* We must be IO space */
-	if (pf > physmax)
-		return (0);
-
-	/* We must be memory space */
-	return (1);
-}
-
-
-
-/*
- * Map address "addr" in address space "as" into a kernel virtual address.
- * The memory is guaranteed to be resident and locked down.
- */
-caddr_t
-fasttrap_mapin(struct as *as, caddr_t addr, int writing)
-{
-	page_t *pp;
-	caddr_t kaddr;
-	pfn_t pfnum;
-
-	/*
-	 * NB: Because of past mistakes, we have bits being returned
-	 * by getpfnum that are actually the page type bits of the pte.
-	 * When the object we are trying to map is a memory page with
-	 * a page structure everything is ok and we can use the optimal
-	 * method, ppmapin.  Otherwise, we have to do something special.
-	 */
-	pfnum = hat_getpfnum(as->a_hat, addr);
-	if (fasttrap_pf_is_memory(pfnum)) {
-		pp = page_numtopp_nolock(pfnum);
-		if (pp != NULL) {
-			ASSERT(PAGE_LOCKED(pp));
-			kaddr = ppmapin(pp, writing ?
-				(PROT_READ | PROT_WRITE) : PROT_READ,
-				(caddr_t)-1);
-			return (kaddr + ((uintptr_t)addr & PAGEOFFSET));
-		}
-	}
-
-	/*
-	 * Oh well, we didn't have a page struct for the object we were
-	 * trying to map in; ppmapin doesn't handle devices, but allocating a
-	 * heap address allows ppmapout to free virutal space when done.
-	 */
-	kaddr = vmem_alloc(heap_arena, PAGESIZE, VM_SLEEP);
-
-	hat_devload(kas.a_hat, kaddr, PAGESIZE, pfnum,
-		writing ? (PROT_READ | PROT_WRITE) : PROT_READ, HAT_LOAD_LOCK);
-
-	return (kaddr + ((uintptr_t)addr & PAGEOFFSET));
-}
-
-/*ARGSUSED*/
-void
-fasttrap_mapout(struct as *as, caddr_t addr, caddr_t vaddr, int writing)
-{
-	vaddr = (caddr_t)(uintptr_t)((uintptr_t)vaddr & PAGEMASK);
-	ppmapout(vaddr);
-}
-
-int
-fasttrap_uread(proc_t *p, void *buf, size_t len, uintptr_t a)
-{
-	caddr_t addr = (caddr_t)a;
-	caddr_t page;
-	caddr_t vaddr;
-	struct seg *seg;
-	int error = 0;
-	int err = 0;
-	uint_t prot;
-	int protchanged;
-	on_trap_data_t otd;
-	int retrycnt;
-	struct as *as = p->p_as;
-
-	/*
-	 * Locate segment containing address of interest.
-	 */
-	page = (caddr_t)(uintptr_t)((uintptr_t)addr & PAGEMASK);
-	retrycnt = 0;
-	AS_LOCK_ENTER(as, &as->a_lock, RW_WRITER);
-retry:
-	if ((seg = as_segat(as, page)) == NULL ||
-	    !fasttrap_page_exists(seg, page)) {
-		AS_LOCK_EXIT(as, &as->a_lock);
-		err = error = EIO;
-		goto err;
-	}
-	SEGOP_GETPROT(seg, page, 0, &prot);
-
-	protchanged = 0;
-	if ((prot & PROT_READ) == 0) {
-		protchanged = 1;
-		err = SEGOP_SETPROT(seg, page, PAGESIZE, prot | PROT_READ);
-
-		if (err == IE_RETRY) {
-			err = 0;
-			protchanged = 0;
-			ASSERT(retrycnt == 0);
-			retrycnt++;
-			goto retry;
-		}
-
-		if (err != 0) {
-			AS_LOCK_EXIT(as, &as->a_lock);
-			err = error = EIO;
-			goto err;
-		}
-	}
-
-	if (SEGOP_FAULT(as->a_hat, seg, page, PAGESIZE, F_SOFTLOCK, S_READ)) {
-		if (protchanged)
-			(void) SEGOP_SETPROT(seg, page, PAGESIZE, prot);
-		AS_LOCK_EXIT(as, &as->a_lock);
-		err = error = EIO;
-		goto err;
-	}
-	CPU_STATS_ADD_K(vm, softlock, 1);
-
-	/*
-	 * Make sure we're not trying to read off the end of the page.
-	 */
-	ASSERT(len <= page + PAGESIZE - addr);
-
-	/*
-	 * Map in the locked page, copy to our local buffer,
-	 * then map the page out and unlock it.
-	 */
-	vaddr = fasttrap_mapin(as, addr, 0);
-
-	/*
-	 * Since we are copying memory on behalf of the user process,
-	 * protect against memory error correction faults.  If we get
-	 * one, set error only: we *always* return EIO in this case.
-	 */
-	if (!on_trap(&otd, OT_DATA_EC)) {
-		if (seg->s_ops == &segdev_ops) {
-			/*
-			 * Device memory can behave strangely; invoke
-			 * a segdev-specific copy operation instead.
-			 */
-			if (segdev_copyfrom(seg, addr, vaddr, buf, len))
-				err = error = EIO;
-		} else {
-			bcopy(vaddr, buf, len);
-		}
-	} else {
-		error = EIO;
-	}
-	no_trap();
-
-	fasttrap_mapout(as, addr, vaddr, 0);
-	(void) SEGOP_FAULT(as->a_hat, seg, page, PAGESIZE,
-	    F_SOFTUNLOCK, S_READ);
-
-	if (protchanged)
-		(void) SEGOP_SETPROT(seg, page, PAGESIZE, prot);
-
-	AS_LOCK_EXIT(as, &as->a_lock);
-
-err:
-	return (error);
-}
-
-int
-fasttrap_uwrite(proc_t *p, void *buf, size_t len, uintptr_t a)
-{
-	caddr_t addr = (caddr_t)a;
-	caddr_t page;
-	caddr_t vaddr;
-	struct seg *seg;
-	int error = 0;
-	int err = 0;
-	uint_t prot;
-	int protchanged;
-	on_trap_data_t otd;
-	int retrycnt;
-	struct as *as = p->p_as;
-
-	/*
-	 * Locate segment containing address of interest.
-	 */
-	page = (caddr_t)(uintptr_t)((uintptr_t)addr & PAGEMASK);
-	retrycnt = 0;
-	AS_LOCK_ENTER(as, &as->a_lock, RW_WRITER);
-retry:
-	if ((seg = as_segat(as, page)) == NULL ||
-	    !fasttrap_page_exists(seg, page)) {
-		AS_LOCK_EXIT(as, &as->a_lock);
-		err = error = EIO;
-		goto err;
-	}
-	SEGOP_GETPROT(seg, page, 0, &prot);
-
-	protchanged = 0;
-	if ((prot & PROT_WRITE) == 0) {
-		protchanged = 1;
-		err = SEGOP_SETPROT(seg, page, PAGESIZE, prot | PROT_WRITE);
-
-		if (err == IE_RETRY) {
-			err = 0;
-			protchanged = 0;
-			ASSERT(retrycnt == 0);
-			retrycnt++;
-			goto retry;
-		}
-
-		if (err != 0) {
-			AS_LOCK_EXIT(as, &as->a_lock);
-			err = error = EIO;
-			goto err;
-		}
-	}
-
-	if (SEGOP_FAULT(as->a_hat, seg, page, PAGESIZE, F_SOFTLOCK, S_WRITE)) {
-		if (protchanged)
-			(void) SEGOP_SETPROT(seg, page, PAGESIZE, prot);
-		AS_LOCK_EXIT(as, &as->a_lock);
-		err = error = EIO;
-		goto err;
-	}
-	CPU_STATS_ADD_K(vm, softlock, 1);
-
-	/*
-	 * Make sure we're not trying to read off the end of the page.
-	 */
-	ASSERT(len <= page + PAGESIZE - addr);
-
-	/*
-	 * Map in the locked page, copy to our local buffer,
-	 * then map the page out and unlock it.
-	 */
-	vaddr = fasttrap_mapin(as, addr, 1);
-
-	/*
-	 * Since we are copying memory on behalf of the user process,
-	 * protect against memory error correction faults.  If we get
-	 * one, set error only: we *always* return EIO in this case.
-	 */
-	if (!on_trap(&otd, OT_DATA_EC)) {
-		if (seg->s_ops == &segdev_ops) {
-			/*
-			 * Device memory can behave strangely; invoke
-			 * a segdev-specific copy operation instead.
-			 */
-			if (segdev_copyto(seg, addr, buf, vaddr, len))
-				err = error = EIO;
-		} else {
-			bcopy(buf, vaddr, len);
-		}
-	} else {
-		error = EIO;
-	}
-	no_trap();
-
-	if (prot & PROT_EXEC)
-		sync_icache(vaddr, (uint_t)len);
-
-	fasttrap_mapout(as, addr, vaddr, 1);
-
-	(void) SEGOP_FAULT(as->a_hat, seg, page, PAGESIZE,
-	    F_SOFTUNLOCK, S_WRITE);
-
-	if (protchanged)
-		(void) SEGOP_SETPROT(seg, page, PAGESIZE, prot);
-
-	AS_LOCK_EXIT(as, &as->a_lock);
-
-err:
-	return (error);
 }

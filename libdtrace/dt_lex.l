@@ -60,7 +60,8 @@ void unput(int c);
 		    yypcb->pcb_strptr < yypcb->pcb_string + yypcb->pcb_strlen; n++) \
 			buf[n] = *yypcb->pcb_strptr++; \
 		result = n; \
-	}
+	} \
+printf("YY_INPUT result=%d\n", result);
 
 static int id_or_type(const char *);
 
@@ -489,12 +490,14 @@ if (yypcb->pcb_token != 0) {
 
 <S0>"("		{
 			yypcb->pcb_parens++;
+printf("( -- parens=%d\n", yypcb->pcb_parens);
 			return (DT_TOK_LPAR);
 		}
 
 <S0>")"		{
 			if (--yypcb->pcb_parens < 0)
 				yyerror("extra ) in input stream\n");
+printf(") -- parens=%d\n", yypcb->pcb_parens);
 			return (DT_TOK_RPAR);
 		}
 
@@ -704,11 +707,6 @@ yybegin(yystate_t state)
 	yypcb->pcb_yystate = state;
 }
 
-# if linux
-# define	yysbuf	yytext
-# define	yysptr  yytext_ptr
-# endif
-
 void
 yyinit(dt_pcb_t *pcb)
 {
@@ -716,10 +714,6 @@ yyinit(dt_pcb_t *pcb)
 	yypcb = pcb;
 	yylineno = 1;
 	yypragma = NULL;
-
-#if YY_FLEX_SUBMINOR_VERSION >= 33 || defined(sun)
-	yysptr = yysbuf;
-# endif
 }
 
 /*
@@ -814,21 +808,17 @@ id_or_type(const char *s)
 	unput(c0);
 	return (ttok);
 }
-
 int
 input(void)
-{
-	int c;
+{	int c;
 
-/*	if (yysptr > yysbuf)
-		c = *--yysptr;
-	else */ if (yypcb->pcb_fileptr != NULL)
+	if (yypcb->pcb_fileptr != NULL)
 		c = fgetc(yypcb->pcb_fileptr);
 	else if (yypcb->pcb_strptr < yypcb->pcb_string + yypcb->pcb_strlen)
 		c = *yypcb->pcb_strptr++;
 	else
 		c = EOF;
-
+printf("input: ch=%02x %c\n", c, c);
 	if (c == '\n')
 		yylineno++;
 
@@ -867,21 +857,19 @@ unput(int c)
 	if (c == '\n')
 		yylineno--;
 
-# if 0
 	if (yypcb->pcb_fileptr)
 		ungetc(c, yypcb->pcb_fileptr);
-	else if (yypcb->pcb_strptr > yypcb->pcb_string)
+	else if (yypcb->pcb_strptr > yypcb->pcb_string) {
 		yypcb->pcb_strptr--;
+		yytext_ptr = yypcb->pcb_strptr;
+		yy_hold_char = c;
+		yy_c_buf_p--;
+		}
 	else {
 		/***********************************************/
 		/*   Panic				       */
 		/***********************************************/
 		printf("Lex panic!\n");
 		}
-	*yysptr++ = c;
-# endif
-# if defined(sun)
-	yytchar = c;
-# endif
 }
 

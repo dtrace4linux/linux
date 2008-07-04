@@ -24,8 +24,19 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)fasttrap.c	1.26	08/04/21 SMI"
+//#pragma ident	"@(#)fasttrap.c	1.26	08/04/21 SMI"
 
+# if linux
+#include "dtrace_linux.h"
+#include <sys/zone.h>
+#include <sys/fasttrap.h>
+#include <sys/fasttrap_impl.h>
+#include <sys/fasttrap_isa.h>
+#include <sys/dtrace.h>
+#include <sys/dtrace_impl.h>
+# endif
+
+# if defined(sun)
 #include <sys/atomic.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
@@ -59,6 +70,7 @@
 #include <vm/seg_vn.h>
 #include <vm/seg_spt.h>
 #include <vm/seg_kmem.h>
+# endif
 
 /*
  * User-Land Trap-Based Tracing
@@ -241,6 +253,7 @@ fasttrap_hash_str(const char *p)
 void
 fasttrap_sigtrap(proc_t *p, kthread_t *t, uintptr_t pc)
 {
+# if defined(sun)
 	sigqueue_t *sqp = kmem_zalloc(sizeof (sigqueue_t), KM_SLEEP);
 
 HERE();
@@ -254,6 +267,9 @@ HERE();
 
 	if (t != NULL)
 		aston(t);
+# else
+	TODO();
+# endif
 }
 
 /*
@@ -1927,8 +1943,13 @@ fasttrap_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 }
 
 /*ARGSUSED*/
+# if defined(sun)
 static int
 fasttrap_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+#else
+int
+dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+# endif
 {
 	if (!dtrace_attached())
 		return (EAGAIN);
@@ -2077,6 +2098,7 @@ err:
 
 	return (EINVAL);
 }
+# if defined(sun)
 
 static struct cb_ops fasttrap_cb_ops = {
 	fasttrap_open,		/* open */
@@ -2116,12 +2138,19 @@ fasttrap_info(dev_info_t *dip, ddi_info_cmd_t infocmd, void *arg, void **result)
 	}
 	return (error);
 }
+# endif
 
+# if defined(sun)
 static int
 fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
+# else
+int
+fasttrap_attach(void)
+# endif
 {
-	ulong_t nent;
+	ulong_t nent = 1000;
 
+# if defined(sun)
 	switch (cmd) {
 	case DDI_ATTACH:
 		break;
@@ -2139,6 +2168,7 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 
 	ddi_report_dev(devi);
 	fasttrap_devi = devi;
+# endif
 
 	/*
 	 * Install our hooks into fork(2), exec(2), and exit(2).
@@ -2147,15 +2177,20 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_fasttrap_exit_ptr = &fasttrap_exec_exit;
 	dtrace_fasttrap_exec_ptr = &fasttrap_exec_exit;
 
+
+# if defined(sun)
 	fasttrap_max = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
 	    "fasttrap-max-probes", FASTTRAP_MAX_DEFAULT);
+# endif
 	fasttrap_total = 0;
 
 	/*
 	 * Conjure up the tracepoints hashtable...
 	 */
+# if defined(sun)
 	nent = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
 	    "fasttrap-hash-size", FASTTRAP_TPOINTS_DEFAULT_SIZE);
+# endif
 
 	if (nent == 0 || nent > 0x1000000)
 		nent = FASTTRAP_TPOINTS_DEFAULT_SIZE;
@@ -2202,12 +2237,18 @@ fasttrap_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	return (DDI_SUCCESS);
 }
 
+# if defined(sun)
 static int
 fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
+# else
+int
+fasttrap_detach(void)
+# endif
 {
 	int i, fail = 0;
 	timeout_id_t tmp;
 
+# if defined(sun)
 	switch (cmd) {
 	case DDI_DETACH:
 		break;
@@ -2216,6 +2257,7 @@ fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
 	default:
 		return (DDI_FAILURE);
 	}
+# endif
 
 	/*
 	 * Unregister the meta-provider to make sure no new fasttrap-
@@ -2337,11 +2379,13 @@ fasttrap_detach(dev_info_t *devi, ddi_detach_cmd_t cmd)
 	ASSERT(dtrace_fasttrap_exit_ptr == &fasttrap_exec_exit);
 	dtrace_fasttrap_exit_ptr = NULL;
 
+# if defined(sun)
 	ddi_remove_minor_node(devi, NULL);
+# endif
 
 	return (DDI_SUCCESS);
 }
-
+# if defined(sun)
 static struct dev_ops fasttrap_ops = {
 	DEVO_REV,		/* devo_rev */
 	0,			/* refcnt */
@@ -2388,3 +2432,4 @@ _fini(void)
 {
 	return (mod_remove(&modlinkage));
 }
+# endif

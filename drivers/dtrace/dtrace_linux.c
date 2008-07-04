@@ -34,6 +34,12 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 #	define	CONFIG_NR_CPUS	1
 # endif
 
+/**********************************************************************/
+/*   Turn on HERE() macro tracing.				      */
+/**********************************************************************/
+int dtrace_here;
+module_param(dtrace_here, int, 0);
+
 uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
 cpu_t	*cpu_list;
@@ -260,6 +266,12 @@ kmem_free(void *ptr, int size)
 }
 # endif
 
+int
+lx_get_curthread_id()
+{
+	return 0;
+}
+
 /**********************************************************************/
 /*   Test if a pointer is vaid in kernel space.			      */
 /**********************************************************************/
@@ -352,6 +364,32 @@ par_free(void *ptr)
 	kfree(ptr);
 }
 /**********************************************************************/
+/*   We want curthread to point to something -- but we cannot modify  */
+/*   the Linux kernel to add stuff to the proc/thread structures, so  */
+/*   we will create a shadow data structure on demand. This means we  */
+/*   may  need  to  do  this often (i.e. we need to be fast), but in  */
+/*   addition,  we  may  need  to do garbage collection or intercept  */
+/*   thread/proc death in the main kernel.			      */
+/**********************************************************************/
+void
+par_setup_thread()
+{	par_alloc_t *p = par_alloc(get_current(), sizeof *curthread);
+	sol_proc_t	*solp = (sol_proc_t *) (p + 1);
+
+	curthread = solp;
+	curthread->pid = get_current()->pid;
+	curthread->p_pid = get_current()->pid;
+	/***********************************************/
+	/*   2.6.24.4    kernel    has   parent   and  */
+	/*   real_parent,  but RH FC8 (2.6.24.4 also)  */
+	/*   doesnt have real_parent.		       */
+	/***********************************************/
+	if (get_current()->parent) {
+		curthread->p_ppid = 
+		curthread->ppid = get_current()->parent->pid;
+	}
+}
+/**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
 /**********************************************************************/
 typedef struct seq_t {
@@ -418,7 +456,7 @@ static int
 dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
-HERE();
+//HERE();
 	ret = dtrace_open(file, 0, 0, NULL);
 HERE();
 
@@ -437,14 +475,14 @@ HERE();
 static int
 dtracedrv_release(struct inode *inode, struct file *file)
 {
-HERE();
+//HERE();
 	dtrace_close(file, 0, 0, NULL);
 	return 0;
 }
 static int
 dtracedrv_read(ctf_file_t *fp, int fd)
 {
-HERE();
+//HERE();
 	return -EIO;
 }
 static int proc_calc_metrics(char *page, char **start, off_t off,

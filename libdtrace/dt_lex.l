@@ -37,6 +37,7 @@
 #include <dt_parser.h>
 #include <dt_string.h>
 
+# if defined(sun)
 /*
  * We need to undefine lex's input and unput macros so that references to these
  * call the functions provided at the end of this source file.
@@ -45,7 +46,7 @@
 # undef input
 
 void unput(int c);
-
+# else
 /* 
  * Define YY_INPUT for flex since input() can't be re-defined.
  */
@@ -60,8 +61,8 @@ void unput(int c);
 		    yypcb->pcb_strptr < yypcb->pcb_string + yypcb->pcb_strlen; n++) \
 			buf[n] = *yypcb->pcb_strptr++; \
 		result = n; \
-	} \
-printf("YY_INPUT result=%d\n", result);
+	}
+# endif
 
 static int id_or_type(const char *);
 
@@ -466,6 +467,7 @@ if (yypcb->pcb_token != 0) {
 			 * closes the predicate and we return DT_TOK_EPRED.
 			 * If we encounter anything else, it's DT_TOK_DIV.
 			 */
+
 			while ((c = input()) != 0) {
 				if (strchr("\f\n\r\t\v ", c) == NULL)
 					break;
@@ -490,14 +492,12 @@ if (yypcb->pcb_token != 0) {
 
 <S0>"("		{
 			yypcb->pcb_parens++;
-printf("( -- parens=%d\n", yypcb->pcb_parens);
 			return (DT_TOK_LPAR);
 		}
 
 <S0>")"		{
 			if (--yypcb->pcb_parens < 0)
 				yyerror("extra ) in input stream\n");
-printf(") -- parens=%d\n", yypcb->pcb_parens);
 			return (DT_TOK_RPAR);
 		}
 
@@ -707,6 +707,7 @@ yybegin(yystate_t state)
 	yypcb->pcb_yystate = state;
 }
 
+# if defined(sun)
 void
 yyinit(dt_pcb_t *pcb)
 {
@@ -715,6 +716,18 @@ yyinit(dt_pcb_t *pcb)
 	yylineno = 1;
 	yypragma = NULL;
 }
+
+# else
+void
+yyinit(dt_pcb_t *pcb)
+{
+        yy_switch_to_buffer(yy_create_buffer(yyin, YY_BUF_SIZE));
+
+        yypcb = pcb;
+        yylineno = 1;
+        yypragma = NULL;
+}
+# endif
 
 /*
  * Given a lexeme 's' (typically yytext), set yylval and return an appropriate
@@ -779,6 +792,13 @@ id_or_type(const char *s)
 			break;
 	}
 
+  /***********************************************/
+  /*   Handle broken versions of flex.		 */
+  /***********************************************/
+# if !defined(yytext_ptr)
+# define yytext_ptr yytext
+# endif
+
 	switch (c0) {
 	case '+':
 	case '-':
@@ -808,6 +828,7 @@ id_or_type(const char *s)
 	unput(c0);
 	return (ttok);
 }
+# if 0
 int
 input(void)
 {	int c;
@@ -872,4 +893,4 @@ unput(int c)
 		printf("Lex panic!\n");
 		}
 }
-
+# endif

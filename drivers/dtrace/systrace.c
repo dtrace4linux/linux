@@ -115,6 +115,9 @@ void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
 
 # define linux_get_syscall() get_current()->thread.trap_no
 
+DEFINE_MUTEX(slock);
+static int do_slock;
+
 asmlinkage int64_t
 dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -128,6 +131,14 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
         dtrace_id_t id;
         int64_t rval;
 	void **ptr = &arg0;
+
+	/***********************************************/
+	/*   May  want  to single thread this code if  */
+	/*   we are debugging.			       */
+	/***********************************************/
+	if (do_slock) {
+		mutex_enter(&slock);
+	}
 
 	/***********************************************/
 	/*   Following   useful   to  help  find  the  */
@@ -187,10 +198,13 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
 # endif
 
         if ((id = sy->stsy_return) != DTRACE_IDNONE) {
-//HERE();
                 (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
 		}
+
+	if (do_slock) {
+		mutex_exit(&slock);
+	}
 
         return (rval);
 }
@@ -226,7 +240,7 @@ printk("NSYSCALL=%d\n", NSYSCALL);
 #endif
 
 		s->stsy_underlying = a->sy_callc;
-printk("stsy_underlying=%p\n", s->stsy_underlying);
+//printk("stsy_underlying=%p\n", s->stsy_underlying);
 	}
 }
 

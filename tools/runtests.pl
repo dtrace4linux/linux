@@ -1,6 +1,13 @@
 #! /usr/bin/perl
 
 # $Header:$
+#
+#
+# Script to run a set of validation tests against the available D
+# scripts to prove we have no parsing issues.
+
+# Paul Fox July 2008
+#
 
 use strict;
 use warnings;
@@ -9,8 +16,10 @@ use FileHandle;
 use Getopt::Long;
 use POSIX;
 
+my %missing_probes;
 my $cnt = 0;
 my $errs = 0;
+my $syntax = 0;
 
 my $fh;
 
@@ -35,20 +44,28 @@ sub main
 	$fh->autoflush();
 
 	my $s = strftime("%Y%m%d %H:%M:%S Testing started...\n", localtime);	
+	print $s;
 	print $fh $s;
 
 	run_tests("demo");
 
 	$s = strftime("%Y%m%d %H:%M:%S Testing completed. See build/dtrace.report for details\n", localtime);	
 
-	print $s;
-	print "Files tested   : $cnt\n";
-	print "Errors detected: $errs\n";
+	plog($s);
+	plog("Files tested   : $cnt\n");
+	plog("Errors detected: $errs\n");
+	plog("Syntax errors  : $syntax\n");
+	plog("Missing probes:\n");
+	foreach my $k (sort(keys(%missing_probes))) {
+		plog("  $k\n");
+	}
 
-	print $fh $s;
-	print $fh "Files tested   : $cnt\n";
-	print $fh "Errors detected: $errs\n";
+}
+sub plog
+{	my $str = shift;
 
+	print $str;
+	print $fh $str;
 }
 sub run_tests
 {	my $dir = shift;
@@ -60,14 +77,57 @@ sub run_tests
 		}
 		next if $f !~ /\.d$/;
 
-		my $s = strftime("%Y%m%d %H:%M:%S File: $f\n", localtime);	
+		$cnt++;
+		print $fh "\n";
+		my $s = strftime("%Y%m%d %H:%M:%S #$cnt File: $f\n", localtime);	
 		print $fh $s;
-		my $ret = system("build/dtrace -e -s $f >>build/dtrace.report 2>&1 ");
-		if ($ret) {
+		print $s;
+
+		###############################################
+		#   Whether  we  can run a test depends on a  #
+		#   number of things. Some require a command  #
+		#   line arg. Some want access to a probe we  #
+		#   dont currently or can never support. (We  #
+		#   will  need to emulate these for Linux if  #
+		#   thats the case)			      #
+		###############################################
+		my $cmd = "build/dtrace -e -s $f";
+		my $cfh = new FileHandle("$cmd 2>&1 ; echo STATUS=\$? |");
+		my $status;
+		my $need_macro = 0;
+		while (<$cfh>) {
+			if (/^STATUS=(\d+)/) {
+				$status = $1;
+				last;
+			}
+			$syntax++ if /syntax error near/;
+			$need_macro = 1 if /macro argument/;
+			if (/probe description (\S+) does not match/) {
+				$missing_probes{$1}++;
+			}
+			print $fh $_;
+		}
+
+		if ($need_macro) {
+			$cmd = "build/dtrace -e -s $f xxx";
+			print $fh timestamp() . "...Alternate: $cmd\n";
+			$cfh = new FileHandle("$cmd 2>&1 ; echo STATUS=$? |");
+			while (<$cfh>) {
+				if (/^STATUS=(\d+)/) {
+					$status = $1;
+					last;
+				}
+				print $fh $_;
+			}
+		}
+		if ($status) {
 			$errs++;
 		}
-		$cnt++;
 	}
+}
+sub timestamp
+{
+	return strftime("%Y%m%d %H:%M:%S ", localtime);
 }
 #######################################################################
 #   Print out command line usage.				      #

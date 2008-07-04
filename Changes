@@ -1,4 +1,16 @@
+Sat Jul  5 14:53:52 2008  fox
+
+      58* dtrace.c, dtrace_linux.c: Implement a parallel shadow to curthread
+          so we dont die when doing thread local variables (dt9 test).
+	  We now need a garbage collector - otherwise we may leak memory,
+	  or have an issue when a new thread comes along on the same address.
+
+	  dt9: demo/vars/rtime.d no longer panics the kernel.
+
 Fri Jul  4 20:35:34 2008  fox
+
+      57* dt_lex.l: Another attempt at fixing the lexing issues with
+          flex.
 
       56* dtrace.c, fasttrap.c: Upgrade to latest ON Solaris release
           20080623.

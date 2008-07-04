@@ -13,5 +13,7 @@ int dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd);
 int dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p);
 int dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p);
 void dump_mem(char *cp, int len);
+int	lx_get_curthread_id(void);
+void	par_setup_thread(void);
 # endif
 

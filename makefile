@@ -84,7 +84,7 @@ all0:
 	done
 
 clean:
-	rm -f build/*
+	rm -rf build/*
 	cd libctf ; $(MAKE) clean
 	cd libdtrace ; $(MAKE) clean
 	cd liblinux ; $(MAKE) clean

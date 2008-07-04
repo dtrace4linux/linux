@@ -369,8 +369,8 @@ printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
 		 */
 		instr = (uint8_t *)sym->st_value;
 		limit = (uint8_t *)(sym->st_value + sym->st_size);
-printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
-HERE();
+//printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
+//HERE();
 
 # if 0
 	/***********************************************/
@@ -438,7 +438,6 @@ HERE(); printk("instr %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2])
 			continue;
 # endif
 #endif
-HERE();
 
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		
@@ -457,7 +456,6 @@ HERE();
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 		pmp->fbt_nentries++;
-HERE();
 
 		retfbt = NULL;
 again:

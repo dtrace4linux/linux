@@ -9,7 +9,7 @@
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
-# define HERE()	printk("%s:%s:%d: we are here\n", __FILE__, __func__, __LINE__)
+# define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", __FILE__, __func__, __LINE__);}
 # define TODO()	printk("%s:%s:%d: please fill me in\n", __FILE__, __func__, __LINE__)
 # define TODO_END()
 
@@ -194,6 +194,8 @@ typedef unsigned int mutex_t;
 
 	# include	<sys/cpuvar_defs.h>
 	# include	<sys/cpuvar.h>
+	
+	typedef void    *timeout_id_t;
 
 	/**********************************************************************/
 	/*   Protoypes.							      */
@@ -476,6 +478,7 @@ enum seg_rw {
 extern int dtrace_assfail(const char *, const char *, int);
 int	dtrace_mach_aframes(void);
 
+extern int dtrace_here;
 extern unsigned long long gethrtime(void);
 void *dtrace_casptr(void *target, void *cmp, void *new);
 # define	casptr(a, b, c) dtrace_casptr(a, b, c)

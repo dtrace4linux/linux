@@ -1,8 +1,19 @@
 #! /bin/sh
 
+# Paul Fox July 2008
+
+# Simple script to load the driver and get it ready.
+
+fast=no
+
 SUDO="setuid root"
 if [ ! -f $HOME/bin/setuid ]; then
 	SUDO=sudo
+fi
+
+if [ "$1" != "" ] ; then
+	fast=$1
+	shift
 fi
 
 echo "Syncing..."
@@ -48,11 +59,13 @@ done
 #   Keep  a  copy of probes to avoid polluting /var/log/messages as
 #   we debug the driver..
 #####################################################################
-echo "Probes available:"
-pname=`date +/tmp/probes-%Y%m%d-%H:%M`
-if [ -f /tmp/probes.current -a ! -f $pname ] ; then
-	mv /tmp/probes.current /tmp/probes.prev
+if [ $fast = yes ]; then
+	echo "Probes available:"
+	pname=`date +/tmp/probes-%Y%m%d-%H:%M`
+	if [ -f /tmp/probes.current -a ! -f $pname ] ; then
+		mv /tmp/probes.current /tmp/probes.prev
+	fi
+	../../build/dtrace -l | tee $pname | wc -l 
+	rm -f /tmp/probes.current
+	ln -s $pname /tmp/probes.current
 fi
-../../build/dtrace -l | tee $pname | wc -l 
-rm -f /tmp/probes.current
-ln -s $pname /tmp/probes.current

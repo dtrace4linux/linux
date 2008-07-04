@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dtrace.c	1.64	08/05/26 SMI"
+//#pragma ident	"@(#)dtrace.c	1.64	08/05/26 SMI"
 
 /*
  * DTrace - Dynamic Tracing for Solaris
@@ -357,7 +357,7 @@ static kmutex_t dtrace_errlock;
 	for (; actv; actv >>= 1) \
 		intr++; \
 	ASSERT(intr < (1 << 3)); \
-	(where) = ((curthread->t_did + DIF_VARIABLE_MAX) & \
+	(where) = ((lx_get_curthread_id() + DIF_VARIABLE_MAX) & \
 	    (((uint64_t)1 << 61) - 1)) | ((uint64_t)intr << 61); \
 }
 
@@ -702,7 +702,7 @@ static int
 dtrace_canload(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
     dtrace_vstate_t *vstate)
 {
-	volatile uintptr_t *illval = &cpu_core[CPU->cpu_id].cpuc_dtrace_illval;
+	volatile uintptr_t *illval = &cpu_core[cpu_get_id()].cpuc_dtrace_illval;
 
 	/*
 	 * If we hold the privilege to read from kernel memory, then
@@ -794,7 +794,7 @@ dtrace_strncmp(char *s1, char *s2, size_t limit)
 	if (s1 == s2 || limit == 0)
 		return (0);
 
-	flags = (volatile uint16_t *)&cpu_core[CPU->cpu_id].cpuc_dtrace_flags;
+	flags = (volatile uint16_t *)&cpu_core[cpu_get_id()].cpuc_dtrace_flags;
 
 	do {
 		if (s1 == NULL) {
@@ -1145,7 +1145,7 @@ dtrace_priv_proc_destructive(dtrace_state_t *state)
 	return (1);
 
 bad:
-	cpu_core[CPU->cpu_id].cpuc_dtrace_flags |= CPU_DTRACE_UPRIV;
+	cpu_core[cpu_get_id()].cpuc_dtrace_flags |= CPU_DTRACE_UPRIV;
 
 	return (0);
 }
@@ -1161,7 +1161,7 @@ dtrace_priv_proc_control(dtrace_state_t *state)
 	    dtrace_priv_proc_common_nocd())
 		return (1);
 
-	cpu_core[CPU->cpu_id].cpuc_dtrace_flags |= CPU_DTRACE_UPRIV;
+	cpu_core[cpu_get_id()].cpuc_dtrace_flags |= CPU_DTRACE_UPRIV;
 
 	return (0);
 }
@@ -4542,6 +4542,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 	dif_instr_t instr;
 	uint_t r1, r2, rd;
 
+HERE();
 	/*
 	 * We stash the current DIF object into the machine state: we need it
 	 * for subsequent access checking.
@@ -4549,6 +4550,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 	mstate->dtms_difo = difo;
 
 	regs[DIF_REG_R0] = 0; 		/* %r0 is fixed at zero */
+HERE();
 
 	while (pc < textlen && !(*flags & CPU_DTRACE_FAULT)) {
 		opc = pc;
@@ -4558,32 +4560,42 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 		r2 = DIF_INSTR_R2(instr);
 		rd = DIF_INSTR_RD(instr);
 
+HERE();
 		switch (DIF_INSTR_OP(instr)) {
 		case DIF_OP_OR:
+PRINT_CASE(DIF_OP_OR);
 			regs[rd] = regs[r1] | regs[r2];
 			break;
 		case DIF_OP_XOR:
+PRINT_CASE(DIF_OP_XOR);
 			regs[rd] = regs[r1] ^ regs[r2];
 			break;
 		case DIF_OP_AND:
+PRINT_CASE(DIF_OP_AND);
 			regs[rd] = regs[r1] & regs[r2];
 			break;
 		case DIF_OP_SLL:
+PRINT_CASE(DIF_OP_SLL);
 			regs[rd] = regs[r1] << regs[r2];
 			break;
 		case DIF_OP_SRL:
+PRINT_CASE(DIF_OP_SRL);
 			regs[rd] = regs[r1] >> regs[r2];
 			break;
 		case DIF_OP_SUB:
+PRINT_CASE(DIF_OP_SUB);
 			regs[rd] = regs[r1] - regs[r2];
 			break;
 		case DIF_OP_ADD:
+PRINT_CASE(DIF_OP_ADD);
 			regs[rd] = regs[r1] + regs[r2];
 			break;
 		case DIF_OP_MUL:
+PRINT_CASE(DIF_OP_MUL);
 			regs[rd] = regs[r1] * regs[r2];
 			break;
 		case DIF_OP_SDIV:
+PRINT_CASE(DIF_OP_SDIV);
 			if (regs[r2] == 0) {
 				regs[rd] = 0;
 				*flags |= CPU_DTRACE_DIVZERO;
@@ -4594,6 +4606,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_UDIV:
+PRINT_CASE(DIF_OP_UDIV);
 			if (regs[r2] == 0) {
 				regs[rd] = 0;
 				*flags |= CPU_DTRACE_DIVZERO;
@@ -4603,6 +4616,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_SREM:
+PRINT_CASE(DIF_OP_SREM);
 			if (regs[r2] == 0) {
 				regs[rd] = 0;
 				*flags |= CPU_DTRACE_DIVZERO;
@@ -4613,6 +4627,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_UREM:
+PRINT_CASE(DIF_OP_UREM);
 			if (regs[r2] == 0) {
 				regs[rd] = 0;
 				*flags |= CPU_DTRACE_DIVZERO;
@@ -4622,12 +4637,15 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_NOT:
+PRINT_CASE(DIF_OP_NOT);
 			regs[rd] = ~regs[r1];
 			break;
 		case DIF_OP_MOV:
+PRINT_CASE(DIF_OP_MOV);
 			regs[rd] = regs[r1];
 			break;
 		case DIF_OP_CMP:
+PRINT_CASE(DIF_OP_CMP);
 			cc_r = regs[r1] - regs[r2];
 			cc_n = cc_r < 0;
 			cc_z = cc_r == 0;
@@ -4635,53 +4653,66 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			cc_c = regs[r1] < regs[r2];
 			break;
 		case DIF_OP_TST:
+PRINT_CASE(DIF_OP_TST);
 			cc_n = cc_v = cc_c = 0;
 			cc_z = regs[r1] == 0;
 			break;
 		case DIF_OP_BA:
+PRINT_CASE(DIF_OP_BA);
 			pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BE:
+PRINT_CASE(DIF_OP_BE);
 			if (cc_z)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BNE:
+PRINT_CASE(DIF_OP_BNE);
 			if (cc_z == 0)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BG:
+PRINT_CASE(DIF_OP_BG);
 			if ((cc_z | (cc_n ^ cc_v)) == 0)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BGU:
+PRINT_CASE(DIF_OP_BGU);
 			if ((cc_c | cc_z) == 0)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BGE:
+PRINT_CASE(DIF_OP_BGE);
 			if ((cc_n ^ cc_v) == 0)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BGEU:
+PRINT_CASE(DIF_OP_BGEU);
 			if (cc_c == 0)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BL:
+PRINT_CASE(DIF_OP_BL);
 			if (cc_n ^ cc_v)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BLU:
+PRINT_CASE(DIF_OP_BLU);
 			if (cc_c)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BLE:
+PRINT_CASE(DIF_OP_BLE);
 			if (cc_z | (cc_n ^ cc_v))
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_BLEU:
+PRINT_CASE(DIF_OP_BLEU);
 			if (cc_c | cc_z)
 				pc = DIF_INSTR_LABEL(instr);
 			break;
 		case DIF_OP_RLDSB:
+PRINT_CASE(DIF_OP_RLDSB);
 			if (!dtrace_canstore(regs[r1], 1, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4689,9 +4720,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDSB:
+PRINT_CASE(DIF_OP_LDSB);
 			regs[rd] = (int8_t)dtrace_load8(regs[r1]);
 			break;
 		case DIF_OP_RLDSH:
+PRINT_CASE(DIF_OP_RLDSH);
 			if (!dtrace_canstore(regs[r1], 2, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4699,9 +4732,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDSH:
+PRINT_CASE(DIF_OP_LDSH);
 			regs[rd] = (int16_t)dtrace_load16(regs[r1]);
 			break;
 		case DIF_OP_RLDSW:
+PRINT_CASE(DIF_OP_RLDSW);
 			if (!dtrace_canstore(regs[r1], 4, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4709,9 +4744,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDSW:
+PRINT_CASE(DIF_OP_LDSW);
 			regs[rd] = (int32_t)dtrace_load32(regs[r1]);
 			break;
 		case DIF_OP_RLDUB:
+PRINT_CASE(DIF_OP_RLDUB);
 			if (!dtrace_canstore(regs[r1], 1, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4719,9 +4756,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDUB:
+PRINT_CASE(DIF_OP_LDUB);
 			regs[rd] = dtrace_load8(regs[r1]);
 			break;
 		case DIF_OP_RLDUH:
+PRINT_CASE(DIF_OP_RLDUH);
 			if (!dtrace_canstore(regs[r1], 2, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4729,9 +4768,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDUH:
+PRINT_CASE(DIF_OP_LDUH);
 			regs[rd] = dtrace_load16(regs[r1]);
 			break;
 		case DIF_OP_RLDUW:
+PRINT_CASE(DIF_OP_RLDUW);
 			if (!dtrace_canstore(regs[r1], 4, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4739,9 +4780,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDUW:
+PRINT_CASE(DIF_OP_LDUW);
 			regs[rd] = dtrace_load32(regs[r1]);
 			break;
 		case DIF_OP_RLDX:
+PRINT_CASE(DIF_OP_RLDX);
 			if (!dtrace_canstore(regs[r1], 8, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
 				*illval = regs[r1];
@@ -4749,46 +4792,58 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			}
 			/*FALLTHROUGH*/
 		case DIF_OP_LDX:
+PRINT_CASE(DIF_OP_LDX);
 			regs[rd] = dtrace_load64(regs[r1]);
 			break;
 		case DIF_OP_ULDSB:
+PRINT_CASE(DIF_OP_ULDSB);
 			regs[rd] = (int8_t)
 			    dtrace_fuword8((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_ULDSH:
+PRINT_CASE(DIF_OP_ULDSH);
 			regs[rd] = (int16_t)
 			    dtrace_fuword16((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_ULDSW:
+PRINT_CASE(DIF_OP_ULDSW);
 			regs[rd] = (int32_t)
 			    dtrace_fuword32((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_ULDUB:
+PRINT_CASE(DIF_OP_ULDUB);
 			regs[rd] =
 			    dtrace_fuword8((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_ULDUH:
+PRINT_CASE(DIF_OP_ULDUH);
 			regs[rd] =
 			    dtrace_fuword16((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_ULDUW:
+PRINT_CASE(DIF_OP_ULDUW);
 			regs[rd] =
 			    dtrace_fuword32((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_ULDX:
+PRINT_CASE(DIF_OP_ULDX);
 			regs[rd] =
 			    dtrace_fuword64((void *)(uintptr_t)regs[r1]);
 			break;
 		case DIF_OP_RET:
+PRINT_CASE(DIF_OP_RET);
 			rval = regs[rd];
 			pc = textlen;
 			break;
 		case DIF_OP_NOP:
+PRINT_CASE(DIF_OP_NOP);
 			break;
 		case DIF_OP_SETX:
+PRINT_CASE(DIF_OP_SETX);
 			regs[rd] = inttab[DIF_INSTR_INTEGER(instr)];
 			break;
 		case DIF_OP_SETS:
+PRINT_CASE(DIF_OP_SETS);
 			regs[rd] = (uint64_t)(uintptr_t)
 			    (strtab + DIF_INSTR_STRING(instr));
 			break;
@@ -4797,6 +4852,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			uintptr_t s1 = regs[r1];
 			uintptr_t s2 = regs[r2];
 
+PRINT_CASE(DIF_OP_SCMP);
 			if (s1 != NULL &&
 			    !dtrace_strcanload(s1, sz, mstate, vstate))
 				break;
@@ -4812,10 +4868,12 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 		}
 		case DIF_OP_LDGA:
+PRINT_CASE(DIF_OP_LDGA);
 			regs[rd] = dtrace_dif_variable(mstate, state,
 			    r1, regs[r2]);
 			break;
 		case DIF_OP_LDGS:
+PRINT_CASE(DIF_OP_LDGS);
 			id = DIF_INSTR_VAR(instr);
 
 			if (id >= DIF_VAR_OTHER_UBASE) {
@@ -4851,6 +4909,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_STGS:
+PRINT_CASE(DIF_OP_STGS);
 			id = DIF_INSTR_VAR(instr);
 
 			ASSERT(id >= DIF_VAR_OTHER_UBASE);
@@ -4887,6 +4946,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_LDTA:
+PRINT_CASE(DIF_OP_LDTA);
 			/*
 			 * There are no DTrace built-in thread-local arrays at
 			 * present.  This opcode is saved for future work.
@@ -4896,6 +4956,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_LDLS:
+PRINT_CASE(DIF_OP_LDLS);
 			id = DIF_INSTR_VAR(instr);
 
 			if (id < DIF_VAR_OTHER_UBASE) {
@@ -4921,7 +4982,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 
 				sz += sizeof (uint64_t);
 				ASSERT(svar->dtsv_size == NCPU * sz);
-				a += CPU->cpu_id * sz;
+				a += cpu_get_id() * sz;
 
 				if (*(uint8_t *)a == UINT8_MAX) {
 					/*
@@ -4939,10 +5000,11 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 
 			ASSERT(svar->dtsv_size == NCPU * sizeof (uint64_t));
 			tmp = (uint64_t *)(uintptr_t)svar->dtsv_data;
-			regs[rd] = tmp[CPU->cpu_id];
+			regs[rd] = tmp[cpu_get_id()];
 			break;
 
 		case DIF_OP_STLS:
+PRINT_CASE(DIF_OP_STLS);
 			id = DIF_INSTR_VAR(instr);
 
 			ASSERT(id >= DIF_VAR_OTHER_UBASE);
@@ -4960,7 +5022,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 
 				sz += sizeof (uint64_t);
 				ASSERT(svar->dtsv_size == NCPU * sz);
-				a += CPU->cpu_id * sz;
+				a += cpu_get_id() * sz;
 
 				if (regs[rd] == NULL) {
 					*(uint8_t *)a = UINT8_MAX;
@@ -4986,6 +5048,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_LDTS: {
+PRINT_CASE(DIF_OP_LDTS);
 			dtrace_dynvar_t *dvar;
 			dtrace_key_t *key;
 
@@ -5019,6 +5082,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 		}
 
 		case DIF_OP_STTS: {
+PRINT_CASE(DIF_OP_STTS);
 			dtrace_dynvar_t *dvar;
 			dtrace_key_t *key;
 
@@ -5029,21 +5093,27 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			key = &tupregs[DIF_DTR_NREGS];
 			key[0].dttk_value = (uint64_t)id;
 			key[0].dttk_size = 0;
+HERE();
 			DTRACE_TLS_THRKEY(key[1].dttk_value);
+HERE();
+printk("id=%d\n", id);
 			key[1].dttk_size = 0;
 			v = &vstate->dtvs_tlocals[id];
 
+HERE();
 			dvar = dtrace_dynvar(dstate, 2, key,
 			    v->dtdv_type.dtdt_size > sizeof (uint64_t) ?
 			    v->dtdv_type.dtdt_size : sizeof (uint64_t),
 			    regs[rd] ? DTRACE_DYNVAR_ALLOC :
 			    DTRACE_DYNVAR_DEALLOC, mstate, vstate);
+HERE();
 
 			/*
 			 * Given that we're storing to thread-local data,
 			 * we need to flush our predicate cache.
 			 */
 			curthread->t_predcache = NULL;
+HERE();
 
 			if (dvar == NULL)
 				break;
@@ -5064,15 +5134,18 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 		}
 
 		case DIF_OP_SRA:
+PRINT_CASE(DIF_OP_SRA);
 			regs[rd] = (int64_t)regs[r1] >> regs[r2];
 			break;
 
 		case DIF_OP_CALL:
+PRINT_CASE(DIF_OP_CALL);
 			dtrace_dif_subr(DIF_INSTR_SUBR(instr), rd,
 			    regs, tupregs, ttop, mstate, state);
 			break;
 
 		case DIF_OP_PUSHTR:
+PRINT_CASE(DIF_OP_PUSHTR);
 			if (ttop == DIF_DTR_NREGS) {
 				*flags |= CPU_DTRACE_TUPOFLOW;
 				break;
@@ -5099,6 +5172,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_PUSHTV:
+PRINT_CASE(DIF_OP_PUSHTV);
 			if (ttop == DIF_DTR_NREGS) {
 				*flags |= CPU_DTRACE_TUPOFLOW;
 				break;
@@ -5109,20 +5183,24 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_POPTS:
+PRINT_CASE(DIF_OP_POPTS);
 			if (ttop != 0)
 				ttop--;
 			break;
 
 		case DIF_OP_FLUSHTS:
+PRINT_CASE(DIF_OP_FLUSHTS);
 			ttop = 0;
 			break;
 
 		case DIF_OP_LDGAA:
+PRINT_CASE(DIF_OP_LDGAA);
 		case DIF_OP_LDTAA: {
 			dtrace_dynvar_t *dvar;
 			dtrace_key_t *key = tupregs;
 			uint_t nkeys = ttop;
 
+PRINT_CASE(DIF_OP_LDTAA);
 			id = DIF_INSTR_VAR(instr);
 			ASSERT(id >= DIF_VAR_OTHER_UBASE);
 			id -= DIF_VAR_OTHER_UBASE;
@@ -5158,11 +5236,13 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 		}
 
 		case DIF_OP_STGAA:
+PRINT_CASE(DIF_OP_STGAA);
 		case DIF_OP_STTAA: {
 			dtrace_dynvar_t *dvar;
 			dtrace_key_t *key = tupregs;
 			uint_t nkeys = ttop;
 
+PRINT_CASE(DIF_OP_STTAA);
 			id = DIF_INSTR_VAR(instr);
 			ASSERT(id >= DIF_VAR_OTHER_UBASE);
 			id -= DIF_VAR_OTHER_UBASE;
@@ -5206,6 +5286,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			uintptr_t ptr = P2ROUNDUP(mstate->dtms_scratch_ptr, 8);
 			size_t size = ptr - mstate->dtms_scratch_ptr + regs[r1];
 
+PRINT_CASE(DIF_OP_ALLOCS);
 			/*
 			 * Rounding up the user allocation size could have
 			 * overflowed large, bogus allocations (like -1ULL) to
@@ -5225,6 +5306,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 		}
 
 		case DIF_OP_COPYS:
+PRINT_CASE(DIF_OP_COPYS);
 			if (!dtrace_canstore(regs[rd], regs[r2],
 			    mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
@@ -5240,6 +5322,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_STB:
+PRINT_CASE(DIF_OP_STB);
 			if (!dtrace_canstore(regs[rd], 1, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
 				*illval = regs[rd];
@@ -5249,6 +5332,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_STH:
+PRINT_CASE(DIF_OP_STH);
 			if (!dtrace_canstore(regs[rd], 2, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
 				*illval = regs[rd];
@@ -5263,6 +5347,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_STW:
+PRINT_CASE(DIF_OP_STW);
 			if (!dtrace_canstore(regs[rd], 4, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
 				*illval = regs[rd];
@@ -5277,6 +5362,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 			break;
 
 		case DIF_OP_STX:
+PRINT_CASE(DIF_OP_STX);
 			if (!dtrace_canstore(regs[rd], 8, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
 				*illval = regs[rd];
@@ -5292,6 +5378,7 @@ dtrace_dif_emulate(dtrace_difo_t *difo, dtrace_mstate_t *mstate,
 		}
 	}
 
+HERE();
 	if (!(*flags & CPU_DTRACE_FAULT))
 		return (rval);
 
@@ -5619,6 +5706,13 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	volatile uint16_t *flags;
 	hrtime_t now;
 
+# if linux
+	/***********************************************/
+	/*   We  arent modifying the kernel but we do  */
+	/*   want curthread to be reasonable.	       */
+	/***********************************************/
+	par_setup_thread();
+# endif
 	/*
 	 * Kick out immediately if this CPU is still being born (in which case
 	 * curthread will be set to -1) or the current thread can't allow
@@ -5899,21 +5993,25 @@ printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -stat
 HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_STOP:
+HERE();
 				if (dtrace_priv_proc_destructive(state))
 					dtrace_action_stop();
 				continue;
 
 			case DTRACEACT_BREAKPOINT:
+HERE();
 				if (dtrace_priv_kernel_destructive(state))
 					dtrace_action_breakpoint(ecb);
 				continue;
 
 			case DTRACEACT_PANIC:
+HERE();
 				if (dtrace_priv_kernel_destructive(state))
 					dtrace_action_panic(ecb);
 				continue;
 
 			case DTRACEACT_STACK:
+HERE();
 				if (!dtrace_priv_kernel(state))
 					continue;
 
@@ -5926,6 +6024,7 @@ HERE();
 
 			case DTRACEACT_JSTACK:
 			case DTRACEACT_USTACK:
+HERE();
 				if (!dtrace_priv_proc(state))
 					continue;
 
@@ -5970,14 +6069,17 @@ HERE();
 				break;
 			}
 
+HERE();
 			dp = act->dta_difo;
 			ASSERT(dp != NULL);
 
 			val = dtrace_dif_emulate(dp, &mstate, vstate, state);
+HERE();
 
 			if (*flags & CPU_DTRACE_ERROR)
 				continue;
 
+HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_SPECULATE:
 				ASSERT(buf == &state->dts_buffer[cpuid]);
@@ -6169,6 +6271,7 @@ HERE();
 				break;
 			}
 		}
+HERE();
 
 		if (*flags & CPU_DTRACE_DROP)
 			continue;
@@ -6793,7 +6896,7 @@ dtrace_match(const dtrace_probekey_t *pkp, uint32_t priv, uid_t uid,
 	dtrace_id_t i;
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
-printk("dtrace_match: pkp=%p prv=%d uid=%d matched=%x arg=%x\n", pkp, priv, uid, matched, arg);
+//printk("dtrace_match: pkp=%p prv=%d uid=%d matched=%x arg=%x\n", pkp, priv, uid, matched, arg);
 	/*
 	 * If the probe ID is specified in the key, just lookup by ID and
 	 * invoke the match callback once if a matching probe is found.
@@ -6804,7 +6907,7 @@ printk("dtrace_match: pkp=%p prv=%d uid=%d matched=%x arg=%x\n", pkp, priv, uid,
 			(void) (*matched)(probe, arg);
 			nmatched++;
 		}
-printk("nmatched=%d\n", nmatched);
+//printk("nmatched=%d\n", nmatched);
 		return (nmatched);
 	}
 
@@ -6855,7 +6958,7 @@ printk("nmatched=%d\n", nmatched);
 
 		return (nmatched);
 	}
-HERE();
+//HERE();
 
 	/*
 	 * If we selected a hash table, iterate over each probe of the same key
@@ -6869,13 +6972,13 @@ HERE();
 			continue;
 
 		nmatched++;
-printk("matched=%p\n", matched);
+//printk("matched=%p\n", matched);
 
 		if ((*matched)(probe, arg) != DTRACE_MATCH_NEXT)
 			break;
 	}
 
-printk("dtrace_match: nmatched=%d\n", nmatched);
+//printk("dtrace_match: nmatched=%d\n", nmatched);
 	return (nmatched);
 }
 
@@ -7350,7 +7453,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	dtrace_id_t id;
 
 //HERE();
-printk("creating: %s:%s:%s\n", mod, func, name);
+//printk("creating: %s:%s:%s\n", mod, func, name);
 	if (provider == dtrace_provider) {
 		ASSERT(MUTEX_HELD(&dtrace_lock));
 	} else {
@@ -7374,8 +7477,8 @@ printk("creating: %s:%s:%s\n", mod, func, name);
 	dtrace_hash_add(dtrace_bymod, probe);
 	dtrace_hash_add(dtrace_byfunc, probe);
 	dtrace_hash_add(dtrace_byname, probe);
-HERE();
-printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
+//HERE();
+//printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 
 	if (id - 1 >= dtrace_nprobes) {
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
@@ -7579,7 +7682,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 				continue;
 			}
 
-			printk("dtrace_probe_provide: #%d %p %s\n", i, modp, modp->name);
+//			printk("dtrace_probe_provide: #%d %p %s\n", i, modp, modp->name);
 
 //printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
 			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, 
@@ -10217,8 +10320,8 @@ dtrace_buffer_activate(dtrace_state_t *state)
 	dtrace_icookie_t cookie = dtrace_interrupt_disable();
 
 HERE();
-printk("CPU->cpu_id=%d\n", CPU->cpu_id);
-	buf = &state->dts_buffer[CPU->cpu_id];
+printk("cpu_get_id()=%d\n", cpu_get_id());
+	buf = &state->dts_buffer[cpu_get_id()];
 
 	if (buf->dtb_tomax != NULL) {
 		/*
@@ -12706,7 +12809,6 @@ HERE();
 		goto out;
 	}
 
-HERE();
 	state->dts_speculations = spec;
 	state->dts_nspeculations = (int)nspec;
 HERE();
@@ -12815,16 +12917,12 @@ HERE();
 
 	if ((rval = dtrace_state_buffers(state)) != 0)
 		goto err;
-HERE();
 
 	if ((sz = opt[DTRACEOPT_DYNVARSIZE]) == DTRACEOPT_UNSET)
 		sz = dtrace_dstate_defsize;
-HERE();
 
 	do {
-HERE();
 		rval = dtrace_dstate_init(&state->dts_vstate.dtvs_dynvars, sz);
-HERE();
 
 		if (rval == 0)
 			break;
@@ -12833,7 +12931,6 @@ HERE();
 			goto err;
 	} while (sz >>= 1);
 
-HERE();
 	opt[DTRACEOPT_DYNVARSIZE] = sz;
 
 	if (rval != 0)
@@ -13353,7 +13450,7 @@ dtrace_helper_trace(dtrace_helper_action_t *helper,
 	ent->dtht_fltoffs = (mstate->dtms_present & DTRACE_MSTATE_FLTOFFS) ?
 	    mstate->dtms_fltoffs : -1;
 	ent->dtht_fault = DTRACE_FLAGS2FLT(flags);
-	ent->dtht_illval = cpu_core[CPU->cpu_id].cpuc_dtrace_illval;
+	ent->dtht_illval = cpu_core[cpu_get_id()].cpuc_dtrace_illval;
 
 	for (i = 0; i < vstate->dtvs_nlocals; i++) {
 		dtrace_statvar_t *svar;
@@ -13363,7 +13460,7 @@ dtrace_helper_trace(dtrace_helper_action_t *helper,
 
 		ASSERT(svar->dtsv_size >= NCPU * sizeof (uint64_t));
 		ent->dtht_locals[i] =
-		    ((uint64_t *)(uintptr_t)svar->dtsv_data)[CPU->cpu_id];
+		    ((uint64_t *)(uintptr_t)svar->dtsv_data)[cpu_get_id()];
 	}
 }
 

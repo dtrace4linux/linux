@@ -34,6 +34,50 @@
 #include <sys/fasttrap_isa.h>
 #include <sys/dtrace.h>
 #include <sys/dtrace_impl.h>
+#include <linux/sort.h>
+
+// Temporary definitions so we can compile.
+# define	sprlock(pid) 0
+# define	sprlock_proc(p)
+# define	sprunlock(p)
+# define	prfind(p) find_task_by_pid(p)
+# define RW_WRITER 2
+#define SEXITING   0x00000002   /* process is exiting */
+#define SFORKING   0x00000008   /* tells called functions that we're forking */
+#define SVFORK     0x00040000   /* child of vfork that has not yet exec'd */
+
+#define VREAD           00400
+#define VWRITE          00200
+
+# define rw_enter(a, b)
+# define rw_exit(a)
+# define priv_proc_cred_perm(cr, p, ptr, flags) 0
+static void swap_func(void *p1, void *p2, int size)
+{
+	while (size-- > 0) {
+		char t = *(char *) p1;
+		*(char *) p1 = *(char *) p2;
+		*(char *) p2 = t;
+		p1 = p1 + 1;
+		p2 = p2 + 1;
+	}
+}
+# define qsort(base, num, size, cmp) sort(base, num, size, cmp, swap_func)
+
+DEFINE_MUTEX(pidlock);
+
+timeout_id_t
+timeout(void (*func)(void *), void *arg, unsigned long ticks)
+{
+}
+void
+untimeout(timeout_id_t id)
+{
+}
+void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
+void (*dtrace_fasttrap_exec_ptr)(proc_t *);
+void (*dtrace_fasttrap_exit_ptr)(proc_t *);
+
 # endif
 
 # if defined(sun)
@@ -184,7 +228,7 @@ static fasttrap_hash_t		fasttrap_provs;
 static fasttrap_hash_t		fasttrap_procs;
 
 static uint64_t			fasttrap_pid_count;	/* pid ref count */
-static kmutex_t			fasttrap_count_mtx;	/* lock on ref count */
+static DEFINE_MUTEX(fasttrap_count_mtx);		/* lock on ref count */
 
 #define	FASTTRAP_ENABLE_FAIL	1
 #define	FASTTRAP_ENABLE_PARTIAL	2
@@ -303,7 +347,7 @@ fasttrap_pid_cleanup_cb(void *data)
 	fasttrap_provider_t **fpp, *fp;
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
-	int i, later;
+	int i, later = 0;
 
 	static volatile int in = 0;
 	ASSERT(in == 0);
@@ -1948,7 +1992,7 @@ static int
 fasttrap_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 #else
 int
-dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 # endif
 {
 	if (!dtrace_attached())

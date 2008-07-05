@@ -164,11 +164,13 @@ dtrace_sync(void)
 {
 	dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
 }
+# endif
 
 int (*dtrace_fasttrap_probe_ptr)(struct regs *);
 int (*dtrace_pid_probe_ptr)(struct regs *);
 int (*dtrace_return_probe_ptr)(struct regs *);
 
+# if 0
 void
 dtrace_user_probe(struct regs *rp, caddr_t addr, processorid_t cpuid)
 {

@@ -78,6 +78,9 @@ typedef struct cpu_t {
         hrtime_t        cpu_dtrace_chilled;     /* DTrace: total chill time */
         struct cpupart  *cpu_part;              /* partition with this CPU */
 	struct cpu_t *cpu_next;
+	struct cpu      *cpu_next_onln;         /* next online (enabled) CPU */
+        struct cpu      *cpu_prev_onln;         /* prev online (enabled) CPU */
+	struct mutex	cpu_ft_lock;		/* fasttrap mutex.	*/
 } cpu_t;
 
 typedef struct cpu_core {

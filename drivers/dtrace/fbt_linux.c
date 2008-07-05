@@ -59,6 +59,7 @@ static struct map {
 /* 10 */{"hrtimer_cancel", NULL},
 /* 11 */{"hrtimer_start", NULL},
 /* 12 */{"hrtimer_init", NULL},
+/* 13 */{"access_process_vm", NULL},
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -258,7 +259,8 @@ TODO();
 
 # endif
 
-	pmp = par_alloc(mp, sizeof *pmp);
+	int	init;
+	pmp = par_alloc(mp, sizeof *pmp, &init);
 	if (pmp->fbt_nentries) {
 		/*
 		 * This module has some FBT entries allocated; we're afraid
@@ -554,7 +556,7 @@ fbt_destroy(void *arg, dtrace_id_t id, void *parg)
 		if (mp != NULL && get_refcount(mp) == fbt->fbtp_loadcnt) {
 			if ((get_refcount(mp) == fbt->fbtp_loadcnt &&
 			    mp->state == MODULE_STATE_LIVE)) {
-			    	par_module_t *pmp = par_alloc(mp, sizeof *pmp);
+			    	par_module_t *pmp = par_alloc(mp, sizeof *pmp, NULL);
 				if (--pmp->fbt_nentries == 0)
 					par_free(pmp);
 			}
@@ -652,6 +654,11 @@ void *
 fbt_get_hrtimer_start()
 {
 	return (void *) syms[11].m_ptr;
+}
+void *
+fbt_get_access_process_vm()
+{
+	return (void *) syms[13].m_ptr;
 }
 /*ARGSUSED*/
 static void

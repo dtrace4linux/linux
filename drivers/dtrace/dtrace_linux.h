@@ -73,6 +73,8 @@ typedef uint32_t ipaddr_t;
 #define IS_P2ALIGNED(v, a) ((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
 #define NSIG _NSIG
 
+# define 	hz	HZ
+
 /**********************************************************************/
 /*   File  based  on  code  from  FreeBSD  to  support  the  missing  */
 /*   task_struct fields which dtrace wants.			      */
@@ -81,6 +83,7 @@ typedef uint32_t ipaddr_t;
 typedef struct	sol_proc_t {
 
 	uint32_t	p_flag;
+	int		p_stat;
 	pid_t pid;
 	pid_t ppid;
 
@@ -91,6 +94,26 @@ typedef struct	sol_proc_t {
 
         uint8_t         t_dtrace_stop;  /* indicates a DTrace-desired stop */
         uint8_t         t_dtrace_sig;   /* signal sent via DTrace's raise() */
+	union __tdu {
+		struct __tds {
+			uint8_t	_t_dtrace_on;	/* hit a fasttrap tracepoint */
+			uint8_t	_t_dtrace_step;	/* about to return to kernel */
+			uint8_t	_t_dtrace_ret;	/* handling a return probe */
+			uint8_t	_t_dtrace_ast;	/* saved ast flag */
+#ifdef __amd64
+			uint8_t	_t_dtrace_reg;	/* modified register */
+#endif
+		} _tds;
+		ulong_t	_t_dtrace_ft;		/* bitwise or of these flags */
+	} _tdu;
+#define	t_dtrace_ft	_tdu._t_dtrace_ft
+#define	t_dtrace_on	_tdu._tds._t_dtrace_on
+#define	t_dtrace_step	_tdu._tds._t_dtrace_step
+#define	t_dtrace_ret	_tdu._tds._t_dtrace_ret
+#define	t_dtrace_ast	_tdu._tds._t_dtrace_ast
+#ifdef __amd64
+#define	t_dtrace_reg	_tdu._tds._t_dtrace_reg
+#endif
 
 	struct sol_proc *parent;
 	int		p_pid;
@@ -100,6 +123,19 @@ typedef struct	sol_proc_t {
 	void            *p_dtrace_helpers; /* DTrace helpers, if any */
 	struct sol_proc_t *t_procp;
         struct  cred    *p_cred;        /* process credentials */
+	struct mutex	p_lock;
+	struct mutex	p_crlock;
+	int             p_dtrace_probes; /* are there probes for this proc? */
+	uint64_t        p_dtrace_count; /* number of DTrace tracepoints */
+                                        /* (protected by P_PR_LOCK) */
+	int		p_model;
+	uintptr_t	t_dtrace_pc;	/* DTrace saved pc from fasttrap */
+	uintptr_t	t_dtrace_npc;	/* DTrace next pc from fasttrap */
+	uintptr_t	t_dtrace_scrpc;	/* DTrace per-thread scratch location */
+	uintptr_t	t_dtrace_astpc;	/* DTrace return sequence location */
+#ifdef __amd64
+	uint64_t	t_dtrace_regv;	/* DTrace saved reg from fasttrap */
+#endif
 	} sol_proc_t;
 
 typedef sol_proc_t proc_t;
@@ -208,7 +244,11 @@ typedef struct par_module_t {
 	int	fbt_nentries;
 	} par_module_t;
 
-void *par_alloc(void *, int);
+void *par_alloc(void *, int, int *);
 void par_free(void *ptr);
+int fulword(const void *addr, uintptr_t *valuep);
+int fuword32(const void *addr, uint32_t *valuep);
+int suword32(const void *addr, uint32_t value);
+int sulword(const void *addr, ulong_t value);
 
 # endif

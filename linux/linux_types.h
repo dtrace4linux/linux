@@ -51,7 +51,7 @@ struct modctl;
 # include	<linux/wait.h>
 # include	<zone.h>
 
-# else
+# else /* !__KERNEL */
 
 # define	_LARGEFILE_SOURCE	1
 # define	_LARGEFILE64_SOURCE	1
@@ -73,7 +73,9 @@ struct modctl;
 
 /*# include	<sys/ucontext.h>*/
 /*# include	<sys/reg.h>*/
-# endif
+# endif /* __KERNEL__ */
+
+# include 	<sys/regset.h>
 
 // link.h
 #define LM_ID_BASE              0x00
@@ -96,50 +98,6 @@ extern int pwrite(int, void *, int, unsigned long long);
 
 #define FPS_TOP 0x00003800      /* top of stack pointer                 */
 
-# define	REG_GS	0
-# define	REG_FS	1
-# define	REG_ES	2
-# define	REG_DS	3
-# if !defined(EFL)
-# define	EDI	4
-# define	ESI	5
-# define	EBP	6
-# define	ESP	7
-# define	EBX	8
-# define	EDX	9
-# define	ECX	10
-# define	EAX	11
-# define	TRAPNO	12
-# define	ERR	13
-# define	EIP	14
-# define	REG_CS	15
-# define	EFL	16
-# define	REG_RFL	16	/* ?? */
-# define	UESP	17
-# endif
-# define	REG_SS	18
-# define DS 7
-# define ES 8
-# define FS 9
-# define GS 10
-# define CS  13
-# define SS   16
-
-/* x86-64 */
-# define	REG_RDI	8
-# define	REG_RSI	9
-# define	REG_RBP	10
-# define	REG_RBX	11
-# define	REG_RDX	12
-# define	REG_RAX	13
-# define	REG_RCX	14
-# define	REG_RSP	15
-# define	REG_RIP	16
-# define	REG_EFLAGS	17
-# define	REG_ERR	22
-# define	REG_TRAPNO 23
-
-#define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
 
 typedef unsigned long long hrtime_t;
 
@@ -166,7 +124,6 @@ typedef unsigned int mutex_t;
 	#define	INT64_MAX	0x7fffffffffffffffLL
 	#define	UINT64_MAX	0xffffffffffffffffLU
 	#define INT64_MIN       (-9223372036854775807LL-1)
-	typedef int *greg_t;
 	typedef struct __dev_info *dev_info_t;
 	typedef long	intptr_t;
 	typedef unsigned long long off64_t;
@@ -189,6 +146,8 @@ typedef unsigned int mutex_t;
 	#define	CE_IGNORE	4
 
 	#define	NCPU NR_CPUS
+	#define PAGESIZE        PAGE_SIZE
+	#define PAGEOFFSET      (PAGESIZE - 1)
 
 	# define kmutex_t struct mutex
 
@@ -253,6 +212,8 @@ typedef struct iovec iovec_t;
 	# define printk printf
 	# define MIN(a, b) ((a) < (b) ? (a) : (b))
 	# define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+	#define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
 
 	struct mutex {
 		long xxx;
@@ -484,5 +445,6 @@ void *dtrace_casptr(void *target, void *cmp, void *new);
 # define	casptr(a, b, c) dtrace_casptr(a, b, c)
 
 # define atomic_add_32(a, b) atomic_add(b, (atomic_t *) (a))
+void atomic_add_64(uint64_t *, int n);
 
 # endif /* LINE_TYPES_H */

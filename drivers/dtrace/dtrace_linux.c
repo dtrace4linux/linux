@@ -80,6 +80,11 @@ CRED()
 
 	return &c;
 }
+void
+atomic_add_64(uint64_t *p, int n)
+{
+	*p += n;
+}
 hrtime_t
 dtrace_gethrtime()
 {	struct timeval tv;
@@ -245,6 +250,42 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	}
 }
 
+int
+fulword(const void *addr, uintptr_t *valuep)
+{
+	if (!validate_ptr(addr))
+		return 1;
+
+	*valuep = dtrace_fulword(addr);
+	return 0;
+}
+int
+fuword32(const void *addr, uint32_t *valuep)
+{
+	if (!validate_ptr(addr))
+		return 1;
+
+	*valuep = dtrace_fuword32(addr);
+	return 0;
+}
+int
+sulword(const void *addr, ulong_t value)
+{
+	if (!validate_ptr(addr))
+		return -1;
+
+	*(ulong_t *) addr = value;
+	return 0;
+}
+int
+suword32(const void *addr, uint32_t value)
+{
+	if (!validate_ptr(addr))
+		return -1;
+
+	*(uint32_t *) addr = value;
+	return 0;
+}
 # if 0
 void *
 kmem_alloc(size_t size, int flags)
@@ -311,6 +352,17 @@ lx_get_curthread_id()
   )
 # endif
 
+/**********************************************************************/
+/*   Solaris  rdmsr  routine  only takes one arg, so we need to wrap  */
+/*   the call.							      */
+/**********************************************************************/
+u64
+lx_rdmsr(int x)
+{	u32 val1, val2;
+
+	rdmsr(x, val1, val2);
+	return (val2 << 32) | val1;
+}
 int
 validate_ptr(void *ptr)
 {	int	ret;
@@ -329,13 +381,18 @@ validate_ptr(void *ptr)
 static struct par_alloc_t *hd_par;
 
 void *
-par_alloc(void *ptr, int size)
+par_alloc(void *ptr, int size, int *init)
 {	par_alloc_t *p;
-
+	int do_init = FALSE;
+	
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr)
 			return p;
 		}
+
+	do_init = TRUE;
+	if (init)
+		*init = do_init;
 
 	p = kmalloc(size + sizeof(*p), GFP_KERNEL);
 	p->pa_ptr = ptr;
@@ -373,8 +430,14 @@ par_free(void *ptr)
 /**********************************************************************/
 void
 par_setup_thread()
-{	par_alloc_t *p = par_alloc(get_current(), sizeof *curthread);
+{	int	init;
+	par_alloc_t *p = par_alloc(get_current(), sizeof *curthread, &init);
 	sol_proc_t	*solp = (sol_proc_t *) (p + 1);
+
+	if (init) {
+		mutex_init(&solp->p_lock);
+		mutex_init(&solp->p_crlock);
+	}
 
 	curthread = solp;
 	curthread->pid = get_current()->pid;
@@ -388,6 +451,23 @@ par_setup_thread()
 		curthread->p_ppid = 
 		curthread->ppid = get_current()->parent->pid;
 	}
+}
+/**********************************************************************/
+/*   Read from a procs memory.					      */
+/**********************************************************************/
+int 
+uread(proc_t *p, void *addr, size_t len, uintptr_t dest)
+{	int (*func)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write) = 
+		fbt_get_access_process_vm();
+
+	return func(p, addr, len, dest, 0);
+}
+int 
+uwrite(proc_t *p, void *addr, size_t len, uintptr_t src)
+{	int (*func)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write) = 
+		fbt_get_access_process_vm();
+
+	return func(p, addr, len, src, 1);
 }
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
@@ -555,6 +635,12 @@ static struct proc_dir_entry *dir;
 	for (i = 0; i < NR_CPUS; i++) {
 		cpu_list[i].cpuid = i;
 		cpu_list[i].cpu_next = &cpu_list[i+1];
+		/***********************************************/
+		/*   BUG/TODO:  We should adapt the onln list  */
+		/*   to handle actual online cpus.	       */
+		/***********************************************/
+		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
+		mutex_init(&cpu_list[i].cpu_ft_lock);
 		}
 	cpu_list[NR_CPUS-1].cpu_next = cpu_list;
 

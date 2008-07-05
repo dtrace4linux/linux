@@ -24,8 +24,27 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)fasttrap_isa.c	1.27	08/04/09 SMI"
+//#pragma ident	"@(#)fasttrap_isa.c	1.27	08/04/09 SMI"
 
+# if linux
+#include "dtrace_linux.h"
+#include <sys/zone.h>
+#include <sys/fasttrap.h>
+#include <sys/fasttrap_impl.h>
+#include <sys/fasttrap_isa.h>
+#include <sys/dtrace.h>
+#include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
+#include <sys/regset.h>
+#include <sys/privregs.h>
+#include <sys/segments.h>
+
+#define SVFORK     0x00040000   /* child of vfork that has not yet exec'd */
+#define T_DTRACE_RET    0x7f    /*      DTrace pid return               */
+
+# endif
+
+# if defined(sun)
 #include <sys/fasttrap_isa.h>
 #include <sys/fasttrap_impl.h>
 #include <sys/dtrace.h>
@@ -38,6 +57,7 @@
 #include <sys/sysmacros.h>
 #include <sys/trap.h>
 #include <sys/archsystm.h>
+# endif
 
 /*
  * Lossless User-Land Tracing on x86
@@ -707,6 +727,16 @@ fasttrap_return_common(struct regs *rp, uintptr_t pc, pid_t pid,
 static void
 fasttrap_sigsegv(proc_t *p, kthread_t *t, uintptr_t addr)
 {
+# if linux
+	struct siginfo info;
+
+
+	info.si_signo = SIGSEGV;
+	info.si_code = SEGV_MAPERR;
+	info.si_addr = (caddr_t)addr;
+
+	send_sig_info(SIGSEGV, &info, p);
+# else
 	sigqueue_t *sqp = kmem_zalloc(sizeof (sigqueue_t), KM_SLEEP);
 
 	sqp->sq_info.si_signo = SIGSEGV;
@@ -719,6 +749,7 @@ fasttrap_sigsegv(proc_t *p, kthread_t *t, uintptr_t addr)
 
 	if (t != NULL)
 		aston(t);
+# endif
 }
 
 #ifdef __amd64
@@ -804,6 +835,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	 * Check the bounds and grab the descriptor out of the specified
 	 * descriptor table.
 	 */
+# if defined(TODOxxx)
 	if (SELISLDT(sel)) {
 		if (ndx > p->p_ldtlimit)
 			return (-1);
@@ -871,6 +903,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	}
 
 	*addr += USEGD_GETBASE(desc);
+# endif
 
 	return (0);
 }
@@ -1383,6 +1416,7 @@ fasttrap_pid_probe(struct regs *rp)
 		uint8_t scratch[2 * FASTTRAP_MAX_INSTR_SIZE + 7];
 #endif
 		uint_t i = 0;
+# if defined(TODOxxx)
 		klwp_t *lwp = ttolwp(curthread);
 
 		/*
@@ -1403,6 +1437,7 @@ fasttrap_pid_probe(struct regs *rp)
 		addr = USEGD_GETBASE(&lwp->lwp_pcb.pcb_gsdesc);
 		addr += sizeof (void *);
 #endif
+# endif /* defined(TODOxxx) */
 
 		/*
 		 * Generic Instruction Tracing
@@ -1688,7 +1723,10 @@ uint64_t
 fasttrap_pid_getarg(void *arg, dtrace_id_t id, void *parg, int argno,
     int aframes)
 {
+# if defined(TODOxxx)
 	return (fasttrap_anarg(ttolwp(curthread)->lwp_regs, 1, argno));
+# endif
+
 }
 
 /*ARGSUSED*/
@@ -1696,7 +1734,9 @@ uint64_t
 fasttrap_usdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno,
     int aframes)
 {
+# if defined(TODOxxx)
 	return (fasttrap_anarg(ttolwp(curthread)->lwp_regs, 0, argno));
+# endif
 }
 
 static ulong_t
@@ -1730,8 +1770,8 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_GS:		return (rp->r_gs);
 	case REG_DS:		return (rp->r_ds);
 	case REG_ES:		return (rp->r_es);
-	case REG_FSBASE:	return (rdmsr(MSR_AMD_FSBASE));
-	case REG_GSBASE:	return (rdmsr(MSR_AMD_GSBASE));
+	case REG_FSBASE:	return (lx_rdmsr(MSR_AMD_FSBASE));
+	case REG_GSBASE:	return (lx_rdmsr(MSR_AMD_GSBASE));
 	}
 
 	panic("dtrace: illegal register constant");

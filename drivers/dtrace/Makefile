@@ -13,6 +13,8 @@ dtracedrv-objs := \
 	dtrace_isa.o \
 	dtrace_linux.o \
 	dtrace_subr.o \
+	fasttrap.o \
+	fasttrap_isa.o \
 	fasttrap_linux.o \
 	fbt_linux.o \
 	linux_pure.o \

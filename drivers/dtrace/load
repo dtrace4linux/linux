@@ -42,6 +42,7 @@ $SUDO chmod 666 /dev/fbt
 #####################################################################
 echo "Preparing symbols..."
 for s in \
+	access_process_vm	\
 	kallsyms		\
 	get_symbol_offset	\
 	modules		        \

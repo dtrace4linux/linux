@@ -1,3 +1,13 @@
+Sun Jul  6 10:29:42 2008  fox
+
+      61* Archive: 1.0035
+
+      60* fasttrap_isa.c: Merged/compiled in - we have some TODOxxx items
+          to fix before we can use this.
+
+      59* fasttrap.c: Now compiles, but need to implement timeout()
+          function. Next, get fasttrap_isa.c to compile.
+
 Sat Jul  5 14:53:52 2008  fox
 
       58* dtrace.c, dtrace_linux.c: Implement a parallel shadow to curthread

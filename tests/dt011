@@ -1,0 +1,4 @@
+syscall::open:entry
+{
+        self->path = copyinstr(arg0);
+}

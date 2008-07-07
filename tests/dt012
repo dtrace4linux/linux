@@ -1,0 +1,4 @@
+syscall::open:entry
+{
+        printf("hello, arg0=%x\n", arg0);
+}

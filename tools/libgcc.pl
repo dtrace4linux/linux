@@ -48,6 +48,7 @@ EOF
 			}
 		}
 	}
+	unlink("x");
 	print "Sorry: libgcc.a not found. Please put a symlink to it in the\n";
 	print "build/ directory for the 32-bit compilation to work.\n";
 }

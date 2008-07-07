@@ -11,6 +11,42 @@ if [ ! -f $HOME/bin/setuid ]; then
 	SUDO=sudo
 fi
 
+usage ()
+{
+	echo "load: Load dtrace driver"
+    	echo "Usage: load [-fast] [-here]"
+	echo ""
+	echo "load -here"
+	echo ""
+	echo "     Turn on HERE() macro output to /var/log/messages"
+	echo ""
+	echo "load -fast"
+	echo ""
+	echo "     Dont do dtrace -l on startup (avoid polluting /var/log/messages)"
+	exit 1
+}
+
+here=0
+while [ "$1" != "" ]
+do
+  case "$1" in
+    *fast)
+    	fast=yes
+	shift
+	;;
+    -here)
+    	here=1
+	shift
+	;;
+    *help)
+    	usage
+	;;
+    *)
+    	usage
+	;;
+  esac
+done
+
 if [ "$1" != "" ] ; then
 	fast=$1
 	shift
@@ -31,7 +67,7 @@ fi
 #   we can avoid being root all the time whilst we debug.
 #####################################################################
 echo "Loading: dtracedrv.ko"
-$SUDO insmod dtracedrv.ko
+$SUDO insmod dtracedrv.ko dtrace_here=$here
 sleep 1
 $SUDO chmod 666 /dev/dtrace
 $SUDO chmod 666 /dev/fbt

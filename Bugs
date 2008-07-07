@@ -1,0 +1,31 @@
+This file will be a bug track list of issues as I detect them or
+people report them, and a sign off that the issue is resolved.
+
+
+Items marked with an 'x' are 'DONE' and signed off.
+
+x 20080708 1. dtrace -f open
+           Prove we can see cpu2
+           Had forced 'cpu = 0' in dtrace_state_buffer() because we
+           we hitting an assertion.
+  
+x 20080708 2. dtrace -f open:entry -- failing probe lookup
+           Same as apple dtrace. Seems to be a bug in dtrace itself.
+  
+  20080708 3. dtrace -f syscall::open:entry -- failing probe lookup
+  20080708 4. wade thru variables lookup
+  20080708 5. validate ustack/stack
+  20080708 6. fastrap
+  20080708 7. fix dtrace -l being erratic on driver reloads
+  20080708 8. implement hashing on par_alloc.
+  20080708 9. dtrace -s tests/dt010
+              hangs system
+
+  20080708 10. BUG: soft lockup - CPU#1 stuck for 11s! [dtrace:5862]
+             Our timer callbacks arent correct so they can hang/kill the
+	     system.
+
+  20080708 11. dtrace -s tests/dt011
+  		Invokes CPU_DTRACE_BADADDR from dtrace_copycheck because
+		we have no base range for the kernel. Use validate_ptr.
+

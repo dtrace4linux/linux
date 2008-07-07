@@ -65,6 +65,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	uintptr_t pc;
 	uintptr_t caller = CPU->cpu_dtrace_caller;
 
+	TODO();
 # if TODOXXX
 	if ((on_intr = CPU_ON_INTR(CPU)) != 0)
 		stacktop = (struct frame *)(CPU->cpu_intr_stack + SA(MINFRAME));
@@ -651,6 +652,7 @@ dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
 
 	if (uaddr + size >= kernelbase || uaddr + size < uaddr) {
+		HERE();
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = uaddr;
 		return (0);

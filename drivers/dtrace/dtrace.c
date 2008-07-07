@@ -3233,6 +3233,7 @@ PRINT_CASE(DIF_SUBR_COPYINTO);
 PRINT_CASE(DIF_SUBR_COPYINSTR);
 		if (nargs > 1 && tupregs[1].dttk_value < size)
 			size = tupregs[1].dttk_value + 1;
+HERE();
 
 		/*
 		 * This action doesn't require any credential checks since
@@ -3241,17 +3242,23 @@ PRINT_CASE(DIF_SUBR_COPYINSTR);
 		 */
 		if (!DTRACE_INSCRATCH(mstate, size)) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOSCRATCH);
+HERE();
 			regs[rd] = NULL;
 			break;
 		}
 
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+HERE();
 		dtrace_copyinstr(tupregs[0].dttk_value, dest, size, flags);
+HERE();
 		DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
+HERE();
 
 		((char *)dest)[size - 1] = '\0';
 		mstate->dtms_scratch_ptr += size;
+HERE();
 		regs[rd] = dest;
+HERE();
 		break;
 	}
 
@@ -5906,7 +5913,7 @@ HERE();
 				void *activity = &state->dts_activity;
 				dtrace_activity_t current;
 HERE();
-printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
+//printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
 				do {
 					current = state->dts_activity;
 				} while (dtrace_cas32(activity, current,
@@ -12648,7 +12655,7 @@ HERE();
 	if (opt[DTRACEOPT_CPU] != DTRACEOPT_UNSET)
 		cpu = opt[DTRACEOPT_CPU];
 printk("cpu=%d which=%d\n", cpu, which);
-cpu = 0;
+//cpu = 0;
 
 	if (which == DTRACEOPT_SPECSIZE)
 		flags |= DTRACEBUF_NOSWITCH;

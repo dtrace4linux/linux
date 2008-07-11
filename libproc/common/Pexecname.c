@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Pexecname.c	1.3	04/03/09 SMI"
+#pragma ident	"@(#)Pexecname.c	1.7	06/09/27 SMI"
 
 #define	__EXTENSIONS__
 #include <string.h>
@@ -18,6 +34,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <zone.h>
 
 #include "Pcontrol.h"
 
@@ -68,7 +85,7 @@ Pfindexec(struct ps_prochandle *P, const char *aout,
 	char buf[PATH_MAX];
 	struct stat st;
 	uintptr_t addr;
-	char *p, *q;
+	char *p = path, *q;
 
 	if (P->execname)
 		return (P->execname); /* Already found */
@@ -102,17 +119,37 @@ Pfindexec(struct ps_prochandle *P, const char *aout,
 	 * Second try: read the string pointed to by the AT_SUN_EXECNAME
 	 * auxv element, saved when the program was exec'd.  If the full
 	 * pathname try_exec() forms fails, try again using just the
-	 * basename appended to our cwd.
+	 * basename appended to our cwd.  If that also fails, and the process
+	 * is in a zone, try again with the zone path instead of our cwd.
 	 */
 	if ((addr = Pgetauxval(P, AT_SUN_EXECNAME)) != (uintptr_t)-1L &&
 	    Pread_string(P, path, sizeof (path), (off_t)addr) > 0) {
+		char		zpath[PATH_MAX];
+		const psinfo_t	*pi = Ppsinfo(P);
 
 		if (try_exec(cwd, path, buf, isexec, isdata))
 			goto found;
 
-		if (strchr(path, '/') != NULL && basename(path) != NULL &&
-		    try_exec(cwd, path, buf, isexec, isdata))
+		if (strchr(path, '/') != NULL && (p = basename(path)) != NULL &&
+		    try_exec(cwd, p, buf, isexec, isdata))
 			goto found;
+
+		if (getzoneid() == GLOBAL_ZONEID &&
+		    pi->pr_zoneid != GLOBAL_ZONEID &&
+		    zone_getattr(pi->pr_zoneid, ZONE_ATTR_ROOT, zpath,
+			sizeof (zpath)) != -1) {
+			/*
+			 * try_exec() only combines its cwd and path arguments
+			 * if path is relative; but in our case even an absolute
+			 * path inside a zone is a relative path from the global
+			 * zone perspective. So we turn a non-global zone's
+			 * absolute path into a relative path here before
+			 * calling try_exec().
+			 */
+			p = (path[0] == '/') ? path + 1 : path;
+			if (try_exec(zpath, p, buf, isexec, isdata))
+				goto found;
+		}
 	}
 
 	/*
@@ -129,8 +166,8 @@ Pfindexec(struct ps_prochandle *P, const char *aout,
 		if (try_exec(cwd, path, buf, isexec, isdata))
 			goto found;
 
-		if (strchr(path, '/') != NULL && basename(path) != NULL &&
-		    try_exec(cwd, path, buf, isexec, isdata))
+		if (strchr(path, '/') != NULL && (p = basename(path)) != NULL &&
+		    try_exec(cwd, p, buf, isexec, isdata))
 			goto found;
 	}
 
@@ -145,8 +182,8 @@ Pfindexec(struct ps_prochandle *P, const char *aout,
 		if (try_exec(cwd, path, buf, isexec, isdata))
 			goto found;
 
-		if (strchr(path, '/') != NULL && basename(path) != NULL &&
-		    try_exec(cwd, path, buf, isexec, isdata))
+		if (strchr(path, '/') != NULL && (p = basename(path)) != NULL &&
+		    try_exec(cwd, p, buf, isexec, isdata))
 			goto found;
 	}
 
@@ -229,7 +266,7 @@ Pexecname(struct ps_prochandle *P, char *buf, size_t buflen)
 		 * Try to get the path information first.
 		 */
 		(void) snprintf(exec_name, sizeof (exec_name),
-		    "/proc/%d/path/a.out", (int)P->pid);
+		    "%s/%d/path/a.out", procfs_path, (int)P->pid);
 		if ((ret = readlink(exec_name, buf, buflen - 1)) > 0) {
 			buf[ret] = '\0';
 			return (buf);
@@ -240,7 +277,7 @@ Pexecname(struct ps_prochandle *P, char *buf, size_t buflen)
 		 * suggestions to the actual device and inode number.
 		 */
 		(void) snprintf(exec_name, sizeof (exec_name),
-		    "/proc/%d/object/a.out", (int)P->pid);
+		    "%s/%d/object/a.out", procfs_path, (int)P->pid);
 
 		if (stat64(exec_name, &st) != 0 || !S_ISREG(st.st_mode))
 			return (NULL);
@@ -251,7 +288,7 @@ Pexecname(struct ps_prochandle *P, char *buf, size_t buflen)
 		 * not changed its current directory since it was exec'd.
 		 */
 		(void) snprintf(proc_cwd, sizeof (proc_cwd),
-		    "/proc/%d/path/cwd", (int)P->pid);
+		    "%s/%d/path/cwd", procfs_path, (int)P->pid);
 
 		if ((ret = readlink(proc_cwd, cwd, PATH_MAX - 1)) > 0)
 			cwd[ret] = '\0';

@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Pcore.c	1.23	04/11/15 SMI"
+#pragma ident	"@(#)Pcore.c	1.29	07/07/12 SMI"
 
 #include <sys/types.h>
 #include <sys/utsname.h>
@@ -695,21 +711,15 @@ static int (*nhdlrs[])(struct ps_prochandle *, size_t) = {
 static int
 core_add_mapping(struct ps_prochandle *P, GElf_Phdr *php)
 {
-	map_info_t *mp;
 	int err = 0;
+	prmap_t pmap;
 
 	dprintf("mapping base %llx filesz %llu memsz %llu offset %llu\n",
 	    (u_longlong_t)php->p_vaddr, (u_longlong_t)php->p_filesz,
 	    (u_longlong_t)php->p_memsz, (u_longlong_t)php->p_offset);
 
-
-	mp = &P->mappings[P->map_count++];
-
-	mp->map_offset = php->p_offset;
-	mp->map_file = NULL;
-
-	mp->map_pmap.pr_vaddr = (uintptr_t)php->p_vaddr;
-	mp->map_pmap.pr_size = php->p_memsz;
+	pmap.pr_vaddr = (uintptr_t)php->p_vaddr;
+	pmap.pr_size = php->p_memsz;
 
 	/*
 	 * If Pgcore() or elfcore() fail to write a mapping, they will set
@@ -724,7 +734,7 @@ core_add_mapping(struct ps_prochandle *P, GElf_Phdr *php)
 		dprintf("core file data for mapping at %p not saved: %s\n",
 		    (void *)(uintptr_t)php->p_vaddr, strerror(err));
 
-	} else if (php->p_filesz != 0 && mp->map_offset >= P->core->core_size) {
+	} else if (php->p_filesz != 0 && php->p_offset >= P->core->core_size) {
 		Perror_printf(P, "core file may be corrupt -- data for mapping "
 		    "at %p is missing\n", (void *)(uintptr_t)php->p_vaddr);
 		dprintf("core file may be corrupt -- data for mapping "
@@ -736,49 +746,34 @@ core_add_mapping(struct ps_prochandle *P, GElf_Phdr *php)
 	 * by the librtld_db agent.  Unfortunately, if it isn't a
 	 * shared library mapping, this information is gone forever.
 	 */
-	mp->map_pmap.pr_mapname[0] = '\0';
-	mp->map_pmap.pr_offset = 0;
+	pmap.pr_mapname[0] = '\0';
+	pmap.pr_offset = 0;
 
-	mp->map_pmap.pr_mflags = 0;
+	pmap.pr_mflags = 0;
 	if (php->p_flags & PF_R)
-		mp->map_pmap.pr_mflags |= MA_READ;
+		pmap.pr_mflags |= MA_READ;
 	if (php->p_flags & PF_W)
-		mp->map_pmap.pr_mflags |= MA_WRITE;
+		pmap.pr_mflags |= MA_WRITE;
 	if (php->p_flags & PF_X)
-		mp->map_pmap.pr_mflags |= MA_EXEC;
+		pmap.pr_mflags |= MA_EXEC;
 
 	if (php->p_filesz == 0)
-		mp->map_pmap.pr_mflags |= MA_RESERVED1;
+		pmap.pr_mflags |= MA_RESERVED1;
 
 	/*
 	 * At the time of adding this mapping, we just zero the pagesize.
 	 * Once we've processed more of the core file, we'll have the
 	 * pagesize from the auxv's AT_PAGESZ element and we can fill this in.
 	 */
-	mp->map_pmap.pr_pagesize = 0;
+	pmap.pr_pagesize = 0;
 
 	/*
 	 * Unfortunately whether or not the mapping was a System V
 	 * shared memory segment is lost.  We use -1 to mark it as not shm.
 	 */
-	mp->map_pmap.pr_shmid = -1;
-	return (0);
-}
+	pmap.pr_shmid = -1;
 
-/*
- * Order mappings based on virtual address.  We use this function as the
- * callback for sorting the array of map_info_t pointers.
- */
-static int
-core_cmp_mapping(const void *lhsp, const void *rhsp)
-{
-	const map_info_t *lhs = lhsp;
-	const map_info_t *rhs = rhsp;
-
-	if (lhs->map_pmap.pr_vaddr == rhs->map_pmap.pr_vaddr)
-		return (0);
-
-	return (lhs->map_pmap.pr_vaddr < rhs->map_pmap.pr_vaddr ? -1 : 1);
+	return (Padd_mapping(P, php->p_offset, NULL, &pmap));
 }
 
 /*
@@ -804,7 +799,7 @@ core_name_mapping(struct ps_prochandle *P, uintptr_t addr, const char *name)
  * in a memory backed elf file.
  */
 static void
-fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
+fake_up_symtab(struct ps_prochandle *P, const elf_file_header_t *ehdr,
     GElf_Shdr *symtab, GElf_Shdr *strtab)
 {
 	size_t size;
@@ -817,8 +812,10 @@ fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
 	if (symtab->sh_addr == 0 ||
 	    (mp = Paddr2mptr(P, symtab->sh_addr)) == NULL ||
 	    (fp = mp->map_file) == NULL ||
-	    fp->file_symtab.sym_data != NULL)
+	    fp->file_symtab.sym_data_pri != NULL) {
+		dprintf("fake_up_symtab: invalid section\n");
 		return;
+	}
 
 	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
 		struct {
@@ -833,7 +830,12 @@ fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
 		if ((b = calloc(1, size)) == NULL)
 			return;
 
-		(void) memcpy(&b->ehdr, ehdr, offsetof(GElf_Ehdr, e_entry));
+		(void) memcpy(b->ehdr.e_ident, ehdr->e_ident,
+		    sizeof (ehdr->e_ident));
+		b->ehdr.e_type = ehdr->e_type;
+		b->ehdr.e_machine = ehdr->e_machine;
+		b->ehdr.e_version = ehdr->e_version;
+		b->ehdr.e_flags = ehdr->e_flags;
 		b->ehdr.e_ehsize = sizeof (b->ehdr);
 		b->ehdr.e_shoff = sizeof (b->ehdr);
 		b->ehdr.e_shentsize = sizeof (b->shdr[0]);
@@ -850,6 +852,7 @@ fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
 
 		if (pread64(P->asfd, &b->data[off], b->shdr[1].sh_size,
 		    symtab->sh_offset) != b->shdr[1].sh_size) {
+			dprintf("fake_up_symtab: pread of symtab[1] failed\n");
 			free(b);
 			return;
 		}
@@ -865,6 +868,7 @@ fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
 
 		if (pread64(P->asfd, &b->data[off], b->shdr[2].sh_size,
 		    strtab->sh_offset) != b->shdr[2].sh_size) {
+			dprintf("fake_up_symtab: pread of symtab[2] failed\n");
 			free(b);
 			return;
 		}
@@ -892,7 +896,12 @@ fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
 		if ((b = calloc(1, size)) == NULL)
 			return;
 
-		(void) memcpy(&b->ehdr, ehdr, offsetof(GElf_Ehdr, e_entry));
+		(void) memcpy(b->ehdr.e_ident, ehdr->e_ident,
+		    sizeof (ehdr->e_ident));
+		b->ehdr.e_type = ehdr->e_type;
+		b->ehdr.e_machine = ehdr->e_machine;
+		b->ehdr.e_version = ehdr->e_version;
+		b->ehdr.e_flags = ehdr->e_flags;
 		b->ehdr.e_ehsize = sizeof (b->ehdr);
 		b->ehdr.e_shoff = sizeof (b->ehdr);
 		b->ehdr.e_shentsize = sizeof (b->shdr[0]);
@@ -941,15 +950,18 @@ fake_up_symtab(struct ps_prochandle *P, GElf_Ehdr *ehdr,
 	}
 
 	if ((scn = elf_getscn(fp->file_symtab.sym_elf, 1)) == NULL ||
-	    (fp->file_symtab.sym_data = elf_getdata(scn, NULL)) == NULL ||
+	    (fp->file_symtab.sym_data_pri = elf_getdata(scn, NULL)) == NULL ||
 	    (scn = elf_getscn(fp->file_symtab.sym_elf, 2)) == NULL ||
-	    (data = elf_getdata(scn, NULL)) == NULL)
+	    (data = elf_getdata(scn, NULL)) == NULL) {
+		dprintf("fake_up_symtab: failed to get section data at %p\n",
+		    (void *)scn);
 		goto err;
+	}
 
 	fp->file_symtab.sym_strs = data->d_buf;
 	fp->file_symtab.sym_strsz = data->d_size;
 	fp->file_symtab.sym_symn = symtab->sh_size / symtab->sh_entsize;
-	fp->file_symtab.sym_hdr = *symtab;
+	fp->file_symtab.sym_hdr_pri = *symtab;
 	fp->file_symtab.sym_strhdr = *strtab;
 
 	optimize_symtab(&fp->file_symtab);
@@ -960,25 +972,6 @@ err:
 	free(fp->file_symtab.sym_elfmem);
 	fp->file_symtab.sym_elf = NULL;
 	fp->file_symtab.sym_elfmem = NULL;
-}
-
-static void
-core_ehdr_to_gelf(const Elf32_Ehdr *src, GElf_Ehdr *dst)
-{
-	(void) memcpy(dst->e_ident, src->e_ident, EI_NIDENT);
-	dst->e_type = src->e_type;
-	dst->e_machine = src->e_machine;
-	dst->e_version = src->e_version;
-	dst->e_entry = (Elf64_Addr)src->e_entry;
-	dst->e_phoff = (Elf64_Off)src->e_phoff;
-	dst->e_shoff = (Elf64_Off)src->e_shoff;
-	dst->e_flags = src->e_flags;
-	dst->e_ehsize = src->e_ehsize;
-	dst->e_phentsize = src->e_phentsize;
-	dst->e_phnum = src->e_phnum;
-	dst->e_shentsize = src->e_shentsize;
-	dst->e_shnum = src->e_shnum;
-	dst->e_shstrndx = src->e_shstrndx;
 }
 
 static void
@@ -1048,24 +1041,180 @@ core_elf_fdopen(elf_file_t *efp, GElf_Half type, int *perr)
 
 	/*
 	 * If the file is 64-bit and we are 32-bit, fail with G_LP64.  If the
-	 * file is 64-bit and we are 64-bit, re-read the header as a Elf64_Ehdr.
-	 * Otherwise, the file is 32-bit, so convert e32 to a GElf_Ehdr.
+	 * file is 64-bit and we are 64-bit, re-read the header as a Elf64_Ehdr,
+	 * and convert it to a elf_file_header_t.  Otherwise, the file is
+	 * 32-bit, so convert e32 to a elf_file_header_t.
 	 */
 	if (e32.e_ident[EI_CLASS] == ELFCLASS64) {
 #ifdef _LP64
-		if (pread64(efp->e_fd, &efp->e_hdr,
-		    sizeof (GElf_Ehdr), 0) != sizeof (GElf_Ehdr)) {
+		Elf64_Ehdr e64;
+
+		if (pread64(efp->e_fd, &e64, sizeof (e64), 0) != sizeof (e64)) {
 			if (perr != NULL)
 				*perr = G_FORMAT;
 			goto err;
 		}
+
+		(void) memcpy(efp->e_hdr.e_ident, e64.e_ident, EI_NIDENT);
+		efp->e_hdr.e_type = e64.e_type;
+		efp->e_hdr.e_machine = e64.e_machine;
+		efp->e_hdr.e_version = e64.e_version;
+		efp->e_hdr.e_entry = e64.e_entry;
+		efp->e_hdr.e_phoff = e64.e_phoff;
+		efp->e_hdr.e_shoff = e64.e_shoff;
+		efp->e_hdr.e_flags = e64.e_flags;
+		efp->e_hdr.e_ehsize = e64.e_ehsize;
+		efp->e_hdr.e_phentsize = e64.e_phentsize;
+		efp->e_hdr.e_phnum = (Elf64_Word)e64.e_phnum;
+		efp->e_hdr.e_shentsize = e64.e_shentsize;
+		efp->e_hdr.e_shnum = (Elf64_Word)e64.e_shnum;
+		efp->e_hdr.e_shstrndx = (Elf64_Word)e64.e_shstrndx;
 #else	/* _LP64 */
 		if (perr != NULL)
 			*perr = G_LP64;
 		goto err;
 #endif	/* _LP64 */
-	} else
-		core_ehdr_to_gelf(&e32, &efp->e_hdr);
+	} else {
+		(void) memcpy(efp->e_hdr.e_ident, e32.e_ident, EI_NIDENT);
+		efp->e_hdr.e_type = e32.e_type;
+		efp->e_hdr.e_machine = e32.e_machine;
+		efp->e_hdr.e_version = e32.e_version;
+		efp->e_hdr.e_entry = (Elf64_Addr)e32.e_entry;
+		efp->e_hdr.e_phoff = (Elf64_Off)e32.e_phoff;
+		efp->e_hdr.e_shoff = (Elf64_Off)e32.e_shoff;
+		efp->e_hdr.e_flags = e32.e_flags;
+		efp->e_hdr.e_ehsize = e32.e_ehsize;
+		efp->e_hdr.e_phentsize = e32.e_phentsize;
+		efp->e_hdr.e_phnum = (Elf64_Word)e32.e_phnum;
+		efp->e_hdr.e_shentsize = e32.e_shentsize;
+		efp->e_hdr.e_shnum = (Elf64_Word)e32.e_shnum;
+		efp->e_hdr.e_shstrndx = (Elf64_Word)e32.e_shstrndx;
+	}
+
+	/*
+	 * If the number of section headers or program headers or the section
+	 * header string table index would overflow their respective fields
+	 * in the ELF header, they're stored in the section header at index
+	 * zero. To simplify use elsewhere, we look for those sentinel values
+	 * here.
+	 */
+	if ((efp->e_hdr.e_shnum == 0 && efp->e_hdr.e_shoff != 0) ||
+	    efp->e_hdr.e_shstrndx == SHN_XINDEX ||
+	    efp->e_hdr.e_phnum == PN_XNUM) {
+		GElf_Shdr shdr;
+
+		dprintf("extended ELF header\n");
+
+		if (efp->e_hdr.e_shoff == 0) {
+			if (perr != NULL)
+				*perr = G_FORMAT;
+			goto err;
+		}
+
+		if (efp->e_hdr.e_ident[EI_CLASS] == ELFCLASS32) {
+			Elf32_Shdr shdr32;
+
+			if (pread64(efp->e_fd, &shdr32, sizeof (shdr32),
+			    efp->e_hdr.e_shoff) != sizeof (shdr32)) {
+				if (perr != NULL)
+					*perr = G_FORMAT;
+				goto err;
+			}
+
+			core_shdr_to_gelf(&shdr32, &shdr);
+		} else {
+			if (pread64(efp->e_fd, &shdr, sizeof (shdr),
+			    efp->e_hdr.e_shoff) != sizeof (shdr)) {
+				if (perr != NULL)
+					*perr = G_FORMAT;
+				goto err;
+			}
+		}
+
+		if (efp->e_hdr.e_shnum == 0) {
+			efp->e_hdr.e_shnum = shdr.sh_size;
+			dprintf("section header count %lu\n",
+			    (ulong_t)shdr.sh_size);
+		}
+
+		if (efp->e_hdr.e_shstrndx == SHN_XINDEX) {
+			efp->e_hdr.e_shstrndx = shdr.sh_link;
+			dprintf("section string index %u\n", shdr.sh_link);
+		}
+
+		if (efp->e_hdr.e_phnum == PN_XNUM && shdr.sh_info != 0) {
+			efp->e_hdr.e_phnum = shdr.sh_info;
+			dprintf("program header count %u\n", shdr.sh_info);
+		}
+
+	} else if (efp->e_hdr.e_phoff != 0) {
+		GElf_Phdr phdr;
+		uint64_t phnum;
+
+		/*
+		 * It's possible this core file came from a system that
+		 * accidentally truncated the e_phnum field without correctly
+		 * using the extended format in the section header at index
+		 * zero. We try to detect and correct that specific type of
+		 * corruption by using the knowledge that the core dump
+		 * routines usually place the data referenced by the first
+		 * program header immediately after the last header element.
+		 */
+		if (efp->e_hdr.e_ident[EI_CLASS] == ELFCLASS32) {
+			Elf32_Phdr phdr32;
+
+			if (pread64(efp->e_fd, &phdr32, sizeof (phdr32),
+			    efp->e_hdr.e_phoff) != sizeof (phdr32)) {
+				if (perr != NULL)
+					*perr = G_FORMAT;
+				goto err;
+			}
+
+			core_phdr_to_gelf(&phdr32, &phdr);
+		} else {
+			if (pread64(efp->e_fd, &phdr, sizeof (phdr),
+			    efp->e_hdr.e_phoff) != sizeof (phdr)) {
+				if (perr != NULL)
+					*perr = G_FORMAT;
+				goto err;
+			}
+		}
+
+		phnum = phdr.p_offset - efp->e_hdr.e_ehsize -
+		    (uint64_t)efp->e_hdr.e_shnum * efp->e_hdr.e_shentsize;
+		phnum /= efp->e_hdr.e_phentsize;
+
+		if (phdr.p_offset != 0 && phnum != efp->e_hdr.e_phnum) {
+			dprintf("suspicious program header count %u %u\n",
+			    (uint_t)phnum, efp->e_hdr.e_phnum);
+
+			/*
+			 * If the new program header count we computed doesn't
+			 * jive with count in the ELF header, we'll use the
+			 * data that's there and hope for the best.
+			 *
+			 * If it does, it's also possible that the section
+			 * header offset is incorrect; we'll check that and
+			 * possibly try to fix it.
+			 */
+			if (phnum <= INT_MAX &&
+			    (uint16_t)phnum == efp->e_hdr.e_phnum) {
+
+				if (efp->e_hdr.e_shoff == efp->e_hdr.e_phoff +
+				    efp->e_hdr.e_phentsize *
+				    (uint_t)efp->e_hdr.e_phnum) {
+					efp->e_hdr.e_shoff =
+					    efp->e_hdr.e_phoff +
+					    efp->e_hdr.e_phentsize * phnum;
+				}
+
+				efp->e_hdr.e_phnum = (Elf64_Word)phnum;
+				dprintf("using new program header count\n");
+			} else {
+				dprintf("inconsistent program header count\n");
+			}
+		}
+	}
 
 	/*
 	 * The libelf implementation was never ported to be large-file aware.
@@ -1136,17 +1285,18 @@ core_elf_close(elf_file_t *efp)
 static map_info_t *
 core_find_text(struct ps_prochandle *P, Elf *elf, rd_loadobj_t *rlp)
 {
-	GElf_Ehdr ehdr;
 	GElf_Phdr phdr;
 	uint_t i;
+	size_t nphdrs;
 
-	if (gelf_getehdr(elf, &ehdr) != NULL) {
-		for (i = 0; i < ehdr.e_phnum; i++) {
-			if (gelf_getphdr(elf, i, &phdr) != NULL &&
-			    phdr.p_type == PT_LOAD && (phdr.p_flags & PF_X)) {
-				rlp->rl_base = phdr.p_vaddr;
-				return (Paddr2mptr(P, rlp->rl_base));
-			}
+	if (elf_getphnum(elf, &nphdrs) == 0)
+		return (NULL);
+
+	for (i = 0; i < nphdrs; i++) {
+		if (gelf_getphdr(elf, i, &phdr) != NULL &&
+		    phdr.p_type == PT_LOAD && (phdr.p_flags & PF_X)) {
+			rlp->rl_base = phdr.p_vaddr;
+			return (Paddr2mptr(P, rlp->rl_base));
 		}
 	}
 
@@ -1163,9 +1313,9 @@ core_find_data(struct ps_prochandle *P, Elf *elf, rd_loadobj_t *rlp)
 {
 	GElf_Ehdr ehdr;
 	GElf_Phdr phdr;
-
 	map_info_t *mp;
 	uint_t i, pagemask;
+	size_t nphdrs;
 
 	rlp->rl_data_base = NULL;
 
@@ -1173,16 +1323,17 @@ core_find_data(struct ps_prochandle *P, Elf *elf, rd_loadobj_t *rlp)
 	 * Find the first loadable, writeable Phdr and compute rl_data_base
 	 * as the virtual address at which is was loaded.
 	 */
-	if (gelf_getehdr(elf, &ehdr) != NULL) {
-		for (i = 0; i < ehdr.e_phnum; i++) {
-			if (gelf_getphdr(elf, i, &phdr) != NULL &&
-			    phdr.p_type == PT_LOAD && (phdr.p_flags & PF_W)) {
+	if (gelf_getehdr(elf, &ehdr) == NULL ||
+	    elf_getphnum(elf, &nphdrs) == 0)
+		return (NULL);
 
-				rlp->rl_data_base = phdr.p_vaddr;
-				if (ehdr.e_type == ET_DYN)
-					rlp->rl_data_base += rlp->rl_base;
-				break;
-			}
+	for (i = 0; i < nphdrs; i++) {
+		if (gelf_getphdr(elf, i, &phdr) != NULL &&
+		    phdr.p_type == PT_LOAD && (phdr.p_flags & PF_W)) {
+			rlp->rl_data_base = phdr.p_vaddr;
+			if (ehdr.e_type == ET_DYN)
+				rlp->rl_data_base += rlp->rl_base;
+			break;
 		}
 	}
 
@@ -1231,29 +1382,28 @@ core_iter_mapping(const rd_loadobj_t *rlp, struct ps_prochandle *P)
 		return (1); /* No mapping; advance to next mapping */
 	}
 
-	if ((fp = mp->map_file) == NULL) {
-		if ((fp = malloc(sizeof (file_info_t))) == NULL) {
-			P->core->core_errno = errno;
-			dprintf("failed to malloc mapping data\n");
-			return (0); /* Abort */
-		}
-
-		(void) memset(fp, 0, sizeof (file_info_t));
-
-		list_link(fp, &P->file_head);
-		mp->map_file = fp;
-		P->num_files++;
-
-		fp->file_ref = 1;
-		fp->file_fd = -1;
+	/*
+	 * Create a new file_info_t for this mapping, and therefore for
+	 * this load object.
+	 *
+	 * If there's an ELF header at the beginning of this mapping,
+	 * file_info_new() will try to use its section headers to
+	 * identify any other mappings that belong to this load object.
+	 */
+	if ((fp = mp->map_file) == NULL &&
+	    (fp = file_info_new(P, mp)) == NULL) {
+		P->core->core_errno = errno;
+		dprintf("failed to malloc mapping data\n");
+		return (0); /* Abort */
 	}
+	fp->file_map = mp;
 
+	/* Create a local copy of the load object representation */
 	if ((fp->file_lo = malloc(sizeof (rd_loadobj_t))) == NULL) {
 		P->core->core_errno = errno;
 		dprintf("failed to malloc mapping data\n");
 		return (0); /* Abort */
 	}
-
 	*fp->file_lo = *rlp;
 
 	if (fp->file_lname == NULL &&
@@ -1293,39 +1443,63 @@ core_iter_mapping(const rd_loadobj_t *rlp, struct ps_prochandle *P)
 	if (fp->file_lname != NULL)
 		fp->file_lbase = basename(fp->file_lname);
 
-	/*
-	 * Associate the file and the mapping, and attempt to build
-	 * a symbol table for this file.
-	 */
-	(void) strcpy(fp->file_pname, mp->map_pmap.pr_mapname);
-	fp->file_map = mp;
+	/* Associate the file and the mapping. */
+	(void) strncpy(fp->file_pname, mp->map_pmap.pr_mapname, PRMAPSZ);
+	fp->file_pname[PRMAPSZ - 1] = '\0';
 
+	/*
+	 * If no section headers were available then we'll have to
+	 * identify this load object's other mappings with what we've
+	 * got: the start and end of the object's corresponding
+	 * address space.
+	 */
+	if (fp->file_saddrs == NULL) {
+		for (mp = fp->file_map + 1; mp < P->mappings + P->map_count &&
+		    mp->map_pmap.pr_vaddr < rlp->rl_bend; mp++) {
+
+			if (mp->map_file == NULL) {
+				dprintf("core_iter_mapping %s: associating "
+				    "segment at %p\n",
+				    fp->file_pname,
+				    (void *)mp->map_pmap.pr_vaddr);
+				mp->map_file = fp;
+				fp->file_ref++;
+			} else {
+				dprintf("core_iter_mapping %s: segment at "
+				    "%p already associated with %s\n",
+				    fp->file_pname,
+				    (void *)mp->map_pmap.pr_vaddr,
+				    (mp == fp->file_map ? "this file" :
+				    mp->map_file->file_pname));
+			}
+		}
+	}
+
+	/* Ensure that all this file's mappings are named. */
+	for (mp = fp->file_map; mp < P->mappings + P->map_count &&
+	    mp->map_file == fp; mp++) {
+		if (mp->map_pmap.pr_mapname[0] == '\0' &&
+		    !(mp->map_pmap.pr_mflags & MA_BREAK)) {
+			(void) strncpy(mp->map_pmap.pr_mapname, fp->file_pname,
+			    PRMAPSZ);
+			mp->map_pmap.pr_mapname[PRMAPSZ - 1] = '\0';
+		}
+	}
+
+	/* Attempt to build a symbol table for this file. */
 	Pbuild_file_symtab(P, fp);
-
 	if (fp->file_elf == NULL)
-		return (1); /* No symbol table; advance to next mapping */
+		dprintf("core_iter_mapping: no symtab for %s\n",
+		    fp->file_pname);
 
-	/*
-	 * Locate the start of a data segment associated with this file,
-	 * name it after the file, and establish the mp->map_file link:
-	 */
+	/* Locate the start of a data segment associated with this file. */
 	if ((mp = core_find_data(P, fp->file_elf, fp->file_lo)) != NULL) {
 		dprintf("found data for %s at %p (pr_offset 0x%llx)\n",
 		    fp->file_pname, (void *)fp->file_lo->rl_data_base,
 		    mp->map_pmap.pr_offset);
-
-		for (; mp < P->mappings + P->map_count; mp++) {
-			if (mp->map_pmap.pr_vaddr > fp->file_lo->rl_bend)
-				break;
-			if (mp->map_file == NULL) {
-				mp->map_file = fp;
-				fp->file_ref++;
-			}
-
-			if (!(mp->map_pmap.pr_mflags & MA_BREAK))
-				(void) strcpy(mp->map_pmap.pr_mapname,
-				    fp->file_pname);
-		}
+	} else {
+		dprintf("core_iter_mapping: no data found for %s\n",
+		    fp->file_pname);
 	}
 
 	return (1); /* Advance to next mapping */
@@ -1361,7 +1535,7 @@ core_load_shdrs(struct ps_prochandle *P, elf_file_t *efp)
 
 	if (efp->e_hdr.e_shstrndx >= efp->e_hdr.e_shnum) {
 		dprintf("corrupt shstrndx (%u) exceeds shnum (%u)\n",
-		    (uint_t)efp->e_hdr.e_shstrndx, (uint_t)efp->e_hdr.e_shnum);
+		    efp->e_hdr.e_shstrndx, efp->e_hdr.e_shnum);
 		return;
 	}
 
@@ -1369,14 +1543,17 @@ core_load_shdrs(struct ps_prochandle *P, elf_file_t *efp)
 	 * Read the section header table from the core file and then iterate
 	 * over the section headers, converting each to a GElf_Shdr.
 	 */
-	shdrs = malloc(efp->e_hdr.e_shnum * sizeof (GElf_Shdr));
-	nbytes = efp->e_hdr.e_shnum * efp->e_hdr.e_shentsize;
-	buf = malloc(nbytes);
-
-	if (shdrs == NULL || buf == NULL) {
+	if ((shdrs = malloc(efp->e_hdr.e_shnum * sizeof (GElf_Shdr))) == NULL) {
 		dprintf("failed to malloc %u section headers: %s\n",
 		    (uint_t)efp->e_hdr.e_shnum, strerror(errno));
-		free(buf);
+		return;
+	}
+
+	nbytes = efp->e_hdr.e_shnum * efp->e_hdr.e_shentsize;
+	if ((buf = malloc(nbytes)) == NULL) {
+		dprintf("failed to malloc %d bytes: %s\n", (int)nbytes,
+		    strerror(errno));
+		free(shdrs);
 		goto out;
 	}
 
@@ -1499,7 +1676,6 @@ Pfgrab_core(int core_fd, const char *aout_path, int *perr)
 	struct stat64 stbuf;
 	void *phbuf, *php;
 	size_t nbytes;
-	int nmap;
 
 	elf_file_t aout;
 	elf_file_t core;
@@ -1637,26 +1813,7 @@ Pfgrab_core(int core_fd, const char *aout_path, int *perr)
 	}
 
 	/*
-	 * First, determine the number of mappings in the corefile
-	 */
-	nmap = 0;
-	for (php = phbuf, notes = 0, i = 0; i < core.e_hdr.e_phnum; i++) {
-		if (core.e_hdr.e_ident[EI_CLASS] == ELFCLASS64)
-			(void) memcpy(&phdr, php, sizeof (GElf_Phdr));
-		else
-			core_phdr_to_gelf(php, &phdr);
-
-		if (phdr.p_type == PT_LOAD)
-			nmap++;
-
-		php = (char *)php + core.e_hdr.e_phentsize;
-	}
-
-	if (nmap != 0)
-		P->mappings = malloc(nmap * sizeof (map_info_t));
-
-	/*
-	 * Now iterate through the program headers in the core file.
+	 * Iterate through the program headers in the core file.
 	 * We're interested in two types of Phdrs: PT_NOTE (which
 	 * contains a set of saved /proc structures), and PT_LOAD (which
 	 * represents a memory mapping from the process's address space).
@@ -1690,6 +1847,7 @@ Pfgrab_core(int core_fd, const char *aout_path, int *perr)
 
 	free(phbuf);
 
+	Psort_mappings(P);
 
 	/*
 	 * If we couldn't find anything of type PT_NOTE, or only one PT_NOTE
@@ -1797,9 +1955,6 @@ Pfgrab_core(int core_fd, const char *aout_path, int *perr)
 		pagesize = getpagesize();
 		dprintf("AT_PAGESZ missing; defaulting to %d\n", pagesize);
 	}
-
-	qsort(P->mappings, P->map_count, sizeof (map_info_t),
-	    core_cmp_mapping);
 
 	/*
 	 * Locate and label the mappings corresponding to the end of the

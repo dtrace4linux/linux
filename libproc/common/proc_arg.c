@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)proc_arg.c	1.7	04/08/16 SMI"
+#pragma ident	"@(#)proc_arg.c	1.9	06/09/11 SMI"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,21 +38,22 @@
 #include <errno.h>
 #include <dirent.h>
 
-#include "libproc.h"
+#include "Pcontrol.h"
 
 static int
 open_psinfo(const char *arg, int *perr)
 {
 	/*
-	 * Allocate enough space for "/proc/" + arg + "/psinfo"
+	 * Allocate enough space for procfs_path + arg + "/psinfo"
 	 */
-	char *path = alloca(strlen(arg) + 14);
+	char *path = alloca(strlen(arg) + strlen(procfs_path) + 9);
 
 	struct stat64 st;
 	int fd;
 
 	if (strchr(arg, '/') == NULL) {
-		(void) strcpy(path, "/proc/");
+		(void) strcpy(path, procfs_path);
+		(void) strcat(path, "/");
 		(void) strcat(path, arg);
 	} else
 		(void) strcpy(path, arg);
@@ -417,7 +434,7 @@ proc_walk(proc_walk_f *func, void *arg, int flag)
 	DIR *procdir;
 	struct dirent *dirent;
 	char *errptr;
-	char pidstr[80];
+	char pidstr[PATH_MAX];
 	psinfo_t psinfo;
 	lwpsinfo_t *lwpsinfo;
 	prheader_t prheader;
@@ -432,7 +449,7 @@ proc_walk(proc_walk_f *func, void *arg, int flag)
 		errno = EINVAL;
 		return (-1);
 	}
-	if ((procdir = opendir("/proc")) == NULL)
+	if ((procdir = opendir(procfs_path)) == NULL)
 		return (-1);
 	while (dirent = readdir(procdir)) {
 		if (dirent->d_name[0] == '.')	/* skip . and .. */
@@ -442,7 +459,7 @@ proc_walk(proc_walk_f *func, void *arg, int flag)
 			continue;
 		/* PR_WALK_PROC case */
 		(void) snprintf(pidstr, sizeof (pidstr),
-		    "/proc/%ld/psinfo", pid);
+		    "%s/%ld/psinfo", procfs_path, pid);
 		fd = open(pidstr, O_RDONLY);
 		if (fd < 0)
 			continue;
@@ -458,7 +475,7 @@ proc_walk(proc_walk_f *func, void *arg, int flag)
 		}
 		/* PR_WALK_LWP case */
 		(void) snprintf(pidstr, sizeof (pidstr),
-		    "/proc/%ld/lpsinfo", pid);
+		    "%s/%ld/lpsinfo", procfs_path, pid);
 		fd = open(pidstr, O_RDONLY);
 		if (fd < 0)
 			continue;

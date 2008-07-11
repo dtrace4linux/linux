@@ -1,17 +1,34 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Pidle.c	1.3	04/08/16 SMI"
+#pragma ident	"@(#)Pidle.c	1.7	05/11/17 SMI"
 
-#include <linux_types.h>
 #include <stdlib.h>
 #include <libelf.h>
+#include <libgen.h>
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
@@ -64,46 +81,30 @@ static const ps_rwops_t P_idle_ops = {
 static int
 idle_add_mapping(struct ps_prochandle *P, GElf_Phdr *php, file_info_t *fp)
 {
-	map_info_t *mp;
-	int i;
+	prmap_t pmap;
 
 	dprintf("mapping base %llx filesz %llu memsz %llu offset %llu\n",
 	    (u_longlong_t)php->p_vaddr, (u_longlong_t)php->p_filesz,
 	    (u_longlong_t)php->p_memsz, (u_longlong_t)php->p_offset);
 
-	for (i = 0; i < P->map_count; i++)
-		if (php->p_vaddr < P->mappings[i].map_pmap.pr_vaddr)
-			break;
+	pmap.pr_vaddr = (uintptr_t)php->p_vaddr;
+	pmap.pr_size = php->p_filesz;
+	(void) strncpy(pmap.pr_mapname, fp->file_pname,
+	    sizeof (pmap.pr_mapname));
+	pmap.pr_offset = php->p_offset;
 
-	(void) memmove(P->mappings + i, P->mappings + i + 1,
-	    (P->map_count - i) * sizeof (map_info_t));
-	mp = &P->mappings[i];
-	P->map_count++;
-
-	mp->map_offset = php->p_offset;
-	mp->map_file = fp;
-	if (fp->file_map == NULL)
-		fp->file_map = mp;
-	fp->file_ref++;
-
-	mp->map_pmap.pr_vaddr = (uintptr_t)php->p_vaddr;
-	mp->map_pmap.pr_size = php->p_filesz;
-	(void) strncpy(mp->map_pmap.pr_mapname, fp->file_pname,
-	    sizeof (mp->map_pmap.pr_mapname));
-	mp->map_pmap.pr_offset = php->p_offset;
-
-	mp->map_pmap.pr_mflags = 0;
+	pmap.pr_mflags = 0;
 	if (php->p_flags & PF_R)
-		mp->map_pmap.pr_mflags |= MA_READ;
+		pmap.pr_mflags |= MA_READ;
 	if (php->p_flags & PF_W)
-		mp->map_pmap.pr_mflags |= MA_WRITE;
+		pmap.pr_mflags |= MA_WRITE;
 	if (php->p_flags & PF_X)
-		mp->map_pmap.pr_mflags |= MA_EXEC;
+		pmap.pr_mflags |= MA_EXEC;
 
-	mp->map_pmap.pr_pagesize = 0;
-	mp->map_pmap.pr_shmid = -1;
+	pmap.pr_pagesize = 0;
+	pmap.pr_shmid = -1;
 
-	return (0);
+	return (Padd_mapping(P, php->p_offset, fp, &pmap));
 }
 
 struct ps_prochandle *
@@ -112,6 +113,7 @@ Pgrab_file(const char *fname, int *perr)
 	struct ps_prochandle *P = NULL;
 	GElf_Ehdr ehdr;
 	Elf *elf = NULL;
+	size_t phnum;
 	file_info_t *fp = NULL;
 	int fd;
 	int i;
@@ -182,7 +184,7 @@ Pgrab_file(const char *fname, int *perr)
 	fp->file_fd = fd;
 	fp->file_lo->rl_lmident = LM_ID_BASE;
 	fp->file_lname = strdup(fp->file_pname);
-	fp->file_lbase = strdup(strrchr(fp->file_pname, '/') + 1);
+	fp->file_lbase = basename(fp->file_lname);
 
 	P->execname = strdup(fp->file_pname);
 
@@ -194,13 +196,17 @@ Pgrab_file(const char *fname, int *perr)
 		goto err;
 	}
 
-	dprintf("Pgrab_file: ehdr.e_phnum = %d\n", ehdr.e_phnum);
+	if (elf_getphnum(elf, &phnum) == 0) {
+		*perr = G_STRANGE;
+		goto err;
+	}
+
+	dprintf("Pgrab_file: program header count = %lu\n", (ulong_t)phnum);
 
 	/*
 	 * Sift through the program headers making the relevant maps.
 	 */
-	P->mappings = malloc(ehdr.e_phnum * sizeof (map_info_t));
-	for (i = 0; i < ehdr.e_phnum; i++) {
+	for (i = 0; i < phnum; i++) {
 		GElf_Phdr phdr, *php;
 
 		if ((php = gelf_getphdr(elf, i, &phdr)) == NULL) {
@@ -216,6 +222,7 @@ Pgrab_file(const char *fname, int *perr)
 			goto err;
 		}
 	}
+	Psort_mappings(P);
 
 	(void) elf_end(elf);
 

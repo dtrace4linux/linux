@@ -1,13 +1,32 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)Pcontrol.c	1.37	04/11/01 SMI"
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ *
+ * Portions Copyright 2007 Chad Mynhier
+ */
+
+#pragma ident	"@(#)Pcontrol.c	1.44	07/10/12 SMI"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,11 +34,13 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <string.h>
+#include <strings.h>
 #include <memory.h>
 #include <errno.h>
 #include <dirent.h>
 #include <limits.h>
 #include <signal.h>
+#include <atomic.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/stat.h>
@@ -36,8 +57,12 @@
 #include "P32ton.h"
 
 int	_libproc_debug;		/* set non-zero to enable debugging printfs */
+int	_libproc_no_qsort;	/* set non-zero to inhibit sorting */
+				/* of symbol tables */
+
 sigset_t blockable_sigs;	/* signals to block when we need to be safe */
 static	int	minfd;	/* minimum file descriptor returned by dupfd(fd, 0) */
+char	procfs_path[PATH_MAX] = "/proc";
 
 /*
  * Function prototypes for static routines in this module.
@@ -73,10 +98,17 @@ void
 _libproc_init(void)
 {
 	_libproc_debug = getenv("LIBPROC_DEBUG") != NULL;
+	_libproc_no_qsort = getenv("LIBPROC_NO_QSORT") != NULL;
 
 	(void) sigfillset(&blockable_sigs);
 	(void) sigdelset(&blockable_sigs, SIGKILL);
 	(void) sigdelset(&blockable_sigs, SIGSTOP);
+}
+
+void
+Pset_procfs_path(const char *path)
+{
+	(void) snprintf(procfs_path, sizeof (procfs_path), "%s", path);
 }
 
 /*
@@ -87,7 +119,7 @@ _libproc_init(void)
 int
 set_minfd(void)
 {
-	static mutex_t minfd_lock; // = DEFAULTMUTEX;
+	static mutex_t minfd_lock = DEFAULTMUTEX;
 	struct rlimit rlim;
 	int fd;
 
@@ -100,6 +132,7 @@ set_minfd(void)
 				fd = 256;
 			else if ((fd = rlim.rlim_cur / 2) < 3)
 				fd = 3;
+			membar_producer();
 			minfd = fd;
 		}
 		(void) mutex_unlock(&minfd_lock);
@@ -150,7 +183,7 @@ Pxcreate(const char *file,	/* executable file name */
 	size_t len)	/* size of the path buffer */
 {
 	char execpath[PATH_MAX];
-	char procname[100];
+	char procname[PATH_MAX];
 	struct ps_prochandle *P;
 	pid_t pid;
 	int fd;
@@ -220,7 +253,8 @@ Pxcreate(const char *file,	/* executable file name */
 	/*
 	 * Open the /proc/pid files.
 	 */
-	(void) sprintf(procname, "/proc/%d/", (int)pid);
+	(void) snprintf(procname, sizeof (procname), "%s/%d/",
+	    procfs_path, (int)pid);
 	fname = procname + strlen(procname);
 	(void) set_minfd();
 
@@ -331,7 +365,7 @@ Pxcreate(const char *file,	/* executable file name */
 		 * to get the information later.
 		 */
 		(void) Pread_string(P, execpath, sizeof (execpath),
-			(off_t)P->status.pr_lwp.pr_sysarg[0]);
+		    (off_t)P->status.pr_lwp.pr_sysarg[0]);
 		if (path != NULL)
 			(void) strncpy(path, execpath, len);
 		/*
@@ -487,7 +521,7 @@ Pgrab(pid_t pid, int flags, int *perr)
 {
 	struct ps_prochandle *P;
 	int fd, omode;
-	char procname[100];
+	char procname[PATH_MAX];
 	char *fname;
 	int rc = 0;
 
@@ -527,7 +561,8 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	/*
 	 * Open the /proc/pid files
 	 */
-	(void) sprintf(procname, "/proc/%d/", (int)pid);
+	(void) snprintf(procname, sizeof (procname), "%s/%d/",
+	    procfs_path, (int)pid);
 	fname = procname + strlen(procname);
 	(void) set_minfd();
 
@@ -550,6 +585,9 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		case EACCES:
 		case EPERM:
 			rc = G_PERM;
+			break;
+		case EMFILE:
+			rc = G_NOFD;
 			break;
 		case EBUSY:
 			if (!(flags & PGRAB_FORCE) || geteuid() != 0) {
@@ -574,6 +612,9 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		case ENOENT:
 			rc = G_NOPROC;
 			break;
+		case EMFILE:
+			rc = G_NOFD;
+			break;
 		default:
 			dprintf("Pgrab: failed to open %s: %s\n",
 			    procname, strerror(errno));
@@ -591,6 +632,9 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			switch (errno) {
 			case ENOENT:
 				rc = G_NOPROC;
+				break;
+			case EMFILE:
+				rc = G_NOFD;
 				break;
 			default:
 				dprintf("Pgrab: failed to open %s: %s\n",
@@ -871,6 +915,9 @@ Pgrab_error(int error)
 		break;
 	case G_BADLWPS:
 		str = "bad lwp specification";
+		break;
+	case G_NOFD:
+		str = "too many open files";
 		break;
 	default:
 		str = "unknown error";
@@ -1246,7 +1293,7 @@ int
 Preopen(struct ps_prochandle *P)
 {
 	int fd;
-	char procname[100];
+	char procname[PATH_MAX];
 	char *fname;
 
 	if (P->state == PS_DEAD || P->state == PS_IDLE)
@@ -1257,7 +1304,8 @@ Preopen(struct ps_prochandle *P)
 		Pdestroy_agent(P);
 	}
 
-	(void) sprintf(procname, "/proc/%d/", (int)P->pid);
+	(void) snprintf(procname, sizeof (procname), "%s/%d/",
+	    procfs_path, (int)P->pid);
 	fname = procname + strlen(procname);
 
 	(void) strcpy(fname, "as");
@@ -1526,23 +1574,23 @@ prldump(const char *caller, lwpstatus_t *lsp)
 		break;
 	case PR_SIGNALLED:
 		dprintf("%s: SIGNALLED %s\n", caller,
-			proc_signame(lsp->pr_what, name, sizeof (name)));
+		    proc_signame(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_FAULTED:
 		dprintf("%s: FAULTED %s\n", caller,
-			proc_fltname(lsp->pr_what, name, sizeof (name)));
+		    proc_fltname(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_SYSENTRY:
 		dprintf("%s: SYSENTRY %s\n", caller,
-			proc_sysname(lsp->pr_what, name, sizeof (name)));
+		    proc_sysname(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_SYSEXIT:
 		dprintf("%s: SYSEXIT %s\n", caller,
-			proc_sysname(lsp->pr_what, name, sizeof (name)));
+		    proc_sysname(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_JOBCONTROL:
 		dprintf("%s: JOBCONTROL %s\n", caller,
-			proc_signame(lsp->pr_what, name, sizeof (name)));
+		    proc_signame(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_SUSPENDED:
 		dprintf("%s: SUSPENDED\n", caller);
@@ -1854,8 +1902,8 @@ Psetrun(struct ps_prochandle *P,
 	int sbits = (PR_DSTOP | PR_ISTOP | PR_ASLEEP);
 
 	long ctl[1 +					/* PCCFAULT	*/
-		1 + sizeof (siginfo_t)/sizeof (long) +	/* PCSSIG/PCCSIG */
-		2 ];					/* PCRUN	*/
+	    1 + sizeof (siginfo_t)/sizeof (long) +	/* PCSSIG/PCCSIG */
+	    2 ];					/* PCRUN	*/
 
 	long *ctlp = ctl;
 	size_t size;
@@ -2006,7 +2054,7 @@ int
 Psetbkpt(struct ps_prochandle *P, uintptr_t address, ulong_t *saved)
 {
 	long ctl[1 + sizeof (priovec_t) / sizeof (long) +	/* PCREAD */
-		1 + sizeof (priovec_t) / sizeof (long)];	/* PCWRITE */
+	    1 + sizeof (priovec_t) / sizeof (long)];	/* PCWRITE */
 	long *ctlp = ctl;
 	size_t size;
 	priovec_t *iovp;
@@ -2043,8 +2091,10 @@ Psetbkpt(struct ps_prochandle *P, uintptr_t address, ulong_t *saved)
 	 * Fail if there was already a breakpoint there from another debugger
 	 * or DTrace's user-level tracing on x86.
 	 */
-	if (old == BPT)
-		return (EBUSY);
+	if (old == BPT) {
+		errno = EBUSY;
+		return (-1);
+	}
 
 	*saved = (ulong_t)old;
 	return (0);
@@ -2097,15 +2147,15 @@ execute_bkpt(
 	ulong_t saved)			/* the saved instruction */
 {
 	long ctl[
-		1 + sizeof (sigset_t) / sizeof (long) +		/* PCSHOLD */
-		1 + sizeof (fltset_t) / sizeof (long) +		/* PCSFAULT */
-		1 + sizeof (priovec_t) / sizeof (long) +	/* PCWRITE */
-		2 +						/* PCRUN */
-		1 +						/* PCWSTOP */
-		1 +						/* PCCFAULT */
-		1 + sizeof (priovec_t) / sizeof (long) +	/* PCWRITE */
-		1 + sizeof (fltset_t) / sizeof (long) +		/* PCSFAULT */
-		1 + sizeof (sigset_t) / sizeof (long)];		/* PCSHOLD */
+	    1 + sizeof (sigset_t) / sizeof (long) +		/* PCSHOLD */
+	    1 + sizeof (fltset_t) / sizeof (long) +		/* PCSFAULT */
+	    1 + sizeof (priovec_t) / sizeof (long) +		/* PCWRITE */
+	    2 +							/* PCRUN */
+	    1 +							/* PCWSTOP */
+	    1 +							/* PCCFAULT */
+	    1 + sizeof (priovec_t) / sizeof (long) +		/* PCWRITE */
+	    1 + sizeof (fltset_t) / sizeof (long) +		/* PCSFAULT */
+	    1 + sizeof (sigset_t) / sizeof (long)];		/* PCSHOLD */
 	long *ctlp = ctl;
 	sigset_t unblock;
 	size_t size;
@@ -2199,8 +2249,8 @@ Pxecbkpt(struct ps_prochandle *P, ulong_t saved)
 	Psync(P);
 
 	error = execute_bkpt(ctlfd,
-		&P->status.pr_flttrace, &P->status.pr_lwp.pr_lwphold,
-		P->status.pr_lwp.pr_reg[R_PC], saved);
+	    &P->status.pr_flttrace, &P->status.pr_lwp.pr_lwphold,
+	    P->status.pr_lwp.pr_reg[R_PC], saved);
 	rv = Pstopstatus(P, PCNULL, 0);
 
 	if (error != 0) {
@@ -2393,7 +2443,7 @@ Pxecwapt(struct ps_prochandle *P, const prwatch_t *wp)
 
 	Psync(P);
 	error = execute_wapt(ctlfd,
-		&P->status.pr_flttrace, &P->status.pr_lwp.pr_lwphold, wp);
+	    &P->status.pr_flttrace, &P->status.pr_lwp.pr_lwphold, wp);
 	rv = Pstopstatus(P, PCNULL, 0);
 
 	if (error != 0) {
@@ -2633,13 +2683,13 @@ static prheader_t *
 read_lfile(struct ps_prochandle *P, const char *lname)
 {
 	prheader_t *Lhp;
-	char lpath[64];
+	char lpath[PATH_MAX];
 	struct stat64 statb;
 	int fd;
 	size_t size;
 	ssize_t rval;
 
-	(void) snprintf(lpath, sizeof (lpath), "/proc/%d/%s",
+	(void) snprintf(lpath, sizeof (lpath), "%s/%d/%s", procfs_path,
 	    (int)P->status.pr_pid, lname);
 	if ((fd = open(lpath, O_RDONLY)) < 0 || fstat64(fd, &statb) != 0) {
 		if (fd >= 0)
@@ -2788,7 +2838,7 @@ retry:
 
 		for (i = 0; i < P->core->core_nlwp; i++, lwp = list_prev(lwp)) {
 			sp = (lwp->lwp_psinfo.pr_sname == 'Z')? NULL :
-				&lwp->lwp_status;
+			    &lwp->lwp_status;
 			if ((rv = func(cd, sp, &lwp->lwp_psinfo)) != 0)
 				break;
 		}
@@ -2911,7 +2961,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 	struct ps_lwphandle **Lp;
 	struct ps_lwphandle *L;
 	int fd;
-	char procname[100];
+	char procname[PATH_MAX];
 	char *fname;
 	int rc = 0;
 
@@ -2954,7 +3004,8 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 	/*
 	 * Open the /proc/<pid>/lwp/<lwpid> files
 	 */
-	(void) sprintf(procname, "/proc/%d/lwp/%d/", (int)P->pid, (int)lwpid);
+	(void) snprintf(procname, sizeof (procname), "%s/%d/lwp/%d/",
+	    procfs_path, (int)P->pid, (int)lwpid);
 	fname = procname + strlen(procname);
 	(void) set_minfd();
 
@@ -3007,9 +3058,9 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 	L->lwp_ctlfd = fd;
 
 	L->lwp_state =
-		((L->lwp_status.pr_flags & (PR_STOPPED|PR_ISTOP))
-		== (PR_STOPPED|PR_ISTOP))?
-		PS_STOP : PS_RUN;
+	    ((L->lwp_status.pr_flags & (PR_STOPPED|PR_ISTOP))
+	    == (PR_STOPPED|PR_ISTOP))?
+	    PS_STOP : PS_RUN;
 
 	*perr = 0;
 	(void) mutex_unlock(&P->proc_lock);
@@ -3379,8 +3430,8 @@ Lsetrun(struct ps_lwphandle *L,
 	int sbits = (PR_DSTOP | PR_ISTOP | PR_ASLEEP);
 
 	long ctl[1 +					/* PCCFAULT	*/
-		1 + sizeof (siginfo_t)/sizeof (long) +	/* PCSSIG/PCCSIG */
-		2 ];					/* PCRUN	*/
+	    1 + sizeof (siginfo_t)/sizeof (long) +	/* PCSSIG/PCCSIG */
+	    2 ];					/* PCRUN	*/
 
 	long *ctlp = ctl;
 	size_t size;
@@ -3470,8 +3521,8 @@ Lxecbkpt(struct ps_lwphandle *L, ulong_t saved)
 
 	Lsync(L);
 	error = execute_bkpt(L->lwp_ctlfd,
-		&P->status.pr_flttrace, &L->lwp_status.pr_lwphold,
-		L->lwp_status.pr_reg[R_PC], saved);
+	    &P->status.pr_flttrace, &L->lwp_status.pr_lwphold,
+	    L->lwp_status.pr_reg[R_PC], saved);
 	rv = Lstopstatus(L, PCNULL, 0);
 
 	if (error != 0) {
@@ -3506,7 +3557,7 @@ Lxecwapt(struct ps_lwphandle *L, const prwatch_t *wp)
 
 	Lsync(L);
 	error = execute_wapt(L->lwp_ctlfd,
-		&P->status.pr_flttrace, &L->lwp_status.pr_lwphold, wp);
+	    &P->status.pr_flttrace, &L->lwp_status.pr_lwphold, wp);
 	rv = Lstopstatus(L, PCNULL, 0);
 
 	if (error != 0) {
@@ -3596,4 +3647,81 @@ Lalt_stack(struct ps_lwphandle *L, stack_t *stkp)
 	*stkp = L->lwp_status.pr_altstack;
 
 	return (0);
+}
+
+/*
+ * Add a mapping to the given proc handle.  Resizes the array as appropriate and
+ * manages reference counts on the given file_info_t.
+ *
+ * The 'map_relocate' member is used to tell Psort_mappings() that the
+ * associated file_map pointer needs to be relocated after the mappings have
+ * been sorted.  It is only set for the first mapping, and has no meaning
+ * outside these two functions.
+ */
+int
+Padd_mapping(struct ps_prochandle *P, off64_t off, file_info_t *fp,
+    prmap_t *pmap)
+{
+	map_info_t *mp;
+
+	if (P->map_count == P->map_alloc) {
+		size_t next = P->map_alloc ? P->map_alloc * 2 : 16;
+
+		if ((P->mappings = realloc(P->mappings,
+		    next * sizeof (map_info_t))) == NULL)
+			return (-1);
+
+		P->map_alloc = next;
+	}
+
+	mp = &P->mappings[P->map_count++];
+
+	mp->map_offset = off;
+	mp->map_pmap = *pmap;
+	mp->map_relocate = 0;
+	if ((mp->map_file = fp) != NULL) {
+		if (fp->file_map == NULL) {
+			fp->file_map = mp;
+			mp->map_relocate = 1;
+		}
+		fp->file_ref++;
+	}
+
+	return (0);
+}
+
+static int
+map_sort(const void *a, const void *b)
+{
+	const map_info_t *ap = a, *bp = b;
+
+	if (ap->map_pmap.pr_vaddr < bp->map_pmap.pr_vaddr)
+		return (-1);
+	else if (ap->map_pmap.pr_vaddr > bp->map_pmap.pr_vaddr)
+		return (1);
+	else
+		return (0);
+}
+
+/*
+ * Sort the current set of mappings.  Should be called during target
+ * initialization after all calls to Padd_mapping() have been made.
+ */
+void
+Psort_mappings(struct ps_prochandle *P)
+{
+	int i;
+	map_info_t *mp;
+
+	qsort(P->mappings, P->map_count, sizeof (map_info_t), map_sort);
+
+	/*
+	 * Update all the file_map pointers to refer to the new locations.
+	 */
+	for (i = 0; i < P->map_count; i++) {
+		mp = &P->mappings[i];
+		if (mp->map_relocate)
+			mp->map_file->file_map = mp;
+		mp->map_relocate = 0;
+	}
 }

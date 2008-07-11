@@ -10,6 +10,7 @@
 # define	LINUX_TYPES_H 1
 
 # define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", __FILE__, __func__, __LINE__);}
+# define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", __FILE__, __func__, __LINE__);}
 # define TODO()	printk("%s:%s:%d: please fill me in\n", __FILE__, __func__, __LINE__)
 # define TODO_END()
 
@@ -85,7 +86,6 @@ struct modctl;
 // fixme : objfs.h
 # define	OBJFS_ROOT	"/system/object"
 
-# define NGREG	19
 # define	NPRGREG32 NGREG
 
 #define P2ROUNDUP(x, align)             (-(-(x) & -(align)))
@@ -209,6 +209,11 @@ typedef struct iovec iovec_t;
 # include	<sys/types32.h>
 # if !__KERNEL__
 
+	// Used by Pcore.c
+	#define PF_SUNW_FAILURE 0x00100000      /* mapping absent due to failure */
+	#define PN_XNUM         0xffff          /* extended program header index */
+	#define SHT_SUNW_LDYNSYM        0x6ffffff3
+
 	# define printk printf
 	# define MIN(a, b) ((a) < (b) ? (a) : (b))
 	# define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -289,7 +294,7 @@ typedef union {
 #define SYS_fstatvfs    104
 #define SYS_zone                227
 #define SYS_tasksys     70
-#define SYS_waitsys     107
+#define SYS_waitid     107
 #define SYS_close       6
 #define SYS_access      33
 #define SYS_processor_bind      187

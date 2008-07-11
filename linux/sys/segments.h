@@ -60,12 +60,13 @@ extern "C" {
  * User segment descriptors (code and data).
  * Legacy mode 64-bits wide.
  */
+# define user_desc sol_user_desc // clash in 32bit width ldt.h
 typedef struct user_desc {
         uint32_t usd_lolimit:16;        /* segment limit 15:0 */
         uint32_t usd_lobase:16;         /* segment base 15:0 */
         uint32_t usd_midbase:8;         /* segment base 23:16 */
         uint32_t usd_type:5;            /* segment type, includes S bit */
-        uint32_t usd_dpl:2;             /* segment descriptor priority level *
+        uint32_t usd_dpl:2;             /* segment descriptor priority level */
         uint32_t usd_p:1;               /* segment descriptor present */
         uint32_t usd_hilimit:4;         /* segment limit 19:16 */
         uint32_t usd_avl:1;             /* available to sw, but not used */

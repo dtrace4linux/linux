@@ -375,6 +375,7 @@ static kmutex_t dtrace_errlock;
 #define	DTRACE_ALIGNCHECK(addr, size, flags)				\
 	if (addr & (size - 1)) {					\
 		*flags |= CPU_DTRACE_BADALIGN;				\
+HERE2();								\
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
 		return (0);						\
 	}
@@ -429,6 +430,7 @@ dtrace_load##bits(uintptr_t addr)					\
 		 * This address falls within a toxic region; return 0.	\
 		 */							\
 		*flags |= CPU_DTRACE_BADADDR;				\
+HERE2(); \
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
 		return (0);						\
 	}								\
@@ -725,6 +727,7 @@ dtrace_canload(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
 		return (1);
 
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_KPRIV);
+HERE2();
 	*illval = addr;
 	return (0);
 }
@@ -842,18 +845,21 @@ dtrace_istoxic(uintptr_t kaddr, size_t size)
 	uintptr_t taddr, tsize;
 	int i;
 
+HERE();
 	for (i = 0; i < dtrace_toxranges; i++) {
 		taddr = dtrace_toxrange[i].dtt_base;
 		tsize = dtrace_toxrange[i].dtt_limit - taddr;
 
 		if (kaddr - taddr < tsize) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+HERE2();
 			cpu_core[cpu_get_id()].cpuc_dtrace_illval = kaddr;
 			return (1);
 		}
 
 		if (taddr - kaddr < size) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+HERE2();
 			cpu_core[cpu_get_id()].cpuc_dtrace_illval = taddr;
 			return (1);
 		}
@@ -3155,6 +3161,7 @@ PRINT_CASE(DIF_SUBR_RW_ISWRITER);
 PRINT_CASE(DIF_SUBR_BCOPY);
 		if (!dtrace_inscratch(dest, size, mstate)) {
 			*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 			*illval = regs[rd];
 			break;
 		}
@@ -3216,6 +3223,7 @@ PRINT_CASE(DIF_SUBR_COPYINTO);
 		 */
 		if (!dtrace_inscratch(dest, size, mstate)) {
 			*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 			*illval = regs[rd];
 			break;
 		}
@@ -3243,13 +3251,17 @@ HERE();
 		if (!DTRACE_INSCRATCH(mstate, size)) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOSCRATCH);
 HERE();
+printk("mstate->dtms_scratch_base=%p size=%d ptr=%p alloc_sz=%d\n",
+mstate->dtms_scratch_base, mstate->dtms_scratch_size, mstate->dtms_scratch_ptr, size);
 			regs[rd] = NULL;
 			break;
 		}
 
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 HERE();
+printk("dttk_value=%x\n", tupregs[0].dttk_value);
 		dtrace_copyinstr(tupregs[0].dttk_value, dest, size, flags);
+printk("det=%s\n", dest);
 HERE();
 		DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
 HERE();
@@ -3790,6 +3802,7 @@ PRINT_CASE(DTRACEOPT_STRSIZE);
 		 */
 		if ((mstate->dtms_access & DTRACE_ACCESS_KERNEL) == 0) {
 			*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 			*illval = daddr;
 			regs[rd] = NULL;
 		}
@@ -4722,6 +4735,7 @@ PRINT_CASE(DIF_OP_BLEU);
 PRINT_CASE(DIF_OP_RLDSB);
 			if (!dtrace_canstore(regs[r1], 1, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -4734,6 +4748,7 @@ PRINT_CASE(DIF_OP_LDSB);
 PRINT_CASE(DIF_OP_RLDSH);
 			if (!dtrace_canstore(regs[r1], 2, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -4746,6 +4761,7 @@ PRINT_CASE(DIF_OP_LDSH);
 PRINT_CASE(DIF_OP_RLDSW);
 			if (!dtrace_canstore(regs[r1], 4, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -4758,6 +4774,7 @@ PRINT_CASE(DIF_OP_LDSW);
 PRINT_CASE(DIF_OP_RLDUB);
 			if (!dtrace_canstore(regs[r1], 1, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -4770,6 +4787,7 @@ PRINT_CASE(DIF_OP_LDUB);
 PRINT_CASE(DIF_OP_RLDUH);
 			if (!dtrace_canstore(regs[r1], 2, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -4782,6 +4800,7 @@ PRINT_CASE(DIF_OP_LDUH);
 PRINT_CASE(DIF_OP_RLDUW);
 			if (!dtrace_canstore(regs[r1], 4, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -4794,6 +4813,7 @@ PRINT_CASE(DIF_OP_LDUW);
 PRINT_CASE(DIF_OP_RLDX);
 			if (!dtrace_canstore(regs[r1], 8, mstate, vstate)) {
 				*flags |= CPU_DTRACE_KPRIV;
+HERE2();
 				*illval = regs[r1];
 				break;
 			}
@@ -5317,6 +5337,7 @@ PRINT_CASE(DIF_OP_COPYS);
 			if (!dtrace_canstore(regs[rd], regs[r2],
 			    mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
@@ -5332,6 +5353,7 @@ PRINT_CASE(DIF_OP_COPYS);
 PRINT_CASE(DIF_OP_STB);
 			if (!dtrace_canstore(regs[rd], 1, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
@@ -5342,11 +5364,13 @@ PRINT_CASE(DIF_OP_STB);
 PRINT_CASE(DIF_OP_STH);
 			if (!dtrace_canstore(regs[rd], 2, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
 			if (regs[rd] & 1) {
 				*flags |= CPU_DTRACE_BADALIGN;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
@@ -5357,6 +5381,7 @@ PRINT_CASE(DIF_OP_STH);
 PRINT_CASE(DIF_OP_STW);
 			if (!dtrace_canstore(regs[rd], 4, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
@@ -5372,11 +5397,13 @@ PRINT_CASE(DIF_OP_STW);
 PRINT_CASE(DIF_OP_STX);
 			if (!dtrace_canstore(regs[rd], 8, mstate, vstate)) {
 				*flags |= CPU_DTRACE_BADADDR;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
 			if (regs[rd] & 7) {
 				*flags |= CPU_DTRACE_BADALIGN;
+HERE2();
 				*illval = regs[rd];
 				break;
 			}
@@ -13457,6 +13484,7 @@ dtrace_helper_trace(dtrace_helper_action_t *helper,
 	ent->dtht_fltoffs = (mstate->dtms_present & DTRACE_MSTATE_FLTOFFS) ?
 	    mstate->dtms_fltoffs : -1;
 	ent->dtht_fault = DTRACE_FLAGS2FLT(flags);
+HERE2();
 	ent->dtht_illval = cpu_core[cpu_get_id()].cpuc_dtrace_illval;
 
 	for (i = 0; i < vstate->dtvs_nlocals; i++) {

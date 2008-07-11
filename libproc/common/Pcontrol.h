@@ -1,16 +1,32 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef	_PCONTROL_H
 #define	_PCONTROL_H
 
-#pragma ident	"@(#)Pcontrol.h	1.15	04/09/28 SMI"
+#pragma ident	"@(#)Pcontrol.h	1.24	07/07/12 SMI"
 
 /*
  * Implemention-specific include file for libproc process management.
@@ -24,6 +40,7 @@
 #include <rtld_db.h>
 #include <libproc.h>
 #include <libctf.h>
+#include <limits.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -31,31 +48,46 @@ extern "C" {
 
 #include "Putil.h"
 
-# if linux
-#define PF_SUNW_FAILURE 0x00100000      /* mapping absent due to failure */
-# endif
-
 /*
  * Definitions of the process control structures, internal to libproc.
  * These may change without affecting clients of libproc.
  */
 
-typedef struct {		/* symbol table */
-	Elf_Data *sym_data;	/* start of table */
-	size_t	sym_symn;	/* number of entries */
+/*
+ * sym_tbl_t contains a primary and an (optional) auxiliary symbol table, which
+ * we wish to treat as a single logical symbol table. In this logical table,
+ * the data from the auxiliary table preceeds that from the primary. Symbol
+ * indices start at [0], which is the first item in the auxiliary table
+ * if there is one. The sole purpose for this is so that we can treat the
+ * combination of .SUNW_ldynsym and .dynsym sections as a logically single
+ * entity without having to violate the public interface to libelf.
+ *
+ * Both tables must share the same string table section.
+ *
+ * The symtab_getsym() function serves as a gelf_getsym() replacement
+ * that is aware of the two tables and makes them look like a single table
+ * to the caller.
+ *
+ */
+typedef struct sym_tbl {	/* symbol table */
+	Elf_Data *sym_data_pri;	/* primary table */
+	Elf_Data *sym_data_aux;	/* auxiliary table */
+	size_t	sym_symn_aux;	/* number of entries in auxiliary table */
+	size_t	sym_symn;	/* total number of entries in both tables */
 	char	*sym_strs;	/* ptr to strings */
 	size_t	sym_strsz;	/* size of string table */
-	GElf_Shdr sym_hdr;	/* symbol table section header */
+	GElf_Shdr sym_hdr_pri;	/* primary symbol table section header */
+	GElf_Shdr sym_hdr_aux;	/* auxiliary symbol table section header */
 	GElf_Shdr sym_strhdr;	/* string table section header */
-	Elf	*sym_elf;	/* faked-up elf handle from core file */
-	void	*sym_elfmem;	/* data for faked-up elf handle */
+	Elf	*sym_elf;	/* faked-up ELF handle from core file */
+	void	*sym_elfmem;	/* data for faked-up ELF handle */
 	uint_t	*sym_byname;	/* symbols sorted by name */
 	uint_t	*sym_byaddr;	/* symbols sorted by addr */
 	size_t	sym_count;	/* number of symbols in each sorted list */
 } sym_tbl_t;
 
 typedef struct file_info {	/* symbol information for a mapped file */
-	list_t	file_list;	/* linked list */
+	plist_t	file_list;	/* linked list */
 	char	file_pname[PRMAPSZ];	/* name from prmap_t */
 	struct map_info *file_map;	/* primary (text) mapping */
 	int	file_ref;	/* references from map_info_t structures */
@@ -66,8 +98,8 @@ typedef struct file_info {	/* symbol information for a mapped file */
 	rd_loadobj_t *file_lo;	/* load object structure from rtld_db */
 	char	*file_lname;	/* load object name from rtld_db */
 	char	*file_lbase;	/* pointer to basename of file_lname */
-	Elf	*file_elf;	/* elf handle so we can close */
-	void	*file_elfmem;	/* data for faked-up elf handle */
+	Elf	*file_elf;	/* ELF handle so we can close */
+	void	*file_elfmem;	/* data for faked-up ELF handle */
 	sym_tbl_t file_symtab;	/* symbol table */
 	sym_tbl_t file_dynsym;	/* dynamic symbol table */
 	uintptr_t file_dyn_base;	/* load address for ET_DYN files */
@@ -79,16 +111,21 @@ typedef struct file_info {	/* symbol information for a mapped file */
 	int	file_ctf_dyn;	/* does the CTF data reference the dynsym */
 	void	*file_ctf_buf;	/* CTF data for this file */
 	ctf_file_t *file_ctfp;	/* CTF container for this file */
+	char	*file_shstrs;	/* section header string table */
+	size_t	file_shstrsz;	/* section header string table size */
+	uintptr_t *file_saddrs; /* section header addresses */
+	uint_t  file_nsaddrs;   /* number of section header addresses */
 } file_info_t;
 
 typedef struct map_info {	/* description of an address space mapping */
 	prmap_t	map_pmap;	/* /proc description of this mapping */
 	file_info_t *map_file;	/* pointer into list of mapped files */
 	off64_t map_offset;	/* offset into core file (if core) */
+	int map_relocate;	/* associated file_map needs to be relocated */
 } map_info_t;
 
 typedef struct lwp_info {	/* per-lwp information from core file */
-	list_t	lwp_list;	/* linked list */
+	plist_t	lwp_list;	/* linked list */
 	lwpid_t	lwp_id;		/* lwp identifier */
 	lwpsinfo_t lwp_psinfo;	/* /proc/<pid>/lwp/<lwpid>/lwpsinfo data */
 	lwpstatus_t lwp_status;	/* /proc/<pid>/lwp/<lwpid>/lwpstatus data */
@@ -102,7 +139,7 @@ typedef struct lwp_info {	/* per-lwp information from core file */
 typedef struct core_info {	/* information specific to core files */
 	char core_dmodel;	/* data model for core file */
 	int core_errno;		/* error during initialization if != 0 */
-	list_t core_lwp_head;	/* head of list of lwp info */
+	plist_t core_lwp_head;	/* head of list of lwp info */
 	lwp_info_t *core_lwp;	/* current lwp information */
 	uint_t core_nlwp;	/* number of lwp's in list */
 	off64_t core_size;	/* size of core file in bytes */
@@ -121,8 +158,25 @@ typedef struct core_info {	/* information specific to core files */
 #endif
 } core_info_t;
 
+typedef struct elf_file_header { /* extended ELF header */
+	unsigned char e_ident[EI_NIDENT];
+	Elf64_Half e_type;
+	Elf64_Half e_machine;
+	Elf64_Word e_version;
+	Elf64_Addr e_entry;
+	Elf64_Off e_phoff;
+	Elf64_Off e_shoff;
+	Elf64_Word e_flags;
+	Elf64_Half e_ehsize;
+	Elf64_Half e_phentsize;
+	Elf64_Half e_shentsize;
+	Elf64_Word e_phnum;	/* phdr count extended to 32 bits */
+	Elf64_Word e_shnum;	/* shdr count extended to 32 bits */
+	Elf64_Word e_shstrndx;	/* shdr string index extended to 32 bits */
+} elf_file_header_t;
+
 typedef struct elf_file {	/* convenience for managing ELF files */
-	GElf_Ehdr e_hdr;	/* ELF file header information */
+	elf_file_header_t e_hdr; /* Extended ELF header */
 	Elf *e_elf;		/* ELF library handle */
 	int e_fd;		/* file descriptor */
 } elf_file_t;
@@ -155,8 +209,9 @@ struct ps_prochandle {
 	int	info_valid;	/* if zero, map and file info need updating */
 	map_info_t *mappings;	/* cached process mappings */
 	size_t	map_count;	/* number of mappings */
+	size_t	map_alloc;	/* number of mappings allocated */
 	uint_t	num_files;	/* number of file elements in file_info */
-	list_t	file_head;	/* head of mapped files w/ symbol table info */
+	plist_t	file_head;	/* head of mapped files w/ symbol table info */
 	char	*execname;	/* name of the executable file */
 	auxv_t	*auxv;		/* the process's aux vector */
 	int	nauxv;		/* number of aux vector entries */
@@ -208,6 +263,13 @@ extern	char 	*Pfindexec(struct ps_prochandle *, const char *,
 	int (*)(const char *, void *), void *);
 extern	int	getlwpstatus(struct ps_prochandle *, lwpid_t, lwpstatus_t *);
 int	Pstopstatus(struct ps_prochandle *, long, uint32_t);
+extern	file_info_t *file_info_new(struct ps_prochandle *, map_info_t *);
+
+extern	int	Padd_mapping(struct ps_prochandle *, off64_t, file_info_t *,
+    prmap_t *);
+extern	void	Psort_mappings(struct ps_prochandle *);
+
+extern char	procfs_path[PATH_MAX];
 
 /*
  * Architecture-dependent definition of the breakpoint instruction.

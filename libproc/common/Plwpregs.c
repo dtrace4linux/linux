@@ -1,18 +1,35 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Plwpregs.c	1.5	03/07/09 SMI"
+#pragma ident	"@(#)Plwpregs.c	1.8	06/09/11 SMI"
 
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "Pcontrol.h"
 #include "P32ton.h"
@@ -51,16 +68,11 @@ static int
 getlwpfile(struct ps_prochandle *P, lwpid_t lwpid,
     const char *fbase, void *rp, size_t n)
 {
-	char fname[64];
+	char fname[PATH_MAX];
 	int fd;
 
-	if (P->state != PS_STOP) {
-		errno = EBUSY;
-		return (-1);
-	}
-
-	(void) snprintf(fname, sizeof (fname), "/proc/%d/lwp/%d/%s",
-		(int)P->status.pr_pid, (int)lwpid, fbase);
+	(void) snprintf(fname, sizeof (fname), "%s/%d/lwp/%d/%s",
+	    procfs_path, (int)P->status.pr_pid, (int)lwpid, fbase);
 
 	if ((fd = open(fname, O_RDONLY)) >= 0) {
 		if (read(fd, rp, n) > 0) {
@@ -121,7 +133,7 @@ setlwpregs(struct ps_prochandle *P, lwpid_t lwpid, long cmd,
     const void *rp, size_t n)
 {
 	iovec_t iov[2];
-	char fname[64];
+	char fname[PATH_MAX];
 	int fd;
 
 	if (P->state != PS_STOP) {
@@ -158,8 +170,8 @@ setlwpregs(struct ps_prochandle *P, lwpid_t lwpid, long cmd,
 	 * If the lwp we want is not the representative lwp, we need to
 	 * open the ctl file for that specific lwp.
 	 */
-	(void) snprintf(fname, sizeof (fname), "/proc/%d/lwp/%d/lwpctl",
-	    (int)P->status.pr_pid, (int)lwpid);
+	(void) snprintf(fname, sizeof (fname), "%s/%d/lwp/%d/lwpctl",
+	    procfs_path, (int)P->status.pr_pid, (int)lwpid);
 
 	if ((fd = open(fname, O_WRONLY)) >= 0) {
 		if (writev(fd, iov, 2) > 0) {
@@ -219,6 +231,11 @@ Plwp_getxregs(struct ps_prochandle *P, lwpid_t lwpid, prxregset_t *xregs)
 	}
 
 	if (P->state != PS_DEAD) {
+		if (P->state != PS_STOP) {
+			errno = EBUSY;
+			return (-1);
+		}
+
 		return (getlwpfile(P, lwpid, "xregs",
 		    xregs, sizeof (prxregset_t)));
 	}
@@ -249,9 +266,15 @@ Plwp_getgwindows(struct ps_prochandle *P, lwpid_t lwpid, gwindows_t *gwins)
 		return (-1);
 	}
 
-	if (P->state != PS_DEAD)
+	if (P->state != PS_DEAD) {
+		if (P->state != PS_STOP) {
+			errno = EBUSY;
+			return (-1);
+		}
+
 		return (getlwpfile(P, lwpid, "gwindows",
 		    gwins, sizeof (gwindows_t)));
+	}
 
 	if ((lwp = getlwpcore(P, lwpid)) != NULL && lwp->lwp_gwins != NULL) {
 		*gwins = *lwp->lwp_gwins;
@@ -274,8 +297,14 @@ Plwp_getasrs(struct ps_prochandle *P, lwpid_t lwpid, asrset_t asrs)
 		return (-1);
 	}
 
-	if (P->state != PS_DEAD)
+	if (P->state != PS_DEAD) {
+		if (P->state != PS_STOP) {
+			errno = EBUSY;
+			return (-1);
+		}
+
 		return (getlwpfile(P, lwpid, "asrs", asrs, sizeof (asrset_t)));
+	}
 
 	if ((lwp = getlwpcore(P, lwpid)) != NULL && lwp->lwp_asrs != NULL) {
 		(void) memcpy(asrs, lwp->lwp_asrs, sizeof (asrset_t));

@@ -24,48 +24,25 @@
  * Use is subject to license terms.
  */
 
-#ifndef	_PUTIL_H
-#define	_PUTIL_H
-
-#pragma ident	"@(#)Putil.h	1.4	05/10/30 SMI"
-
-#ifdef	__cplusplus
-extern "C" {
-#endif
-
-/*
- * Circular doubly-linked list:
- */
-typedef struct P_list {
-	struct P_list	*list_forw;
-	struct P_list	*list_back;
-} plist_t;
-
-/*
- * Routines to manipulate linked lists:
- */
-extern void list_link(void *, void *);
-extern void list_unlink(void *);
-
-#define	list_next(elem)	(void *)(((plist_t *)(elem))->list_forw)
-#define	list_prev(elem)	(void *)(((plist_t *)(elem))->list_back)
-
-/*
- * Routines to manipulate sigset_t, fltset_t, or sysset_t.
- */
-extern void prset_fill(void *, size_t);
-extern void prset_empty(void *, size_t);
-extern void prset_add(void *, size_t, uint_t);
-extern void prset_del(void *, size_t, uint_t);
-extern int prset_ismember(void *, size_t, uint_t);
-
-/*
- * Routine to print debug messages:
- */
-extern void dprintf(const char *, ...);
-
-#ifdef	__cplusplus
+syscall::open:entry
+{
+	self->path = copyinstr(arg0);
 }
-#endif
 
-#endif	/* _PUTIL_H */
+/* Linux: Problem: Linux returns -errno, rather than -1 */
+syscall::open:return
+/self->path != NULL && arg1 < 0/
+{
+	printf("open for '%s' failed %x %x %x", self->path, arg0, arg1, arg2);
+/*	ustack(); */
+}
+
+/* Linux /bin/cat does an access before opening the file. */
+
+syscall::access:return
+/self->path != NULL && arg1 < 0/
+{
+	printf("access('%s') failed %x %x %x", self->path, arg0, arg1, arg2);
+/*	ustack(); */
+}
+

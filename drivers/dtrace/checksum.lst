@@ -12,10 +12,10 @@ d1e21501 size=2694    mtime=1212268299 ./ctf_util.c
 10589bbe size=113949  mtime=1212273673 ./dis_tables.c
 021c331d size=3096    mtime=1209891441 ./dis_tables.h
 73070291 size=1653    mtime=1214250610 ./divmod64.c
-17f0bf70 size=411645  mtime=1215556622 ./dtrace.c
+21fd208a size=412102  mtime=1215816145 ./dtrace.c
 08e9b5b8 size=6038    mtime=1215027934 ./dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./dtrace_asm.s
-7272ad8a size=16553   mtime=1215556951 ./dtrace_isa.c
+d0e89c20 size=16770   mtime=1215810649 ./dtrace_isa.c
 c9ba65d3 size=17430   mtime=1215371248 ./dtrace_linux.c
 419c9a15 size=7946    mtime=1215365515 ./dtrace_linux.h
 98e68284 size=1138    mtime=1215371153 ./dtrace_proto.h

@@ -1,3 +1,15 @@
+Sat Jul 12 10:59:36 2008  fox
+
+      65* Archive: 1.0039
+
+      64* libproc: Upgrade complete.
+
+      63* libproc: Start upgrade to Solaris 20080623, since we cannot
+          call ustack() without starting to emulate /procfs on Solaris.
+
+      62* dtrace_isa.c: Fix issue with coying to/from user space.
+          arg0/arg1/... now works.
+
 Sun Jul  6 10:29:42 2008  fox
 
       61* Archive: 1.0035

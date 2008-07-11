@@ -50,8 +50,6 @@ extern size_t _interrupt_size;
 extern size_t _cmntrap_size;
 extern size_t _allsyscalls_size;
 
-extern uintptr_t kernelbase;
-
 /*ARGSUSED*/
 void
 dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
@@ -649,10 +647,16 @@ dtrace_getreg(struct regs *rp, uint_t reg)
 static int
 dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 {
-	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
 
-	if (uaddr + size >= kernelbase || uaddr + size < uaddr) {
-		HERE();
+	/***********************************************/
+	/*   Spot the Sun bug in the line below.       */
+	/***********************************************/
+//	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
+
+HERE();
+	if (!__addr_ok(uaddr) || !__addr_ok(uaddr + size)) {
+HERE2();
+//printk("uaddr=%p size=%d\n", uaddr, size);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = uaddr;
 		return (0);
@@ -699,6 +703,7 @@ dtrace_fuword8(void *uaddr)
 	extern uint8_t dtrace_fuword8_nocheck(void *);
 	if ((uintptr_t)uaddr >= _userlimit) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+HERE2();
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = (uintptr_t)uaddr;
 		return (0);
 	}
@@ -710,6 +715,7 @@ dtrace_fuword16(void *uaddr)
 {
 	extern uint16_t dtrace_fuword16_nocheck(void *);
 	if ((uintptr_t)uaddr >= _userlimit) {
+HERE2();
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = (uintptr_t)uaddr;
 		return (0);
@@ -722,6 +728,7 @@ dtrace_fuword32(void *uaddr)
 {
 	extern uint32_t dtrace_fuword32_nocheck(void *);
 	if ((uintptr_t)uaddr >= _userlimit) {
+HERE2();
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = (uintptr_t)uaddr;
 		return (0);
@@ -734,6 +741,7 @@ dtrace_fuword64(void *uaddr)
 {
 	extern uint64_t dtrace_fuword64_nocheck(void *);
 	if ((uintptr_t)uaddr >= _userlimit) {
+HERE2();
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = (uintptr_t)uaddr;
 		return (0);

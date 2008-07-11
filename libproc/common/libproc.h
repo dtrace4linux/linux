@@ -1,10 +1,28 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ *
+ * Portions Copyright 2007 Chad Mynhier
  */
 
 /*
@@ -25,9 +43,8 @@
 #ifndef	_LIBPROC_H
 #define	_LIBPROC_H
 
-#pragma ident	"@(#)libproc.h	1.45	04/11/01 SMI"
+#pragma ident	"@(#)libproc.h	1.50	07/10/12 SMI"
 
-#include <linux_types.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -67,6 +84,8 @@ struct ps_prochandle;
 struct ps_lwphandle;
 
 extern	int	_libproc_debug;	/* set non-zero to enable debugging fprintfs */
+extern	int	_libproc_no_qsort;	/* set non-zero to inhibit sorting */
+					/* of symbol tables */
 
 #if defined(__sparc)
 #define	R_RVAL1	R_O0		/* register holding a function return value */
@@ -133,6 +152,7 @@ extern	int	_libproc_debug;	/* set non-zero to enable debugging fprintfs */
 #define	G_NOTE		14	/* Required PT_NOTE Phdr not present in core */
 #define	G_ISAINVAL	15	/* Wrong ELF machine type */
 #define	G_BADLWPS	16	/* Bad '/lwps' specification */
+#define	G_NOFD		17	/* No more file descriptors */
 
 
 /* Flags accepted by Prelease */
@@ -185,6 +205,7 @@ extern	void	Prelease(struct ps_prochandle *, int);
 extern	void	Pfree(struct ps_prochandle *);
 
 extern	int	Pasfd(struct ps_prochandle *);
+extern	char   *Pbrandname(struct ps_prochandle *, char *, size_t);
 extern	int	Pctlfd(struct ps_prochandle *);
 extern	int	Pcreate_agent(struct ps_prochandle *);
 extern	void	Pdestroy_agent(struct ps_prochandle *);
@@ -309,6 +330,8 @@ extern	int	pr_getrlimit(struct ps_prochandle *,
 			int, struct rlimit *);
 extern	int	pr_setrlimit(struct ps_prochandle *,
 			int, const struct rlimit *);
+extern	int	pr_setprojrctl(struct ps_prochandle *, const char *,
+			rctlblk_t *, size_t, int);
 #if defined(_LARGEFILE64_SOURCE)
 extern	int	pr_getrlimit64(struct ps_prochandle *,
 			int, struct rlimit64 *);
@@ -478,6 +501,8 @@ extern	int Penv_iter(struct ps_prochandle *, proc_env_f *, void *);
 extern char *Pgetenv(struct ps_prochandle *, const char *, char *, size_t);
 extern long Pgetauxval(struct ps_prochandle *, int);
 extern const auxv_t *Pgetauxvec(struct ps_prochandle *);
+
+extern void Pset_procfs_path(const char *);
 
 /*
  * Symbol table iteration interface.  The special lmid constants LM_ID_BASE,

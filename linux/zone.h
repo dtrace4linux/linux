@@ -6,6 +6,7 @@
  * in length, so ZONENAME_MAX is limited by that.
  */
 #define ZONENAME_MAX            64
+#define ZONE_ATTR_ROOT          1
 
 typedef struct zone {
 	int zone_id;

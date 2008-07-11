@@ -95,6 +95,13 @@ typedef struct __old_fpu {
 
 #endif  /* __i386 */
 
+# if defined(__amd64)
+# 	define _NGREG	28
+# else
+# 	define _NGREG	19
+# endif
+# define NGREG	_NGREG
+
 # if !defined(EFL)
 # define	EDI	4
 # define	ESI	5

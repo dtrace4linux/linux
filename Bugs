@@ -25,7 +25,14 @@ x 20080708 2. dtrace -f open:entry -- failing probe lookup
              Our timer callbacks arent correct so they can hang/kill the
 	     system.
 
-  20080708 11. dtrace -s tests/dt011
+x 20080708 11. dtrace -s tests/dt011
   		Invokes CPU_DTRACE_BADADDR from dtrace_copycheck because
 		we have no base range for the kernel. Use validate_ptr.
+
+		Fixed dtrace_copycheck() which assumed Solaris kernelbase
+		which we dont have. Still get occasional bad pointers
+		in open() syscalls, but that might be real bugs somewhere!
+
+x 20080712 12. dtrace -s tests/dt013
+             can cause stack tracing on kernel.
 

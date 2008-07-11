@@ -1,14 +1,32 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-#pragma ident	"@(#)Psymtab.c	1.33	05/01/21 SMI"
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
+#pragma ident	"@(#)Psymtab.c	1.45	07/07/12 SMI"
+
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -32,6 +50,7 @@
 #include "libproc.h"
 #include "Pcontrol.h"
 #include "Putil.h"
+#include "Psymtab_machelf.h"
 
 static file_info_t *build_map_symtab(struct ps_prochandle *, map_info_t *);
 static map_info_t *exec_map(struct ps_prochandle *);
@@ -39,9 +58,11 @@ static map_info_t *object_to_map(struct ps_prochandle *, Lmid_t, const char *);
 static map_info_t *object_name_to_map(struct ps_prochandle *,
 	Lmid_t, const char *);
 static GElf_Sym *sym_by_name(sym_tbl_t *, const char *, GElf_Sym *, uint_t *);
-static int read_ehdr32(struct ps_prochandle *, Elf32_Ehdr *, uintptr_t);
+static int read_ehdr32(struct ps_prochandle *, Elf32_Ehdr *, uint_t *,
+    uintptr_t);
 #ifdef _LP64
-static int read_ehdr64(struct ps_prochandle *, Elf64_Ehdr *, uintptr_t);
+static int read_ehdr64(struct ps_prochandle *, Elf64_Ehdr *, uint_t *,
+    uintptr_t);
 #endif
 
 #define	DATA_TYPES	\
@@ -71,15 +92,92 @@ addr_cmp(const void *aa, const void *bb)
 }
 
 /*
+ * This function creates a list of addresses for a load object's sections.
+ * The list is in ascending address order and alternates start address
+ * then end address for each section we're interested in. The function
+ * returns a pointer to the list, which must be freed by the caller.
+ */
+static uintptr_t *
+get_saddrs(struct ps_prochandle *P, uintptr_t ehdr_start, uint_t *n)
+{
+	uintptr_t a, addr, *addrs, last = 0;
+	uint_t i, naddrs = 0, unordered = 0;
+
+	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
+		Elf32_Ehdr ehdr;
+		Elf32_Phdr phdr;
+		uint_t phnum;
+
+		if (read_ehdr32(P, &ehdr, &phnum, ehdr_start) != 0)
+			return (NULL);
+
+		addrs = malloc(sizeof (uintptr_t) * phnum * 2);
+		a = ehdr_start + ehdr.e_phoff;
+		for (i = 0; i < phnum; i++, a += ehdr.e_phentsize) {
+			if (Pread(P, &phdr, sizeof (phdr), a) !=
+			    sizeof (phdr)) {
+				free(addrs);
+				return (NULL);
+			}
+			if (phdr.p_type != PT_LOAD || phdr.p_memsz == 0)
+				continue;
+
+			addr = phdr.p_vaddr;
+			if (ehdr.e_type == ET_DYN)
+				addr += ehdr_start;
+			if (last > addr)
+				unordered = 1;
+			addrs[naddrs++] = addr;
+			addrs[naddrs++] = last = addr + phdr.p_memsz - 1;
+		}
+#ifdef _LP64
+	} else {
+		Elf64_Ehdr ehdr;
+		Elf64_Phdr phdr;
+		uint_t phnum;
+
+		if (read_ehdr64(P, &ehdr, &phnum, ehdr_start) != 0)
+			return (NULL);
+
+		addrs = malloc(sizeof (uintptr_t) * phnum * 2);
+		a = ehdr_start + ehdr.e_phoff;
+		for (i = 0; i < phnum; i++, a += ehdr.e_phentsize) {
+			if (Pread(P, &phdr, sizeof (phdr), a) !=
+			    sizeof (phdr)) {
+				free(addrs);
+				return (NULL);
+			}
+			if (phdr.p_type != PT_LOAD || phdr.p_memsz == 0)
+				continue;
+
+			addr = phdr.p_vaddr;
+			if (ehdr.e_type == ET_DYN)
+				addr += ehdr_start;
+			if (last > addr)
+				unordered = 1;
+			addrs[naddrs++] = addr;
+			addrs[naddrs++] = last = addr + phdr.p_memsz - 1;
+		}
+#endif
+	}
+
+	if (unordered)
+		qsort(addrs, naddrs, sizeof (uintptr_t), addr_cmp);
+
+	*n = naddrs;
+	return (addrs);
+}
+
+/*
  * Allocation function for a new file_info_t
  */
-static file_info_t *
+file_info_t *
 file_info_new(struct ps_prochandle *P, map_info_t *mptr)
 {
 	file_info_t *fptr;
 	map_info_t *mp;
-	uintptr_t a, addr, *addrs, last = 0;
-	uint_t i, j, naddrs = 0, unordered = 0;
+	uintptr_t mstart, mend, sstart, send;
+	uint_t i;
 
 	if ((fptr = calloc(1, sizeof (file_info_t))) == NULL)
 		return (NULL);
@@ -93,89 +191,51 @@ file_info_new(struct ps_prochandle *P, map_info_t *mptr)
 
 	/*
 	 * To figure out which map_info_t instances correspond to the mappings
-	 * for this load object, we look at the in-memory ELF image in the
-	 * base mapping (usually the program text). We examine the program
-	 * headers to find the addresses at the beginning and end of each
-	 * section and store them in a list which we then sort. Finally, we
+	 * for this load object we try to obtain the start and end address
+	 * for each section of our in-memory ELF image. If successful, we
 	 * walk down the list of addresses and the list of map_info_t
 	 * instances in lock step to correctly find the mappings that
 	 * correspond to this load object.
 	 */
-	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
-		Elf32_Ehdr ehdr;
-		Elf32_Phdr phdr;
+	if ((fptr->file_saddrs = get_saddrs(P, mptr->map_pmap.pr_vaddr,
+	    &fptr->file_nsaddrs)) == NULL)
+		return (fptr);
 
-		if (read_ehdr32(P, &ehdr, mptr->map_pmap.pr_vaddr) != 0)
-			return (fptr);
-
-		addrs = malloc(sizeof (uintptr_t) * ehdr.e_phnum * 2);
-		a = mptr->map_pmap.pr_vaddr + ehdr.e_phoff;
-		for (i = 0; i < ehdr.e_phnum; i++, a += ehdr.e_phentsize) {
-			if (Pread(P, &phdr, sizeof (phdr), a) != sizeof (phdr))
-				goto out;
-			if (phdr.p_type != PT_LOAD || phdr.p_memsz == 0)
-				continue;
-
-			addr = phdr.p_vaddr;
-			if (ehdr.e_type == ET_DYN)
-				addr += mptr->map_pmap.pr_vaddr;
-			if (last > addr)
-				unordered = 1;
-			addrs[naddrs++] = addr;
-			addrs[naddrs++] = last = addr + phdr.p_memsz - 1;
-		}
-#ifdef _LP64
-	} else {
-		Elf64_Ehdr ehdr;
-		Elf64_Phdr phdr;
-
-		if (read_ehdr64(P, &ehdr, mptr->map_pmap.pr_vaddr) != 0)
-			return (fptr);
-
-		addrs = malloc(sizeof (uintptr_t) * ehdr.e_phnum * 2);
-		a = mptr->map_pmap.pr_vaddr + ehdr.e_phoff;
-		for (i = 0; i < ehdr.e_phnum; i++, a += ehdr.e_phentsize) {
-			if (Pread(P, &phdr, sizeof (phdr), a) != sizeof (phdr))
-				goto out;
-			if (phdr.p_type != PT_LOAD || phdr.p_memsz == 0)
-				continue;
-
-			addr = phdr.p_vaddr;
-			if (ehdr.e_type == ET_DYN)
-				addr += mptr->map_pmap.pr_vaddr;
-			if (last > addr)
-				unordered = 1;
-			addrs[naddrs++] = addr;
-			addrs[naddrs++] = last = addr + phdr.p_memsz - 1;
-		}
-#endif
-	}
-
-	if (unordered)
-		qsort(addrs, naddrs, sizeof (uintptr_t), addr_cmp);
-
-
-	i = j = 0;
 	mp = P->mappings;
-	while (j < P->map_count && i < naddrs) {
-		addr = addrs[i];
-		if (addr >= mp->map_pmap.pr_vaddr &&
-		    addr < mp->map_pmap.pr_vaddr + mp->map_pmap.pr_size &&
-		    mp->map_file == NULL) {
-			mp->map_file = fptr;
-			fptr->file_ref++;
-		}
+	i = 0;
+	while (mp < P->mappings + P->map_count && i < fptr->file_nsaddrs) {
 
-		if (addr < mp->map_pmap.pr_vaddr + mp->map_pmap.pr_size) {
-			i++;
-		} else {
+		/* Calculate the start and end of the mapping and section */
+		mstart = mp->map_pmap.pr_vaddr;
+		mend = mp->map_pmap.pr_vaddr + mp->map_pmap.pr_size;
+		sstart = fptr->file_saddrs[i];
+		send = fptr->file_saddrs[i + 1];
+
+		if (mend <= sstart) {
+			/* This mapping is below the current section */
 			mp++;
-			j++;
+		} else if (mstart >= send) {
+			/* This mapping is above the current section */
+			i += 2;
+		} else {
+			/* This mapping overlaps the current section */
+			if (mp->map_file == NULL) {
+				dprintf("file_info_new: associating "
+				    "segment at %p\n",
+				    (void *)mp->map_pmap.pr_vaddr);
+				mp->map_file = fptr;
+				fptr->file_ref++;
+			} else {
+				dprintf("file_info_new: segment at %p "
+				    "already associated with %s\n",
+				    (void *)mp->map_pmap.pr_vaddr,
+				    (mp == mptr ? "this file" :
+				    mp->map_file->file_pname));
+			}
+			mp++;
 		}
 	}
 
-out:
-	free(addrs);
 	return (fptr);
 }
 
@@ -219,6 +279,8 @@ file_info_free(struct ps_prochandle *P, file_info_t *fptr)
 			ctf_close(fptr->file_ctfp);
 			free(fptr->file_ctf_buf);
 		}
+		if (fptr->file_saddrs)
+			free(fptr->file_saddrs);
 		free(fptr);
 		P->num_files--;
 	}
@@ -266,15 +328,20 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 
 	dprintf("encountered rd object at %p\n", (void *)lop->rl_base);
 
-	if ((mptr = Paddr2mptr(P, lop->rl_base)) == NULL)
+	if ((mptr = Paddr2mptr(P, lop->rl_base)) == NULL) {
+		dprintf("map_iter: base address doesn't match any mapping\n");
 		return (1); /* Base address does not match any mapping */
+	}
 
 	if ((fptr = mptr->map_file) == NULL &&
-	    (fptr = file_info_new(P, mptr)) == NULL)
+	    (fptr = file_info_new(P, mptr)) == NULL) {
+		dprintf("map_iter: failed to allocate a new file_info_t\n");
 		return (1); /* Failed to allocate a new file_info_t */
+	}
 
 	if ((fptr->file_lo == NULL) &&
 	    (fptr->file_lo = malloc(sizeof (rd_loadobj_t))) == NULL) {
+		dprintf("map_iter: failed to allocate rd_loadobj_t\n");
 		file_info_free(P, fptr);
 		return (1); /* Failed to allocate rd_loadobj_t */
 	}
@@ -293,6 +360,9 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 	if (Pread_string(P, buf, sizeof (buf), lop->rl_nameaddr) > 0) {
 		if ((fptr->file_lname = strdup(buf)) != NULL)
 			fptr->file_lbase = basename(fptr->file_lname);
+	} else {
+		dprintf("map_iter: failed to read string at %p\n",
+		    (void *)lop->rl_nameaddr);
 	}
 
 	dprintf("loaded rd object %s lmid %lx\n",
@@ -320,17 +390,13 @@ map_set(struct ps_prochandle *P, map_info_t *mptr, const char *lname)
 	(void) memset(fptr->file_lo, 0, sizeof (rd_loadobj_t));
 	fptr->file_lo->rl_base = mptr->map_pmap.pr_vaddr;
 	fptr->file_lo->rl_bend =
-		mptr->map_pmap.pr_vaddr + mptr->map_pmap.pr_size;
+	    mptr->map_pmap.pr_vaddr + mptr->map_pmap.pr_size;
 
 	fptr->file_lo->rl_plt_base = fptr->file_plt_base;
 	fptr->file_lo->rl_plt_size = fptr->file_plt_size;
 
-	if (fptr->file_lname) {
-		free(fptr->file_lname);
-		fptr->file_lname = NULL;
-	}
-
-	if ((fptr->file_lname = strdup(lname)) != NULL)
+	if (fptr->file_lname == NULL &&
+	    (fptr->file_lname = strdup(lname)) != NULL)
 		fptr->file_lbase = basename(fptr->file_lname);
 }
 
@@ -364,7 +430,7 @@ load_static_maps(struct ps_prochandle *P)
 void
 Pupdate_maps(struct ps_prochandle *P)
 {
-	char mapfile[64];
+	char mapfile[PATH_MAX];
 	int mapfd;
 	struct stat statb;
 	prmap_t *Pmap = NULL;
@@ -375,12 +441,13 @@ Pupdate_maps(struct ps_prochandle *P)
 	map_info_t *newmap, *newp;
 	map_info_t *mptr;
 
-	if (P->info_valid)
+	if (P->info_valid || P->state == PS_UNDEAD)
 		return;
 
 	Preadauxvec(P);
 
-	(void) sprintf(mapfile, "/proc/%d/map", (int)P->pid);
+	(void) snprintf(mapfile, sizeof (mapfile), "%s/%d/map",
+	    procfs_path, (int)P->pid);
 	if ((mapfd = open(mapfile, O_RDONLY)) < 0 ||
 	    fstat(mapfd, &statb) != 0 ||
 	    statb.st_size < sizeof (prmap_t) ||
@@ -428,6 +495,8 @@ Pupdate_maps(struct ps_prochandle *P)
 			/*
 			 * This mapping matches exactly.  Copy over the old
 			 * mapping, taking care to get the latest flags.
+			 * Make sure the associated file_info_t is updated
+			 * appropriately.
 			 */
 			*newp = *mptr;
 			if (P->map_exec == mptr)
@@ -435,6 +504,9 @@ Pupdate_maps(struct ps_prochandle *P)
 			if (P->map_ldso == mptr)
 				P->map_ldso = newp;
 			newp->map_pmap.pr_mflags = pmap->pr_mflags;
+			if (mptr->map_file != NULL &&
+			    mptr->map_file->file_map == mptr)
+				mptr->map_file->file_map = newp;
 			oldmapcount--;
 			mptr++;
 
@@ -474,7 +546,7 @@ Pupdate_maps(struct ps_prochandle *P)
 	if (P->mappings != NULL)
 		free(P->mappings);
 	P->mappings = newmap;
-	P->map_count = nmap;
+	P->map_count = P->map_alloc = nmap;
 	P->info_valid = 1;
 
 	/*
@@ -540,9 +612,17 @@ Paddr_to_text_map(struct ps_prochandle *P, uintptr_t addr)
 		file_info_t *fptr = build_map_symtab(P, mptr);
 		const prmap_t *pmp = &mptr->map_pmap;
 
+		/*
+		 * Assume that if rl_data_base is NULL, it means that no
+		 * data section was found for this load object, and that
+		 * a section must be text. Otherwise, a section will be
+		 * text unless it ends above the start of the data
+		 * section.
+		 */
 		if (fptr != NULL && fptr->file_lo != NULL &&
-		    fptr->file_lo->rl_base >= pmp->pr_vaddr &&
-		    fptr->file_lo->rl_base < pmp->pr_vaddr + pmp->pr_size)
+		    (fptr->file_lo->rl_data_base == NULL ||
+		    pmp->pr_vaddr + pmp->pr_size <
+		    fptr->file_lo->rl_data_base))
 			return (pmp);
 	}
 
@@ -653,7 +733,7 @@ Pbuild_file_ctf(struct ps_prochandle *P, file_info_t *fptr)
 		return (NULL);
 
 	symp = fptr->file_ctf_dyn ? &fptr->file_dynsym : &fptr->file_symtab;
-	if (symp->sym_data == NULL)
+	if (symp->sym_data_pri == NULL)
 		return (NULL);
 
 	/*
@@ -686,12 +766,12 @@ Pbuild_file_ctf(struct ps_prochandle *P, file_info_t *fptr)
 	ctdata.cts_offset = 0;
 
 	symtab.cts_name = fptr->file_ctf_dyn ? ".dynsym" : ".symtab";
-	symtab.cts_type = symp->sym_hdr.sh_type;
-	symtab.cts_flags = symp->sym_hdr.sh_flags;
-	symtab.cts_data = symp->sym_data->d_buf;
-	symtab.cts_size = symp->sym_hdr.sh_size;
-	symtab.cts_entsize = symp->sym_hdr.sh_entsize;
-	symtab.cts_offset = symp->sym_hdr.sh_offset;
+	symtab.cts_type = symp->sym_hdr_pri.sh_type;
+	symtab.cts_flags = symp->sym_hdr_pri.sh_flags;
+	symtab.cts_data = symp->sym_data_pri->d_buf;
+	symtab.cts_size = symp->sym_hdr_pri.sh_size;
+	symtab.cts_entsize = symp->sym_hdr_pri.sh_entsize;
+	symtab.cts_offset = symp->sym_hdr_pri.sh_offset;
 
 	strtab.cts_name = fptr->file_ctf_dyn ? ".dynstr" : ".strtab";
 	strtab.cts_type = symp->sym_strhdr.sh_type;
@@ -777,7 +857,8 @@ Preadauxvec(struct ps_prochandle *P)
 		P->nauxv = 0;
 	}
 
-	(void) sprintf(auxfile, "/proc/%d/auxv", (int)P->pid);
+	(void) snprintf(auxfile, sizeof (auxfile), "%s/%d/auxv",
+	    procfs_path, (int)P->pid);
 	if ((fd = open(auxfile, O_RDONLY)) < 0)
 		return;
 
@@ -840,6 +921,61 @@ Pgetauxvec(struct ps_prochandle *P)
 }
 
 /*
+ * Return 1 if the given mapping corresponds to the given file_info_t's
+ * load object; return 0 otherwise.
+ */
+static int
+is_mapping_in_file(struct ps_prochandle *P, map_info_t *mptr, file_info_t *fptr)
+{
+	prmap_t *pmap = &mptr->map_pmap;
+	rd_loadobj_t *lop = fptr->file_lo;
+	uint_t i;
+	uintptr_t mstart, mend, sstart, send;
+
+	/*
+	 * We can get for free the start address of the text and data
+	 * sections of the load object. Start by seeing if the mapping
+	 * encloses either of these.
+	 */
+	if ((pmap->pr_vaddr <= lop->rl_base &&
+	    lop->rl_base < pmap->pr_vaddr + pmap->pr_size) ||
+	    (pmap->pr_vaddr <= lop->rl_data_base &&
+	    lop->rl_data_base < pmap->pr_vaddr + pmap->pr_size))
+		return (1);
+
+	/*
+	 * It's still possible that this mapping correponds to the load
+	 * object. Consider the example of a mapping whose start and end
+	 * addresses correspond to those of the load object's text section.
+	 * If the mapping splits, e.g. as a result of a segment demotion,
+	 * then although both mappings are still backed by the same section,
+	 * only one will be seen to enclose that section's start address.
+	 * Thus, to be rigorous, we ask not whether this mapping encloses
+	 * the start of a section, but whether there exists a section that
+	 * overlaps this mapping.
+	 *
+	 * If we don't already have the section addresses, and we successfully
+	 * get them, then we cache them in case we come here again.
+	 */
+	if (fptr->file_saddrs == NULL &&
+	    (fptr->file_saddrs = get_saddrs(P,
+	    fptr->file_map->map_pmap.pr_vaddr, &fptr->file_nsaddrs)) == NULL)
+		return (0);
+
+	mstart = mptr->map_pmap.pr_vaddr;
+	mend = mptr->map_pmap.pr_vaddr + mptr->map_pmap.pr_size;
+	for (i = 0; i < fptr->file_nsaddrs; i += 2) {
+		/* Does this section overlap the mapping? */
+		sstart = fptr->file_saddrs[i];
+		send = fptr->file_saddrs[i + 1];
+		if (!(mend <= sstart || mstart >= send))
+			return (1);
+	}
+
+	return (0);
+}
+
+/*
  * Find or build the symbol table for the given mapping.
  */
 static file_info_t *
@@ -847,7 +983,6 @@ build_map_symtab(struct ps_prochandle *P, map_info_t *mptr)
 {
 	prmap_t *pmap = &mptr->map_pmap;
 	file_info_t *fptr;
-	rd_loadobj_t *lop;
 	uint_t i;
 
 	if ((fptr = mptr->map_file) != NULL) {
@@ -865,11 +1000,7 @@ build_map_symtab(struct ps_prochandle *P, map_info_t *mptr)
 	for (i = 0, fptr = list_next(&P->file_head); i < P->num_files;
 	    i++, fptr = list_next(fptr)) {
 		if (strcmp(fptr->file_pname, pmap->pr_mapname) == 0 &&
-		    (lop = fptr->file_lo) != NULL &&
-		    ((pmap->pr_vaddr <= lop->rl_base &&
-		    lop->rl_base < pmap->pr_vaddr + pmap->pr_size) ||
-		    (pmap->pr_vaddr <= lop->rl_data_base &&
-		    lop->rl_data_base < pmap->pr_vaddr + pmap->pr_size))) {
+		    fptr->file_lo && is_mapping_in_file(P, mptr, fptr)) {
 			mptr->map_file = fptr;
 			fptr->file_ref++;
 			Pbuild_file_symtab(P, fptr);
@@ -902,7 +1033,7 @@ build_map_symtab(struct ps_prochandle *P, map_info_t *mptr)
 	 * fptr->file_map to be set in Pbuild_file_symtab.  librtld_db may be
 	 * unaware of what's going on in the rare case that a legitimate ELF
 	 * file has been mmap(2)ed into the process address space *without*
-	 * the use of dlopen(3x).  Why would this happen?  See pwdx ... :)
+	 * the use of dlopen(3x).
 	 */
 	if (fptr->file_map == NULL)
 		fptr->file_map = mptr;
@@ -913,7 +1044,8 @@ build_map_symtab(struct ps_prochandle *P, map_info_t *mptr)
 }
 
 static int
-read_ehdr32(struct ps_prochandle *P, Elf32_Ehdr *ehdr, uintptr_t addr)
+read_ehdr32(struct ps_prochandle *P, Elf32_Ehdr *ehdr, uint_t *phnum,
+    uintptr_t addr)
 {
 	if (Pread(P, ehdr, sizeof (*ehdr), addr) != sizeof (*ehdr))
 		return (-1);
@@ -931,16 +1063,28 @@ read_ehdr32(struct ps_prochandle *P, Elf32_Ehdr *ehdr, uintptr_t addr)
 	    ehdr->e_ident[EI_VERSION] != EV_CURRENT)
 		return (-1);
 
+	if ((*phnum = ehdr->e_phnum) == PN_XNUM) {
+		Elf32_Shdr shdr0;
+
+		if (ehdr->e_shoff == 0 || ehdr->e_shentsize < sizeof (shdr0) ||
+		    Pread(P, &shdr0, sizeof (shdr0), addr + ehdr->e_shoff) !=
+		    sizeof (shdr0))
+			return (-1);
+
+		if (shdr0.sh_info != 0)
+			*phnum = shdr0.sh_info;
+	}
+
 	return (0);
 }
 
 static int
 read_dynamic_phdr32(struct ps_prochandle *P, const Elf32_Ehdr *ehdr,
-    Elf32_Phdr *phdr, uintptr_t addr)
+    uint_t phnum, Elf32_Phdr *phdr, uintptr_t addr)
 {
 	uint_t i;
 
-	for (i = 0; i < ehdr->e_phnum; i++) {
+	for (i = 0; i < phnum; i++) {
 		uintptr_t a = addr + ehdr->e_phoff + i * ehdr->e_phentsize;
 		if (Pread(P, phdr, sizeof (*phdr), a) != sizeof (*phdr))
 			return (-1);
@@ -954,7 +1098,8 @@ read_dynamic_phdr32(struct ps_prochandle *P, const Elf32_Ehdr *ehdr,
 
 #ifdef _LP64
 static int
-read_ehdr64(struct ps_prochandle *P, Elf64_Ehdr *ehdr, uintptr_t addr)
+read_ehdr64(struct ps_prochandle *P, Elf64_Ehdr *ehdr, uint_t *phnum,
+    uintptr_t addr)
 {
 	if (Pread(P, ehdr, sizeof (Elf64_Ehdr), addr) != sizeof (Elf64_Ehdr))
 		return (-1);
@@ -972,16 +1117,28 @@ read_ehdr64(struct ps_prochandle *P, Elf64_Ehdr *ehdr, uintptr_t addr)
 	    ehdr->e_ident[EI_VERSION] != EV_CURRENT)
 		return (-1);
 
+	if ((*phnum = ehdr->e_phnum) == PN_XNUM) {
+		Elf64_Shdr shdr0;
+
+		if (ehdr->e_shoff == 0 || ehdr->e_shentsize < sizeof (shdr0) ||
+		    Pread(P, &shdr0, sizeof (shdr0), addr + ehdr->e_shoff) !=
+		    sizeof (shdr0))
+			return (-1);
+
+		if (shdr0.sh_info != 0)
+			*phnum = shdr0.sh_info;
+	}
+
 	return (0);
 }
 
 static int
 read_dynamic_phdr64(struct ps_prochandle *P, const Elf64_Ehdr *ehdr,
-    Elf64_Phdr *phdr, uintptr_t addr)
+    uint_t phnum, Elf64_Phdr *phdr, uintptr_t addr)
 {
 	uint_t i;
 
-	for (i = 0; i < ehdr->e_phnum; i++) {
+	for (i = 0; i < phnum; i++) {
 		uintptr_t a = addr + ehdr->e_phoff + i * ehdr->e_phentsize;
 		if (Pread(P, phdr, sizeof (*phdr), a) != sizeof (*phdr))
 			return (-1);
@@ -1076,6 +1233,11 @@ found_shdr:
 		    dyn.d_tag == DT_CHECKSUM)
 			goto found_cksum;
 	}
+
+	/*
+	 * The in-memory ELF has no DT_CHECKSUM section, but we will report it
+	 * as matching the file anyhow.
+	 */
 	return (0);
 
 found_cksum:
@@ -1091,10 +1253,10 @@ found_cksum:
 		Elf32_Ehdr ehdr;
 		Elf32_Phdr phdr;
 		Elf32_Dyn dync, *dynp;
-		uint_t i;
+		uint_t phnum, i;
 
-		if (read_ehdr32(P, &ehdr, addr) != 0 ||
-		    read_dynamic_phdr32(P, &ehdr, &phdr, addr) != 0)
+		if (read_ehdr32(P, &ehdr, &phnum, addr) != 0 ||
+		    read_dynamic_phdr32(P, &ehdr, phnum, &phdr, addr) != 0)
 			return (0);
 
 		if (ehdr.e_type == ET_DYN)
@@ -1126,10 +1288,10 @@ found_cksum:
 		Elf64_Ehdr ehdr;
 		Elf64_Phdr phdr;
 		Elf64_Dyn dync, *dynp;
-		uint_t i;
+		uint_t phnum, i;
 
-		if (read_ehdr64(P, &ehdr, addr) != 0 ||
-		    read_dynamic_phdr64(P, &ehdr, &phdr, addr) != 0)
+		if (read_ehdr64(P, &ehdr, &phnum, addr) != 0 ||
+		    read_dynamic_phdr64(P, &ehdr, phnum, &phdr, addr) != 0)
 			return (0);
 
 		if (ehdr.e_type == ET_DYN)
@@ -1162,27 +1324,17 @@ found_cksum:
 	return (0);
 }
 
+/*
+ * Read data from the specified process and construct an in memory
+ * image of an ELF file that represents it well enough to let
+ * us probe it for information.
+ */
 static Elf *
 fake_elf(struct ps_prochandle *P, file_info_t *fptr)
 {
-	enum {
-		DI_PLTGOT = 0,
-		DI_JMPREL,
-		DI_PLTRELSZ,
-		DI_PLTREL,
-		DI_SYMTAB,
-		DI_HASH,
-		DI_SYMENT,
-		DI_STRTAB,
-		DI_STRSZ,
-		DI_NENT
-	};
-	uintptr_t addr;
-	size_t size = 0;
-	caddr_t elfdata = NULL;
 	Elf *elf;
-	Elf32_Word nchain;
-	static char shstr[] = ".shstrtab\0.dynsym\0.dynstr\0.dynamic\0.plt";
+	uintptr_t addr;
+	uint_t phnum;
 
 	if (fptr->file_map == NULL)
 		return (NULL);
@@ -1193,726 +1345,27 @@ fake_elf(struct ps_prochandle *P, file_info_t *fptr)
 
 	addr = fptr->file_map->map_pmap.pr_vaddr;
 
-	/*
-	 * We're building a in memory elf file that will let us use libelf
-	 * for most of the work we need to later (e.g. symbol table lookups).
-	 * We need sections for the dynsym, dynstr, and plt, and we need
-	 * the program headers from the text section. The former is used in
-	 * Pbuild_file_symtab(); the latter is used in several functions in
-	 * Pcore.c to reconstruct the origin of each mapping from the load
-	 * object that spawned it.
-	 *
-	 * Here are some useful pieces of elf trivia that will help
-	 * to elucidate this code.
-	 *
-	 * All the information we need about the dynstr can be found in these
-	 * two entries in the dynamic section:
-	 *
-	 *	DT_STRTAB	base of dynstr
-	 *	DT_STRSZ	size of dynstr
-	 *
-	 * So deciphering the dynstr is pretty straightforward.
-	 *
-	 * The dynsym is a little trickier.
-	 *
-	 *	DT_SYMTAB	base of dynsym
-	 *	DT_SYMENT	size of a dynstr entry (Elf{32,64}_Sym)
-	 *	DT_HASH		base of hash table for dynamic lookups
-	 *
-	 * The DT_SYMTAB entry gives us any easy way of getting to the base
-	 * of the dynsym, but getting the size involves rooting around in the
-	 * dynamic lookup hash table. Here's the layout of the hash table:
-	 *
-	 *		+-------------------+
-	 *		|	nbucket	    |	All values are of type
-	 *		+-------------------+	Elf32_Word
-	 *		|	nchain	    |
-	 *		+-------------------+
-	 *		|	bucket[0]   |
-	 *		|	. . .	    |
-	 *		| bucket[nbucket-1] |
-	 *		+-------------------+
-	 *		|	chain[0]    |
-	 *		|	. . .	    |
-	 *		|  chain[nchain-1]  |
-	 *		+-------------------+
-	 *	(figure 5-12 from the SYS V Generic ABI)
-	 *
-	 * Symbols names are hashed into a particular bucket which contains
-	 * an index into the symbol table. Each entry in the symbol table
-	 * has a corresponding entry in the chain table which tells the
-	 * consumer where the next entry in the hash chain is. We can use
-	 * the nchain field to find out the size of the dynsym.
-	 *
-	 * We can figure out the size of the .plt section, but it takes some
-	 * doing. We need to use the following information:
-	 *
-	 *	DT_PLTGOT	base of the PLT
-	 *	DT_JMPREL	base of the PLT's relocation section
-	 *	DT_PLTRELSZ	size of the PLT's relocation section
-	 *	DT_PLTREL	type of the PLT's relocation section
-	 *
-	 * We can use the relocation section to figure out the address of the
-	 * last entry and subtract off the value of DT_PLTGOT to calculate
-	 * the size of the PLT.
-	 *
-	 * For more information, check out the System V Generic ABI.
-	 */
-
 	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
-		Elf32_Ehdr ehdr, *ep;
+		Elf32_Ehdr ehdr;
 		Elf32_Phdr phdr;
-		Elf32_Shdr *sp;
-		Elf32_Dyn *dp;
-		Elf32_Dyn *d[DI_NENT] = { 0 };
-		uint_t i, dcount = 0;
-		uint32_t off;
-		size_t pltsz = 0, pltentsz;
 
-		if (read_ehdr32(P, &ehdr, addr) != 0 ||
-		    read_dynamic_phdr32(P, &ehdr, &phdr, addr) != 0)
+		if ((read_ehdr32(P, &ehdr, &phnum, addr) != 0) ||
+		    read_dynamic_phdr32(P, &ehdr, phnum, &phdr, addr) != 0)
 			return (NULL);
 
-		if (ehdr.e_type == ET_DYN)
-			phdr.p_vaddr += addr;
-
-		if ((dp = malloc(phdr.p_filesz)) == NULL)
-			return (NULL);
-
-		if (Pread(P, dp, phdr.p_filesz, phdr.p_vaddr) !=
-		    phdr.p_filesz) {
-			free(dp);
-			return (NULL);
-		}
-
-		for (i = 0; i < phdr.p_filesz / sizeof (Elf32_Dyn); i++) {
-			switch (dp[i].d_tag) {
-			/*
-			 * For the .plt section.
-			 */
-			case DT_PLTGOT:
-				d[DI_PLTGOT] = &dp[i];
-				continue;
-			case DT_JMPREL:
-				d[DI_JMPREL] = &dp[i];
-				continue;
-			case DT_PLTRELSZ:
-				d[DI_PLTRELSZ] = &dp[i];
-				continue;
-			case DT_PLTREL:
-				d[DI_PLTREL] = &dp[i];
-				continue;
-			default:
-				continue;
-
-			/*
-			 * For the .dynsym section.
-			 */
-			case DT_SYMTAB:
-				d[DI_SYMTAB] = &dp[i];
-				break;
-			case DT_HASH:
-				d[DI_HASH] = &dp[i];
-				break;
-			case DT_SYMENT:
-				d[DI_SYMENT] = &dp[i];
-				break;
-
-			/*
-			 * For the .dynstr section.
-			 */
-			case DT_STRTAB:
-				d[DI_STRTAB] = &dp[i];
-				break;
-			case DT_STRSZ:
-				d[DI_STRSZ] = &dp[i];
-				break;
-			}
-
-			dcount++;
-		}
-
-		/*
-		 * We need all of those dynamic entries in order to put
-		 * together a complete set of elf sections, but we'll
-		 * let the PLT section slide if need be. The dynsym- and
-		 * dynstr-related dynamic entries are mandatory in both
-		 * executables and shared objects so if one of those is
-		 * missing, we're in some trouble and should abort.
-		 */
-		if (dcount + 4 != DI_NENT) {
-			dprintf("text section missing required dynamic "
-			    "entries\n");
-			return (NULL);
-		}
-
-		if (ehdr.e_type == ET_DYN) {
-			if (d[DI_PLTGOT] != NULL)
-				d[DI_PLTGOT]->d_un.d_ptr += addr;
-			if (d[DI_JMPREL] != NULL)
-				d[DI_JMPREL]->d_un.d_ptr += addr;
-			d[DI_SYMTAB]->d_un.d_ptr += addr;
-			d[DI_HASH]->d_un.d_ptr += addr;
-			d[DI_STRTAB]->d_un.d_ptr += addr;
-		}
-
-		/* elf header */
-		size = sizeof (Elf32_Ehdr);
-
-		/* program headers from in-core elf fragment */
-		size += ehdr.e_phnum * ehdr.e_phentsize;
-
-		/* unused shdr, and .shstrtab section */
-		size += sizeof (Elf32_Shdr);
-		size += sizeof (Elf32_Shdr);
-		size += roundup(sizeof (shstr), 4);
-
-		/* .dynsym section */
-		size += sizeof (Elf32_Shdr);
-		if (Pread(P, &nchain, sizeof (nchain),
-		    d[DI_HASH]->d_un.d_ptr + 4) != sizeof (nchain))
-			goto bad32;
-		size += sizeof (Elf32_Sym) * nchain;
-
-		/* .dynstr section */
-		size += sizeof (Elf32_Shdr);
-		size += roundup(d[DI_STRSZ]->d_un.d_val, 4);
-
-		/* .dynamic section */
-		size += sizeof (Elf32_Shdr);
-		size += roundup(phdr.p_filesz, 4);
-
-		/* .plt section */
-		if (d[DI_PLTGOT] != NULL && d[DI_JMPREL] != NULL &&
-		    d[DI_PLTRELSZ] != NULL && d[DI_PLTREL] != NULL) {
-			uintptr_t penult, ult;
-			uintptr_t jmprel = d[DI_JMPREL]->d_un.d_ptr;
-			size_t pltrelsz = d[DI_PLTRELSZ]->d_un.d_val;
-
-			if (d[DI_PLTREL]->d_un.d_val == DT_RELA) {
-				uint_t ndx = pltrelsz / sizeof (Elf32_Rela) - 2;
-				Elf32_Rela r[2];
-
-				if (Pread(P, r, sizeof (r), jmprel +
-				    sizeof (r[0]) * ndx) != sizeof (r))
-					goto bad32;
-
-				penult = r[0].r_offset;
-				ult = r[1].r_offset;
-
-			} else if (d[DI_PLTREL]->d_un.d_val == DT_REL) {
-				uint_t ndx = pltrelsz / sizeof (Elf32_Rel) - 2;
-				Elf32_Rel r[2];
-
-				if (Pread(P, r, sizeof (r), jmprel +
-				    sizeof (r[0]) * ndx) != sizeof (r))
-					goto bad32;
-
-				penult = r[0].r_offset;
-				ult = r[1].r_offset;
-			} else {
-				goto bad32;
-			}
-
-			pltentsz = ult - penult;
-
-			if (ehdr.e_type == ET_DYN)
-				ult += addr;
-
-			pltsz = ult - d[DI_PLTGOT]->d_un.d_ptr + pltentsz;
-
-			size += sizeof (Elf32_Shdr);
-			size += roundup(pltsz, 4);
-		}
-
-		if ((elfdata = calloc(1, size)) == NULL)
-			goto bad32;
-
-		/* LINTED - alignment */
-		ep = (Elf32_Ehdr *)elfdata;
-		(void) memcpy(ep, &ehdr, offsetof(Elf32_Ehdr, e_phoff));
-
-		ep->e_ehsize = sizeof (Elf32_Ehdr);
-		ep->e_phoff = sizeof (Elf32_Ehdr);
-		ep->e_phentsize = ehdr.e_phentsize;
-		ep->e_phnum = ehdr.e_phnum;
-		ep->e_shoff = ep->e_phoff + ep->e_phnum * ep->e_phentsize;
-		ep->e_shentsize = sizeof (Elf32_Shdr);
-		ep->e_shnum = (pltsz == 0) ? 5 : 6;
-		ep->e_shstrndx = 1;
-
-		/* LINTED - alignment */
-		sp = (Elf32_Shdr *)(elfdata + ep->e_shoff);
-		off = ep->e_shoff + ep->e_shentsize * ep->e_shnum;
-
-		/*
-		 * Copying the program headers directly from the process's
-		 * address space is a little suspect, but since we only
-		 * use them for their address and size values, this is fine.
-		 */
-		if (Pread(P, &elfdata[ep->e_phoff],
-		    ep->e_phnum * ep->e_phentsize, addr + ehdr.e_phoff) !=
-		    ep->e_phnum * ep->e_phentsize) {
-			free(elfdata);
-			goto bad32;
-		}
-
-		/*
-		 * The first elf section is always skipped.
-		 */
-		sp++;
-
-		/*
-		 * Section Header[1]  sh_name: .shstrtab
-		 */
-		sp->sh_name = 0;
-		sp->sh_type = SHT_STRTAB;
-		sp->sh_flags = SHF_STRINGS;
-		sp->sh_addr = 0;
-		sp->sh_offset = off;
-		sp->sh_size = sizeof (shstr);
-		sp->sh_link = 0;
-		sp->sh_info = 0;
-		sp->sh_addralign = 1;
-		sp->sh_entsize = 0;
-
-		(void) memcpy(&elfdata[off], shstr, sizeof (shstr));
-		off += roundup(sp->sh_size, 4);
-		sp++;
-
-		/*
-		 * Section Header[2]  sh_name: .dynsym
-		 */
-		sp->sh_name = 10;
-		sp->sh_type = SHT_DYNSYM;
-		sp->sh_flags = SHF_ALLOC;
-		sp->sh_addr = d[DI_SYMTAB]->d_un.d_ptr;
-		if (ehdr.e_type == ET_DYN)
-			sp->sh_addr -= addr;
-		sp->sh_offset = off;
-		sp->sh_size = nchain * sizeof (Elf32_Sym);
-		sp->sh_link = 3;
-		sp->sh_info = 1;
-		sp->sh_addralign = 4;
-		sp->sh_entsize = sizeof (Elf32_Sym);
-
-		if (Pread(P, &elfdata[off], sp->sh_size,
-		    d[DI_SYMTAB]->d_un.d_ptr) != sp->sh_size) {
-			free(elfdata);
-			goto bad32;
-		}
-
-		off += roundup(sp->sh_size, 4);
-		sp++;
-
-		/*
-		 * Section Header[3]  sh_name: .dynstr
-		 */
-		sp->sh_name = 18;
-		sp->sh_type = SHT_STRTAB;
-		sp->sh_flags = SHF_ALLOC | SHF_STRINGS;
-		sp->sh_addr = d[DI_STRTAB]->d_un.d_ptr;
-		if (ehdr.e_type == ET_DYN)
-			sp->sh_addr -= addr;
-		sp->sh_offset = off;
-		sp->sh_size = d[DI_STRSZ]->d_un.d_val;
-		sp->sh_link = 0;
-		sp->sh_info = 0;
-		sp->sh_addralign = 1;
-		sp->sh_entsize = 0;
-
-		if (Pread(P, &elfdata[off], sp->sh_size,
-		    d[DI_STRTAB]->d_un.d_ptr) != sp->sh_size) {
-			free(elfdata);
-			goto bad32;
-		}
-		off += roundup(sp->sh_size, 4);
-		sp++;
-
-		/*
-		 * Section Header[4]  sh_name: .dynamic
-		 */
-		sp->sh_name = 26;
-		sp->sh_type = SHT_DYNAMIC;
-		sp->sh_flags = SHF_WRITE | SHF_ALLOC;
-		sp->sh_addr = phdr.p_vaddr;
-		if (ehdr.e_type == ET_DYN)
-			sp->sh_addr -= addr;
-		sp->sh_offset = off;
-		sp->sh_size = phdr.p_filesz;
-		sp->sh_link = 3;
-		sp->sh_info = 0;
-		sp->sh_addralign = 4;
-		sp->sh_entsize = sizeof (Elf32_Dyn);
-
-		(void) memcpy(&elfdata[off], dp, sp->sh_size);
-		off += roundup(sp->sh_size, 4);
-		sp++;
-
-		/*
-		 * Section Header[5]  sh_name: .plt
-		 */
-		if (pltsz != 0) {
-			sp->sh_name = 35;
-			sp->sh_type = SHT_PROGBITS;
-			sp->sh_flags = SHF_WRITE | SHF_ALLOC | SHF_EXECINSTR;
-			sp->sh_addr = d[DI_PLTGOT]->d_un.d_ptr;
-			if (ehdr.e_type == ET_DYN)
-				sp->sh_addr -= addr;
-			sp->sh_offset = off;
-			sp->sh_size = pltsz;
-			sp->sh_link = 0;
-			sp->sh_info = 0;
-			sp->sh_addralign = 4;
-			sp->sh_entsize = pltentsz;
-
-			if (Pread(P, &elfdata[off], sp->sh_size,
-			    d[DI_PLTGOT]->d_un.d_ptr) != sp->sh_size) {
-				free(elfdata);
-				goto bad32;
-			}
-			off += roundup(sp->sh_size, 4);
-			sp++;
-		}
-
-		free(dp);
-		goto good;
-
-bad32:
-		free(dp);
-		return (NULL);
+		elf = fake_elf32(P, fptr, addr, &ehdr, phnum, &phdr);
 #ifdef _LP64
-	} else if (P->status.pr_dmodel == PR_MODEL_LP64) {
-		Elf64_Ehdr ehdr, *ep;
+	} else {
+		Elf64_Ehdr ehdr;
 		Elf64_Phdr phdr;
-		Elf64_Shdr *sp;
-		Elf64_Dyn *dp;
-		Elf64_Dyn *d[DI_NENT] = { 0 };
-		uint_t i, dcount = 0;
-		uint64_t off;
-		size_t pltsz = 0, pltentsz;
 
-		if (read_ehdr64(P, &ehdr, addr) != 0 ||
-		    read_dynamic_phdr64(P, &ehdr, &phdr, addr) != 0)
+		if (read_ehdr64(P, &ehdr, &phnum, addr) != 0 ||
+		    read_dynamic_phdr64(P, &ehdr, phnum, &phdr, addr) != 0)
 			return (NULL);
 
-		if (ehdr.e_type == ET_DYN)
-			phdr.p_vaddr += addr;
-
-		if ((dp = malloc(phdr.p_filesz)) == NULL)
-			return (NULL);
-
-		if (Pread(P, dp, phdr.p_filesz, phdr.p_vaddr) !=
-		    phdr.p_filesz) {
-			free(dp);
-			return (NULL);
-		}
-
-		for (i = 0; i < phdr.p_filesz / sizeof (Elf64_Dyn); i++) {
-			switch (dp[i].d_tag) {
-			/*
-			 * For the .plt section.
-			 */
-			case DT_PLTGOT:
-				d[DI_PLTGOT] = &dp[i];
-				continue;
-			case DT_JMPREL:
-				d[DI_JMPREL] = &dp[i];
-				continue;
-			case DT_PLTRELSZ:
-				d[DI_PLTRELSZ] = &dp[i];
-				continue;
-			case DT_PLTREL:
-				d[DI_PLTREL] = &dp[i];
-				continue;
-			default:
-				continue;
-
-			/*
-			 * For the .dynsym section.
-			 */
-			case DT_SYMTAB:
-				d[DI_SYMTAB] = &dp[i];
-				break;
-			case DT_HASH:
-				d[DI_HASH] = &dp[i];
-				break;
-			case DT_SYMENT:
-				d[DI_SYMENT] = &dp[i];
-				break;
-
-			/*
-			 * For the .dynstr section.
-			 */
-			case DT_STRTAB:
-				d[DI_STRTAB] = &dp[i];
-				break;
-			case DT_STRSZ:
-				d[DI_STRSZ] = &dp[i];
-				break;
-			}
-
-			dcount++;
-		}
-
-		/*
-		 * We need all of those dynamic entries in order to put
-		 * together a complete set of elf sections, but we'll
-		 * let the PLT section slide if need be. The dynsym- and
-		 * dynstr-related dynamic entries are mandatory in both
-		 * executables and shared objects so if one of those is
-		 * missing, we're in some trouble and should abort.
-		 */
-		if (dcount + 4 != DI_NENT) {
-			dprintf("text section missing required dynamic "
-			    "entries\n");
-			return (NULL);
-		}
-
-		if (ehdr.e_type == ET_DYN) {
-			if (d[DI_PLTGOT] != NULL)
-				d[DI_PLTGOT]->d_un.d_ptr += addr;
-			if (d[DI_JMPREL] != NULL)
-				d[DI_JMPREL]->d_un.d_ptr += addr;
-			d[DI_SYMTAB]->d_un.d_ptr += addr;
-			d[DI_HASH]->d_un.d_ptr += addr;
-			d[DI_STRTAB]->d_un.d_ptr += addr;
-		}
-
-		/* elf header */
-		size = sizeof (Elf64_Ehdr);
-
-		/* program headers from in-core elf fragment */
-		size += ehdr.e_phnum * ehdr.e_phentsize;
-
-		/* unused shdr, and .shstrtab section */
-		size += sizeof (Elf64_Shdr);
-		size += sizeof (Elf64_Shdr);
-		size += roundup(sizeof (shstr), 8);
-
-		/* .dynsym section */
-		size += sizeof (Elf64_Shdr);
-		if (Pread(P, &nchain, sizeof (nchain),
-		    d[DI_HASH]->d_un.d_ptr + 4) != sizeof (nchain))
-			goto bad64;
-		size += sizeof (Elf64_Sym) * nchain;
-
-		/* .dynstr section */
-		size += sizeof (Elf64_Shdr);
-		size += roundup(d[DI_STRSZ]->d_un.d_val, 8);
-
-		/* .dynamic section */
-		size += sizeof (Elf64_Shdr);
-		size += roundup(phdr.p_filesz, 8);
-
-		/* .plt section */
-		if (d[DI_PLTGOT] != NULL && d[DI_JMPREL] != NULL &&
-		    d[DI_PLTRELSZ] != NULL && d[DI_PLTREL] != NULL) {
-			uintptr_t penult, ult;
-			uintptr_t jmprel = d[DI_JMPREL]->d_un.d_ptr;
-			size_t pltrelsz = d[DI_PLTRELSZ]->d_un.d_val;
-
-			if (d[DI_PLTREL]->d_un.d_val == DT_RELA) {
-				uint_t ndx = pltrelsz / sizeof (Elf64_Rela) - 2;
-				Elf64_Rela r[2];
-
-				if (Pread(P, r, sizeof (r), jmprel +
-				    sizeof (r[0]) * ndx) != sizeof (r))
-					goto bad64;
-
-				penult = r[0].r_offset;
-				ult = r[1].r_offset;
-
-			} else if (d[DI_PLTREL]->d_un.d_val == DT_REL) {
-				uint_t ndx = pltrelsz / sizeof (Elf64_Rel) - 2;
-				Elf64_Rel r[2];
-
-				if (Pread(P, r, sizeof (r), jmprel +
-				    sizeof (r[0]) * ndx) != sizeof (r))
-					goto bad64;
-
-				penult = r[0].r_offset;
-				ult = r[1].r_offset;
-			} else {
-				goto bad64;
-			}
-
-			pltentsz = ult - penult;
-
-			if (ehdr.e_type == ET_DYN)
-				ult += addr;
-
-			pltsz = ult - d[DI_PLTGOT]->d_un.d_ptr + pltentsz;
-
-			size += sizeof (Elf64_Shdr);
-			size += roundup(pltsz, 8);
-		}
-
-		if ((elfdata = calloc(1, size)) == NULL)
-			goto bad64;
-
-		/* LINTED - alignment */
-		ep = (Elf64_Ehdr *)elfdata;
-		(void) memcpy(ep, &ehdr, offsetof(Elf64_Ehdr, e_phoff));
-
-		ep->e_ehsize = sizeof (Elf64_Ehdr);
-		ep->e_phoff = sizeof (Elf64_Ehdr);
-		ep->e_phentsize = ehdr.e_phentsize;
-		ep->e_phnum = ehdr.e_phnum;
-		ep->e_shoff = ep->e_phoff + ep->e_phnum * ep->e_phentsize;
-		ep->e_shentsize = sizeof (Elf64_Shdr);
-		ep->e_shnum = (pltsz == 0) ? 5 : 6;
-		ep->e_shstrndx = 1;
-
-		/* LINTED - alignment */
-		sp = (Elf64_Shdr *)(elfdata + ep->e_shoff);
-		off = ep->e_shoff + ep->e_shentsize * ep->e_shnum;
-
-		/*
-		 * Copying the program headers directly from the process's
-		 * address space is a little suspect, but since we only
-		 * use them for their address and size values, this is fine.
-		 */
-		if (Pread(P, &elfdata[ep->e_phoff],
-		    ep->e_phnum * ep->e_phentsize, addr + ehdr.e_phoff) !=
-		    ep->e_phnum * ep->e_phentsize) {
-			free(elfdata);
-			goto bad64;
-		}
-
-		/*
-		 * The first elf section is always skipped.
-		 */
-		sp++;
-
-		/*
-		 * Section Header[1]  sh_name: .shstrtab
-		 */
-		sp->sh_name = 0;
-		sp->sh_type = SHT_STRTAB;
-		sp->sh_flags = SHF_STRINGS;
-		sp->sh_addr = 0;
-		sp->sh_offset = off;
-		sp->sh_size = sizeof (shstr);
-		sp->sh_link = 0;
-		sp->sh_info = 0;
-		sp->sh_addralign = 1;
-		sp->sh_entsize = 0;
-
-		(void) memcpy(&elfdata[off], shstr, sizeof (shstr));
-		off += roundup(sp->sh_size, 8);
-		sp++;
-
-		/*
-		 * Section Header[2]  sh_name: .dynsym
-		 */
-		sp->sh_name = 10;
-		sp->sh_type = SHT_DYNSYM;
-		sp->sh_flags = SHF_ALLOC;
-		sp->sh_addr = d[DI_SYMTAB]->d_un.d_ptr;
-		if (ehdr.e_type == ET_DYN)
-			sp->sh_addr -= addr;
-		sp->sh_offset = off;
-		sp->sh_size = nchain * sizeof (Elf64_Sym);
-		sp->sh_link = 3;
-		sp->sh_info = 1;
-		sp->sh_addralign = 8;
-		sp->sh_entsize = sizeof (Elf64_Sym);
-
-		if (Pread(P, &elfdata[off], sp->sh_size,
-		    d[DI_SYMTAB]->d_un.d_ptr) != sp->sh_size) {
-			free(elfdata);
-			goto bad64;
-		}
-
-		off += roundup(sp->sh_size, 8);
-		sp++;
-
-		/*
-		 * Section Header[3]  sh_name: .dynstr
-		 */
-		sp->sh_name = 18;
-		sp->sh_type = SHT_STRTAB;
-		sp->sh_flags = SHF_ALLOC | SHF_STRINGS;
-		sp->sh_addr = d[DI_STRTAB]->d_un.d_ptr;
-		if (ehdr.e_type == ET_DYN)
-			sp->sh_addr -= addr;
-		sp->sh_offset = off;
-		sp->sh_size = d[DI_STRSZ]->d_un.d_val;
-		sp->sh_link = 0;
-		sp->sh_info = 0;
-		sp->sh_addralign = 1;
-		sp->sh_entsize = 0;
-
-		if (Pread(P, &elfdata[off], sp->sh_size,
-		    d[DI_STRTAB]->d_un.d_ptr) != sp->sh_size) {
-			free(elfdata);
-			goto bad64;
-		}
-		off += roundup(sp->sh_size, 8);
-		sp++;
-
-		/*
-		 * Section Header[4]  sh_name: .dynamic
-		 */
-		sp->sh_name = 26;
-		sp->sh_type = SHT_DYNAMIC;
-		sp->sh_flags = SHF_WRITE | SHF_ALLOC;
-		sp->sh_addr = phdr.p_vaddr;
-		if (ehdr.e_type == ET_DYN)
-			sp->sh_addr -= addr;
-		sp->sh_offset = off;
-		sp->sh_size = phdr.p_filesz;
-		sp->sh_link = 3;
-		sp->sh_info = 0;
-		sp->sh_addralign = 8;
-		sp->sh_entsize = sizeof (Elf64_Dyn);
-
-		(void) memcpy(&elfdata[off], dp, sp->sh_size);
-		off += roundup(sp->sh_size, 8);
-		sp++;
-
-		/*
-		 * Section Header[5]  sh_name: .plt
-		 */
-		if (pltsz != 0) {
-			sp->sh_name = 35;
-			sp->sh_type = SHT_PROGBITS;
-			sp->sh_flags = SHF_WRITE | SHF_ALLOC | SHF_EXECINSTR;
-			sp->sh_addr = d[DI_PLTGOT]->d_un.d_ptr;
-			if (ehdr.e_type == ET_DYN)
-				sp->sh_addr -= addr;
-			sp->sh_offset = off;
-			sp->sh_size = pltsz;
-			sp->sh_link = 0;
-			sp->sh_info = 0;
-			sp->sh_addralign = 8;
-			sp->sh_entsize = pltentsz;
-
-			if (Pread(P, &elfdata[off], sp->sh_size,
-			    d[DI_PLTGOT]->d_un.d_ptr) != sp->sh_size) {
-				free(elfdata);
-				goto bad64;
-			}
-			off += roundup(sp->sh_size, 8);
-			sp++;
-		}
-
-		free(dp);
-		goto good;
-
-bad64:
-		free(dp);
-		return (NULL);
-#endif	/* _LP64 */
+		elf = fake_elf64(P, fptr, addr, &ehdr, phnum, &phdr);
+#endif
 	}
-good:
-	if ((elf = elf_memory(elfdata, size)) == NULL) {
-		free(elfdata);
-		return (NULL);
-	}
-
-	fptr->file_elfmem = elfdata;
 
 	return (elf);
 }
@@ -1951,6 +1404,15 @@ byaddr_cmp_common(GElf_Sym *a, char *aname, GElf_Sym *b, char *bname)
 		if (GELF_ST_BIND(a->st_info) == STB_LOCAL)
 			return (1);
 	}
+
+	/*
+	 * Prefer the symbol that doesn't begin with a '$' since compilers and
+	 * other symbol generators often use it as a prefix.
+	 */
+	if (*bname == '$')
+		return (-1);
+	if (*aname == '$')
+		return (1);
 
 	/*
 	 * Prefer the name with fewer leading underscores in the name.
@@ -2001,23 +1463,46 @@ byname_cmp(const void *aa, const void *bb)
 	return (strcmp(aname, bname));
 }
 
+/*
+ * Given a symbol index, look up the corresponding symbol from the
+ * given symbol table.
+ *
+ * This function allows the caller to treat the symbol table as a single
+ * logical entity even though there may be 2 actual ELF symbol tables
+ * involved. See the comments in Pcontrol.h for details.
+ */
+static GElf_Sym *
+symtab_getsym(sym_tbl_t *symtab, int ndx, GElf_Sym *dst)
+{
+	/* If index is in range of primary symtab, look it up there */
+	if (ndx >= symtab->sym_symn_aux) {
+		return (gelf_getsym(symtab->sym_data_pri,
+		    ndx - symtab->sym_symn_aux, dst));
+	}
+
+	/* Not in primary: Look it up in the auxiliary symtab */
+	return (gelf_getsym(symtab->sym_data_aux, ndx, dst));
+}
+
 void
 optimize_symtab(sym_tbl_t *symtab)
 {
 	GElf_Sym *symp, *syms;
 	uint_t i, *indexa, *indexb;
-	Elf_Data *data;
 	size_t symn, strsz, count;
 
-	if (symtab == NULL || symtab->sym_data == NULL ||
+	if (symtab == NULL || symtab->sym_data_pri == NULL ||
 	    symtab->sym_byaddr != NULL)
 		return;
 
-	data = symtab->sym_data;
 	symn = symtab->sym_symn;
 	strsz = symtab->sym_strsz;
 
 	symp = syms = malloc(sizeof (GElf_Sym) * symn);
+	if (symp == NULL) {
+		dprintf("optimize_symtab: failed to malloc symbol array");
+		return;
+	}
 
 	/*
 	 * First record all the symbols into a table and count up the ones
@@ -2025,7 +1510,7 @@ optimize_symtab(sym_tbl_t *symtab)
 	 * the st_name to an illegal value.
 	 */
 	for (i = 0, count = 0; i < symn; i++, symp++) {
-		if (gelf_getsym(data, i, symp) != NULL &&
+		if (symtab_getsym(symtab, i, symp) != NULL &&
 		    symp->st_name < strsz &&
 		    IS_DATA_TYPE(GELF_ST_TYPE(symp->st_info)))
 			count++;
@@ -2040,25 +1525,48 @@ optimize_symtab(sym_tbl_t *symtab)
 	symtab->sym_count = count;
 	indexa = symtab->sym_byaddr = calloc(sizeof (uint_t), count);
 	indexb = symtab->sym_byname = calloc(sizeof (uint_t), count);
-
+	if (indexa == NULL || indexb == NULL) {
+		dprintf(
+		    "optimize_symtab: failed to malloc symbol index arrays");
+		symtab->sym_count = 0;
+		if (indexa != NULL) {	/* First alloc succeeded. Free it */
+			free(indexa);
+			symtab->sym_byaddr = NULL;
+		}
+		free(syms);
+		return;
+	}
 	for (i = 0, symp = syms; i < symn; i++, symp++) {
 		if (symp->st_name < strsz)
 			*indexa++ = *indexb++ = i;
 	}
 
 	/*
-	 * Sort the two tables according to the appropriate criteria.
+	 * Sort the two tables according to the appropriate criteria,
+	 * unless the user has overridden this behaviour.
+	 *
+	 * An example where we might not sort the tables is the relatively
+	 * unusual case of a process with very large symbol tables in which
+	 * we perform few lookups. In such a case the total time would be
+	 * dominated by the sort. It is difficult to determine a priori
+	 * how many lookups an arbitrary client will perform, and
+	 * hence whether the symbol tables should be sorted. We therefore
+	 * sort the tables by default, but provide the user with a
+	 * "chicken switch" in the form of the LIBPROC_NO_QSORT
+	 * environment variable.
 	 */
-	(void) mutex_lock(&sort_mtx);
-	sort_strs = symtab->sym_strs;
-	sort_syms = syms;
+	if (!_libproc_no_qsort) {
+		(void) mutex_lock(&sort_mtx);
+		sort_strs = symtab->sym_strs;
+		sort_syms = syms;
 
-	qsort(symtab->sym_byaddr, count, sizeof (uint_t), byaddr_cmp);
-	qsort(symtab->sym_byname, count, sizeof (uint_t), byname_cmp);
+		qsort(symtab->sym_byaddr, count, sizeof (uint_t), byaddr_cmp);
+		qsort(symtab->sym_byname, count, sizeof (uint_t), byname_cmp);
 
-	sort_strs = NULL;
-	sort_syms = NULL;
-	(void) mutex_unlock(&sort_mtx);
+		sort_strs = NULL;
+		sort_syms = NULL;
+		(void) mutex_unlock(&sort_mtx);
+	}
 
 	free(syms);
 }
@@ -2078,6 +1586,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	Elf_Data *shdata;
 	Elf_Scn *scn;
 	Elf *elf;
+	size_t nshdrs, shstrndx;
 
 	struct {
 		GElf_Shdr c_shdr;
@@ -2112,7 +1621,8 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		    fptr->file_lname ? fptr->file_lname : fptr->file_pname);
 	} else {
 		(void) snprintf(objectfile, sizeof (objectfile),
-		    "/proc/%d/object/%s", (int)P->pid, fptr->file_pname);
+		    "%s/%d/object/%s",
+		    procfs_path, (int)P->pid, fptr->file_pname);
 	}
 
 	/*
@@ -2128,7 +1638,9 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		if ((elf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(elf) != ELF_K_ELF ||
 		    gelf_getehdr(elf, &ehdr) == NULL ||
-		    (scn = elf_getscn(elf, ehdr.e_shstrndx)) == NULL ||
+		    elf_getshnum(elf, &nshdrs) == 0 ||
+		    elf_getshstrndx(elf, &shstrndx) == 0 ||
+		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
 			return;
@@ -2137,15 +1649,21 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	} else if ((elf = elf_begin(fptr->file_fd, ELF_C_READ, NULL)) == NULL ||
 	    elf_kind(elf) != ELF_K_ELF ||
 	    gelf_getehdr(elf, &ehdr) == NULL ||
-	    (scn = elf_getscn(elf, ehdr.e_shstrndx)) == NULL ||
+	    elf_getshnum(elf, &nshdrs) == 0 ||
+	    elf_getshstrndx(elf, &shstrndx) == 0 ||
+	    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 	    (shdata = elf_getdata(scn, NULL)) == NULL) {
+		int err = elf_errno();
+
 		dprintf("failed to process ELF file %s: %s\n",
-		    objectfile, elf_errmsg(elf_errno()));
+		    objectfile, (err == 0) ? "<null>" : elf_errmsg(err));
 
 		if ((elf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(elf) != ELF_K_ELF ||
 		    gelf_getehdr(elf, &ehdr) == NULL ||
-		    (scn = elf_getscn(elf, ehdr.e_shstrndx)) == NULL ||
+		    elf_getshnum(elf, &nshdrs) == 0 ||
+		    elf_getshstrndx(elf, &shstrndx) == 0 ||
+		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
 			goto bad;
@@ -2168,7 +1686,9 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		if ((newelf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(newelf) != ELF_K_ELF ||
 		    gelf_getehdr(newelf, &ehdr) == NULL ||
-		    (scn = elf_getscn(newelf, ehdr.e_shstrndx)) == NULL ||
+		    elf_getshnum(newelf, &nshdrs) == 0 ||
+		    elf_getshstrndx(newelf, &shstrndx) == 0 ||
+		    (scn = elf_getscn(newelf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
 		} else {
@@ -2179,7 +1699,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		}
 	}
 
-	if ((cache = malloc(ehdr.e_shnum * sizeof (*cache))) == NULL) {
+	if ((cache = malloc(nshdrs * sizeof (*cache))) == NULL) {
 		dprintf("failed to malloc section cache for %s\n", objectfile);
 		goto bad;
 	}
@@ -2188,35 +1708,45 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	fptr->file_class = ehdr.e_ident[EI_CLASS];
 	fptr->file_etype = ehdr.e_type;
 	fptr->file_elf = elf;
+	fptr->file_shstrs = shdata->d_buf;
+	fptr->file_shstrsz = shdata->d_size;
 
 	/*
 	 * Iterate through each section, caching its section header, data
 	 * pointer, and name.  We use this for handling sh_link values below.
 	 */
 	for (cp = cache + 1, scn = NULL; scn = elf_nextscn(elf, scn); cp++) {
-		if (gelf_getshdr(scn, &cp->c_shdr) == NULL)
+		if (gelf_getshdr(scn, &cp->c_shdr) == NULL) {
+			dprintf("Pbuild_file_symtab: Failed to get section "
+			    "header\n");
 			goto bad; /* Failed to get section header */
+		}
 
-		if ((cp->c_data = elf_getdata(scn, NULL)) == NULL)
+		if ((cp->c_data = elf_getdata(scn, NULL)) == NULL) {
+			dprintf("Pbuild_file_symtab: Failed to get section "
+			    "data\n");
 			goto bad; /* Failed to get section data */
+		}
 
-		if (cp->c_shdr.sh_name >= shdata->d_size)
+		if (cp->c_shdr.sh_name >= shdata->d_size) {
+			dprintf("Pbuild_file_symtab: corrupt section name");
 			goto bad; /* Corrupt section name */
+		}
 
 		cp->c_name = (const char *)shdata->d_buf + cp->c_shdr.sh_name;
 	}
 
 	/*
 	 * Now iterate through the section cache in order to locate info
-	 * for the .symtab, .dynsym, .dynamic, .plt, and .SUNW_ctf sections:
+	 * for the .symtab, .dynsym, .SUNW_ldynsym, .dynamic, .plt,
+	 * and .SUNW_ctf sections:
 	 */
-	for (i = 1, cp = cache + 1; i < ehdr.e_shnum; i++, cp++) {
+	for (i = 1, cp = cache + 1; i < nshdrs; i++, cp++) {
 		GElf_Shdr *shp = &cp->c_shdr;
 
 		if (shp->sh_type == SHT_SYMTAB || shp->sh_type == SHT_DYNSYM) {
 			sym_tbl_t *symp = shp->sh_type == SHT_SYMTAB ?
 			    &fptr->file_symtab : &fptr->file_dynsym;
-
 			/*
 			 * It's possible that the we already got the symbol
 			 * table from the core file itself. Either the file
@@ -2227,30 +1757,48 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 			 * with an equivalent one. In either case, this
 			 * check isn't essential, but it's a good idea.
 			 */
-			if (symp->sym_data == NULL) {
-				symp->sym_data = cp->c_data;
-				symp->sym_symn = shp->sh_size / shp->sh_entsize;
+			if (symp->sym_data_pri == NULL) {
+				dprintf("Symbol table found for %s\n",
+				    objectfile);
+				symp->sym_data_pri = cp->c_data;
+				symp->sym_symn +=
+				    shp->sh_size / shp->sh_entsize;
 				symp->sym_strs =
 				    cache[shp->sh_link].c_data->d_buf;
 				symp->sym_strsz =
 				    cache[shp->sh_link].c_data->d_size;
-				symp->sym_hdr = cp->c_shdr;
+				symp->sym_hdr_pri = cp->c_shdr;
 				symp->sym_strhdr = cache[shp->sh_link].c_shdr;
+			} else {
+				dprintf("Symbol table already there for %s\n",
+				    objectfile);
 			}
-
+		} else if (shp->sh_type == SHT_SUNW_LDYNSYM) {
+			/* .SUNW_ldynsym section is auxiliary to .dynsym */
+			if (fptr->file_dynsym.sym_data_aux == NULL) {
+				dprintf(".SUNW_ldynsym symbol table"
+				    " found for %s\n", objectfile);
+				fptr->file_dynsym.sym_data_aux = cp->c_data;
+				fptr->file_dynsym.sym_symn_aux =
+				    shp->sh_size / shp->sh_entsize;
+				fptr->file_dynsym.sym_symn +=
+				    fptr->file_dynsym.sym_symn_aux;
+				fptr->file_dynsym.sym_hdr_aux = cp->c_shdr;
+			} else {
+				dprintf(".SUNW_ldynsym symbol table already"
+				    " there for %s\n", objectfile);
+			}
 		} else if (shp->sh_type == SHT_DYNAMIC) {
 			dyn = cp;
-
 		} else if (strcmp(cp->c_name, ".plt") == 0) {
 			plt = cp;
-
 		} else if (strcmp(cp->c_name, ".SUNW_ctf") == 0) {
 			/*
 			 * Skip over bogus CTF sections so they don't come back
 			 * to haunt us later.
 			 */
 			if (shp->sh_link == 0 ||
-			    shp->sh_link > ehdr.e_shnum ||
+			    shp->sh_link >= nshdrs ||
 			    (cache[shp->sh_link].c_shdr.sh_type != SHT_DYNSYM &&
 			    cache[shp->sh_link].c_shdr.sh_type != SHT_SYMTAB)) {
 				dprintf("Bad sh_link %d for "
@@ -2277,8 +1825,8 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	if (fptr->file_etype == ET_DYN) {
 		fptr->file_dyn_base = fptr->file_map->map_pmap.pr_vaddr -
 		    fptr->file_map->map_pmap.pr_offset;
-		dprintf("setting file_dyn_base for %s to %p\n",
-		    objectfile, (void *)fptr->file_dyn_base);
+		dprintf("setting file_dyn_base for %s to %lx\n",
+		    objectfile, (long)fptr->file_dyn_base);
 	}
 
 	/*
@@ -2301,8 +1849,8 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	 */
 	if (fptr->file_etype == ET_DYN &&
 	    fptr->file_lo->rl_base != fptr->file_dyn_base) {
-		dprintf("resetting file_dyn_base for %s to %p\n",
-		    objectfile, (void *)fptr->file_lo->rl_base);
+		dprintf("resetting file_dyn_base for %s to %lx\n",
+		    objectfile, (long)fptr->file_lo->rl_base);
 		fptr->file_dyn_base = fptr->file_lo->rl_base;
 	}
 
@@ -2338,6 +1886,8 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		for (i = 0; i < ndyn; i++) {
 			if (gelf_getdyn(dyn->c_data, i, &d) != NULL &&
 			    d.d_tag == DT_JMPREL) {
+				dprintf("DT_JMPREL is %p\n",
+				    (void *)(uintptr_t)d.d_un.d_ptr);
 				fptr->file_jmp_rel =
 				    d.d_un.d_ptr + fptr->file_dyn_base;
 				break;
@@ -2463,6 +2013,13 @@ object_to_map(struct ps_prochandle *P, Lmid_t lmid, const char *objname)
 	uint_t i;
 
 	/*
+	 * If we have no rtld_db, then always treat a request as one for all
+	 * link maps.
+	 */
+	if (P->rap == NULL)
+		lmid = PR_LMID_EVERY;
+
+	/*
 	 * First pass: look for exact matches of the entire pathname or
 	 * basename (cases 1 and 2 above):
 	 */
@@ -2569,19 +2126,17 @@ sym_prefer(GElf_Sym *sym1, char *name1, GElf_Sym *sym2, char *name2)
 }
 
 /*
- * Look up a symbol by address in the specified symbol table.
- * Adjustment to 'addr' must already have been made for the
- * offset of the symbol if this is a dynamic library symbol table.
+ * Use a binary search to do the work of sym_by_addr().
  */
 static GElf_Sym *
-sym_by_addr(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symp, uint_t *idp)
+sym_by_addr_binary(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symp,
+    uint_t *idp)
 {
-	Elf_Data *data = symtab->sym_data;
 	GElf_Sym sym, osym;
 	uint_t i, oid, *byaddr = symtab->sym_byaddr;
 	int min, max, mid, omid, found = 0;
 
-	if (data == NULL)
+	if (symtab->sym_data_pri == NULL || symtab->sym_count == 0)
 		return (NULL);
 
 	min = 0;
@@ -2596,7 +2151,7 @@ sym_by_addr(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symp, uint_t *idp)
 		mid = (max + min) / 2;
 
 		i = byaddr[mid];
-		(void) gelf_getsym(data, i, &sym);
+		(void) symtab_getsym(symtab, i, &sym);
 
 		if (addr >= sym.st_value &&
 		    addr < sym.st_value + sym.st_size &&
@@ -2628,7 +2183,7 @@ sym_by_addr(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symp, uint_t *idp)
 			break;
 
 		oid = byaddr[--omid];
-		(void) gelf_getsym(data, oid, &osym);
+		(void) symtab_getsym(symtab, oid, &osym);
 	} while (addr >= osym.st_value &&
 	    addr < sym.st_value + osym.st_size &&
 	    osym.st_value == sym.st_value);
@@ -2640,17 +2195,77 @@ sym_by_addr(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symp, uint_t *idp)
 }
 
 /*
- * Look up a symbol by name in the specified symbol table.
+ * Use a linear search to do the work of sym_by_addr().
  */
 static GElf_Sym *
-sym_by_name(sym_tbl_t *symtab, const char *name, GElf_Sym *symp, uint_t *idp)
+sym_by_addr_linear(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symbolp,
+    uint_t *idp)
 {
-	Elf_Data *data = symtab->sym_data;
+	size_t symn = symtab->sym_symn;
+	char *strs = symtab->sym_strs;
+	GElf_Sym sym, *symp = NULL;
+	GElf_Sym osym, *osymp = NULL;
+	int i, id;
+
+	if (symtab->sym_data_pri == NULL || symn == 0 || strs == NULL)
+		return (NULL);
+
+	for (i = 0; i < symn; i++) {
+		if ((symp = symtab_getsym(symtab, i, &sym)) != NULL) {
+			if (addr >= sym.st_value &&
+			    addr < sym.st_value + sym.st_size) {
+				if (osymp)
+					symp = sym_prefer(
+					    symp, strs + symp->st_name,
+					    osymp, strs + osymp->st_name);
+				if (symp != osymp) {
+					osym = sym;
+					osymp = &osym;
+					id = i;
+				}
+			}
+		}
+	}
+	if (osymp) {
+		*symbolp = osym;
+		if (idp)
+			*idp = id;
+		return (symbolp);
+	}
+	return (NULL);
+}
+
+/*
+ * Look up a symbol by address in the specified symbol table.
+ * Adjustment to 'addr' must already have been made for the
+ * offset of the symbol if this is a dynamic library symbol table.
+ *
+ * Use a linear or a binary search depending on whether or not we
+ * chose to sort the table in optimize_symtab().
+ */
+static GElf_Sym *
+sym_by_addr(sym_tbl_t *symtab, GElf_Addr addr, GElf_Sym *symp, uint_t *idp)
+{
+	if (_libproc_no_qsort) {
+		return (sym_by_addr_linear(symtab, addr, symp, idp));
+	} else {
+		return (sym_by_addr_binary(symtab, addr, symp, idp));
+	}
+}
+
+/*
+ * Use a binary search to do the work of sym_by_name().
+ */
+static GElf_Sym *
+sym_by_name_binary(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
+    uint_t *idp)
+{
 	char *strs = symtab->sym_strs;
 	uint_t i, *byname = symtab->sym_byname;
 	int min, mid, max, cmp;
 
-	if (data == NULL || strs == NULL)
+	if (symtab->sym_data_pri == NULL || strs == NULL ||
+	    symtab->sym_count == 0)
 		return (NULL);
 
 	min = 0;
@@ -2660,7 +2275,7 @@ sym_by_name(sym_tbl_t *symtab, const char *name, GElf_Sym *symp, uint_t *idp)
 		mid = (max + min) / 2;
 
 		i = byname[mid];
-		(void) gelf_getsym(data, i, symp);
+		(void) symtab_getsym(symtab, i, symp);
 
 		if ((cmp = strcmp(name, strs + symp->st_name)) == 0) {
 			if (idp != NULL)
@@ -2675,6 +2290,48 @@ sym_by_name(sym_tbl_t *symtab, const char *name, GElf_Sym *symp, uint_t *idp)
 	}
 
 	return (NULL);
+}
+
+/*
+ * Use a linear search to do the work of sym_by_name().
+ */
+static GElf_Sym *
+sym_by_name_linear(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
+    uint_t *idp)
+{
+	size_t symn = symtab->sym_symn;
+	char *strs = symtab->sym_strs;
+	int i;
+
+	if (symtab->sym_data_pri == NULL || symn == 0 || strs == NULL)
+		return (NULL);
+
+	for (i = 0; i < symn; i++) {
+		if (symtab_getsym(symtab, i, symp) &&
+		    strcmp(name, strs + symp->st_name) == 0) {
+			if (idp)
+				*idp = i;
+			return (symp);
+		}
+	}
+
+	return (NULL);
+}
+
+/*
+ * Look up a symbol by name in the specified symbol table.
+ *
+ * Use a linear or a binary search depending on whether or not we
+ * chose to sort the table in optimize_symtab().
+ */
+static GElf_Sym *
+sym_by_name(sym_tbl_t *symtab, const char *name, GElf_Sym *symp, uint_t *idp)
+{
+	if (_libproc_no_qsort) {
+		return (sym_by_name_linear(symtab, name, symp, idp));
+	} else {
+		return (sym_by_name_binary(symtab, name, symp, idp));
+	}
 }
 
 /*
@@ -2812,7 +2469,7 @@ Pxlookup_by_name(
 		    lmid != fptr->file_lo->rl_lmident)
 			continue;
 
-		if (fptr->file_symtab.sym_data != NULL &&
+		if (fptr->file_symtab.sym_data_pri != NULL &&
 		    sym_by_name(&fptr->file_symtab, sname, symp, &id)) {
 			if (sip != NULL) {
 				sip->prs_id = id;
@@ -2822,7 +2479,7 @@ Pxlookup_by_name(
 				sip->prs_lmid = fptr->file_lo == NULL ?
 				    LM_ID_BASE : fptr->file_lo->rl_lmident;
 			}
-		} else if (fptr->file_dynsym.sym_data != NULL &&
+		} else if (fptr->file_dynsym.sym_data_pri != NULL &&
 		    sym_by_name(&fptr->file_dynsym, sname, symp, &id)) {
 			if (sip != NULL) {
 				sip->prs_id = id;
@@ -2982,10 +2639,10 @@ Psymbol_iter_com(struct ps_prochandle *P, Lmid_t lmid, const char *object_name,
     int which, int mask, pr_order_t order, proc_xsym_f *func, void *cd)
 {
 	GElf_Sym sym;
+	GElf_Shdr shdr;
 	map_info_t *mptr;
 	file_info_t *fptr;
 	sym_tbl_t *symtab;
-	Elf_Data *data;
 	size_t symn;
 	const char *strs;
 	size_t strsz;
@@ -3020,13 +2677,9 @@ Psymbol_iter_com(struct ps_prochandle *P, Lmid_t lmid, const char *object_name,
 	si.prs_lmid = fptr->file_lo == NULL ?
 	    LM_ID_BASE : fptr->file_lo->rl_lmident;
 
-	data = symtab->sym_data;
 	symn = symtab->sym_symn;
 	strs = symtab->sym_strs;
 	strsz = symtab->sym_strsz;
-
-	if (data == NULL || strs == NULL)
-		return (-1);
 
 	switch (order) {
 	case PRO_NATURAL:
@@ -3045,11 +2698,14 @@ Psymbol_iter_com(struct ps_prochandle *P, Lmid_t lmid, const char *object_name,
 		return (-1);
 	}
 
+	if (symtab->sym_data_pri == NULL || strs == NULL || count == 0)
+		return (-1);
+
 	rv = 0;
 
 	for (i = 0; i < count; i++) {
 		ndx = map == NULL ? i : map[i];
-		if (gelf_getsym(data, ndx, &sym) != NULL) {
+		if (symtab_getsym(symtab, ndx, &sym) != NULL) {
 			uint_t s_bind, s_type, type;
 
 			if (sym.st_name >= strsz)	/* invalid st_name */
@@ -3077,8 +2733,21 @@ Psymbol_iter_com(struct ps_prochandle *P, Lmid_t lmid, const char *object_name,
 				sym.st_value += fptr->file_dyn_base;
 
 			si.prs_name = strs + sym.st_name;
+
+			/*
+			 * If symbol's type is STT_SECTION, then try to lookup
+			 * the name of the corresponding section.
+			 */
+			if (GELF_ST_TYPE(sym.st_info) == STT_SECTION &&
+			    fptr->file_shstrs != NULL &&
+			    gelf_getshdr(elf_getscn(fptr->file_elf,
+			    sym.st_shndx), &shdr) != NULL &&
+			    shdr.sh_name != 0 &&
+			    shdr.sh_name < fptr->file_shstrsz)
+				si.prs_name = fptr->file_shstrs + shdr.sh_name;
+
 			si.prs_id = ndx;
-			if ((rv = func(cd, &sym, strs + sym.st_name, &si)) != 0)
+			if ((rv = func(cd, &sym, si.prs_name, &si)) != 0)
 				break;
 		}
 	}
@@ -3244,7 +2913,7 @@ Preset_maps(struct ps_prochandle *P)
 		free(P->mappings);
 		P->mappings = NULL;
 	}
-	P->map_count = 0;
+	P->map_count = P->map_alloc = 0;
 
 	P->info_valid = 0;
 }

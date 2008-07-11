@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)proc_names.c	1.24	04/02/27 SMI"
+#pragma ident	"@(#)proc_names.c	1.30	07/08/03 SMI"
 
 #include <stdio.h>
 #define	__EXTENSIONS__
@@ -139,7 +155,7 @@ static const char *const systable[] = {
 	"kill",			/* 37 */
 	"fstatfs",		/* 38 */
 	"pgrpsys",		/* 39 */
-	NULL,			/* 40 was xenix */
+	"uucopystr",		/* 40 */
 	"dup",			/* 41 */
 	"pipe",			/* 42 */
 	"times",		/* 43 */
@@ -155,7 +171,7 @@ static const char *const systable[] = {
 	"semsys",		/* 53 */
 	"ioctl",		/* 54 */
 	"uadmin",		/* 55 */
-	"uexch",		/* 56 */
+	NULL,			/* 56 */
 	"utssys",		/* 57 */
 	"fdsync",		/* 58 */
 	"execve",		/* 59 */
@@ -185,7 +201,7 @@ static const char *const systable[] = {
 	"mkdir",		/* 80 */
 	"getdents",		/* 81 */
 	"privsys",		/* 82 */
-	NULL,			/* 83 */
+	"ucredsys",		/* 83 */
 	"sysfs",		/* 84 */
 	"getmsg",		/* 85 */
 	"putmsg",		/* 86 */
@@ -207,7 +223,7 @@ static const char *const systable[] = {
 	"evtrapret",		/* 102 */
 	"statvfs",		/* 103 */
 	"fstatvfs",		/* 104 */
-	NULL,			/* 105 */
+	"getloadavg",		/* 105 */
 	"nfssys",		/* 106 */
 	"waitid",		/* 107 */
 	"sigsendsys",		/* 108 */
@@ -229,7 +245,7 @@ static const char *const systable[] = {
 	"lxstat",		/* 124 */
 	"fxstat",		/* 125 */
 	"xmknod",		/* 126 */
-	"clocal",		/* 127 */
+	"NULL",			/* 127 */
 	"setrlimit",		/* 128 */
 	"getrlimit",		/* 129 */
 	"lchown",		/* 130 */
@@ -242,9 +258,9 @@ static const char *const systable[] = {
 	"sysconfig",		/* 137 */
 	"adjtime",		/* 138 */
 	"systeminfo",		/* 139 */
-	NULL,			/* 140 */
+	"sharefs",		/* 140 */
 	"seteuid",		/* 141 */
-	"vtrace",		/* 142 */
+	"forksys",		/* 142 */
 	"fork1",		/* 143 */
 	"sigtimedwait",		/* 144 */
 	"lwp_info",		/* 145 */
@@ -252,8 +268,8 @@ static const char *const systable[] = {
 	"lwp_sema_wait",	/* 147 */
 	"lwp_sema_post",	/* 148 */
 	"lwp_sema_trywait",	/* 149 */
-	NULL,			/* 150 */
-	NULL,			/* 151 */
+	"lwp_detatch",		/* 150 */
+	"corectl",		/* 151 */
 	"modctl",		/* 152 */
 	"fchroot",		/* 153 */
 	"utimes",		/* 154 */
@@ -268,9 +284,9 @@ static const char *const systable[] = {
 	"lwp_kill",		/* 163 */
 	"lwp_self",		/* 164 */
 	"lwp_sigmask",		/* 165 */
-	NULL,			/* 166 */
+	"lwp_private",		/* 166 */
 	"lwp_wait",		/* 167 */
-	"lwp_mutex_unlock",	/* 168 */
+	"lwp_mutex_wakeup",	/* 168 */
 	"lwp_mutex_lock",	/* 169 */
 	"lwp_cond_wait",	/* 170 */
 	"lwp_cond_signal",	/* 171 */
@@ -279,7 +295,7 @@ static const char *const systable[] = {
 	"pwrite",		/* 174 */
 	"llseek",		/* 175 */
 	"inst_sync",		/* 176 */
-	NULL,			/* 177 */
+	"brand",		/* 177 */
 	"kaio",			/* 178 */
 	"cpc",			/* 179 */
 	"lgrpsys",		/* 180 */
@@ -310,7 +326,7 @@ static const char *const systable[] = {
 	"signotify",		/* 205 */
 	"schedctl",		/* 206 */
 	"pset",			/* 207 */
-	NULL,			/* 208 */
+	"sparc_utrap_install",	/* 208 */
 	"resolvepath",		/* 209 */
 	"lwp_mutex_timedlock",	/* 210 */
 	"lwp_sema_timedwait",	/* 211 */
@@ -331,7 +347,7 @@ static const char *const systable[] = {
 	"rpcmod",		/* 226 */
 	"zone",			/* 227 */
 	"autofssys",		/* 228 */
-	NULL,			/* 229 */
+	"getcwd",		/* 229 */
 	"so_socket",		/* 230 */
 	"so_socketpair",	/* 231 */
 	"bind",			/* 232 */
@@ -354,9 +370,9 @@ static const char *const systable[] = {
 	"ntp_adjtime",		/* 249 */
 	"lwp_mutex_unlock",	/* 250 */
 	"lwp_mutex_trylock",	/* 251 */
-	"lwp_mutex_init",	/* 252 */
+	"lwp_mutex_register",	/* 252 */
 	"cladm",		/* 253 */
-	NULL,			/* 254 */
+	"uucopy",		/* 254 */
 	"umount2"		/* 255 */
 };
 

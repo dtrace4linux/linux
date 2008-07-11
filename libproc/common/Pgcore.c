@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Pgcore.c	1.7	04/09/29 SMI"
+#pragma ident	"@(#)Pgcore.c	1.11	07/01/01 SMI"
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -29,6 +45,7 @@
 #include "P32ton.h"
 
 typedef enum {
+	STR_NONE,
 	STR_CTF,
 	STR_SYMTAB,
 	STR_DYNSYM,
@@ -39,6 +56,7 @@ typedef enum {
 } shstrtype_t;
 
 static const char *shstrtab_data[] = {
+	"",
 	".SUNW_ctf",
 	".symtab",
 	".dynsym",
@@ -77,7 +95,7 @@ shstrtab_ndx(shstrtab_t *s, shstrtype_t type)
 {
 	int ret;
 
-	if ((ret = s->sst_ndx[type]) != 0)
+	if ((ret = s->sst_ndx[type]) != 0 || type == STR_NONE)
 		return (ret);
 
 	ret = s->sst_ndx[type] = s->sst_cur;
@@ -554,13 +572,13 @@ count_sections(pgcore_t *pgc)
 				hit_symtab = 1;
 			}
 
-			if (sym->sym_data != NULL && sym->sym_symn != 0 &&
+			if (sym->sym_data_pri != NULL && sym->sym_symn != 0 &&
 			    sym->sym_strs != NULL)
 				nshdrs += 2;
 		}
 
 		if ((pgc->pgc_content & CC_CONTENT_SYMTAB) && !hit_symtab &&
-		    fptr->file_symtab.sym_data != NULL &&
+		    fptr->file_symtab.sym_data_pri != NULL &&
 		    fptr->file_symtab.sym_symn != 0 &&
 		    fptr->file_symtab.sym_strs != NULL) {
 			nshdrs += 2;
@@ -632,18 +650,18 @@ dump_symtab(pgcore_t *pgc, file_info_t *fptr, uint_t index, int dynsym)
 	size_t size;
 	uintptr_t addr = fptr->file_map->map_pmap.pr_vaddr;
 
-	if (sym->sym_data == NULL || sym->sym_symn == 0 ||
+	if (sym->sym_data_pri == NULL || sym->sym_symn == 0 ||
 	    sym->sym_strs == NULL)
 		return (0);
 
-	size = sym->sym_hdr.sh_size;
-	if (pwrite64(pgc->pgc_fd, sym->sym_data->d_buf, size,
+	size = sym->sym_hdr_pri.sh_size;
+	if (pwrite64(pgc->pgc_fd, sym->sym_data_pri->d_buf, size,
 	    *pgc->pgc_doff) != size)
 		return (-1);
 
 	if (write_shdr(pgc, symname, symtype, 0, addr, *pgc->pgc_doff, size,
-	    index + 1, sym->sym_hdr.sh_info, sym->sym_hdr.sh_addralign,
-	    sym->sym_hdr.sh_entsize) != 0)
+	    index + 1, sym->sym_hdr_pri.sh_info, sym->sym_hdr_pri.sh_addralign,
+	    sym->sym_hdr_pri.sh_entsize) != 0)
 		return (-1);
 
 	*pgc->pgc_doff += roundup(size, 8);
@@ -699,7 +717,7 @@ dump_sections(pgcore_t *pgc)
 				hit_symtab = 1;
 			}
 
-			if (sym->sym_data != NULL && sym->sym_symn != 0 &&
+			if (sym->sym_data_pri != NULL && sym->sym_symn != 0 &&
 			    sym->sym_strs != NULL) {
 				symindex = index;
 				if (dump_symtab(pgc, fptr, index, dynsym) != 0)
@@ -726,7 +744,7 @@ dump_sections(pgcore_t *pgc)
 		}
 
 		if ((pgc->pgc_content & CC_CONTENT_SYMTAB) && !hit_symtab &&
-		    fptr->file_symtab.sym_data != NULL &&
+		    fptr->file_symtab.sym_data_pri != NULL &&
 		    fptr->file_symtab.sym_symn != 0 &&
 		    fptr->file_symtab.sym_strs != NULL) {
 			if (dump_symtab(pgc, fptr, index, 0) != 0)
@@ -891,15 +909,12 @@ write_shstrtab(struct ps_prochandle *P, pgcore_t *pgc)
 	(void) shstrtab_ndx(&pgc->pgc_shstrtab, STR_SHSTRTAB);
 	size = shstrtab_size(s);
 
-	if (pwrite64(pgc->pgc_fd, "", 1, off) != 1)
-		return (1);
-
 	/*
 	 * Dump all the strings that we used being sure we include the
 	 * terminating null character.
 	 */
 	for (i = 0; i < STR_NUM; i++) {
-		if ((ndx = s->sst_ndx[i]) != 0) {
+		if ((ndx = s->sst_ndx[i]) != 0 || i == STR_NONE) {
 			const char *str = shstrtab_data[i];
 			size_t len = strlen(str) + 1;
 			if (pwrite64(pgc->pgc_fd, str, len, off + ndx) != len)
@@ -1003,6 +1018,14 @@ Pfgcore(struct ps_prochandle *P, int fd, core_content_t content)
 		zonename[0] = '\0';
 
 	/*
+	 * The core file contents may required zero section headers, but if we
+	 * overflow the 16 bits allotted to the program header count in the ELF
+	 * header, we'll need that program header at index zero.
+	 */
+	if (nshdrs == 0 && nphdrs >= PN_XNUM)
+		nshdrs = 1;
+
+	/*
 	 * Set up the ELF header.
 	 */
 	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
@@ -1029,26 +1052,38 @@ Pfgcore(struct ps_prochandle *P, int fd, core_content_t content)
 
 		ehdr.e_version = EV_CURRENT;
 		ehdr.e_ehsize = sizeof (ehdr);
+
+		if (nphdrs >= PN_XNUM)
+			ehdr.e_phnum = PN_XNUM;
+		else
+			ehdr.e_phnum = (unsigned short)nphdrs;
+
 		ehdr.e_phentsize = sizeof (Elf32_Phdr);
-		ehdr.e_phnum = (unsigned short)nphdrs;
 		ehdr.e_phoff = ehdr.e_ehsize;
 
-		if (nshdrs != 0) {
+		if (nshdrs > 0) {
+			if (nshdrs >= SHN_LORESERVE)
+				ehdr.e_shnum = 0;
+			else
+				ehdr.e_shnum = (unsigned short)nshdrs;
+
+			if (nshdrs - 1 >= SHN_LORESERVE)
+				ehdr.e_shstrndx = SHN_XINDEX;
+			else
+				ehdr.e_shstrndx = (unsigned short)(nshdrs - 1);
+
 			ehdr.e_shentsize = sizeof (Elf32_Shdr);
-			ehdr.e_shnum = (unsigned short)nshdrs;
-			ehdr.e_shoff = ehdr.e_phoff +
-			    ehdr.e_phentsize * ehdr.e_phnum;
-			ehdr.e_shstrndx = nshdrs - 1;
+			ehdr.e_shoff = ehdr.e_phoff + ehdr.e_phentsize * nphdrs;
 		}
 
 		if (pwrite64(fd, &ehdr, sizeof (ehdr), 0) != sizeof (ehdr))
 			goto err;
 
 		poff = ehdr.e_phoff;
-		soff = ehdr.e_shoff + ehdr.e_shentsize;
+		soff = ehdr.e_shoff;
 		doff = boff = ehdr.e_ehsize +
-		    ehdr.e_phentsize * ehdr.e_phnum +
-		    ehdr.e_shentsize * ehdr.e_shnum;
+		    ehdr.e_phentsize * nphdrs +
+		    ehdr.e_shentsize * nshdrs;
 
 #ifdef _LP64
 	} else {
@@ -1075,29 +1110,50 @@ Pfgcore(struct ps_prochandle *P, int fd, core_content_t content)
 
 		ehdr.e_version = EV_CURRENT;
 		ehdr.e_ehsize = sizeof (ehdr);
+
+		if (nphdrs >= PN_XNUM)
+			ehdr.e_phnum = PN_XNUM;
+		else
+			ehdr.e_phnum = (unsigned short)nphdrs;
+
 		ehdr.e_phentsize = sizeof (Elf64_Phdr);
-		ehdr.e_phnum = (unsigned short)nphdrs;
 		ehdr.e_phoff = ehdr.e_ehsize;
 
-		if (nshdrs != 0) {
+		if (nshdrs > 0) {
+			if (nshdrs >= SHN_LORESERVE)
+				ehdr.e_shnum = 0;
+			else
+				ehdr.e_shnum = (unsigned short)nshdrs;
+
+			if (nshdrs - 1 >= SHN_LORESERVE)
+				ehdr.e_shstrndx = SHN_XINDEX;
+			else
+				ehdr.e_shstrndx = (unsigned short)(nshdrs - 1);
+
 			ehdr.e_shentsize = sizeof (Elf64_Shdr);
-			ehdr.e_shnum = (unsigned short)nshdrs;
-			ehdr.e_shoff = ehdr.e_phoff +
-			    ehdr.e_phentsize * ehdr.e_phnum;
-			ehdr.e_shstrndx = nshdrs - 1;
+			ehdr.e_shoff = ehdr.e_phoff + ehdr.e_phentsize * nphdrs;
 		}
 
 		if (pwrite64(fd, &ehdr, sizeof (ehdr), 0) != sizeof (ehdr))
 			goto err;
 
 		poff = ehdr.e_phoff;
-		soff = ehdr.e_shoff + ehdr.e_shentsize;
-		doff = boff = sizeof (ehdr) +
-		    ehdr.e_phentsize * ehdr.e_phnum +
-		    ehdr.e_shentsize * ehdr.e_shnum;
+		soff = ehdr.e_shoff;
+		doff = boff = ehdr.e_ehsize +
+		    ehdr.e_phentsize * nphdrs +
+		    ehdr.e_shentsize * nshdrs;
 
 #endif	/* _LP64 */
 	}
+
+	/*
+	 * Write the zero indexed section if it exists.
+	 */
+	if (nshdrs > 0 && write_shdr(&pgc, STR_NONE, 0, 0, 0, 0,
+	    nshdrs >= SHN_LORESERVE ? nshdrs : 0,
+	    nshdrs - 1 >= SHN_LORESERVE ? nshdrs - 1 : 0,
+	    nphdrs >= PN_XNUM ? nphdrs : 0, 0, 0) != 0)
+		goto err;
 
 	/*
 	 * Construct the old-style note header and section.
@@ -1291,18 +1347,22 @@ Pfgcore(struct ps_prochandle *P, int fd, core_content_t content)
 		size_t size;
 		int nldt;
 
-		nldt = Pldt(P, NULL, 0);
-		size = sizeof (struct ssd) * nldt;
-		if ((ldtp = malloc(size)) == NULL)
-			goto err;
+		/*
+		 * Only dump out non-zero sized LDT notes.
+		 */
+		if ((nldt = Pldt(P, NULL, 0)) != 0) {
+			size = sizeof (struct ssd) * nldt;
+			if ((ldtp = malloc(size)) == NULL)
+				goto err;
 
-		if (Pldt(P, ldtp, nldt) == -1 ||
-		    write_note(fd, NT_LDT, ldtp, size, &doff) != 0) {
+			if (Pldt(P, ldtp, nldt) == -1 ||
+			    write_note(fd, NT_LDT, ldtp, size, &doff) != 0) {
+				free(ldtp);
+				goto err;
+			}
+
 			free(ldtp);
-			goto err;
 		}
-
-		free(ldtp);
 	}
 #endif	/* __i386 || __amd64 */
 

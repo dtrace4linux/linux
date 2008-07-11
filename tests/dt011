@@ -1,4 +1,6 @@
 syscall::open:entry
 {
+	printf("%s (hello)\n", execname);
         self->path = copyinstr(arg0);
+	printf("%s open(%s)\n", execname, (string)arg0);
 }

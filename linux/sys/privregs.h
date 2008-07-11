@@ -27,6 +27,47 @@
 # if !defined(SYS_PRIVREGS_H)
 # define SYS_PRIVREGS_H
 
+
+#if __i386
+struct regs {
+        /*
+         * Extra frame for mdb to follow through high level interrupts and
+         * system traps.  Set them to 0 to terminate stacktrace.
+         */
+        greg_t  r_savfp;        /* a copy of %ebp */
+        greg_t  r_savpc;        /* a copy of %eip */
+
+        greg_t  r_gs;
+        greg_t  r_fs;
+        greg_t  r_es;
+        greg_t  r_ds;
+        greg_t  r_edi;
+        greg_t  r_esi;
+        greg_t  r_ebp;
+        greg_t  r_esp;
+        greg_t  r_ebx;
+        greg_t  r_edx;
+        greg_t  r_ecx;
+        greg_t  r_eax;
+        greg_t  r_trapno;
+        greg_t  r_err;
+        greg_t  r_eip;
+        greg_t  r_cs;
+        greg_t  r_efl;
+        greg_t  r_uesp;
+        greg_t  r_ss;
+};
+
+#define r_r0    r_eax           /* r0 for portability */
+#define r_r1    r_edx           /* r1 for portability */
+#define r_fp    r_ebp           /* system frame pointer */
+#define r_sp    r_uesp          /* user stack pointer */
+#define r_pc    r_eip           /* user's instruction pointer */
+#define r_ps    r_efl           /* user's EFLAGS */
+
+#define GREG_NUM        8
+
+#else
 struct regs {
         /*
          * Extra frame for mdb to follow through high level interrupts and
@@ -84,5 +125,7 @@ struct regs {
 #define r_sp    r_rsp   /* user stack pointer */
 #define r_pc    r_rip   /* user's instruction pointer */
 #define r_ps    r_rfl   /* user's RFLAGS */
+
+# endif
 
 # endif /* !defined(SYS_PRIVREGS_H) */

@@ -1,13 +1,29 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Psyscall.c	1.1	04/09/28 SMI"
+#pragma ident	"@(#)Psyscall.c	1.3	06/09/11 SMI"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,7 +79,7 @@ int
 Pcreate_agent(struct ps_prochandle *P)
 {
 	int fd;
-	char pathname[100];
+	char pathname[PATH_MAX];
 	char *fname;
 	struct {
 		long	cmd;
@@ -106,7 +122,8 @@ Pcreate_agent(struct ps_prochandle *P)
 	(void) Pstopstatus(P, PCNULL, 0);
 
 	/* open the agent LWP files */
-	(void) sprintf(pathname, "/proc/%d/lwp/agent/", (int)P->pid);
+	(void) snprintf(pathname, sizeof (pathname), "%s/%d/lwp/agent/",
+	    procfs_path, (int)P->pid);
 	fname = pathname + strlen(pathname);
 	(void) set_minfd();
 

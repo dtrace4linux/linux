@@ -1,16 +1,32 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef _SYS_LOCKSTAT_H
 #define	_SYS_LOCKSTAT_H
 
-#pragma ident	"@(#)lockstat.h	1.5	03/09/02 SMI"
+#pragma ident	"@(#)lockstat.h	1.8	08/05/06 SMI"
 
 #include <sys/dtrace.h>
 
@@ -112,6 +128,14 @@ extern void lockstat_hot_patch(void);
 /*
  * Macros to record lockstat probes.
  */
+
+/* used for 32 bit systems to avoid overflow */
+#if defined(_ILP32)
+#define	CLAMP32(x)	((x) > UINT_MAX ? UINT_MAX : (x))
+#else
+#define	CLAMP32(x)	(x)
+#endif
+
 #define	LOCKSTAT_RECORD4(probe, lp, arg0, arg1, arg2, arg3)		\
 	if (lockstat_probemap[(probe)]) {				\
 		dtrace_id_t id;						\
@@ -128,6 +152,36 @@ extern void lockstat_hot_patch(void);
 
 #define	LOCKSTAT_RECORD0(probe, lp)	\
 	LOCKSTAT_RECORD4(probe, lp, 0, 0, 0, 0)
+
+/*
+ * Return timestamp for start of busy-waiting (for spin probes)
+ */
+#define	LOCKSTAT_START_TIME(probe)	(			\
+	lockstat_probemap[(probe)] ? gethrtime_waitfree() : 0	\
+)
+
+/*
+ * Record elapsed time since LOCKSTAT_START_TIME was called if the
+ * probe is enabled at start and end, else return 0. t_start must
+ * be the value returned by LOCKSTAT_START_TIME.
+ */
+#define	LOCKSTAT_RECORD_TIME(probe, lp, t_start)		\
+	if (lockstat_probemap[(probe)]) {				\
+		dtrace_id_t id;						\
+		hrtime_t t_spin = (t_start);				\
+		curthread->t_lockstat++;				\
+		membar_enter();						\
+		if ((id = lockstat_probemap[(probe)]) != 0) {		\
+			if (t_spin) {					\
+				t_spin = gethrtime_waitfree() - t_spin;	\
+				t_spin = CLAMP32(t_spin);		\
+			} 						\
+			(*lockstat_probe)(id, (uintptr_t)(lp), t_spin,	\
+			0, 0, 0);					\
+		} 							\
+		curthread->t_lockstat--;				\
+	}
+
 
 #endif /* _KERNEL */
 

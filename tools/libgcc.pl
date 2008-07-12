@@ -8,6 +8,10 @@ use strict;
 
 use FileHandle;
 
+if ( ! -d "build" ) {
+	mkdir("build", 0755);
+}
+
 unlink("build/libgcc.a");
 
 if ( -f "build/x86-32/libgcc.a" ) {
@@ -37,13 +41,20 @@ EOF
 			next if $wd !~ /-L/;
 			$wd =~ s/^-L//;
 			if ( -f "$wd/libgcc.a") {
-				unlink("x");
-				unlink("x.c");
+				###############################################
+				#   Empty  pipe  so  we  can remove the temp  #
+				#   files.				      #
+				###############################################
+				while (<$fh>) {
+				}
+
 				print "$wd\n";
 				if (!symlink("$wd/libgcc.a", "build/x86-32/libgcc.a")) {
 					print "Error creating symlink build/libgcc.a -- $!\n";
 					exit(1);
 				}
+				unlink("x");
+				unlink("x.c");
 				exit(0);
 			}
 		}

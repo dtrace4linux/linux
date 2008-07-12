@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)P32ton.c   1.20    06/09/01 SMI"
+//#pragma ident	"@(#)P32ton.c   1.20    06/09/01 SMI"
 
 #include <linux_types.h>
 #include <sys/types.h>
@@ -277,6 +277,9 @@ prfpregset_32_to_n(const prfpregset32_t *src, prfpregset_t *dst)
 
 #elif defined(__amd64)
 
+# if 1
+	TODO();
+# else
 	struct _fpstate32 *src32 = (struct _fpstate32 *)src;
 	struct fpchip_state *dst64 = (struct fpchip_state *)dst;
 	int i;
@@ -305,6 +308,7 @@ prfpregset_32_to_n(const prfpregset32_t *src, prfpregset_t *dst)
 	for (i = 0; i < 8; i++)
 		if (((src32->tag >> (i * 2)) & 3) != 3)
 			dst64->fctw |= 1 << i;
+# endif
 #else
 #error "unrecognized ISA"
 #endif
@@ -474,7 +478,11 @@ sigaction_n_to_32(const struct sigaction *src, struct sigaction32 *dst)
 {
 	(void) memset(dst, 0, sizeof (struct sigaction32));
 	dst->sa_flags = src->sa_flags;
+# if 1
+	TODO();
+# else
 	dst->sa_handler = (caddr32_t)(uintptr_t)src->sa_handler;
+# endif
 	(void) memcpy(&dst->sa_mask, &src->sa_mask, sizeof (dst->sa_mask));
 }
 
@@ -622,6 +630,9 @@ prfpregset_n_to_32(const prfpregset_t *src, prfpregset32_t *dst)
 	uint32_t top;
 	int i;
 
+# if 1
+	TODO();
+# else
 	(void) memcpy(dst32->_st, src64->st, sizeof (dst32->_st));
 	(void) memcpy(dst32->xmm, src64->xmm, sizeof (dst32->xmm));
 	dst32->cw = src64->cw;
@@ -687,6 +698,8 @@ prfpregset_n_to_32(const prfpregset_t *src, prfpregset32_t *dst)
 		}
 		dst32->tag |= tag_value << (tag_index * 2);
 	}
+# endif
+
 #else
 #error "unrecognized ISA"
 #endif

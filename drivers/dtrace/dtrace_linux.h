@@ -49,10 +49,6 @@
 #define LOCK_LEVEL      10
 
 #define ttoproc(x)      ((x))
-#define	makedevice	MKDEV
-#define	getminor(x)	MINOR(x)
-#define	minor(x)	MINOR(x)
-#define	getmajor(x)	MAJOR(x)
 #define	uprintf		printk
 #define	vuprintf	vprintk
 

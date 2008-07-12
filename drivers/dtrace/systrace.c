@@ -198,7 +198,12 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
 # endif
 
         if ((id = sy->stsy_return) != DTRACE_IDNONE) {
-                (*systrace_probe)(id, (uintptr_t)rval, (uintptr_t)rval,
+		/***********************************************/
+		/*   Map   Linux   style   syscall  codes  to  */
+		/*   standard Unix format.		       */
+		/***********************************************/
+                (*systrace_probe)(id, (uintptr_t) (rval < 0 ? -1 : rval), 
+		    (uintptr_t)rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
 		}
 

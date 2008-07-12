@@ -1,39 +1,68 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
  */
 
-//#pragma ident	"@(#)ctf_lookup.c	1.3	03/09/02 SMI"
+/*
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-# if defined(sun)
+#pragma ident	"@(#)ctf_lookup.c	1.6	06/01/07 SMI"
+
 #include <sys/sysmacros.h>
-# endif
 #include <ctf_impl.h>
 
 /*
  * Compare the given input string and length against a table of known C storage
- * modifier keywords.  We just ignore these in ctf_lookup_by_name, below.
+ * qualifier keywords.  We just ignore these in ctf_lookup_by_name, below.  To
+ * do this quickly, we use a pre-computed Perfect Hash Function similar to the
+ * technique originally described in the classic paper:
+ *
+ * R.J. Cichelli, "Minimal Perfect Hash Functions Made Simple",
+ * Communications of the ACM, Volume 23, Issue 1, January 1980, pp. 17-19.
+ *
+ * For an input string S of length N, we use hash H = S[N - 1] + N - 105, which
+ * for the current set of qualifiers yields a unique H in the range [0 .. 20].
+ * The hash can be modified when the keyword set changes as necessary.  We also
+ * store the length of each keyword and check it prior to the final strcmp().
  */
-static const char *
-ismodifier(const char *s, size_t len)
+static int
+isqualifier(const char *s, size_t len)
 {
-	static const char *const modifiers[] = {
-		"auto", "const", "extern", "register",
-		"static", "volatile", "restrict", "_Restrict"
+	static const struct qual {
+		const char *q_name;
+		size_t q_len;
+	} qhash[] = {
+		{ "static", 6 }, { "", 0 }, { "", 0 }, { "", 0 },
+		{ "volatile", 8 }, { "", 0 }, { "", 0 }, { "", 0 }, { "", 0 },
+		{ "", 0 }, { "auto", 4 }, { "extern", 6 }, { "", 0 }, { "", 0 },
+		{ "", 0 }, { "", 0 }, { "const", 5 }, { "register", 8 },
+		{ "", 0 }, { "restrict", 8 }, { "_Restrict", 9 }
 	};
 
-	int i;
+	int h = s[len - 1] + (int)len - 105;
+	const struct qual *qp = &qhash[h];
 
-	for (i = 0; i < sizeof (modifiers) / sizeof (modifiers[0]); i++) {
-		if (strncmp(s, modifiers[i], len) == 0)
-			return (modifiers[i]);
-	}
-
-	return (NULL);
+	return (h >= 0 && h < sizeof (qhash) / sizeof (qhash[0]) &&
+	    len == qp->q_len && strncmp(qp->q_name, s, qp->q_len) == 0);
 }
 
 /*
@@ -97,8 +126,8 @@ ctf_lookup_by_name(ctf_file_t *fp, const char *name)
 			continue;
 		}
 
-		if (ismodifier(p, (size_t)(q - p)))
-			continue; /* skip modifier */
+		if (isqualifier(p, (size_t)(q - p)))
+			continue; /* skip qualifier keyword */
 
 		for (lp = fp->ctf_lookups; lp->ctl_prefix != NULL; lp++) {
 			if (lp->ctl_prefix[0] == '\0' ||
@@ -162,10 +191,12 @@ ctf_lookup_by_symbol(ctf_file_t *fp, ulong_t symidx)
 		const Elf32_Sym *symp = (Elf32_Sym *)sp->cts_data + symidx;
 		if (ELF32_ST_TYPE(symp->st_info) != STT_OBJECT)
 			return (ctf_set_errno(fp, ECTF_NOTDATA));
+# if defined(__amd64)
 	} else {
 		const Elf64_Sym *symp = (Elf64_Sym *)sp->cts_data + symidx;
 		if (ELF64_ST_TYPE(symp->st_info) != STT_OBJECT)
 			return (ctf_set_errno(fp, ECTF_NOTDATA));
+# endif
 	}
 
 	if (fp->ctf_sxlate[symidx] == -1u)
@@ -225,10 +256,12 @@ ctf_func_info(ctf_file_t *fp, ulong_t symidx, ctf_funcinfo_t *fip)
 		const Elf32_Sym *symp = (Elf32_Sym *)sp->cts_data + symidx;
 		if (ELF32_ST_TYPE(symp->st_info) != STT_FUNC)
 			return (ctf_set_errno(fp, ECTF_NOTFUNC));
+# if defined(__amd64)
 	} else {
 		const Elf64_Sym *symp = (Elf64_Sym *)sp->cts_data + symidx;
 		if (ELF64_ST_TYPE(symp->st_info) != STT_FUNC)
 			return (ctf_set_errno(fp, ECTF_NOTFUNC));
+# endif
 	}
 
 	if (fp->ctf_sxlate[symidx] == -1u)
@@ -257,7 +290,6 @@ ctf_func_info(ctf_file_t *fp, ulong_t symidx, ctf_funcinfo_t *fip)
 
 	return (0);
 }
-EXPORT_SYMBOL(ctf_func_info);
 
 /*
  * Given a symbol table index, return the arguments for the function described
@@ -283,4 +315,3 @@ ctf_func_args(ctf_file_t *fp, ulong_t symidx, uint_t argc, ctf_id_t *argv)
 
 	return (0);
 }
-EXPORT_SYMBOL(ctf_func_args);

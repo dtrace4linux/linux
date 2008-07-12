@@ -20,16 +20,14 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_link.c	1.18	07/11/15 SMI"
+#pragma ident	"@(#)dt_link.c	1.20	08/05/05 SMI"
 
 #define	ELF_TARGET_ALL
 #include <elf.h>
-
-# define	STV_ELIMINATE 0x06
 
 #include <sys/types.h>
 #include <sys/sysmacros.h>
@@ -392,9 +390,6 @@ prepare_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf64_t *dep)
 		s = &dofs[dofrh->dofr_tgtsec];
 
 		for (j = 0; j < nrel; j++) {
-# if linux
-			TODO();
-# else
 #if defined(__i386) || defined(__amd64)
 			rel->r_offset = s->dofs_offset +
 			    dofr[j].dofr_offset;
@@ -408,7 +403,6 @@ prepare_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf64_t *dep)
 #else
 #error unknown ISA
 #endif
-# endif
 
 			sym->st_name = base + dofr[j].dofr_name - 1;
 			sym->st_value = 0;
@@ -782,15 +776,19 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 	/*
 	 * We may have already processed this object file in an earlier linker
 	 * invocation. Check to see if the present instruction sequence matches
-	 * the one we would install.
+	 * the one we would install below.
 	 */
 	if (isenabled) {
-		if (ip[0] == DT_OP_CLR_O0)
+		if (ip[0] == DT_OP_NOP) {
+			(*off) += sizeof (ip[0]);
 			return (0);
+		}
 	} else {
 		if (DT_IS_RESTORE(ip[1])) {
-			if (ip[0] == DT_OP_RET)
+			if (ip[0] == DT_OP_RET) {
+				(*off) += sizeof (ip[0]);
 				return (0);
+			}
 		} else if (DT_IS_MOV_O7(ip[1])) {
 			if (DT_IS_RETL(ip[0]))
 				return (0);
@@ -824,7 +822,17 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 			return (-1);
 		}
 
-		ip[0] = DT_OP_CLR_O0;
+
+		/*
+		 * On SPARC, we take advantage of the fact that the first
+		 * argument shares the same register as for the return value.
+		 * The macro handles the work of zeroing that register so we
+		 * don't need to do anything special here. We instrument the
+		 * instruction in the delay slot as we'll need to modify the
+		 * return register after that instruction has been emulated.
+		 */
+		ip[0] = DT_OP_NOP;
+		(*off) += sizeof (ip[0]);
 	} else {
 		/*
 		 * If the call is followed by a restore, it's a tail call so
@@ -833,11 +841,16 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 		 * so change the call to a retl-like instruction that returns
 		 * to that register value + 8 (rather than the typical %o7 +
 		 * 8); the delay slot instruction is left, but should have no
-		 * effect. Otherwise we change the call to be a nop. In the
-		 * first and the last case we adjust the offset to land on what
-		 * was once the delay slot of the call so we correctly get all
-		 * the arguments as they would have been passed in a normal
-		 * function call.
+		 * effect. Otherwise we change the call to be a nop. We
+		 * identify the subsequent instruction as the probe point in
+		 * all but the leaf tail-call case to ensure that arguments to
+		 * the probe are complete and consistent. An astute, though
+		 * largely hypothetical, observer would note that there is the
+		 * possibility of a false-positive probe firing if the function
+		 * contained a branch to the instruction in the delay slot of
+		 * the call. Fixing this would require significant in-kernel
+		 * modifications, and isn't worth doing until we see it in the
+		 * wild.
 		 */
 		if (DT_IS_RESTORE(ip[1])) {
 			ip[0] = DT_OP_RET;
@@ -856,7 +869,9 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 #elif defined(__i386) || defined(__amd64)
 
 #define	DT_OP_NOP		0x90
+#define	DT_OP_RET		0xc3
 #define	DT_OP_CALL		0xe8
+#define	DT_OP_JMP32		0xe9
 #define	DT_OP_REX_RAX		0x48
 #define	DT_OP_XOR_EAX_0		0x33
 #define	DT_OP_XOR_EAX_1		0xc0
@@ -866,6 +881,7 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
     uint32_t *off)
 {
 	uint8_t *ip = (uint8_t *)(p + rela->r_offset - 1);
+	uint8_t ret;
 
 	/*
 	 * On x86, the first byte of the instruction is the call opcode and
@@ -889,37 +905,42 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 	 * We may have already processed this object file in an earlier linker
 	 * invocation. Check to see if the present instruction sequence matches
 	 * the one we would install. For is-enabled probes, we advance the
-	 * offset to the first nop instruction in the sequence.
+	 * offset to the first nop instruction in the sequence to match the
+	 * text modification code below.
 	 */
 	if (!isenabled) {
-		if (ip[0] == DT_OP_NOP && ip[1] == DT_OP_NOP &&
-		    ip[2] == DT_OP_NOP && ip[3] == DT_OP_NOP &&
-		    ip[4] == DT_OP_NOP)
+		if ((ip[0] == DT_OP_NOP || ip[0] == DT_OP_RET) &&
+		    ip[1] == DT_OP_NOP && ip[2] == DT_OP_NOP &&
+		    ip[3] == DT_OP_NOP && ip[4] == DT_OP_NOP)
 			return (0);
 	} else if (dtp->dt_oflags & DTRACE_O_LP64) {
 		if (ip[0] == DT_OP_REX_RAX &&
 		    ip[1] == DT_OP_XOR_EAX_0 && ip[2] == DT_OP_XOR_EAX_1 &&
-		    ip[3] == DT_OP_NOP && ip[4] == DT_OP_NOP) {
+		    (ip[3] == DT_OP_NOP || ip[3] == DT_OP_RET) &&
+		    ip[4] == DT_OP_NOP) {
 			(*off) += 3;
 			return (0);
 		}
 	} else {
 		if (ip[0] == DT_OP_XOR_EAX_0 && ip[1] == DT_OP_XOR_EAX_1 &&
-		    ip[2] == DT_OP_NOP && ip[3] == DT_OP_NOP &&
-		    ip[4] == DT_OP_NOP) {
+		    (ip[2] == DT_OP_NOP || ip[2] == DT_OP_RET) &&
+		    ip[3] == DT_OP_NOP && ip[4] == DT_OP_NOP) {
 			(*off) += 2;
 			return (0);
 		}
 	}
 
 	/*
-	 * We only expect a call instrution with a 32-bit displacement.
+	 * We expect either a call instrution with a 32-bit displacement or a
+	 * jmp instruction with a 32-bit displacement acting as a tail-call.
 	 */
-	if (ip[0] != DT_OP_CALL) {
-		dt_dprintf("found %x instead of a call instruction at %llx\n",
-		    ip[0], (u_longlong_t)rela->r_offset);
+	if (ip[0] != DT_OP_CALL && ip[0] != DT_OP_JMP32) {
+		dt_dprintf("found %x instead of a call or jmp instruction at "
+		    "%llx\n", ip[0], (u_longlong_t)rela->r_offset);
 		return (-1);
 	}
+
+	ret = (ip[0] == DT_OP_JMP32) ? DT_OP_RET : DT_OP_NOP;
 
 	/*
 	 * Establish the instruction sequence -- all nops for probes, and an
@@ -929,7 +950,7 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 	 * for more readable disassembly when the probe is enabled.
 	 */
 	if (!isenabled) {
-		ip[0] = DT_OP_NOP;
+		ip[0] = ret;
 		ip[1] = DT_OP_NOP;
 		ip[2] = DT_OP_NOP;
 		ip[3] = DT_OP_NOP;
@@ -938,13 +959,13 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 		ip[0] = DT_OP_REX_RAX;
 		ip[1] = DT_OP_XOR_EAX_0;
 		ip[2] = DT_OP_XOR_EAX_1;
-		ip[3] = DT_OP_NOP;
+		ip[3] = ret;
 		ip[4] = DT_OP_NOP;
 		(*off) += 3;
 	} else {
 		ip[0] = DT_OP_XOR_EAX_0;
 		ip[1] = DT_OP_XOR_EAX_1;
-		ip[2] = DT_OP_NOP;
+		ip[2] = ret;
 		ip[3] = DT_OP_NOP;
 		ip[4] = DT_OP_NOP;
 		(*off) += 2;
@@ -1413,13 +1434,10 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			 * already been processed by an earlier link
 			 * invocation.
 			 */
-			TODO();
-# if defined(sun)
 			if (rsym.st_shndx != SHN_SUNW_IGNORE) {
 				rsym.st_shndx = SHN_SUNW_IGNORE;
 				(void) gelf_update_sym(data_sym, ndx, &rsym);
 			}
-# endif
 		}
 	}
 

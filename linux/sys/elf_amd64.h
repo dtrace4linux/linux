@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,15 +18,16 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef _SYS_ELF_AMD64_H
 #define	_SYS_ELF_AMD64_H
 
-#pragma ident	"@(#)elf_amd64.h	1.4	05/06/08 SMI"
+#pragma ident	"@(#)elf_amd64.h	1.7	06/09/28 SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -60,12 +60,20 @@ extern "C" {
 #define	R_AMD64_PC64		24
 #define	R_AMD64_GOTOFF64	25
 #define	R_AMD64_GOTPC32		26
-#define	R_AMD64_NUM		27
+#define	R_AMD64_GOT64		27	/* reserved for future expansion */
+#define	R_AMD64_GOTPCREL64	28	/* reserved for future expansion */
+#define	R_AMD64_GOTPC64		29	/* reserved for future expansion */
+#define	R_AMD64_GOTPLT64	30	/* reserved for future expansion */
+#define	R_AMD64_PLTOFF64	31	/* reserved for future expansion */
+#define	R_AMD64_SIZE32		32
+#define	R_AMD64_SIZE64		33
+#define	R_AMD64_NUM		34
 
 
 /*
- * X86_64 compatibilty fields - these are obsolete, the prefered
- * field naming are the _AMD64_ fields over the X86_64 names.
+ * The "System V Application Binary Interface, AMD64 Architecture Processor
+ * Supplement", defines relocations in terms of R_X86_64_ rather than R_AMD64_.
+ * Maintain both relocation naming conventions for compatibility.
  */
 #define	R_X86_64_NONE		R_AMD64_NONE
 #define	R_X86_64_64		R_AMD64_64
@@ -94,6 +102,13 @@ extern "C" {
 #define	R_X86_64_PC64		R_AMD64_PC64
 #define	R_X86_64_GOTPC32	R_AMD64_GOTPC32
 #define	R_X86_64_GOTOFF64	R_AMD64_GOTOFF64
+#define	R_X86_64_GOT64		R_AMD64_GOT64
+#define	R_X86_64_GOTPCREL64	R_AMD64_GOTPCREL64
+#define	R_X86_64_GOTPC64	R_AMD64_GOTPC64
+#define	R_X86_64_GOTPLT64	R_AMD64_GOTPLT64
+#define	R_X86_64_PLTOFF64	R_AMD64_PLTOFF64
+#define	R_X86_64_SIZE32		R_AMD64_SIZE32
+#define	R_X86_64_SIZE64		R_AMD64_SIZE64
 #define	R_X86_64_NUM		R_AMD64_NUM
 
 
@@ -110,13 +125,16 @@ extern "C" {
  *	 to conform with the amd64 psABI.
  */
 
-#define	SHF_ORDERED	0x40000000
-#define	SHF_EXCLUDE	0x80000000
+#define	SHF_AMD64_LARGE		0x10000000
+#define	SHF_X86_64_LARGE	SHF_AMD64_LARGE
+#define	SHF_ORDERED		0x40000000
+#define	SHF_EXCLUDE		0x80000000
 
-#define SHT_SUNW_dof            0x6ffffff4
+#define	SHN_BEFORE		0xff00
+#define	SHN_AFTER		0xff01
+#define	SHN_AMD64_LCOMMON	0xff02
+#define	SHN_X86_64_LCOMMON	SHN_AMD64_LCOMMON
 
-#define	SHN_BEFORE	0xff00
-#define	SHN_AFTER	0xff01
 
 #ifdef	__cplusplus
 }

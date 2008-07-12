@@ -27,7 +27,7 @@
 #ifndef	_FASTTRAP_IMPL_H
 #define	_FASTTRAP_IMPL_H
 
-//#pragma ident	"@(#)fasttrap_impl.h	1.14	08/04/09 SMI"
+#pragma ident	"@(#)fasttrap_impl.h	1.14	08/04/09 SMI"
 
 #include <sys/types.h>
 #include <sys/dtrace.h>

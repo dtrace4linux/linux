@@ -18,6 +18,8 @@
 #	define _LP32
 # endif
 
+# define	_INT64_TYPE
+
 /**********************************************************************/
 /*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */
 /*   registers. Turn it off for some of the assembler code.	      */
@@ -32,48 +34,47 @@ struct modctl;
 
 # if __KERNEL__
 
-# define zone Xzone /* mmzone.h conflicts with solaris zone struct */
-# include	<linux/time.h>
-# include	<linux/module.h>
-# undef zone
+	# define zone Xzone /* mmzone.h conflicts with solaris zone struct */
+	# include	<linux/time.h>
+	# include	<linux/module.h>
+	# undef zone
 
-# include	<sys/model.h>
-# include	<sys/bitmap.h>
-# include	<sys/processor.h>
-# include	<sys/systm.h>
-# include 	<sys/vmem.h>
-# include 	<sys/cred.h>
+	# include	<sys/model.h>
+	# include	<sys/bitmap.h>
+	# include	<sys/processor.h>
+	# include	<sys/systm.h>
+	# include 	<sys/vmem.h>
+	# include 	<sys/cred.h>
 
-# define	_LARGEFILE_SOURCE	1
-# define	_FILE_OFFSET_BITS	64
-# define 	__USE_LARGEFILE64 1
+	# define	_LARGEFILE_SOURCE	1
+	# define	_FILE_OFFSET_BITS	64
+	# define 	__USE_LARGEFILE64 1
 
-# include	<linux/types.h>
-# include	<linux/wait.h>
-# include	<zone.h>
+	# include	<linux/types.h>
+	# include	<linux/wait.h>
+	# include	<linux/kdev_t.h>
+	# include	<zone.h>
 
 # else /* !__KERNEL */
 
-# define	_LARGEFILE_SOURCE	1
-# define	_LARGEFILE64_SOURCE	1
-# define	_FILE_OFFSET_BITS	64
-# define 	__USE_LARGEFILE64 1
+	# define	_LARGEFILE_SOURCE	1
+	# define	_LARGEFILE64_SOURCE	1
+	# define	_FILE_OFFSET_BITS	64
+	# define 	__USE_LARGEFILE64 1
 
-# include "/usr/include/sys/types.h"
-# include <pthread.h>
+	# include "/usr/include/sys/types.h"
+	# include	<linux/kdev_t.h>
+	# include	<pthread.h>
+	# include	<features.h>
+	# include	<time.h>
+	# include	<sys/time.h>
+	# include	<sys/processor.h>
+	# include	<sys/systm.h>
+	# include 	<sys/vmem.h>
+	# include 	<sys/cred.h>
 
-# include	<features.h>
-
-# include	<time.h>
-# include	<sys/time.h>
-
-# include	<sys/processor.h>
-# include	<sys/systm.h>
-# include 	<sys/vmem.h>
-# include 	<sys/cred.h>
-
-/*# include	<sys/ucontext.h>*/
-/*# include	<sys/reg.h>*/
+	/*# include	<sys/ucontext.h>*/
+	/*# include	<sys/reg.h>*/
 # endif /* __KERNEL__ */
 
 # include 	<sys/regset.h>
@@ -81,7 +82,7 @@ struct modctl;
 // link.h
 #define LM_ID_BASE              0x00
 
-# define 	DEFAULTMUTEX 0
+# define 	DEFAULTMUTEX PTHREAD_MUTEX_INITIALIZER
 
 // fixme : objfs.h
 # define	OBJFS_ROOT	"/system/object"
@@ -202,11 +203,13 @@ typedef struct iovec iovec_t;
 # if !defined(ENOTSUP)
 # define ENOTSUP EOPNOTSUPP
 # endif
+# define MAXPATHLEN 1024
 
 /**********************************************************************/
 /*   Userland - non-kernel definitions.				      */
 /**********************************************************************/
 # include	<sys/types32.h>
+# include	<sys/sysmacros.h>
 # if !__KERNEL__
 
 	// Used by Pcore.c
@@ -214,11 +217,19 @@ typedef struct iovec iovec_t;
 	#define PN_XNUM         0xffff          /* extended program header index */
 	#define SHT_SUNW_LDYNSYM        0x6ffffff3
 
-	# define printk printf
-	# define MIN(a, b) ((a) < (b) ? (a) : (b))
-	# define MAX(a, b) ((a) > (b) ? (a) : (b))
+	int mutex_init(pthread_mutex_t *, int, void *);
+	#define	mutex_destroy(x)	pthread_mutex_destroy(x)
+	#define	mutex_lock(x)		pthread_mutex_lock(x)
+	#define	mutex_unlock(x)		pthread_mutex_unlock(x)
+
+	#define printk printf
+	#define MIN(a, b) ((a) < (b) ? (a) : (b))
+	#define MAX(a, b) ((a) > (b) ? (a) : (b))
+	#define roundup(x, y)   ((((x)+((y)-1))/(y))*(y))
 
 	#define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
+
+	# define mutex_t pthread_mutex_t
 
 	struct mutex {
 		long xxx;
@@ -235,7 +246,7 @@ typedef struct iovec iovec_t;
 //	# include	<sys/elf_amd64.h>
 
 	# define SHT_SUNW_dof            0x6ffffff4
-	#define EM_AMD64        EM_X86_64
+//	#define EM_AMD64        EM_X86_64
 	#define SHT_PROGBITS    1               /* Program specific (private) data */
 	#define STT_OBJECT      1               /* Symbol is a data object */
 
@@ -358,6 +369,13 @@ typedef ulong_t minor_t;        /* minor part of device number */
 typedef uint_t major_t;
 typedef uint_t minor_t;
 #endif
+
+#define	makedev		MKDEV
+#define	makedevice	MKDEV
+#define	getminor(x)	MINOR(x)
+#define	getmajor(x)	MAJOR(x)
+#define	minor(x)	MINOR(x)
+#define	major(x)	MAJOR(x)
 
 typedef struct flock64_32 {
         int16_t l_type;

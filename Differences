@@ -18,9 +18,5 @@ But in Linux, a syscall returns -errno value and not -1. GLIBC is
 responsible for setting the return of a syscall to -1 and updating the
 errno value. 
 
-The Linux version of the above script would be:
-
-        syscall::open:return
-        /arg1 < 0/
-        {
-        }
+Linux dtrace maps a < 0 arg0 return to -1, and arg1 can be used
+to gain the raw value from the return.

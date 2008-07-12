@@ -1,3 +1,11 @@
+Sun Jul 13 10:53:44 2008  fox
+
+      67* Archive: 1.0037
+
+      66* Pisadep.c: Got rid of most of our stubs and use proper libproc
+          code. This code wont work since its depending on Solaris /procfs
+	  but we can start to work our way through this.
+
 Sat Jul 12 10:59:36 2008  fox
 
       65* Archive: 1.0039

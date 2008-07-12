@@ -36,4 +36,15 @@ typedef struct {
 
 #define AT_SUN_AUXFLAGS 2017    /* AF_SUN_ flags passed from the kernel */
 
+#define AT_NULL         0
+#define AT_IGNORE       1
+#define AT_EXECFD       2
+#define AT_PHDR         3       /* &phdr[0] */
+#define AT_PHENT        4       /* sizeof(phdr[0]) */
+#define AT_PHNUM        5       /* # phdr entries */
+#define AT_PAGESZ       6       /* getpagesize(2) */
+#define AT_BASE         7       /* ld.so base addr */
+#define AT_FLAGS        8       /* processor flags */
+#define AT_ENTRY        9       /* a.out entry point */
+
 # endif

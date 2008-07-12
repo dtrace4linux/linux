@@ -9821,6 +9821,7 @@ HERE();
 		case DTRACEACT_PRINTA:
 		case DTRACEACT_SYSTEM:
 		case DTRACEACT_FREOPEN:
+PRINT_CASE("DTRACEACT_PRINTF/PRINTA/SYSTEM/FREOPEN");
 			/*
 			 * We know that our arg is a string -- turn it into a
 			 * format.
@@ -9838,6 +9839,7 @@ HERE();
 			/*FALLTHROUGH*/
 		case DTRACEACT_LIBACT:
 		case DTRACEACT_DIFEXPR:
+PRINT_CASE("DTRACEACT_LIBACT/DTRACEACT_DIFEXPR");
 			if (dp == NULL)
 				return (EINVAL);
 
@@ -9854,6 +9856,7 @@ HERE();
 			break;
 
 		case DTRACEACT_STACK:
+PRINT_CASE("DTRACEACT_STACK");
 			if ((nframes = arg) == 0) {
 				nframes = opt[DTRACEOPT_STACKFRAMES];
 				ASSERT(nframes > 0);
@@ -9864,6 +9867,7 @@ HERE();
 			break;
 
 		case DTRACEACT_JSTACK:
+PRINT_CASE("DTRACEACT_JSTACK");
 			if ((strsize = DTRACE_USTACK_STRSIZE(arg)) == 0)
 				strsize = opt[DTRACEOPT_JSTACKSTRSIZE];
 
@@ -9874,10 +9878,13 @@ HERE();
 
 			/*FALLTHROUGH*/
 		case DTRACEACT_USTACK:
+PRINT_CASE("DTRACEACT_USTACK");
 			if (desc->dtad_kind != DTRACEACT_JSTACK &&
 			    (nframes = DTRACE_USTACK_NFRAMES(arg)) == 0) {
+HERE();
 				strsize = DTRACE_USTACK_STRSIZE(arg);
 				nframes = opt[DTRACEOPT_USTACKFRAMES];
+printk("strsize=%d nframes=%d\n", strsize, nframes);
 				ASSERT(nframes > 0);
 				arg = DTRACE_USTACK_ARG(nframes, strsize);
 			}
@@ -9893,6 +9900,7 @@ HERE();
 
 		case DTRACEACT_SYM:
 		case DTRACEACT_MOD:
+PRINT_CASE("DTRACEACT_SYM/DTRACEACT_MOD");
 			if (dp == NULL || ((size = dp->dtdo_rtype.dtdt_size) !=
 			    sizeof (uint64_t)) ||
 			    (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
@@ -9902,6 +9910,7 @@ HERE();
 		case DTRACEACT_USYM:
 		case DTRACEACT_UMOD:
 		case DTRACEACT_UADDR:
+PRINT_CASE("DTRACEACT_USYM/UMOD/UADDR");
 			if (dp == NULL ||
 			    (dp->dtdo_rtype.dtdt_size != sizeof (uint64_t)) ||
 			    (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
@@ -9929,6 +9938,7 @@ HERE();
 			break;
 
 		case DTRACEACT_EXIT:
+PRINT_CASE("DTRACEACT_EXIT");
 			if (dp == NULL ||
 			    (size = dp->dtdo_rtype.dtdt_size) != sizeof (int) ||
 			    (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
@@ -9936,6 +9946,7 @@ HERE();
 			break;
 
 		case DTRACEACT_SPECULATE:
+PRINT_CASE("DTRACEACT_SPECULATE");
 			if (ecb->dte_size > sizeof (dtrace_epid_t))
 				return (EINVAL);
 
@@ -9948,6 +9959,7 @@ HERE();
 		case DTRACEACT_COMMIT: {
 			dtrace_action_t *act = ecb->dte_action;
 
+PRINT_CASE("DTRACEACT_COMMIT");
 			for (; act != NULL; act = act->dta_next) {
 				if (act->dta_kind == DTRACEACT_COMMIT)
 					return (EINVAL);

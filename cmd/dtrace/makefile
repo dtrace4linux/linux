@@ -3,13 +3,13 @@ LIBELF=/usr/lib/libelf.so.1
 BINDIR=../../build
 LIBS = \
 	$(BINDIR)/libctf.a \
-	$(BINDIR)/liblinux.a \
 	$(BINDIR)/libdtrace.a \
-	$(BINDIR)/libproc.a
+	$(BINDIR)/libproc.a \
+	$(BINDIR)/liblinux.a
 
 COMPILE = $(CC) $(CFLAGS) -o $(BINDIR)/dtrace \
 		-L../../build \
-		$(BINDIR)/dtrace.o -ldtrace -lctf -llinux -lz -lrt -lpthread $$libelf -ldl
+		$(BINDIR)/dtrace.o -ldtrace -lctf -lproc -llinux -lz -lrt -lpthread $$libelf -ldl
 
 all:	$(BINDIR)/dtrace
 

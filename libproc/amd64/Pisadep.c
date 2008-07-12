@@ -1,18 +1,39 @@
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only.
- * See the file usr/src/LICENSING.NOTICE in this distribution or
- * http://www.opensolaris.org/license/ for details.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)Pisadep.c	1.8	04/12/06 SMI"
+#pragma ident	"@(#)Pisadep.c	1.12	07/01/01 SMI"
 
 #include <sys/stack.h>
 #include <sys/regset.h>
+# if defined(sun)
 #include <sys/frame.h>
+# endif
 #include <sys/sysmacros.h>
+# if defined(sun)
+#include <sys/trap.h>
+# endif
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -26,11 +47,12 @@
 #define	M_PLT_NRSV		1	/* reserved PLT entries */
 #define	M_PLT_ENTSIZE		16	/* size of each PLT entry */
 
-static uchar_t old_lcall[] = { 0x91, 0, 0, 0, 0, 0x7, 0 };
-static uchar_t lcall_instr[] = { 0x9a, 0, 0, 0, 0, 0x27, 0 };
-#ifdef _LP64
-static uchar_t sysenter_instr[] = { 0x0f, 0x05 };
-#endif
+# if linux
+# define T_SYSCALLINT 0x91
+# endif
+
+static uchar_t int_syscall_instr[] = { 0xCD, T_SYSCALLINT };
+static uchar_t syscall_instr[] = { 0x0f, 0x05 };
 
 const char *
 Ppltdest(struct ps_prochandle *P, uintptr_t pltaddr)
@@ -56,7 +78,7 @@ Ppltdest(struct ps_prochandle *P, uintptr_t pltaddr)
 
 		if (Pread(P, &r, sizeof (r), r_addr) == sizeof (r) &&
 		    (i = ELF64_R_SYM(r.r_info)) < fp->file_dynsym.sym_symn) {
-			Elf_Data *data = fp->file_dynsym.sym_data;
+			Elf_Data *data = fp->file_dynsym.sym_data_pri;
 			Elf64_Sym *symp = &(((Elf64_Sym *)data->d_buf)[i]);
 
 			return (fp->file_dynsym.sym_strs + symp->st_name);
@@ -68,7 +90,7 @@ Ppltdest(struct ps_prochandle *P, uintptr_t pltaddr)
 
 		if (Pread(P, &r, sizeof (r), r_addr) == sizeof (r) &&
 		    (i = ELF32_R_SYM(r.r_info)) < fp->file_dynsym.sym_symn) {
-			Elf_Data *data = fp->file_dynsym.sym_data;
+			Elf_Data *data = fp->file_dynsym.sym_data_pri;
 			Elf32_Sym *symp = &(((Elf32_Sym *)data->d_buf)[i]);
 
 			return (fp->file_dynsym.sym_strs + symp->st_name);
@@ -83,24 +105,20 @@ Pissyscall(struct ps_prochandle *P, uintptr_t addr)
 {
 	uchar_t instr[16];
 
-#if defined(_LP64)
 	if (P->status.pr_dmodel == PR_MODEL_LP64) {
-		if (Pread(P, instr, sizeof (sysenter_instr), addr) !=
-		    sizeof (sysenter_instr) ||
-		    memcmp(instr, sysenter_instr, sizeof (sysenter_instr)) != 0)
+		if (Pread(P, instr, sizeof (syscall_instr), addr) !=
+		    sizeof (syscall_instr) ||
+		    memcmp(instr, syscall_instr, sizeof (syscall_instr)) != 0)
 			return (0);
 		else
 			return (1);
 	}
-#endif
 
-	if (Pread(P, instr, sizeof (lcall_instr), addr) !=
-	    sizeof (lcall_instr))
+	if (Pread(P, instr, sizeof (int_syscall_instr), addr) !=
+	    sizeof (int_syscall_instr))
 		return (0);
 
-	if (memcmp(instr, old_lcall, sizeof (old_lcall)) == 0)
-		return (2);
-	if (memcmp(instr, lcall_instr, sizeof (lcall_instr)) == 0)
+	if (memcmp(instr, int_syscall_instr, sizeof (int_syscall_instr)) == 0)
 		return (1);
 
 	return (0);
@@ -111,19 +129,18 @@ Pissyscall_prev(struct ps_prochandle *P, uintptr_t addr, uintptr_t *dst)
 {
 	int ret;
 
-#if defined(_LP64)
 	if (P->status.pr_dmodel == PR_MODEL_LP64) {
-		if (Pissyscall(P, addr - sizeof (sysenter_instr))) {
+		if (Pissyscall(P, addr - sizeof (syscall_instr))) {
 			if (dst)
-				*dst = addr - sizeof (sysenter_instr);
+				*dst = addr - sizeof (syscall_instr);
 			return (1);
 		}
 		return (0);
 	}
-#endif
-	if ((ret = Pissyscall(P, addr - sizeof (lcall_instr))) != 0) {
+
+	if ((ret = Pissyscall(P, addr - sizeof (int_syscall_instr))) != 0) {
 		if (dst)
-			*dst = addr - sizeof (lcall_instr);
+			*dst = addr - sizeof (int_syscall_instr);
 		return (ret);
 	}
 
@@ -133,28 +150,22 @@ Pissyscall_prev(struct ps_prochandle *P, uintptr_t addr, uintptr_t *dst)
 int
 Pissyscall_text(struct ps_prochandle *P, const void *buf, size_t buflen)
 {
-#if defined(_LP64)
 	if (P->status.pr_dmodel == PR_MODEL_LP64) {
-		if (buflen >= sizeof (sysenter_instr) &&
-		    memcmp(buf, sysenter_instr, sizeof (sysenter_instr)) == 0)
+		if (buflen >= sizeof (syscall_instr) &&
+		    memcmp(buf, syscall_instr, sizeof (syscall_instr)) == 0)
 			return (1);
 		else
 			return (0);
 	}
-#endif
 
-	if (buflen < sizeof (lcall_instr))
+	if (buflen < sizeof (int_syscall_instr))
 		return (0);
 
-	if (memcmp(buf, old_lcall, sizeof (old_lcall)) == 0)
-		return (2);
-	if (memcmp(buf, lcall_instr, sizeof (lcall_instr)) == 0)
+	if (memcmp(buf, int_syscall_instr, sizeof (int_syscall_instr)) == 0)
 		return (1);
 
 	return (0);
 }
-
-#ifdef _LP64
 
 #define	TR_ARG_MAX 6	/* Max args to print, same as SPARC */
 
@@ -340,7 +351,6 @@ Pstack_iter32(struct ps_prochandle *P, const prgregset_t regs,
 	free_uclist(&ucl);
 	return (rv);
 }
-#endif
 
 static void
 ucontext_n_to_prgregs(const ucontext_t *src, prgregset_t dst)
@@ -385,10 +395,8 @@ Pstack_iter(struct ps_prochandle *P, const prgregset_t regs,
 	} sigframe_t;
 	prgreg_t args[32];
 
-#ifdef _LP64
 	if (P->status.pr_dmodel != PR_MODEL_LP64)
 		return (Pstack_iter32(P, regs, func, arg));
-#endif
 
 	init_uclist(&ucl, P);
 	(void) memcpy(gregs, regs, sizeof (gregs));

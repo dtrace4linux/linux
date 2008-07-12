@@ -45,6 +45,7 @@
 
 #pragma ident	"@(#)libproc.h	1.50	07/10/12 SMI"
 
+#include <linux_types.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>

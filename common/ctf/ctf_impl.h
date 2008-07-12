@@ -39,8 +39,8 @@
 # endif
 # if defined(sun)
 #include <sys/errno.h>
-#include <sys/sysmacros.h>
 # endif
+#include <sys/sysmacros.h>
 #include <sys/ctf_api.h>
 
 #ifdef _KERNEL

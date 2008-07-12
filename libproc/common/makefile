@@ -11,12 +11,16 @@ CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 LIB = ../../build/libproc.a
 
 $(LIB): \
+	$(LIB)(P32ton.o) \
 	$(LIB)(Pcontrol.o) \
 	$(LIB)(Pcore.o) \
 	$(LIB)(Pexecname.o) \
 	$(LIB)(Pgcore.o) \
 	$(LIB)(Pidle.o) \
+	$(LIB)(pisadep.o) \
 	$(LIB)(Plwpregs.o) \
+	$(LIB)(Psymtab_machelf32.o) \
+	$(LIB)(Psymtab_machelf64.o) \
 	$(LIB)(Pscantext.o) \
 	$(LIB)(Pservice.o) \
 	$(LIB)(Pstack.o) \
@@ -47,10 +51,9 @@ $(LIB): \
 	$(LIB)(proc_get_info.o) \
 	$(LIB)(proc_names.o) \
 	$(LIB)(proc_set.o) \
-	$(LIB)(proc_stdio.o) \
-
-#	$(LIB)(P32ton.o) \
+	$(LIB)(proc_stdio.o)
 
 
 clean:
+	-rm -f *.o
 	

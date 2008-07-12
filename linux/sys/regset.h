@@ -95,10 +95,15 @@ typedef struct __old_fpu {
 
 #endif  /* __i386 */
 
+typedef int32_t greg32_t;
+typedef int64_t greg64_t;
+
 # if defined(__amd64)
 # 	define _NGREG	28
+#	define R_FP	REG_RBP
 # else
 # 	define _NGREG	19
+#	define R_FP	EBP
 # endif
 # define NGREG	_NGREG
 

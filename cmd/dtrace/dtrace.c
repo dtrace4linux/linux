@@ -65,6 +65,8 @@ typedef struct dtrace_cmd {
 #define	E_ERROR		1
 #define	E_USAGE		2
 
+int	dtrace_here = 1;
+
 static const char DTRACE_OPTSTR[] =
 	"3:6:aAb:Bc:CD:ef:FGhHi:I:lL:m:n:o:p:P:qs:SU:vVwx:X:Z";
 

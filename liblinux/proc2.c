@@ -9,6 +9,60 @@
 # include	<time.h>
 # include	<sys/time.h>
 # include	<pthread.h>
+#include "Pcontrol.h"
+#include "libproc.h"
+
+int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
+{	int	fd;
+	char	buf[4096];
+	char	cmd[1024];
+	char	state[1024];
+	int	n;
+	long	pid, ppid, pgid, sid, tty_nr, tty_pgrp;
+	long	flags;
+	long	min_flt, cmin_flt, maj_flt, cmaj_flt;
+	long	utime, stime, cutime, cstime;
+	long	priority, nice, num_threads, it_real_value;
+	long	start_time, vsize, rss, rsslim;
+	long	start_code, end_code, start_stack, esp, eip;
+	long	pending, blocked, sigign, sigcatch;
+	long	wchan, zero1, zero2, exit_signal;
+	long	cpu, rt_priority, policy;
+
+HERE(); printf("Help: reading /stat/ structure.\n");
+	memset(pst, 0, sizeof *pst);
+	sprintf(buf, "/proc/%d/stat", P->pid);
+	if ((fd = open(buf, O_RDONLY)) < 0)
+		return -1;
+	n = read(fd, buf, sizeof buf);
+
+	sscanf(buf, "%ld %s %s %ld %ld %ld %ld "
+		"%ld %ld %ld %ld "	 // flt
+		"%ld %ld %ld %ld " // utime
+		"%ld %ld %ld %ld " // priority
+		"%ld %ld %ld %ld " // start_time
+		"%ld %ld %ld %ld %ld" // start_code
+		"%ld %ld %ld %ld " // pending
+		"%ld %ld %ld %ld " // wchan
+		"%ld %ld %ld"	 // cpu
+		,
+
+		&pid, cmd, state, &ppid, &pgid, &tty_nr, &tty_pgrp,
+		&min_flt, &cmin_flt, &maj_flt, &cmaj_flt,
+		&utime, &stime, &cutime, &cstime,
+		&priority, &nice, &num_threads, &it_real_value,
+		&start_time, &vsize, &rss, &rsslim,
+		&start_code, &end_code, &start_stack, &esp, &eip,
+		&pending, &blocked, &sigign, &sigcatch,
+		&wchan, &zero1, &zero2, &exit_signal,
+		&cpu, &rt_priority, &policy);
+
+	pst->pr_pid = pid;
+	pst->pr_ppid = ppid;
+	pst->pr_sid = sid;
+	pst->pr_nlwp = num_threads;
+	return 0;
+}
 
 unsigned long long 
 gethrtime()

@@ -26,6 +26,7 @@
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
 
 #include <linux/mm.h>
+# undef zone
 # define zone linux_zone
 #include <dtrace_linux.h>
 #include <linux/sched.h>
@@ -162,6 +163,11 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 # else
 	syscall = ptr[12]; // horrid hack
 # endif
+	if (syscall < 0 || syscall >= NSYSCALL) {
+		printk("dtrace:help: Got syscall=%d\n", syscall);
+		return -EINVAL;
+	}
+
         sy = &systrace_sysent[syscall];
 
 printk("syscall=%d %s current=%p syscall=%d\n", syscall, 
@@ -186,6 +192,8 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
         }
         mutex_exit(&p->p_lock);
 	}
+# else
+	kill_proc(current->pid, SIGSTOP, NULL);
 # endif
 
         rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);

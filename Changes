@@ -1,3 +1,13 @@
+Wed Jul 16 22:55:01 2008  fox
+
+      68* systrace.c: Avoid bogus syscalls which can index
+          off the end of the array. Likely due to bad stack reference.
+	  Avoids SIGKILL near kernel panic when it happens.
+	  Trying to bootstrap ustack() call which involves 
+	  examining to the proc in user space to grab the symbol
+	  table. Race condition (which is catered for) -- the proc
+	  may no longer exist by the time dtrace is running.
+
 Sun Jul 13 10:53:44 2008  fox
 
       67* Archive: 1.0037

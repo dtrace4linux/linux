@@ -82,6 +82,7 @@ typedef struct	sol_proc_t {
 	int		p_stat;
 	pid_t pid;
 	pid_t ppid;
+	struct task_struct *p_task;
 
         uint_t          t_predcache;    /* DTrace predicate cache */
 	

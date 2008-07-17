@@ -56,6 +56,12 @@
 #include "Putil.h"
 #include "P32ton.h"
 
+# if linux
+# define	AS_PROCNAME "mem"
+# else
+# define	AS_PROCNAME "as"
+# endif
+
 int	_libproc_debug;		/* set non-zero to enable debugging printfs */
 int	_libproc_no_qsort;	/* set non-zero to inhibit sorting */
 				/* of symbol tables */
@@ -572,7 +578,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	 * If this fails and the 'PGRAB_FORCE' flag is set, attempt to
 	 * open non-exclusively.
 	 */
-	(void) strcpy(fname, "as");
+	(void) strcpy(fname, AS_PROCNAME);
 	omode = (flags & PGRAB_RDONLY) ? O_RDONLY : O_RDWR;
 
 	if (((fd = open(procname, omode | O_EXCL)) < 0 &&
@@ -1308,7 +1314,7 @@ Preopen(struct ps_prochandle *P)
 	    procfs_path, (int)P->pid);
 	fname = procname + strlen(procname);
 
-	(void) strcpy(fname, "as");
+	(void) strcpy(fname, AS_PROCNAME);
 	if ((fd = open(procname, O_RDWR)) < 0 ||
 	    close(P->asfd) < 0 ||
 	    (fd = dupfd(fd, P->asfd)) != P->asfd) {
@@ -1692,16 +1698,23 @@ Pstopstatus(struct ps_prochandle *P,
 	Psync(P);
 
 	if (P->agentstatfd < 0) {
+# if linux
+		if (lx_read_stat(P, &P->status) < 0)
+			err = errno;
+# else
 		if (pread(P->statfd, &P->status,
 		    sizeof (P->status), (off_t)0) < 0)
 			err = errno;
+# endif
 	} else {
+HERE();
 		if (pread(P->agentstatfd, &P->status.pr_lwp,
 		    sizeof (P->status.pr_lwp), (off_t)0) < 0)
 			err = errno;
 		P->status.pr_flags = P->status.pr_lwp.pr_flags;
 	}
 
+HERE();
 	if (err) {
 		switch (err) {
 		case EINTR:		/* user typed ctl-C */
@@ -1741,6 +1754,7 @@ Pstopstatus(struct ps_prochandle *P,
 	}
 
 	if (!(P->status.pr_flags & PR_STOPPED)) {
+HERE();
 		P->state = PS_RUN;
 		if (request == PCNULL || request == PCDSTOP || msec != 0)
 			return (0);
@@ -1789,6 +1803,7 @@ Pstopstatus(struct ps_prochandle *P,
 int
 Pwait(struct ps_prochandle *P, uint_t msec)
 {
+HERE();
 	return (Pstopstatus(P, PCWSTOP, msec));
 }
 
@@ -1798,6 +1813,7 @@ Pwait(struct ps_prochandle *P, uint_t msec)
 int
 Pstop(struct ps_prochandle *P, uint_t msec)
 {
+HERE();
 	return (Pstopstatus(P, PCSTOP, msec));
 }
 
@@ -1807,6 +1823,7 @@ Pstop(struct ps_prochandle *P, uint_t msec)
 int
 Pdstop(struct ps_prochandle *P)
 {
+HERE();
 	return (Pstopstatus(P, PCDSTOP, 0));
 }
 

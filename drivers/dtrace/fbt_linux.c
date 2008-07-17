@@ -1046,7 +1046,8 @@ fbt_write(struct file *file, const char __user *buf,
 		}
 		if (mp->m_name != NULL) {
 			mp->m_ptr = simple_strtoul(buf, NULL, 16);
-			printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
+			if (dtrace_here)
+				printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
 		}
 		buf = symend + 1;
 	}

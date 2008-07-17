@@ -442,6 +442,7 @@ par_setup_thread()
 	curthread = solp;
 	curthread->pid = get_current()->pid;
 	curthread->p_pid = get_current()->pid;
+	curthread->p_task = get_current();
 	/***********************************************/
 	/*   2.6.24.4    kernel    has   parent   and  */
 	/*   real_parent,  but RH FC8 (2.6.24.4 also)  */
@@ -596,7 +597,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 
 	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
 //HERE();
-printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
+if (ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }
 static const struct file_operations dtracedrv_fops = {

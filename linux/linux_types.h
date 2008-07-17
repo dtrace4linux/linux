@@ -115,6 +115,9 @@ typedef unsigned int mutex_t;
 
 	# define	t_did pid
 	# define	p_parent parent
+	# define klwp_t struct thread_struct
+	# define ttolwp(p) (p)->p_task->thread
+
 
 	#define        MIN(a,b) (((a)<(b))?(a):(b))
 	#define UINT8_MAX       (255U)

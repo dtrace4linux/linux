@@ -24,27 +24,36 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dtrace_isa.c	1.10	04/12/18 SMI"
+//#pragma ident	"@(#)dtrace_isa.c	1.10	04/12/18 SMI"
 
 # if linux
+#define _SYSCALL32
 #include "dtrace_linux.h"
+#include <linux/sched.h>
+#include <linux/uaccess.h>
+#include <asm/ucontext.h>
+#include <linux/thread_info.h>
+#include <linux/stacktrace.h>
 # endif
 
 #include <sys/dtrace_impl.h>
 #include <sys/stack.h>
-# if defined(sun)
 #include <sys/frame.h>
 #include <sys/cmn_err.h>
 #include <sys/privregs.h>
 #include <sys/sysmacros.h>
-# endif
+
+typedef struct ucontext ucontext_t;
+typedef struct ucontext32 ucontext32_t;
+//typedef struct siginfo32 siginfo32_t;
+# define siginfo32_t siginfo_t
 
 /*
  * This is gross knowledge to have to encode here...
  */
-extern void _interrupt();
-extern void _cmntrap();
-extern void _allsyscalls();
+extern void _interrupt(void);
+extern void _cmntrap(void);
+extern void _allsyscalls(void);
 
 extern size_t _interrupt_size;
 extern size_t _cmntrap_size;
@@ -135,21 +144,11 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	}
 # endif
 }
-
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {
-# if 0
-	klwp_t *lwp = ttolwp(curthread);
-	proc_t *p = ttoproc(curthread);
-	struct regs *rp;
-	uintptr_t pc, sp, oldcontext;
 	volatile uint8_t *flags =
 	    (volatile uint8_t *)&cpu_core[CPU->cpu_id].cpuc_dtrace_flags;
-	size_t s1, s2;
-
-	if (lwp == NULL || p == NULL || (rp = lwp->lwp_regs) == NULL)
-		return;
 
 	if (*flags & CPU_DTRACE_FAULT)
 		return;
@@ -157,88 +156,49 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	if (pcstack_limit <= 0)
 		return;
 
-	*pcstack++ = (uint64_t)p->p_pid;
+	*pcstack++ = (uint64_t)current->pid;
 	pcstack_limit--;
 
 	if (pcstack_limit <= 0)
 		return;
 
-	pc = rp->r_pc;
-	sp = rp->r_fp;
-	oldcontext = lwp->lwp_oldcontext;
+	/***********************************************/
+	/*   Linux provides a built in function which  */
+	/*   is  good  because  stack walking is arch  */
+	/*   dependent.            (save_stack_trace)  */
+	/*   					       */
+	/*   Unfortunately  this is options dependent  */
+	/*   (CONFIG_STACKTRACE) so we cannot use it.  */
+	/*   And  its  GPL  anyhow, so we cannot copy  */
+	/*   it.				       */
+	/*   					       */
+	/*   Whats worse is that we might be compiled  */
+	/*   with a frame pointer (only on x86-32) so  */
+	/*   we have three scenarios to handle.	       */
+	/***********************************************/
+	{
+	unsigned long *tos;
+	unsigned long *sp;
+# if defined(__i386)
+#	define rsp esp
+# endif
 
-	if (p->p_model == DATAMODEL_NATIVE) {
-		s1 = sizeof (struct frame) + 2 * sizeof (long);
-		s2 = s1 + sizeof (siginfo_t);
-	} else {
-		s1 = sizeof (struct frame32) + 3 * sizeof (int);
-		s2 = s1 + sizeof (siginfo32_t);
-	}
-
-	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_ENTRY)) {
-		*pcstack++ = (uint64_t)pc;
-		pcstack_limit--;
-		if (pcstack_limit <= 0)
-			return;
-
-		if (p->p_model == DATAMODEL_NATIVE)
-			pc = dtrace_fulword((void *)rp->r_sp);
-		else
-			pc = dtrace_fuword32((void *)rp->r_sp);
-	}
-
-	while (pc != 0 && sp != 0) {
-		*pcstack++ = (uint64_t)pc;
-		pcstack_limit--;
-		if (pcstack_limit <= 0)
+	sp = current->thread.rsp;
+	tos = (unsigned long) sp & (~(THREAD_SIZE) - 1);
+printk("sp=%p tos=%p limit=%d\n", sp, tos, pcstack_limit);
+	while (pcstack_limit-- > 0 &&
+	       sp >= current->thread.rsp &&
+	       sp < tos) {
+		*pcstack++ = sp;
+printk("sp=%p tos=%p limit=%d\n", sp, tos, pcstack_limit);
+		if (sp[1] < sp)
 			break;
-
-		if (oldcontext == sp + s1 || oldcontext == sp + s2) {
-			if (p->p_model == DATAMODEL_NATIVE) {
-				ucontext_t *ucp = (ucontext_t *)oldcontext;
-				greg_t *gregs = ucp->uc_mcontext.gregs;
-
-				sp = dtrace_fulword(&gregs[REG_FP]);
-				pc = dtrace_fulword(&gregs[REG_PC]);
-
-				oldcontext = dtrace_fulword(&ucp->uc_link);
-			} else {
-				ucontext32_t *ucp = (ucontext32_t *)oldcontext;
-				greg32_t *gregs = ucp->uc_mcontext.gregs;
-
-				sp = dtrace_fuword32(&gregs[EBP]);
-				pc = dtrace_fuword32(&gregs[EIP]);
-
-				oldcontext = dtrace_fuword32(&ucp->uc_link);
-			}
-		} else {
-			if (p->p_model == DATAMODEL_NATIVE) {
-				struct frame *fr = (struct frame *)sp;
-
-				pc = dtrace_fulword(&fr->fr_savpc);
-				sp = dtrace_fulword(&fr->fr_savfp);
-			} else {
-				struct frame32 *fr = (struct frame32 *)sp;
-
-				pc = dtrace_fuword32(&fr->fr_savpc);
-				sp = dtrace_fuword32(&fr->fr_savfp);
-			}
-		}
-
-		/*
-		 * This is totally bogus:  if we faulted, we're going to clear
-		 * the fault and break.  This is to deal with the apparently
-		 * broken Java stacks on x86.
-		 */
-		if (*flags & CPU_DTRACE_FAULT) {
-			*flags &= ~CPU_DTRACE_FAULT;
-			break;
-		}
+		sp = sp[1];
+	}
 	}
 
 	while (pcstack_limit-- > 0)
 		*pcstack++ = NULL;
-# endif
 }
 
 int
@@ -480,7 +440,6 @@ load:
 int
 dtrace_getstackdepth(int aframes)
 {
-# if 0
 	struct frame *fp = (struct frame *)dtrace_getfp();
 	struct frame *nextfp, *minfp, *stacktop;
 	int depth = 0;
@@ -488,6 +447,7 @@ dtrace_getstackdepth(int aframes)
 	int on_intr;
 	uintptr_t pc;
 
+# if 0
 	if ((on_intr = CPU_ON_INTR(CPU)) != 0)
 		stacktop = (struct frame *)(CPU->cpu_intr_stack + SA(MINFRAME));
 	else
@@ -539,7 +499,6 @@ dtrace_getstackdepth(int aframes)
 ulong_t
 dtrace_getreg(struct regs *rp, uint_t reg)
 {
-# if 0
 #if defined(__amd64)
 	int regmap[] = {
 		REG_GS,		/* GS */
@@ -640,8 +599,6 @@ dtrace_getreg(struct regs *rp, uint_t reg)
 
 	return ((&rp->r_gs)[reg]);
 #endif
-
-# endif
 }
 
 static int

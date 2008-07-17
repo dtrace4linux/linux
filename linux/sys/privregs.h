@@ -28,7 +28,7 @@
 # define SYS_PRIVREGS_H
 
 
-#if __i386
+#if defined(__i386)
 struct regs {
         /*
          * Extra frame for mdb to follow through high level interrupts and

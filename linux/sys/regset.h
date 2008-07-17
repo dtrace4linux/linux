@@ -165,4 +165,24 @@ typedef int64_t greg64_t;
 #define MSR_AMD_FSBASE  0xc0000100      /* 64-bit base address for %fs */
 #define MSR_AMD_GSBASE  0xc0000101      /* 64-bit base address for %gs */
 
+#if defined(__amd64)
+
+#define REG_PC  REG_RIP
+#define REG_FP  REG_RBP
+#define REG_SP  REG_RSP
+#define REG_PS  REG_RFL
+#define REG_R0  REG_RAX
+#define REG_R1  REG_RDX
+
+#else   /* __i386 */
+
+#define REG_PC  EIP
+#define REG_FP  EBP
+#define REG_SP  UESP
+#define REG_PS  EFL
+#define REG_R0  EAX
+#define REG_R1  EDX
+
+#endif  /* __i386 */
+
 # endif

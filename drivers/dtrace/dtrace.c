@@ -6027,25 +6027,25 @@ HERE();
 HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_STOP:
-HERE();
+PRINT_CASE(DTRACEACT_STOP);
 				if (dtrace_priv_proc_destructive(state))
 					dtrace_action_stop();
 				continue;
 
 			case DTRACEACT_BREAKPOINT:
-HERE();
+PRINT_CASE(DTRACEACT_BREAKPOINT);
 				if (dtrace_priv_kernel_destructive(state))
 					dtrace_action_breakpoint(ecb);
 				continue;
 
 			case DTRACEACT_PANIC:
-HERE();
+PRINT_CASE(DTRACEACT_PANIC);
 				if (dtrace_priv_kernel_destructive(state))
 					dtrace_action_panic(ecb);
 				continue;
 
 			case DTRACEACT_STACK:
-HERE();
+PRINT_CASE(DTRACEACT_STACK);
 				if (!dtrace_priv_kernel(state))
 					continue;
 
@@ -6058,7 +6058,7 @@ HERE();
 
 			case DTRACEACT_JSTACK:
 			case DTRACEACT_USTACK:
-HERE();
+PRINT_CASE(DTRACEACT_JSTACK/DTRACEACT_USTACK);
 				if (!dtrace_priv_proc(state))
 					continue;
 
@@ -6069,7 +6069,7 @@ HERE();
 				    CPU_ON_INTR(CPU)) {
 					int depth = DTRACE_USTACK_NFRAMES(
 					    rec->dtrd_arg) + 1;
-
+HERE();
 					dtrace_bzero((void *)(tomax + valoffs),
 					    DTRACE_USTACK_STRSIZE(rec->dtrd_arg)
 					    + depth * sizeof (uint64_t));
@@ -6086,11 +6086,13 @@ HERE();
 					 * has helpers.  Call into a separate
 					 * routine to perform this processing.
 					 */
+HERE();
 					dtrace_action_ustack(&mstate, state,
 					    (uint64_t *)(tomax + valoffs),
 					    rec->dtrd_arg);
 					continue;
 				}
+HERE();
 
 				DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 				dtrace_getupcstack((uint64_t *)

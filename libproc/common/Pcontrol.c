@@ -50,6 +50,10 @@
 #include <sys/fault.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
+# if linux
+#include <sys/ptrace.h>
+# endif
+
 
 #include "libproc.h"
 #include "Pcontrol.h"
@@ -85,13 +89,43 @@ static	void	Lfree_internal(struct ps_prochandle *, struct ps_lwphandle *);
 static ssize_t
 Pread_live(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr)
 {
+# if linux
+	// HACK: this is horrible from a performance perspective,
+	// and we need to be root to attach, but pread() wont
+	// work unless we own the proc. We need to move this to
+	// Pgrab/Pungrab, but if we do that, we will keep hanging the
+	// system when running under a debugger. So do this for now.
+	int	ret;
+
+printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
+	if ((ret = ptrace(PTRACE_ATTACH, P->pid, 0, 0)) < 0) {
+		perror("PTRACE_ATTACH");
+	}
+# if defined(__i386)
+	/***********************************************/
+	/*   Avoid  sign-extension  issues in top 2GB  */
+	/*   of addr space.			       */
+	/***********************************************/
+	ret = pread64(P->asfd, buf, n, (unsigned long long) (unsigned long) addr);
+# else
+	ret = pread64(P->asfd, buf, n, addr);
+# endif
+	if (ret < 0) {
+		printf("Pread_live: pid=%d, read=%d err=%s\n", P->pid, ret, strerror(errno));
+	}
+	if (ptrace(PTRACE_DETACH, P->pid, 0, 0) < 0) {
+		perror("PTRACE_DETACH");
+	}
+	return ret;
+# else
 	return (pread(P->asfd, buf, n, (off_t)addr));
+# endif
 }
 
 static ssize_t
 Pwrite_live(struct ps_prochandle *P, const void *buf, size_t n, uintptr_t addr)
 {
-	return (pwrite(P->asfd, buf, n, (off_t)addr));
+	return (pwrite(P->asfd, (void *) buf, n, (off_t)addr));
 }
 
 static const ps_rwops_t P_live_ops = { Pread_live, Pwrite_live };
@@ -103,6 +137,14 @@ static const ps_rwops_t P_live_ops = { Pread_live, Pwrite_live };
 void
 _libproc_init(void)
 {
+# if linux
+	static int first_time = TRUE;
+
+	if (!first_time)
+		return;
+	first_time = TRUE;
+# endif
+
 	_libproc_debug = getenv("LIBPROC_DEBUG") != NULL;
 	_libproc_no_qsort = getenv("LIBPROC_NO_QSORT") != NULL;
 
@@ -531,6 +573,9 @@ Pgrab(pid_t pid, int flags, int *perr)
 	char *fname;
 	int rc = 0;
 
+# if linux
+	_libproc_init();
+# endif
 	/*
 	 * PGRAB_RDONLY means that we do not open the /proc/<pid>/control file,
 	 * and so it implies RETAIN and NOSTOP since both require control.

@@ -1,3 +1,41 @@
+Tue Jul 29 21:27:11 2008  fox
+
+      78* makefile: Build libelf/Gelf structures properly for 32b machines.
+
+Sun Jul 27 08:56:23 2008  fox
+
+      77* dtrace_isa.c: Add in support for getstack to handle stack()
+          calls. Not brilliant with -fomit-frame-pointer in the kernel,
+	  but that will teach people to use this option :-(
+
+      76* dt_module.c: Add support for reading /proc/kallsyms so we
+          can get kernel level stack traces.
+
+Thu Jul 24 08:54:01 2008  fox
+
+      75* dtrace.c: dtrace_probe: Fix issue with 32-bit arguments
+          not being sign extended when stored in return struct. Without
+	  this, arg0 is never < 0 for failed syscalls.
+
+      74* load.pl: rewrite load shell script as perl as we want to do some
+          extra things for some kernels.
+
+      73* fbt_linux.c: Add support for i386/modules[] on 2.6.23.1
+
+Wed Jul 23 07:32:30 2008  fox
+
+      72* fbt_linux.c: Implement work around for 2.6.23.1 kernel
+          without public sys_call_table.
+
+      71* dtrace_linux.c: par_alloc should memset the memory
+          to zero to avoid firing a signal when it wasnt asked for.
+
+      70* systrace.c, dtrace.c: Implement support for raise/stop actions
+          which can send a signal to a process.
+
+      69* load: Detect missing symbols and try to warn user something
+          may fail.
+
 Wed Jul 16 22:55:01 2008  fox
 
       68* systrace.c: Avoid bogus syscalls which can index

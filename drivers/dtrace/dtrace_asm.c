@@ -29,8 +29,13 @@ dtrace_getfp(void)
 
 #elif defined(__i386)
 
+# if defined(CONFIG_FRAME_POINTER)
 		"movl	%ebp, %eax\n"
 		"ret"
+# else
+		"movl	(%esp), %eax\n"
+		"ret"
+# endif
 
 #endif	/* __i386 */
 	);

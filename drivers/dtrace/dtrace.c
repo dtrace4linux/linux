@@ -3241,7 +3241,6 @@ HERE2();
 PRINT_CASE(DIF_SUBR_COPYINSTR);
 		if (nargs > 1 && tupregs[1].dttk_value < size)
 			size = tupregs[1].dttk_value + 1;
-HERE();
 
 		/*
 		 * This action doesn't require any credential checks since
@@ -3250,27 +3249,17 @@ HERE();
 		 */
 		if (!DTRACE_INSCRATCH(mstate, size)) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOSCRATCH);
-HERE();
-printk("mstate->dtms_scratch_base=%p size=%d ptr=%p alloc_sz=%d\n",
-mstate->dtms_scratch_base, mstate->dtms_scratch_size, mstate->dtms_scratch_ptr, size);
 			regs[rd] = NULL;
 			break;
 		}
 
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
-HERE();
-printk("dttk_value=%x\n", tupregs[0].dttk_value);
 		dtrace_copyinstr(tupregs[0].dttk_value, dest, size, flags);
-printk("det=%s\n", dest);
-HERE();
 		DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
-HERE();
 
 		((char *)dest)[size - 1] = '\0';
 		mstate->dtms_scratch_ptr += size;
-HERE();
 		regs[rd] = dest;
-HERE();
 		break;
 	}
 
@@ -5120,27 +5109,21 @@ PRINT_CASE(DIF_OP_STTS);
 			key = &tupregs[DIF_DTR_NREGS];
 			key[0].dttk_value = (uint64_t)id;
 			key[0].dttk_size = 0;
-HERE();
 			DTRACE_TLS_THRKEY(key[1].dttk_value);
-HERE();
-printk("id=%d\n", id);
 			key[1].dttk_size = 0;
 			v = &vstate->dtvs_tlocals[id];
 
-HERE();
 			dvar = dtrace_dynvar(dstate, 2, key,
 			    v->dtdv_type.dtdt_size > sizeof (uint64_t) ?
 			    v->dtdv_type.dtdt_size : sizeof (uint64_t),
 			    regs[rd] ? DTRACE_DYNVAR_ALLOC :
 			    DTRACE_DYNVAR_DEALLOC, mstate, vstate);
-HERE();
 
 			/*
 			 * Given that we're storing to thread-local data,
 			 * we need to flush our predicate cache.
 			 */
 			curthread->t_predcache = NULL;
-HERE();
 
 			if (dvar == NULL)
 				break;
@@ -5524,7 +5507,10 @@ dtrace_action_raise(uint64_t sig)
 		return;
 	}
 
-#if defined(sun)
+	/***********************************************/
+	/*   User wants to send a signal to a proc.    */
+	/***********************************************/
+	par_setup_thread();
 	/*
 	 * raise() has a queue depth of 1 -- we ignore all subsequent
 	 * invocations of the raise() action.
@@ -5534,10 +5520,7 @@ dtrace_action_raise(uint64_t sig)
 
 	curthread->t_sig_check = 1;
 	aston(curthread);
-#else
-HERE();
-	kill_pid(curproc, sig, 0);
-#endif
+//	kill_pid(curproc, sig, 0);
 }
 
 static void
@@ -5546,15 +5529,17 @@ dtrace_action_stop(void)
 	if (dtrace_destructive_disallow)
 		return;
 
-#if defined(sun)
+	/***********************************************/
+	/*   User  wants  to  stop  a proc, so enable  */
+	/*   systrace.c to do this.		       */
+	/***********************************************/
+	par_setup_thread();
 	if (!curthread->t_dtrace_stop) {
 		curthread->t_dtrace_stop = 1;
 		curthread->t_sig_check = 1;
 		aston(curthread);
+//	kill_pid(curproc->p_pid, SIGSTOP, 0);
 	}
-#else
-	kill_pid(curproc->p_pid, SIGSTOP, 0);
-#endif
 }
 
 static void
@@ -5791,11 +5776,15 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	mstate.dtms_difo = NULL;
 	mstate.dtms_probe = probe;
 	mstate.dtms_strtok = NULL;
-	mstate.dtms_arg[0] = arg0;
-	mstate.dtms_arg[1] = arg1;
-	mstate.dtms_arg[2] = arg2;
-	mstate.dtms_arg[3] = arg3;
-	mstate.dtms_arg[4] = arg4;
+	/***********************************************/
+	/*   Linux:   Ensure   sign  extended  32-bit  */
+	/*   values.				       */
+	/***********************************************/
+	mstate.dtms_arg[0] = (intptr_t) arg0;
+	mstate.dtms_arg[1] = (intptr_t) arg1;
+	mstate.dtms_arg[2] = (intptr_t) arg2;
+	mstate.dtms_arg[3] = (intptr_t) arg3;
+	mstate.dtms_arg[4] = (intptr_t) arg4;
 
 	flags = (volatile uint16_t *)&cpu_core[cpuid].cpuc_dtrace_flags;
 
@@ -9418,8 +9407,7 @@ HERE();
 
 	ASSERT(state->dts_ecbs[epid - 1] == NULL);
 	dtrace_membar_producer();
-HERE();
-printk("epid=%d\n", epid);
+
 	state->dts_ecbs[(ecb->dte_epid = epid) - 1] = ecb;
 HERE();
 
@@ -10392,8 +10380,11 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 	cpu_t *cp;
 	dtrace_buffer_t *buf;
 
-HERE();
-printk("cpu=%d\n", cpu);
+/*	if ((int) cpu < 0) {
+		HERE();
+		printk("%s: cpu=%d\n", __func__, cpu);
+	}
+*/
 
 	ASSERT(MUTEX_HELD(&cpu_lock));
 	ASSERT(MUTEX_HELD(&dtrace_lock));
@@ -10408,9 +10399,7 @@ printk("cpu=%d\n", cpu);
 		if (cpu != DTRACE_CPUALL && cpu != cp->cpu_id)
 			continue;
 
-/*printk("bugs=%p\n", bufs);
-printk("cp=%p\n", cp);
-printk("cpu_id=%x\n", cp->cpu_id);*/
+//printk("%d: cpu=%d cpu_id=%d\n", __LINE__, cpu, cp->cpu_id);
 		buf = &bufs[cp->cpu_id];
 
 		/*
@@ -11086,7 +11075,6 @@ dtrace_enabling_match(dtrace_enabling_t *enab, int *nmatched)
        	ASSERT(MUTEX_HELD(&cpu_lock));
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 HERE();
-printk("dten_ndesc=%d\n", enab->dten_ndesc);
 	for (i = 0; i < enab->dten_ndesc; i++) {
 		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
 
@@ -12695,8 +12683,7 @@ HERE();
 
 	if (opt[DTRACEOPT_CPU] != DTRACEOPT_UNSET)
 		cpu = opt[DTRACEOPT_CPU];
-printk("cpu=%d which=%d\n", cpu, which);
-//cpu = 0;
+//printk("cpu=%d which=%d %lld %lld\n", cpu, which, opt[DTRACEOPT_CPU], DTRACEOPT_UNSET);
 
 	if (which == DTRACEOPT_SPECSIZE)
 		flags |= DTRACEBUF_NOSWITCH;
@@ -12712,7 +12699,7 @@ printk("cpu=%d which=%d\n", cpu, which);
 		if (state != dtrace_anon.dta_state ||
 		    state->dts_activity != DTRACE_ACTIVITY_ACTIVE)
 			flags |= DTRACEBUF_INACTIVE;
-printk("flags=%x state=%p %p %x %x\n", flags, state, dtrace_anon.dta_state, state->dts_activity, DTRACE_ACTIVITY_ACTIVE);
+//printk("flags=%x state=%p %p %x %x\n", flags, state, dtrace_anon.dta_state, state->dts_activity, DTRACE_ACTIVITY_ACTIVE);
 	}
 
 	for (size = opt[which]; size >= sizeof (uint64_t); size >>= 1) {
@@ -12735,8 +12722,8 @@ printk("flags=%x state=%p %p %x %x\n", flags, state, dtrace_anon.dta_state, stat
 
 HERE();
 		rval = dtrace_buffer_alloc(buf, (size_t) size, flags, cpu);
-printk("cpu=%d size=0x%x rval=%d\n", cpu, (size_t) size, rval);
-HERE();
+//printk("cpu=%d size=0x%x rval=%d\n", cpu, (size_t) size, rval);
+//HERE();
 
 		if (rval != ENOMEM) {
 			opt[which] = size;
@@ -12760,19 +12747,16 @@ dtrace_state_buffers(dtrace_state_t *state)
 	if ((rval = dtrace_state_buffer(state, state->dts_buffer,
 	    DTRACEOPT_BUFSIZE)) != 0)
 		return (rval);
-HERE();
 
 	if ((rval = dtrace_state_buffer(state, state->dts_aggbuffer,
 	    DTRACEOPT_AGGSIZE)) != 0)
 		return (rval);
-HERE();
 
 	for (i = 0; i < state->dts_nspeculations; i++) {
 		if ((rval = dtrace_state_buffer(state,
 		    spec[i].dtsp_buffer, DTRACEOPT_SPECSIZE)) != 0)
 			return (rval);
 	}
-HERE();
 
 	return (0);
 }
@@ -13196,7 +13180,7 @@ PRINT_CASE(DTRACEOPT_BUFSIZE);
 	}
 
 HERE();
-printk("opt=%d val=%llx\n", option, val);
+if (dtrace_here) printk("opt=%d val=%llx\n", option, val);
 	state->dts_options[option] = val;
 
 	return (0);
@@ -14795,6 +14779,7 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	    1, INT_MAX, 0);
 #endif
 
+printk("creating cache\n");
 	dtrace_state_cache = kmem_cache_create("dtrace_state_cache",
 	    sizeof (dtrace_dstate_percpu_t) * NCPU, DTRACE_STATE_ALIGN,
 #if defined(sun)
@@ -14804,7 +14789,11 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	    /*   Kernel  2.6.20  needs 3 args here, but I  */
 	    /*   see only 2 in 2.6.24.4			   */
 	    /***********************************************/
-	    0, NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+            0, NULL);
+# else
+           0, NULL, NULL);
+#endif
 # endif
 
 	ASSERT(MUTEX_HELD(&cpu_lock));
@@ -14947,7 +14936,6 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	 */
 	mutex_enter(&dtrace_provider_lock);
 	dtrace_probe_provide(NULL, NULL);
-HERE();
 	mutex_exit(&dtrace_provider_lock);
 
 HERE();
@@ -14972,8 +14960,7 @@ HERE();
 	state = dtrace_state_create(devp, cred_p);
 # else
         state = dtrace_state_create(fp, NULL);
-HERE();
-printk("dev_set_drvdata(%p, %p)\n", fp, state);
+//printk("dev_set_drvdata(%p, %p)\n", fp, state);
 	fp->private_data = state;
 # endif
 
@@ -15137,7 +15124,6 @@ dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv
 		state = state->dts_anon;
 	}
 # endif
-
 
 	switch (cmd) {
 	case DTRACEIOC_PROVIDER: {
@@ -15807,7 +15793,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		uint64_t nerrs;
 
 PRINT_CASE(DTRACEIOC_STATUS);
-printk("state=%d\n", state->dts_activity);
+//printk("state=%d\n", state->dts_activity);
 		/*
 		 * See the comment in dtrace_state_deadman() for the reason
 		 * for setting dts_laststatus to INT64_MAX before setting

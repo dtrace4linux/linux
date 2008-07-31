@@ -110,4 +110,62 @@ typedef struct rd_loadobj {
 
 typedef int rl_iter_f(const rd_loadobj_t *, void *);
 
+typedef struct rd_agent rd_agent_t;
+
+/*
+ * State kept for brand helper libraries
+ *
+ * All librtld_db brand plugin libraries need to specify a Lmid_t value
+ * that controls how link map ids are assigned to native solaris objects
+ * (as pointed to by the processes aux vectors) which are enumerated by
+ * librtld_db.  In most cases this value will either be LM_ID_NONE or
+ * LM_ID_BRAND.
+ *
+ * If LM_ID_NONE is specified in the structure below, then when native solaris
+ * objects are enumerated by librtld_db, their link map id values will match
+ * the link map ids assigned to those objects by the solaris linker within
+ * the target process.
+ *
+ * If LM_ID_BRAND is specified in the structure below, then when native solaris
+ * objects are enumerated by librtld_db, their link map id value will be
+ * explicity set to LM_ID_BRAND, regardless of the link map ids assigned to
+ * those objects by the solaris linker within the target process.
+ *
+ * In all cases the librtld_db brand plugin library can report any link
+ * map id value that it wants for objects that it enumerates via it's
+ * rho_loadobj_iter() entry point.
+ */
+typedef struct __rd_helper_data	*rd_helper_data_t;
+typedef struct rd_helper_ops {
+	Lmid_t			rho_lmid;
+	rd_helper_data_t	(*rho_init)(rd_agent_t *,
+				    struct ps_prochandle *);
+	void			(*rho_fini)(rd_helper_data_t);
+	int			(*rho_loadobj_iter)(rd_helper_data_t,
+				    rl_iter_f *, void *);
+	rd_err_e		(*rho_get_dyns)(rd_helper_data_t,
+				    psaddr_t, void **, size_t *);
+} rd_helper_ops_t;
+
+typedef struct rd_helper {
+	void			*rh_dlhandle;
+	rd_helper_ops_t		*rh_ops;
+	rd_helper_data_t	rh_data;
+} rd_helper_t;
+
+struct rd_agent {
+	mutex_t				rd_mutex;
+	struct ps_prochandle		*rd_psp;	/* prochandle pointer */
+	psaddr_t			rd_rdebug;	/* rtld r_debug */
+	psaddr_t			rd_preinit;	/* rtld_db_preinit */
+	psaddr_t			rd_postinit;	/* rtld_db_postinit */
+	psaddr_t			rd_dlact;	/* rtld_db_dlact */
+	psaddr_t			rd_tbinder;	/* tail of binder */
+	psaddr_t			rd_rtlddbpriv;	/* rtld rtld_db_priv */
+	ulong_t				rd_flags;	/* flags */
+	ulong_t				rd_rdebugvers;	/* rtld_db_priv.vers */
+	int				rd_dmodel;	/* data model */
+	rd_helper_t			rd_helper;	/* private to helper */
+};
+
 # endif

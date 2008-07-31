@@ -1,0 +1,9 @@
+syscall::access:return
+/* /arg1 < 0/ */
+{
+	printf("arg0=%d\n", arg0);
+	printf("arg1=%d\n", arg1);
+	printf("ustack follows\n");
+	ustack();
+}
+

@@ -29,13 +29,14 @@
 # undef zone
 # define zone linux_zone
 #include <dtrace_linux.h>
+#include <sys/dtrace_impl.h>
 #include <linux/sched.h>
 #include <linux/sys.h>
 #include <linux/highmem.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <asm/asm-offsets.h>
-#include <asm/tlbflush.h>
+//#include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <linux/miscdevice.h>
@@ -113,6 +114,7 @@ static dtrace_provider_id_t systrace_id;
 void	*fbt_get_sys_call_table(void);
 void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
     uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+void	*par_setup_thread2(void);
 
 # define linux_get_syscall() get_current()->thread.trap_no
 
@@ -130,8 +132,8 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #endif
         systrace_sysent_t *sy;
         dtrace_id_t id;
-        int64_t rval;
-	void **ptr = &arg0;
+        intptr_t	rval;
+	void **ptr = (void **) &arg0;
 
 	/***********************************************/
 	/*   May  want  to single thread this code if  */
@@ -159,7 +161,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	/*   work.				       */
 	/***********************************************/
 # if defined(__i386)
-	syscall = ptr[6]; // horrid hack
+	syscall = (int) ptr[6]; // horrid hack
 # else
 	syscall = ptr[12]; // horrid hack
 # endif
@@ -170,9 +172,12 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 
         sy = &systrace_sysent[syscall];
 
-printk("syscall=%d %s current=%p syscall=%d\n", syscall, 
-	syscall >= 0 && syscall < NSYSCALL ? syscallnames[syscall] : "dont-know", 
-	get_current(), linux_get_syscall());
+	if (dtrace_here) {
+		printk("syscall=%d %s current=%p syscall=%ld\n", syscall, 
+			syscall >= 0 && syscall < NSYSCALL ? syscallnames[syscall] : "dont-know", 
+			get_current(), linux_get_syscall());
+	}
+
 //printk("arg0=%s %p %p %p %p %p\n", arg0, arg1, arg2, arg3, arg4, arg5);
         if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
@@ -182,7 +187,6 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
          * We want to explicitly allow DTrace consumers to stop a process
          * before it actually executes the meat of the syscall.
          */
-	TODO();
 # if defined(TODOxxx)
         {proc_t *p = ttoproc(curthread);
         mutex_enter(&p->p_lock);
@@ -193,7 +197,13 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
         mutex_exit(&p->p_lock);
 	}
 # else
-	kill_proc(current->pid, SIGSTOP, NULL);
+	{
+	sol_proc_t *solp = par_setup_thread2();
+        if (solp && solp->t_dtrace_stop) {
+                curthread->t_dtrace_stop = 0;
+		send_sig(SIGSTOP, current, 0);
+	}
+	}
 # endif
 
         rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
@@ -210,8 +220,8 @@ printk("syscall=%d %s current=%p syscall=%d\n", syscall,
 		/*   Map   Linux   style   syscall  codes  to  */
 		/*   standard Unix format.		       */
 		/***********************************************/
-                (*systrace_probe)(id, (uintptr_t) (rval < 0 ? -1 : rval), 
-		    (uintptr_t)rval,
+		(*systrace_probe)(id, (uintptr_t) (rval < 0 ? -1 : rval), 
+		    (uintptr_t)(int64_t) rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
 		}
 
@@ -270,8 +280,12 @@ HERE();
 	if (sysent == NULL)
 		sysent = fbt_get_sys_call_table();
 
+	if (sysent == NULL) {
+		printk("systrace.c: Cannot locate sys_call_table - not enabling syscalls\n");
+		return;
+	}
+
 	systrace_do_init(sysent, &systrace_sysent);
-HERE();
 #ifdef _SYSCALL32_IMPL
 	systrace_do_init(sysent32, &systrace_sysent32);
 #endif
@@ -291,7 +305,8 @@ HERE();
 		    name, "entry") != 0)
 			continue;
 
-printk("systrace_provide: patch syscall %s\n", name);
+		if (dtrace_here)
+			printk("systrace_provide: patch syscall %s\n", name);
 		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
@@ -315,6 +330,8 @@ systrace_destroy(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 
+	sysnum = sysnum; // avoid compiler warning.
+
 	/*
 	 * There's nothing to do here but assert that we have actually been
 	 * disabled.
@@ -337,8 +354,10 @@ static void
 systrace_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+/*
 	int enabled = (systrace_sysent[sysnum].stsy_entry != DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return != DTRACE_IDNONE);
+*/
 
 //printk("\n\nsystrace_sysent[%p].stsy_entry = %x\n", parg, systrace_sysent[sysnum].stsy_entry);
 //printk("\n\nsystrace_sysent[%p].stsy_return = %x\n", parg, systrace_sysent[sysnum].stsy_return);
@@ -371,11 +390,13 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	/***********************************************/
 # endif
 
-printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
-	&sysent[sysnum].sy_callc,
-	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)dtrace_systrace_syscall,
-		sysent[sysnum].sy_callc);
+	if (dtrace_here) {
+		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
+			&sysent[sysnum].sy_callc,
+			    (void *)systrace_sysent[sysnum].stsy_underlying,
+			    (void *)dtrace_systrace_syscall,
+				sysent[sysnum].sy_callc);
+	}
 
 //sysent[sysnum].sy_callc = dtrace_systrace_syscall;
 
@@ -383,11 +404,13 @@ printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)dtrace_systrace_syscall);
 
-printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
-	&sysent[sysnum].sy_callc,
-	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)dtrace_systrace_syscall,
-		sysent[sysnum].sy_callc);
+	if (dtrace_here) {
+		printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
+			&sysent[sysnum].sy_callc,
+			    (void *)systrace_sysent[sysnum].stsy_underlying,
+			    (void *)dtrace_systrace_syscall,
+				sysent[sysnum].sy_callc);
+	}
 }
 
 /*ARGSUSED*/
@@ -463,7 +486,6 @@ systrace_detach(void)
 {
 	if (!initted)
 		return DDI_SUCCESS;
-TODO();
 
 	if (dtrace_unregister(systrace_id) != 0)
 		return (DDI_FAILURE);

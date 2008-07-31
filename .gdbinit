@@ -1,5 +1,5 @@
 dir libctf
 dir libdtrace
-dir liblinux
 dir libproc
+dir liblinux
 dir cmd/dtrace

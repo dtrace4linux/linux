@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_module.c	1.13	07/08/07 SMI"
+//#pragma ident	"@(#)dt_module.c	1.13	07/08/07 SMI"
 
 #include <sys/types.h>
 #include <sys/modctl.h>
@@ -32,6 +32,7 @@
 #include <sys/sysmacros.h>
 #include <sys/elf.h>
 #include <sys/task.h>
+#include <sys/utsname.h>
 
 #include <unistd.h>
 #include <project.h>
@@ -778,6 +779,139 @@ dt_module_modelname(dt_module_t *dmp)
 		return ("32-bit");
 }
 
+/**********************************************************************/
+/*   For Linux: add in entries from /proc/kallsyms.		      */
+/**********************************************************************/
+static int
+dt_module_add_kernel(dtrace_hdl_t *dtp)
+{
+	unsigned long long text_start = 0;
+	unsigned long long text_end;
+	unsigned long long addr;
+	char	type[32];
+	char	name[256];
+	char	buf[BUFSIZ];
+	FILE	*fp;
+	dt_module_t *dmp;
+	int	bits = 0;
+	struct utsname u;
+
+	if ((dmp = dt_module_create(dtp, "/kernel")) == NULL) {
+		return;
+	}
+
+	/***********************************************/
+	/*   Determine  if  this  is  a  64 or 32 bit  */
+	/*   kernel.				       */
+	/***********************************************/
+	uname(&u);
+	if (strcmp(u.machine, "x86_64") == 0) {
+		bits = 64;
+		dmp->dm_ops = &dt_modops_64;
+	} else {
+		bits = 32;
+		dmp->dm_ops = &dt_modops_32;
+	}
+
+	if ((fp = fopen("/proc/kallsyms", "r")) != NULL) {
+		Elf32_Sym **asmap = NULL;
+		Elf32_Sym *sp = NULL;
+		Elf64_Sym **asmap64 = NULL;
+		Elf64_Sym *sp64 = NULL;
+		int	str_size = 1024;
+		int	str_index = 1; // Dont let st_name be zero
+		char	*strtab = malloc(str_size);
+
+		if (bits == 64) 
+			asmap64 = (Elf64_Sym *) malloc(sizeof(asmap64[0]));
+		else
+			asmap = (Elf32_Sym *) malloc(sizeof(asmap[0]));
+
+		while (fgets(buf, sizeof buf, fp)) {
+			if (sscanf(buf, "%llx %s %s", &addr, type, name) != 3)
+				continue;
+			if (*type != 'T' && *type != 't')
+				continue;
+			if (text_start == 0)
+				text_start = addr;
+			if (addr && addr < text_start)
+				text_start = addr;
+			if (strlen(name) + 1 + str_index > str_size) {
+				str_size += 4096;
+				strtab = realloc(strtab, str_size);
+			}
+			dmp->dm_aslen++;
+
+			if (bits == 64) {
+				asmap64 = (Elf64_Sym **) realloc(asmap64,
+					sizeof(*sp64) * dmp->dm_aslen);
+				sp64 = calloc(sizeof *sp64, 1);
+				asmap64[dmp->dm_aslen-1] = sp;
+				sp64->st_name = str_index;
+				strcpy(strtab + str_index, name);
+				str_index += strlen(name) + 1;
+				sp64->st_value = addr;
+				sp64->st_size = 1024; // hack
+			} else {
+				asmap = (Elf32_Sym **) realloc(asmap,
+					sizeof(*sp) * dmp->dm_aslen);
+				sp = calloc(sizeof *sp, 1);
+				asmap[dmp->dm_aslen-1] = sp;
+				sp->st_name = str_index;
+				strcpy(strtab + str_index, name);
+				str_index += strlen(name) + 1;
+				sp->st_value = addr;
+				sp->st_size = 1024; // hack
+			}
+		}
+		fclose(fp);
+		dmp->dm_asmap = asmap;
+		dmp->dm_symtab.cts_data = asmap;
+		dmp->dm_strtab.cts_data = strtab;
+		dmp->dm_strtab.cts_size = str_index;
+	}
+	/*
+	 * Allocate the hash chains and hash buckets for symbol name lookup.
+	 * This is relatively simple since the symbol table is of fixed size
+	 * and is known in advance.  We allocate one extra element since we
+	 * use element indices instead of pointers and zero is our sentinel.
+	 */
+	dmp->dm_nsymelems = dmp->dm_aslen;
+
+	dmp->dm_nsymbuckets = _dtrace_strbuckets;
+	dmp->dm_symfree = 1;		/* first free element is index 1 */
+
+	dmp->dm_symbuckets = malloc(sizeof (uint_t) * dmp->dm_nsymbuckets);
+	dmp->dm_symchains = malloc(sizeof (dt_sym_t) * dmp->dm_nsymelems + 1);
+
+	if (dmp->dm_symbuckets == NULL || dmp->dm_symchains == NULL) {
+		dt_module_unload(dtp, dmp);
+		return (dt_set_errno(dtp, EDT_NOMEM));
+	}
+
+	bzero(dmp->dm_symbuckets, sizeof (uint_t) * dmp->dm_nsymbuckets);
+	bzero(dmp->dm_symchains, sizeof (dt_sym_t) * dmp->dm_nsymelems + 1);
+
+	/*
+	 * Iterate over the symbol table data buffer and insert each symbol
+	 * name into the name hash if the name and type are valid.  Then
+	 * allocate the address map, fill it in, and sort it.
+	 */
+	dmp->dm_asrsv = dmp->dm_ops->do_syminit(dmp);
+/*	dmp->dm_ops->do_symsort(dmp);*/
+
+	dmp->dm_text_va = text_start;
+	dmp->dm_text_size = -text_start;
+	/***********************************************/
+	/*   HACK:   might   want   to  refresh  from  */
+	/*   /proc/kallsyms as modules get loaded.     */
+	/***********************************************/
+	dmp->dm_flags |= DT_DM_KERNEL | DT_DM_LOADED;
+
+	dt_dprintf("opened %d-bit /proc/kallsyms (syms=%d)\n",
+	    bits, dmp->dm_aslen, dmp->dm_modid);
+	return 0;
+}
 /*
  * Update our module cache by adding an entry for the specified module 'name'.
  * We create the dt_module_t and populate it using /system/object/<name>/.
@@ -795,6 +929,11 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 	GElf_Shdr sh;
 	Elf_Data *dp;
 	Elf_Scn *sp;
+
+	if (name == NULL) {
+		dt_module_add_kernel(dtp);
+		return;
+	}
 
 	(void) snprintf(fname, sizeof (fname),
 	    "%s/%s/object", OBJFS_ROOT, name);
@@ -892,6 +1031,13 @@ dtrace_update(dtrace_hdl_t *dtp)
 	    dmp != NULL; dmp = dt_list_next(dmp))
 		dt_module_unload(dtp, dmp);
 
+# if linux
+	/***********************************************/
+	/*   We  will use /proc/kallsyms for ustack()  */
+	/*   calls which need kernel addresses.	       */
+	/***********************************************/
+	dt_module_update(dtp, NULL);
+# else
 	/*
 	 * Open /system/object and attempt to create a libdtrace module for
 	 * each kernel module that is loaded on the current system.
@@ -907,6 +1053,7 @@ dtrace_update(dtrace_hdl_t *dtp)
 
 		(void) closedir(dirp);
 	}
+# endif
 
 	/*
 	 * Look up all the macro identifiers and set di_id to the latest value.

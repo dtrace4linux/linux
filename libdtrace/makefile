@@ -94,5 +94,5 @@ $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
 	-rm -f dt_lex.o
 
 clean:
-	-rm -f *.o *.a
+	-rm -f dt_grammar.h dt_lex.c *.o *.a
 

@@ -397,6 +397,7 @@ par_alloc(void *ptr, int size, int *init)
 	p = kmalloc(size + sizeof(*p), GFP_KERNEL);
 	p->pa_ptr = ptr;
 	p->pa_next = hd_par;
+	memset(p+1, 0, size);
 	hd_par = p;
 
 	return p;
@@ -419,6 +420,20 @@ par_free(void *ptr)
 	if (p1->pa_next == p)
 		p1->pa_next = p->pa_next;
 	kfree(ptr);
+}
+/**********************************************************************/
+/*   Map  pointer to the shadowed area. Dont create if its not there  */
+/*   already.							      */
+/**********************************************************************/
+void *
+par_lookup(void *ptr)
+{	par_alloc_t *p;
+	
+	for (p = hd_par; p; p = p->pa_next) {
+		if (p->pa_ptr == ptr)
+			return p;
+		}
+	return NULL;
 }
 /**********************************************************************/
 /*   We want curthread to point to something -- but we cannot modify  */
@@ -453,6 +468,22 @@ par_setup_thread()
 		curthread->ppid = get_current()->parent->pid;
 	}
 }
+/**********************************************************************/
+/*   Lookup a proc without allocating a shadow structure.	      */
+/**********************************************************************/
+void *
+par_setup_thread2()
+{	int	init;
+	par_alloc_t *p = par_lookup(get_current());
+	sol_proc_t	*solp;
+
+	if (p == NULL)
+		return NULL;
+
+	solp = (sol_proc_t *) (p + 1);
+	return solp;
+}
+
 /**********************************************************************/
 /*   Read from a procs memory.					      */
 /**********************************************************************/
@@ -579,8 +610,9 @@ static int proc_calc_metrics(char *page, char **start, off_t off,
 static int dtracedrv_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
 {	int len;
+
+	// place holder for something useful later on.
 	len = sprintf(page, "hello");
-//	printk(KERN_WARNING "pgfault: %s", page);
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
 static int dtracedrv_helper_read_proc(char *page, char **start, off_t off,
@@ -597,7 +629,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 
 	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
 //HERE();
-if (ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
+if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }
 static const struct file_operations dtracedrv_fops = {
@@ -663,7 +695,8 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace now available\n");
+	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace available, dtrace_here=%d\n",
+		dtrace_here);
 
 	dtrace_attach(NULL, 0);
 

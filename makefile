@@ -60,7 +60,7 @@ release:
 all:
 	tools/libgcc.pl
 	if [ `uname -m` != x86_64 ]; then \
-	  	export PTR32=-D_ILP32 ; \
+	  	export PTR32="-D_ILP32 -D_LONGLONG_TYPE" ; \
 		export BUILD_i386=1 ; \
 		tools/mksyscall.pl x86 ; \
 	else \

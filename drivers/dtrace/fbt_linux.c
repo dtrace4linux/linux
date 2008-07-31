@@ -3,16 +3,14 @@
 /*   dtrace.c  and  the linux kernel. We emulate much of the missing  */
 /*   functionality, or map into the kernel.			      */
 /*   								      */
-/*   This file/driver is defined as GPL to allow us to find a way to  */
-/*   gain  access  to  the symbol table used by the kallsyms driver.  */
-/*   This  is  not correct - since it represents a fight between the  */
-/*   CDDL and the GPL, and more investigation will be needed to find  */
-/*   a valid way to avoid breaking the spirit of any license.	      */
+/*   This file was (incorrectly) previously marked as GPL, but it is  */
+/*   actually  CDL  -  the  entire  dtrace  for  linux suite needs a  */
+/*   consistent license arrangement to ensure we dont have difficult  */
+/*   to justify licensing arrangements.				      */
 /*   								      */
 /*   Date: April 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   License: GPL 2						      */
 /**********************************************************************/
 
 //#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
@@ -33,8 +31,7 @@
 # define NULL 0
 
 MODULE_AUTHOR("Paul D. Fox");
-//MODULE_LICENSE("CDDL");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("CDDL");
 MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 
 # define modctl module
@@ -46,20 +43,25 @@ static struct map {
 	char		*m_name;
 	unsigned long	*m_ptr;
 	} syms[] = {
-/* 0 */	{"kallsyms_op", NULL},
-/* 1 */	{"kallsyms_num_syms", NULL},
-/* 2 */	{"kallsyms_addresses", NULL},
+/* 0 */	{"kallsyms_op",            NULL},
+/* 1 */	{"kallsyms_num_syms",      NULL},
+/* 2 */	{"kallsyms_addresses",     NULL},
 /* 3 */	{"kallsyms_expand_symbol", NULL},
-/* 4 */	{"get_symbol_offset", NULL},
-/* 5 */	{"kallsyms_lookup_name", NULL},
-/* 6 */	{"modules", NULL},
-/* 7 */	{"__symbol_get", NULL},
-/* 8 */	{"sys_call_table", NULL},
-/* 9 */	{"kern_addr_valid", NULL},
-/* 10 */{"hrtimer_cancel", NULL},
-/* 11 */{"hrtimer_start", NULL},
-/* 12 */{"hrtimer_init", NULL},
-/* 13 */{"access_process_vm", NULL},
+/* 4 */	{"get_symbol_offset",      NULL},
+/* 5 */	{"kallsyms_lookup_name",   NULL},
+/* 6 */	{"modules",                NULL},
+/* 7 */	{"__symbol_get",           NULL},
+/* 8 */	{"sys_call_table",         NULL},
+/* 9 */	{"**  reserved",           NULL},
+/* 10 */{"hrtimer_cancel",         NULL},
+/* 11 */{"hrtimer_start",          NULL},
+/* 12 */{"hrtimer_init",           NULL},
+/* 13 */{"access_process_vm",      NULL},
+/* 14 */{"syscall_call",           NULL}, /* Backup for i386 2.6.23 kernel to help */
+				 	  /* find the sys_call_table.		  */
+/* 15 */{"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
+				 	  /* find the modules table. 		  */
+/* 16 */{"kernel_text_address",    NULL},
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -71,7 +73,6 @@ static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void *(*x__symbol_get)(const char *);
 static void **xsys_call_table;
-int (*xkern_addr_valid)(unsigned long);
 
 #define	FBT_PUSHL_EBP		0x55
 #define	FBT_MOVL_ESP_EBP0_V0	0x8b
@@ -269,7 +270,8 @@ TODO();
 		return;
 	}
 
-printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
+	if (dtrace_here) 
+		printk("%s:modname=%s num_symtab=%d\n", __func__, modname, mp->num_symtab);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
@@ -422,7 +424,7 @@ printk("modname=%s num_symtab=%d\n", modname, mp->num_symtab);
 			continue;
 		}
 #else
-HERE(); printk("instr %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
+//HERE(); printk("instr %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
 # if 0
 	/***********************************************/
 	/*   GCC    generates   lots   of   different  */
@@ -654,6 +656,11 @@ void *
 fbt_get_hrtimer_start()
 {
 	return (void *) syms[11].m_ptr;
+}
+void *
+fbt_get_kernel_text_address()
+{
+	return (void *) syms[16].m_ptr;
 }
 void *
 fbt_get_access_process_vm()
@@ -1046,7 +1053,7 @@ fbt_write(struct file *file, const char __user *buf,
 		}
 		if (mp->m_name != NULL) {
 			mp->m_ptr = simple_strtoul(buf, NULL, 16);
-			if (dtrace_here)
+			if (1 || dtrace_here)
 				printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
 		}
 		buf = symend + 1;
@@ -1061,7 +1068,6 @@ fbt_write(struct file *file, const char __user *buf,
 	xmodules 		= (void *) syms[6].m_ptr;
 	x__symbol_get		= syms[7].m_ptr;
 	xsys_call_table 	= (void **) syms[8].m_ptr;
-	xkern_addr_valid	= syms[9].m_ptr;
 
 	/***********************************************/
 	/*   Dump out the symtab for debugging.	       */
@@ -1092,6 +1098,57 @@ fbt_write(struct file *file, const char __user *buf,
 	}
 # endif
 
+	/***********************************************/
+	/*   On 2.6.23.1 kernel I have, in i386 mode,  */
+	/*   we  have no exported sys_call_table, and  */
+	/*   we   need   it.   Instead,   we  do  get  */
+	/*   syscall_call  (code  in  entry.S) and we  */
+	/*   can use that to find the syscall table.   */
+	/*   					       */
+	/*   We are looking at an instruction:	       */
+	/*   					       */
+	/*   call *sys_call_table(,%eax,4)	       */
+	/***********************************************/
+# define OFFSET_modules		6
+# define OFFSET_sys_call_table	8
+# define OFFSET_syscall_call	14
+# define OFFSET_print_modules	15
+	{unsigned char *ptr = (unsigned char *) syms[OFFSET_syscall_call].m_ptr;
+	if (ptr &&
+	    syms[OFFSET_sys_call_table].m_ptr == NULL &&
+	    ptr[0] == 0xff && ptr[1] == 0x14 && ptr[2] == 0x85) {
+		syms[OFFSET_sys_call_table].m_ptr = (unsigned long *) *((long *) (ptr + 3));
+		printk("dtrace: sys_call_table located at %p\n",
+			syms[OFFSET_sys_call_table].m_ptr);
+		xsys_call_table = syms[OFFSET_sys_call_table].m_ptr;
+		}
+	}
+	/***********************************************/
+	/*   Handle modules[] missing in 2.6.23.1      */
+	/***********************************************/
+	{unsigned char *ptr = (unsigned char *) syms[OFFSET_print_modules].m_ptr;
+//if (ptr) {printk("print_modules* %02x %02x %02x\n", ptr[16], ptr[17], ptr[22]); }
+	if (ptr &&
+	    syms[OFFSET_modules].m_ptr == NULL &&
+	    ptr[16] == 0x8b && ptr[17] == 0x15 && ptr[22] == 0x8d) {
+		syms[OFFSET_modules].m_ptr = (unsigned long *) *((long *) 
+			(ptr + 18));
+		xmodules = syms[OFFSET_modules].m_ptr;
+		printk("dtrace: modules[] located at %p\n",
+			syms[OFFSET_modules].m_ptr);
+		}
+	}
+
+	/***********************************************/
+	/*   Dump out the table (for debugging).       */
+	/***********************************************/
+# if 0
+	{int i;
+	for (i = 0; i <= 14; i++) {
+		printk("[%d] %s %p\n", i, syms[i].m_name, syms[i].m_ptr);
+	}
+	}
+# endif
 	return orig_count;
 }
 

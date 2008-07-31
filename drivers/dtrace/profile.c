@@ -251,7 +251,6 @@ HERE();
 
 			(void) snprintf(n, PROF_NAMELEN, "%s%d",
 			    PROF_PREFIX_PROFILE, rate);
-printk("n=%s\n", n);
 			profile_create(NANOSEC / rate, n, PROF_PROFILE);
 		}
 
@@ -261,7 +260,7 @@ printk("n=%s\n", n);
 
 			(void) snprintf(n, PROF_NAMELEN, "%s%d",
 			    PROF_PREFIX_TICK, rate);
-printk("n1=%s\n", n);
+//printk("n1=%s\n", n);
 			profile_create(NANOSEC / rate, n, PROF_TICK);
 		}
 
@@ -270,7 +269,7 @@ printk("n1=%s\n", n);
 
 	name = desc->dtpd_name;
 
-printk("name=%s\n", name);
+//printk("name=%s\n", name);
 
 	for (i = 0; types[i].prefix != NULL; i++) {
 		len = strlen(types[i].prefix);

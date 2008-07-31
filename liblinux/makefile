@@ -15,6 +15,7 @@ $(LIB): \
 	$(LIB)(proc.o) \
 	$(LIB)(proc2.o) \
 	$(LIB)(proc_names.o) \
+	$(LIB)(rd.o) \
 	$(LIB)(strlcpy.o) \
 
 

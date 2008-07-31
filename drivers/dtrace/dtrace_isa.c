@@ -48,6 +48,8 @@ typedef struct ucontext32 ucontext32_t;
 //typedef struct siginfo32 siginfo32_t;
 # define siginfo32_t siginfo_t
 
+void *fbt_get_kernel_text_address(void);
+
 /*
  * This is gross knowledge to have to encode here...
  */
@@ -71,78 +73,51 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	int on_intr, last = 0;
 	uintptr_t pc;
 	uintptr_t caller = CPU->cpu_dtrace_caller;
+	int	*sp = (int *) fp;
+	int (*kernel_text_address)(unsigned long) = fbt_get_kernel_text_address();
+	struct thread_info *ti = (unsigned long) sp & ~(THREAD_SIZE - 1);
 
-	TODO();
-# if TODOXXX
-	if ((on_intr = CPU_ON_INTR(CPU)) != 0)
-		stacktop = (struct frame *)(CPU->cpu_intr_stack + SA(MINFRAME));
-	else
-		stacktop = (struct frame *)curthread->t_stk;
 	minfp = fp;
-
+//printk("fp=====%p\n", fp);
 	aframes++;
 
-	while (depth < pcstack_limit) {
-		if (is_intr) {
-			struct regs *rp = (struct regs *)fp;
-			nextfp = (struct frame *)rp->r_fp;
-			pc = rp->r_pc;
-		} else {
-			nextfp = (struct frame *)fp->fr_savfp;
-			pc = fp->fr_savpc;
-		}
-		if (nextfp <= minfp || nextfp >= stacktop) {
-			if (on_intr) {
-				/*
-				 * Hop from interrupt stack to thread stack.
-				 */
-				stacktop = (struct frame *)curthread->t_stk;
-				minfp = (struct frame *)curthread->t_stkbase;
-				on_intr = 0;
-				continue;
-			}
+# define valid_stack_ptr(tinfo, p, size) \
+	((char *) p > (char *) tinfo && (char *) p + size < (char *) tinfo + THREAD_SIZE)
 
-			/*
-			 * This is the last frame we can process; indicate
-			 * that we should return after processing this frame.
-			 */
-			last = 1;
-		}
-
-		if (aframes > 0) {
-			if (--aframes == 0 && caller != NULL) {
-				/*
-				 * We've just run out of artificial frames,
-				 * and we have a valid caller -- fill it in
-				 * now.
-				 */
-				ASSERT(depth < pcstack_limit);
-				pcstack[depth++] = (pc_t)caller;
-				caller = NULL;
-			}
-		} else {
-			if (depth < pcstack_limit)
-				pcstack[depth++] = (pc_t)pc;
-		}
-
-		if (last) {
-			while (depth < pcstack_limit)
-				pcstack[depth++] = NULL;
-			return;
-		}
-
-		if (pc - (uintptr_t)_interrupt < _interrupt_size ||
-		    pc - (uintptr_t)_allsyscalls < _allsyscalls_size ||
-		    pc - (uintptr_t)_cmntrap < _cmntrap_size) {
-			is_intr = 1;
-		} else {
-			is_intr = 0;
-		}
-
-		fp = nextfp;
-		minfp = fp;
+# if !defined(CONFIG_FRAME_POINTER)
+	/***********************************************/
+	/*   Hack:  we'll  just  find something worth  */
+	/*   having on the stack.		       */
+	/***********************************************/
+/*
+printk("depth=%d pcstack_limit=%d valid=%d\n", depth, pcstack_limit,
+	       valid_stack_ptr(ti, sp, sizeof *sp));
+printk("sp=%p ti=%p\n", sp, ti);
+*/
+	while (depth < pcstack_limit && 
+	       valid_stack_ptr(ti, sp, sizeof *sp)) {
+		unsigned int *a = *sp++;
+//printk("ex: %p %d\n", a, kernel_text_address(a));
+		if (kernel_text_address(a))
+			pcstack[depth++] = (pc_t) a;
 	}
 # endif
+
+# if defined(CONFIG_FRAME_POINTER)
+	while (depth < pcstack_limit && 
+	       sp >= minfp &&	
+	       valid_stack_ptr(ti, sp, sizeof *sp)) {
+		nextfp = *sp;
+		pc = sp[1];
+		if (kernel_text_address(pc))
+			pcstack[depth++] = (pc_t) pc;
+		minfp = nextfp;
+		sp = nextfp;
+	}
+# endif
+	while (depth < pcstack_limit)
+		pcstack[depth++] = NULL;
+
 }
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
@@ -175,25 +150,28 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   Whats worse is that we might be compiled  */
 	/*   with a frame pointer (only on x86-32) so  */
 	/*   we have three scenarios to handle.	       */
+	/*   					       */
+	/*   Following  simple code will work so long  */
+	/*   as we have a framepointer.		       */
 	/***********************************************/
 	{
-	unsigned long *tos;
 	unsigned long *sp;
-# if defined(__i386)
-#	define rsp esp
-# endif
+	unsigned long *bos;
 
-	sp = current->thread.rsp;
-	tos = (unsigned long) sp & (~(THREAD_SIZE) - 1);
-printk("sp=%p tos=%p limit=%d\n", sp, tos, pcstack_limit);
+//	sp = current->thread.rsp;
+	sp = KSTK_ESP(current);
+	bos = sp;
+//printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.esp0, current->stack);
+//{int i; for (i = 0; i < 32; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
 	while (pcstack_limit-- > 0 &&
-	       sp >= current->thread.rsp &&
-	       sp < tos) {
-		*pcstack++ = sp;
-printk("sp=%p tos=%p limit=%d\n", sp, tos, pcstack_limit);
-		if (sp[1] < sp)
+	       sp >= bos) {
+		if (!validate_ptr(sp))
 			break;
-		sp = sp[1];
+		*pcstack++ = sp[1];
+//printk("sp=%p limit=%d\n", sp, pcstack_limit);
+		if (sp[0] < sp)
+			break;
+		sp = sp[0];
 	}
 	}
 

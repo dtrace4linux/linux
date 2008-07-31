@@ -25,7 +25,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident   "@(#)ctf_open.c 1.10    06/01/07 SMI"
+//#pragma ident   "@(#)ctf_open.c 1.10    06/01/07 SMI"
 
 #include <ctf_impl.h>
 # if !__KERNEL__
@@ -636,7 +636,7 @@ ctf_bufopen(const ctf_sect_t *ctfsect, const ctf_sect_t *symsect,
 		srclen = ctfsect->cts_size - hdrsz;
 		dstlen = size;
 
-		if ((rc = z_uncompress(buf, &dstlen, src, srclen)) != Z_OK) {
+		if ((rc = z_uncompress(buf, &dstlen, (char *) src, srclen)) != Z_OK) {
 			ctf_dprintf("zlib inflate err: %s\n", z_strerror(rc));
 			ctf_data_free(base, size + hdrsz);
 			return (ctf_set_open_errno(errp, ECTF_DECOMPRESS));
@@ -876,7 +876,6 @@ ctf_close(ctf_file_t *fp)
 
 	ctf_free(fp, sizeof (ctf_file_t));
 }
-EXPORT_SYMBOL(ctf_close);
 
 /*
  * Return the CTF handle for the parent CTF container, if one exists.
@@ -897,7 +896,6 @@ ctf_parent_name(ctf_file_t *fp)
 {
 	return (fp->ctf_parname);
 }
-EXPORT_SYMBOL(ctf_parent_name);
 
 /*
  * Import the types from the specified parent container by storing a pointer

@@ -22,7 +22,7 @@ __wrap___divdi3(long long a, long long b)
 {	long long a1 = a;
 	long long b1 = b;
 
-	long long ret = do_div(a1, b1);
+	do_div(a1, b1);
 
 # if DEBUG
 	printk("__wrap___divdi3: %lld / %lld = %lld\n", a, b, a1);
@@ -35,7 +35,7 @@ __wrap___udivdi3(unsigned long long a, unsigned long long b)
 {	unsigned long long a1 = a;
 	unsigned long long b1 = b;
 
-	unsigned long long ret = do_div(a1, b1);
+	do_div(a1, b1);
 # if DEBUG
 	printk("__wrap___udivdi3: %llu / %llu = %llu\n", a, b, a1);
 # endif

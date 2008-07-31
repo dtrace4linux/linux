@@ -446,6 +446,42 @@ Pupdate_maps(struct ps_prochandle *P)
 
 	Preadauxvec(P);
 
+printf("in Pupdate_maps (check for 64b maps!)\n");
+printf("in Pupdate_maps (check: pr_mapname is big enough)\n");
+# if linux
+	FILE *fp;
+	char	buf[BUFSIZ];
+	(void) snprintf(mapfile, sizeof (mapfile), "%s/%d/maps",
+	    procfs_path, (int)P->pid);
+	if ((fp = fopen(mapfile, "r")) == NULL) {
+		Preset_maps(P);	/* utter failure; destroy tables */
+		return;
+	}
+	Pmap = calloc(sizeof *Pmap, 1);
+	for (i = 0; fgets(buf, sizeof buf, fp); i++) {
+		unsigned long lo, hi, offset, inode;
+		char	perms[128];
+		char	majmin[128];
+		char	filename[BUFSIZ];
+		Pmap = realloc(Pmap, (i + 1) * sizeof *Pmap);
+		sscanf(buf, "%lx-%lx %s %lx %s %ld %s",
+			&lo, &hi, perms, &offset, majmin, &inode, filename);
+		memset(&Pmap[i], 0, sizeof Pmap[i]);
+		Pmap[i].pr_vaddr = lo;
+		Pmap[i].pr_size = hi - lo;
+		Pmap[i].pr_offset = offset;
+		Pmap[i].pr_pagesize = 4096;
+		if (perms[0] == 'r')
+			Pmap[i].pr_mflags |= MA_READ;
+		if (perms[1] == 'w')
+			Pmap[i].pr_mflags |= MA_WRITE;
+		if (perms[2] == 'x')
+			Pmap[i].pr_mflags |= MA_EXEC;
+		strncpy(Pmap[i].pr_mapname, filename, sizeof(Pmap[i].pr_mapname));
+		nmap = i + 1;
+	}
+	(void) fclose(fp);
+# else
 	(void) snprintf(mapfile, sizeof (mapfile), "%s/%d/map",
 	    procfs_path, (int)P->pid);
 	if ((mapfd = open(mapfile, O_RDONLY)) < 0 ||
@@ -462,7 +498,7 @@ Pupdate_maps(struct ps_prochandle *P)
 		return;
 	}
 	(void) close(mapfd);
-
+# endif
 	if ((newmap = calloc(1, nmap * sizeof (map_info_t))) == NULL)
 		return;
 
@@ -1620,9 +1656,13 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		(void) snprintf(objectfile, sizeof (objectfile), "%s",
 		    fptr->file_lname ? fptr->file_lname : fptr->file_pname);
 	} else {
+# if linux
+		(void) strncpy(objectfile, fptr->file_pname, sizeof (objectfile) - 1);
+# else
 		(void) snprintf(objectfile, sizeof (objectfile),
 		    "%s/%d/object/%s",
 		    procfs_path, (int)P->pid, fptr->file_pname);
+# endif
 	}
 
 	/*
@@ -1631,6 +1671,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	 * name. If anything goes wrong try to fake up an elf file from
 	 * the in-core elf image.
 	 */
+printf("Build symtab %s\n", objectfile);
 	if ((fptr->file_fd = open(objectfile, O_RDONLY)) < 0) {
 		dprintf("Pbuild_file_symtab: failed to open %s: %s\n",
 		    objectfile, strerror(errno));
@@ -1654,7 +1695,6 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 	    (shdata = elf_getdata(scn, NULL)) == NULL) {
 		int err = elf_errno();
-
 		dprintf("failed to process ELF file %s: %s\n",
 		    objectfile, (err == 0) ? "<null>" : elf_errmsg(err));
 
@@ -1666,6 +1706,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
+printf("%s(%d): fix me!\n", __func__, __LINE__);
 			goto bad;
 		}
 

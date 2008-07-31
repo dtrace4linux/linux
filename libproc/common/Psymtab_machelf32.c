@@ -642,7 +642,7 @@ done_with_plt:
 		if (Pread(P, &elfdata[off], sp->sh_size,
 		    d[DI_PLTGOT]->d_un.d_ptr) != sp->sh_size) {
 			dprintf("failed to read .plt\n");
-			goto bad;
+//			goto bad;
 		}
 		off += roundup(sp->sh_size, SH_ADDRALIGN);
 		sp++;

@@ -34,6 +34,9 @@ struct modctl;
 
 # if __KERNEL__
 
+	# if defined(zone)
+	#   undef zone
+	# endif
 	# define zone Xzone /* mmzone.h conflicts with solaris zone struct */
 	# include	<linux/time.h>
 	# include	<linux/module.h>
@@ -53,6 +56,7 @@ struct modctl;
 	# include	<linux/types.h>
 	# include	<linux/wait.h>
 	# include	<linux/kdev_t.h>
+	# include	<linux/version.h>
 	# include	<zone.h>
 
 # else /* !__KERNEL */
@@ -112,6 +116,8 @@ typedef unsigned int mutex_t;
 	# include <asm/signal.h>
 	# include <linux/sched.h>
 	# define	SNOCD	0
+
+	# define aston(x) 0
 
 	# define	t_did pid
 	# define	p_parent parent
@@ -191,7 +197,7 @@ typedef unsigned int ulong_t;
 typedef unsigned long long u_longlong_t;
 typedef long long longlong_t;
 typedef long long offset_t;
-typedef unsigned long long rd_agent_t;
+//typedef unsigned long long rd_agent_t;
 typedef unsigned long pc_t;
 typedef ulong_t          Lmid_t;
 typedef uint_t lwpid_t;

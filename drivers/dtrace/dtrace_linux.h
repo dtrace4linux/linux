@@ -55,7 +55,7 @@
 #define	mutex_enter(x)	mutex_lock(x)
 #define	mutex_exit(x)	mutex_unlock(x)
 
-# define PRINT_CASE(x) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x)
+# define PRINT_CASE(x) do { if (dtrace_here) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x); } while (0)
 
 # define crhold(x)
 # define priv_isequalset(a, b) 1

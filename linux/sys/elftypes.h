@@ -53,7 +53,7 @@ typedef long			Elf32_Sword;
 typedef unsigned long		Elf32_Word;
 #endif
 
-#if defined(_LP64) || linux
+#if defined(_LP64)
 typedef unsigned long		Elf64_Addr;
 typedef unsigned short		Elf64_Half;
 typedef unsigned long		Elf64_Off;

@@ -1,4 +1,7 @@
 ./build/dtrace
 ./libdtrace/dt_grammar.h
 ./libdtrace/dt_lex.c
+./utils/access
 ./utils/mknod
+./utils/pread
+

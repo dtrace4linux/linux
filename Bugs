@@ -12,7 +12,10 @@ x 20080708 1. dtrace -f open
 x 20080708 2. dtrace -f open:entry -- failing probe lookup
            Same as apple dtrace. Seems to be a bug in dtrace itself.
   
-  20080708 3. dtrace -f syscall::open:entry -- failing probe lookup
+x 20080708 3. dtrace -f syscall::open:entry -- failing probe lookup
+           dtrace itself is broken in the way it parses this. This works
+	   'dtrace -f syscall::open'
+
   20080708 4. wade thru variables lookup
   20080708 5. validate ustack/stack
   20080708 6. fastrap
@@ -23,7 +26,7 @@ x 20080708 2. dtrace -f open:entry -- failing probe lookup
 
   20080708 10. BUG: soft lockup - CPU#1 stuck for 11s! [dtrace:5862]
              Our timer callbacks arent correct so they can hang/kill the
-	     system.
+	     system. (Broken cyclic.c code?)
 
 x 20080708 11. dtrace -s tests/dt011
   		Invokes CPU_DTRACE_BADADDR from dtrace_copycheck because
@@ -36,3 +39,9 @@ x 20080708 11. dtrace -s tests/dt011
 x 20080712 12. dtrace -s tests/dt013
              can cause stack tracing on kernel.
 
+  20080723 13. kmem_cache_create in dtrace_attach being called twice
+               or not being freed on driver unload?
+
+x 20080723 14. sys_call_table not visible in 2.6.23.1.
+
+  20080729 15. proc2.c: Set pr_dmodel for 64b machine.

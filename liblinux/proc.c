@@ -7,12 +7,7 @@
 int	_libproc_debug;		/* set non-zero to enable debugging printfs */
 int	blockable_sigs;	/* signals to block when we need to be safe */
 
-rd_new() { printf("rd_new:%s\n", __func__); }
-rd_loadobj_iter() { printf("%s\n", __func__); }
 getzonenamebyid() { printf("%s\n", __func__); }
-rd_get_dyns() { printf("%s\n", __func__); }
-rd_log() { printf("rd_log:%s\n", __func__); }
-rd_delete() { printf("rd_delete:%s\n", __func__); }
 //Pcreate() { printf("proc-stub:%s\n", __func__); }
 //Pcreate_error() { printf("proc-stub:%s\n", __func__); }
 //Pctlfd() { printf("proc-stub:%s\n", __func__); }
@@ -66,9 +61,4 @@ int p_online(int processorid, int flag)
 //pr_close() { printf("proc-stub:%s\n", __func__); }
 //pr_ioctl() { printf("proc-stub:%s\n", __func__); }
 //pr_open() { printf("proc-stub:%s\n", __func__); }
-rd_errstr() { printf("proc-stub:%s\n", __func__); }
-rd_event_addr() { printf("proc-stub:%s\n", __func__); }
-rd_event_enable() { printf("proc-stub:%s\n", __func__); }
-rd_event_getmsg() { printf("proc-stub:%s\n", __func__); }
-rd_init() { printf("proc-stub:%s\n", __func__); }
 

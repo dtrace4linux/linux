@@ -29,7 +29,7 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 	long	wchan, zero1, zero2, exit_signal;
 	long	cpu, rt_priority, policy;
 
-HERE(); printf("Help: reading /stat/ structure.\n");
+HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
 	memset(pst, 0, sizeof *pst);
 	sprintf(buf, "/proc/%d/stat", P->pid);
 	if ((fd = open(buf, O_RDONLY)) < 0)
@@ -57,6 +57,7 @@ HERE(); printf("Help: reading /stat/ structure.\n");
 		&wchan, &zero1, &zero2, &exit_signal,
 		&cpu, &rt_priority, &policy);
 
+	pst->pr_dmodel = PR_MODEL_ILP32;
 	pst->pr_pid = pid;
 	pst->pr_ppid = ppid;
 	pst->pr_sid = sid;

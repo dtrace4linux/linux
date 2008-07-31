@@ -15,10 +15,12 @@ int dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p);
 void dump_mem(char *cp, int len);
 int	lx_get_curthread_id(void);
 void	par_setup_thread(void);
+void	*par_setup_thread2(void);
 u64	lx_rdmsr(int);
 int uread(proc_t *, void *, size_t, uintptr_t);
 int uwrite(proc_t *, void *, size_t, uintptr_t);
 void *fbt_get_access_process_vm(void);
+void *fbt_get_kernel_text_address(void);
 
 # endif
 

@@ -846,7 +846,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 				asmap64 = (Elf64_Sym **) realloc(asmap64,
 					sizeof(*sp64) * dmp->dm_aslen);
 				sp64 = calloc(sizeof *sp64, 1);
-				asmap64[dmp->dm_aslen-1] = sp;
+				asmap64[dmp->dm_aslen-1] = sp64;
 				sp64->st_name = str_index;
 				strcpy(strtab + str_index, name);
 				str_index += strlen(name) + 1;
@@ -865,8 +865,8 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 			}
 		}
 		fclose(fp);
-		dmp->dm_asmap = asmap;
-		dmp->dm_symtab.cts_data = asmap;
+		dmp->dm_asmap = bits == 64 ? asmap64 : asmap;
+		dmp->dm_symtab.cts_data = bits == 64 ? asmap64 : asmap;
 		dmp->dm_strtab.cts_data = strtab;
 		dmp->dm_strtab.cts_size = str_index;
 	}

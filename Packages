@@ -7,6 +7,8 @@ elfutils -- provides <gelf.h>
 
 libelf-dev
 	libelf1 development libraries and header files
+	http://www.mr511.de/software/ has libelf 0.8.10 sources.
+	You may need this for symtabs to work properly.
 
 bison-1.35 or byacc
 	Needed to compile the D language grammar file. dt_grammar.y

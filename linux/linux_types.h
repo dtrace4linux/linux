@@ -58,6 +58,12 @@ struct modctl;
 	# include	<linux/kdev_t.h>
 	# include	<linux/version.h>
 	# include	<zone.h>
+	# include <linux/stacktrace.h>
+	# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 23)
+	#	include <asm-x86_64/stacktrace.h>
+	# else
+	#	include <asm-x86/stacktrace.h>
+	# endif
 
 # else /* !__KERNEL */
 

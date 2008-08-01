@@ -1,10 +1,10 @@
 57fb91aa size=65      mtime=1217317018 ./.gdbinit
 fdd8a3f2 size=105     mtime=1217403007 ./.ignore
 2dc4ebe4 size=1759    mtime=1217364006 ./Bugs
-191dce2e size=10526   mtime=1217363245 ./Changes
+7687436b size=10678   mtime=1217674712 ./Changes
 b78bfde9 size=631     mtime=1215963461 ./Differences
 fed0c352 size=18945   mtime=1106593216 ./LICENSING.NOTICE
-faf39f64 size=605     mtime=1212185998 ./Packages
+4ac00e19 size=712     mtime=1217667313 ./Packages
 071025a0 size=3779    mtime=1215125212 ./README
 00000000 size=0       mtime=1216581733 ./TIMESTAMP
 a560083f size=47977   mtime=1216332379 ./cmd/dtrace/dtrace.c
@@ -134,7 +134,7 @@ e3c3d9ce size=4715    mtime=1214910222 ./doc/lwn/lwn3.txt
 dfd143c2 size=3598    mtime=1214145469 ./drivers/checksum.lst
 279c2508 size=95      mtime=1215553111 ./drivers/dtrace/.gdbinit
 7a9a10e6 size=1329    mtime=1215334455 ./drivers/dtrace/Makefile
-94e241b1 size=2071    mtime=1217496950 ./drivers/dtrace/checksum.lst
+f3019404 size=2071    mtime=1217669446 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 5575e87f size=9257    mtime=1215895065 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -150,7 +150,7 @@ d1e21501 size=2694    mtime=1212268299 ./drivers/dtrace/ctf_util.c
 ee228981 size=412996  mtime=1217615898 ./drivers/dtrace/dtrace.c
 266f6445 size=6120    mtime=1216927893 ./drivers/dtrace/dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./drivers/dtrace/dtrace_asm.s
-65a29a3f size=16053   mtime=1217320103 ./drivers/dtrace/dtrace_isa.c
+3604479c size=15884   mtime=1217679309 ./drivers/dtrace/dtrace_isa.c
 1b82f4f8 size=18335   mtime=1217057686 ./drivers/dtrace/dtrace_linux.c
 3d58f05f size=7901    mtime=1217008846 ./drivers/dtrace/dtrace_linux.h
 cc816838 size=1210    mtime=1216929274 ./drivers/dtrace/dtrace_proto.h
@@ -168,7 +168,7 @@ ccc7df77 size=7109    mtime=1210512452 ./drivers/dtrace/opensnoop
 50e23482 size=12989   mtime=1217319393 ./drivers/dtrace/profile.c
 a416564e size=9430    mtime=1212446320 ./drivers/dtrace/sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./drivers/dtrace/sdt_subr.c
-64fda882 size=25390   mtime=1217615902 ./drivers/dtrace/syscalls-x86-64.tbl
+64fda882 size=25390   mtime=1217679336 ./drivers/dtrace/syscalls-x86-64.tbl
 d2051143 size=23116   mtime=1217537660 ./drivers/dtrace/syscalls-x86.tbl
 513c31b8 size=14799   mtime=1217497367 ./drivers/dtrace/systrace.c
 b69bbf60 size=1111    mtime=1212275983 ./drivers/dtrace/uncompress.c
@@ -184,7 +184,7 @@ f9288166 size=2557    mtime=1207504852 ./drivers/include/sys/cpuvar_defs.h
 00000000 size=0       mtime=1207492677 ./drivers/include/sys/policy.h
 00000000 size=0       mtime=1207492675 ./drivers/include/sys/priv_impl.h
 00000000 size=0       mtime=1207492669 ./drivers/include/sys/rwlock_impl.h
-c9731100 size=14357   mtime=1217615858 ./drivers/include/sys/stdint.h
+a8c449b3 size=14530   mtime=1217679334 ./drivers/include/sys/stdint.h
 00000000 size=0       mtime=1207492689 ./drivers/include/sys/taskq.h
 0d983f63 size=25      mtime=1208717953 ./drivers/include/sys/time.h
 03ac63a7 size=2603    mtime=1212251924 ./drivers/include/sys/types32.h
@@ -229,7 +229,7 @@ f50cf329 size=24833   mtime=1215215495 ./libdtrace/dt_lex.l
 ec39e5c4 size=2751    mtime=1210534806 ./libdtrace/dt_list.c
 b068143b size=1567    mtime=1210534806 ./libdtrace/dt_list.h
 7038b1e4 size=10092   mtime=1210535009 ./libdtrace/dt_map.c
-d115f94b size=38412   mtime=1217621396 ./libdtrace/dt_module.c
+288419f1 size=38460   mtime=1217674533 ./libdtrace/dt_module.c
 1b6d5769 size=1799    mtime=1210534989 ./libdtrace/dt_module.h
 5fa545c2 size=2336    mtime=1210537492 ./libdtrace/dt_names.c
 37d21e9c size=52940   mtime=1214900688 ./libdtrace/dt_open.c
@@ -371,7 +371,7 @@ ec7ced1e size=1083    mtime=1106592659 ./libproc/spec/versions
 6a4be254 size=1116    mtime=1215938253 ./linux/elf.h
 4f86ff9c size=946     mtime=1207076895 ./linux/ieeefp.h
 1519dc3b size=105     mtime=1215879614 ./linux/link.h
-c9731100 size=14357   mtime=1217615858 ./linux/linux_types.h
+a8c449b3 size=14530   mtime=1217679334 ./linux/linux_types.h
 da79045e size=23      mtime=1207085716 ./linux/priv.h
 34338239 size=505     mtime=1207086499 ./linux/proc_service.h
 918004c3 size=25      mtime=1206901288 ./linux/procfs.h

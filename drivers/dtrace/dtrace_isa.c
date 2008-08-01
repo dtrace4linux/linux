@@ -33,7 +33,6 @@
 #include <linux/uaccess.h>
 #include <asm/ucontext.h>
 #include <linux/thread_info.h>
-#include <linux/stacktrace.h>
 # endif
 
 #include <sys/dtrace_impl.h>
@@ -61,63 +60,64 @@ extern size_t _interrupt_size;
 extern size_t _cmntrap_size;
 extern size_t _allsyscalls_size;
 
+/**********************************************************************/
+/*   We  use  the  kernels  stack  dumper  to  avoid issues with cpu  */
+/*   architecture and frame pointer.				      */
+/**********************************************************************/
+DEFINE_MUTEX(dtrace_stack_mutex);
+static pc_t	*g_pcstack;
+static int	g_pcstack_limit;
+static int	g_depth;
+
+static void
+print_trace_warning_symbol(void *data, char *msg, unsigned long symbol)
+{
+}
+
+static void print_trace_warning(void *data, char *msg)
+{
+}
+
+static int print_trace_stack(void *data, char *name)
+{
+	return 0;
+}
+
+static void print_trace_address(void *data, unsigned long addr)
+{
+printk("in print_trace_address addr=%p\n", addr);
+	if (g_depth < g_pcstack_limit)
+		g_pcstack[g_depth++] = addr;
+}
+
+static const struct stacktrace_ops print_trace_ops = {
+	.warning = print_trace_warning,
+	.warning_symbol = print_trace_warning_symbol,
+	.stack = print_trace_stack,
+	.address = print_trace_address,
+};
+
 /*ARGSUSED*/
 void
 dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
     uint32_t *ignored)
 {
-	struct frame *fp = (struct frame *)dtrace_getfp();
-	struct frame *nextfp, *minfp, *stacktop;
-	int depth = 0;
-	int is_intr = 0;
-	int on_intr, last = 0;
-	uintptr_t pc;
-	uintptr_t caller = CPU->cpu_dtrace_caller;
-	int	*sp = (int *) fp;
-	int (*kernel_text_address)(unsigned long) = fbt_get_kernel_text_address();
-	struct thread_info *ti = (unsigned long) sp & ~(THREAD_SIZE - 1);
+	int	dummy;
+	int	depth;
 
-	minfp = fp;
-//printk("fp=====%p\n", fp);
-	aframes++;
+	mutex_enter(&dtrace_stack_mutex);
+	g_depth = 0;
+	g_pcstack = pcstack;
+	g_pcstack_limit = pcstack_limit;
+	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
+	depth = g_depth;
+	mutex_exit(&dtrace_stack_mutex);
 
-# define valid_stack_ptr(tinfo, p, size) \
-	((char *) p > (char *) tinfo && (char *) p + size < (char *) tinfo + THREAD_SIZE)
-
-# if !defined(CONFIG_FRAME_POINTER)
-	/***********************************************/
-	/*   Hack:  we'll  just  find something worth  */
-	/*   having on the stack.		       */
-	/***********************************************/
-/*
-printk("depth=%d pcstack_limit=%d valid=%d\n", depth, pcstack_limit,
-	       valid_stack_ptr(ti, sp, sizeof *sp));
-printk("sp=%p ti=%p\n", sp, ti);
-*/
-	while (depth < pcstack_limit && 
-	       valid_stack_ptr(ti, sp, sizeof *sp)) {
-		unsigned int *a = *sp++;
-//printk("ex: %p %d\n", a, kernel_text_address(a));
-		if (kernel_text_address(a))
-			pcstack[depth++] = (pc_t) a;
-	}
-# endif
-
-# if defined(CONFIG_FRAME_POINTER)
-	while (depth < pcstack_limit && 
-	       sp >= minfp &&	
-	       valid_stack_ptr(ti, sp, sizeof *sp)) {
-		nextfp = *sp;
-		pc = sp[1];
-		if (kernel_text_address(pc))
-			pcstack[depth++] = (pc_t) pc;
-		minfp = nextfp;
-		sp = nextfp;
-	}
-# endif
+/*	for (dummy = 0; dummy < depth; dummy++) {
+		printk("stack: %d %p\n", dummy, pcstack[dummy]);
+	}*/
 	while (depth < pcstack_limit)
 		pcstack[depth++] = NULL;
-
 }
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)

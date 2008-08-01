@@ -1,3 +1,10 @@
+Sat Aug  2 11:58:07 2008  fox
+
+      80* Archive: 1.0042
+
+      79* dt_module.c: Fixes for 64b kernels - we can now see kernel stack
+          traces.
+
 Tue Jul 29 21:27:11 2008  fox
 
       78* makefile: Build libelf/Gelf structures properly for 32b machines.

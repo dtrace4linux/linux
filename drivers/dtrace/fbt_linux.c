@@ -1062,11 +1062,11 @@ fbt_write(struct file *file, const char __user *buf,
 	if (syms[1].m_ptr)
 		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
 	xkallsyms_addresses 	= (long *) syms[2].m_ptr;
-	xkallsyms_expand_symbol = syms[3].m_ptr;
-	xget_symbol_offset 	= syms[4].m_ptr;
-	xkallsyms_lookup_name 	= syms[5].m_ptr;
+	xkallsyms_expand_symbol = (unsigned int (*)(int, char *)) syms[3].m_ptr;
+	xget_symbol_offset 	= (unsigned int (*)(int)) syms[4].m_ptr;
+	xkallsyms_lookup_name 	= (unsigned long (*)(char *)) syms[5].m_ptr;
 	xmodules 		= (void *) syms[6].m_ptr;
-	x__symbol_get		= syms[7].m_ptr;
+	x__symbol_get		= (void *(*)(const char *)) syms[7].m_ptr;
 	xsys_call_table 	= (void **) syms[8].m_ptr;
 
 	/***********************************************/

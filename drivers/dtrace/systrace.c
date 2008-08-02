@@ -163,7 +163,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 # if defined(__i386)
 	syscall = (int) ptr[6]; // horrid hack
 # else
-	syscall = ptr[12]; // horrid hack
+	syscall = (int) (long) ptr[12]; // horrid hack
 # endif
 	if (syscall < 0 || syscall >= NSYSCALL) {
 		printk("dtrace:help: Got syscall=%d\n", syscall);

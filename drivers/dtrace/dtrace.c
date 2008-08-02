@@ -5064,10 +5064,10 @@ PRINT_CASE(DIF_OP_STLS);
 			break;
 
 		case DIF_OP_LDTS: {
-PRINT_CASE(DIF_OP_LDTS);
 			dtrace_dynvar_t *dvar;
 			dtrace_key_t *key;
 
+PRINT_CASE(DIF_OP_LDTS);
 			id = DIF_INSTR_VAR(instr);
 			ASSERT(id >= DIF_VAR_OTHER_UBASE);
 			id -= DIF_VAR_OTHER_UBASE;
@@ -5098,10 +5098,10 @@ PRINT_CASE(DIF_OP_LDTS);
 		}
 
 		case DIF_OP_STTS: {
-PRINT_CASE(DIF_OP_STTS);
 			dtrace_dynvar_t *dvar;
 			dtrace_key_t *key;
 
+PRINT_CASE(DIF_OP_STTS);
 			id = DIF_INSTR_VAR(instr);
 			ASSERT(id >= DIF_VAR_OTHER_UBASE);
 			id -= DIF_VAR_OTHER_UBASE;
@@ -5591,8 +5591,6 @@ static void
 dtrace_action_ustack(dtrace_mstate_t *mstate, dtrace_state_t *state,
     uint64_t *buf, uint64_t arg)
 {
-	TODO();
-# if 0
 	int nframes = DTRACE_USTACK_NFRAMES(arg);
 	int strsize = DTRACE_USTACK_STRSIZE(arg);
 	uint64_t *pcs = &buf[1], *fps;
@@ -5700,7 +5698,6 @@ dtrace_action_ustack(dtrace_mstate_t *mstate, dtrace_state_t *state,
 
 out:
 	mstate->dtms_scratch_ptr = old;
-# endif
 	TODO_END();
 }
 
@@ -7768,8 +7765,8 @@ dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_enabling_t *enab)
 {
 	dtrace_probekey_t pkey;
 	uint32_t priv;
-	uid_t uid;
-        zoneid_t zoneid;
+	uid_t uid = 0;
+        zoneid_t zoneid = 0;
 
 HERE();
 	ASSERT(MUTEX_HELD(&dtrace_lock));
@@ -9874,7 +9871,7 @@ PRINT_CASE("DTRACEACT_USTACK");
 HERE();
 				strsize = DTRACE_USTACK_STRSIZE(arg);
 				nframes = opt[DTRACEOPT_USTACKFRAMES];
-printk("strsize=%d nframes=%d\n", strsize, nframes);
+printk("strsize=%d nframes=%d\n", (int) strsize, (int) nframes);
 				ASSERT(nframes > 0);
 				arg = DTRACE_USTACK_ARG(nframes, strsize);
 			}
@@ -11139,6 +11136,7 @@ dtrace_enabling_matchall(void)
 # if !defined(INGLOBALZONE)
 # define INGLOBALZONE(x) 1
 # define getzoneid(x) 1
+		cr = cr; /* avoid compiler warning */
 # endif
 		if (INGLOBALZONE(curproc) || getzoneid() == crgetzoneid(cr))
 			(void) dtrace_enabling_match(enab, NULL);
@@ -12495,7 +12493,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 # else
         /*state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);*/
 
-        state->dts_dev = (dev_t) fp;
+        state->dts_dev = (dev_t) (long long) fp;
 # endif
 
 	/*
@@ -13192,7 +13190,7 @@ dtrace_state_destroy(dtrace_state_t *state)
 	dtrace_ecb_t *ecb;
 	dtrace_vstate_t *vstate = &state->dts_vstate;
 //	minor_t minor = getminor(state->dts_dev);
-	int i, bufsize = NCPU * sizeof (dtrace_buffer_t);
+	int i;
 	dtrace_speculation_t *spec = state->dts_speculations;
 	int nspec = state->dts_nspeculations;
 	uint32_t match;
@@ -13497,7 +13495,6 @@ HERE2();
 	}
 }
 
-# if defined(sun)
 static uint64_t
 dtrace_helper(int which, dtrace_mstate_t *mstate,
     dtrace_state_t *state, uint64_t arg0, uint64_t arg1)
@@ -13505,7 +13502,7 @@ dtrace_helper(int which, dtrace_mstate_t *mstate,
 	uint16_t *flags = &cpu_core[cpu_get_id()].cpuc_dtrace_flags;
 	uint64_t sarg0 = mstate->dtms_arg[0];
 	uint64_t sarg1 = mstate->dtms_arg[1];
-	uint64_t rval;
+	uint64_t rval = 0;
 	dtrace_helpers_t *helpers = curproc->p_dtrace_helpers;
 	dtrace_helper_action_t *helper;
 	dtrace_vstate_t *vstate;
@@ -14143,8 +14140,6 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 	return (0);
 }
 
-# endif
-
 # if defined(sun)
 static int
 dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
@@ -14356,7 +14351,9 @@ dtrace_helpers_destroy(void)
 	--dtrace_helpers;
 	mutex_exit(&dtrace_lock);
 }
+# endif
 
+# if defined(sun)
 static void
 dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 {
@@ -14438,8 +14435,7 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 	if (hasprovs)
 		dtrace_helper_provider_register(to, newhelp, NULL);
 }
-
-#endif
+# endif
 
 # if defined(sun)
 /*
@@ -15103,7 +15099,7 @@ dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv
 {
 //	minor_t minor = getminor(dev);
 	dtrace_state_t *state = NULL;
-	int rval;
+	int rval = 0;
 
 //printk("fp=%p cmd=%x\n", fp, cmd);
 # if defined(sun)
@@ -15405,8 +15401,10 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		dtrace_dof_destroy(dof);
 
 printk("err=%d rv=%d\n", err, *rv);
-		if (err == 0)
-			copy_to_user((void *) arg, &rv, sizeof rv);
+		if (err == 0) {
+			if (copy_to_user((void *) arg, &rv, sizeof rv))
+				err = -EFAULT;
+		}
 
 		return err;
 	}
@@ -15446,7 +15444,7 @@ printk("err=%d rv=%d\n", err, *rv);
 		int m = 0;
 		uint32_t priv;
 		uid_t uid;
-		zoneid_t zoneid;
+		zoneid_t zoneid = 0;
 
 PRINT_CASE(DTRACEIOC_PROBES);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)

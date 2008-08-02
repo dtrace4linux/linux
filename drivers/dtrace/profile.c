@@ -33,7 +33,7 @@
 #include <linux/miscdevice.h>
 
 # undef profile_tick
-# if __i386 || __amd64
+# if defined(__i386) || defined(__amd64)
 # define __x86
 # endif
 
@@ -213,7 +213,7 @@ profile_provide(void *arg, const dtrace_probedesc_t *desc)
 	} types[] = {
 		{ PROF_PREFIX_PROFILE, PROF_PROFILE },
 		{ PROF_PREFIX_TICK, PROF_TICK },
-		{ NULL, NULL }
+		{ (char *) NULL, 0 }
 	};
 
 	const struct {
@@ -487,9 +487,9 @@ profile_open(struct inode *inode, struct file *file)
 static ssize_t 
 profile_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos)
-{	int	n;
+{
 	int	orig_count = count;
-	char	*bufend = buf + count;
+	char	*bufend = (char *) buf + count;
 	char	*cp;
 
 //printk("write: '%*.*s'\n", count, count, buf);
@@ -503,7 +503,7 @@ profile_write(struct file *file, const char __user *buf,
 		}
 		if (strncmp(buf, "profile_max=", 12) == 0) {
 			profile_max = simple_strtoul(buf, NULL, 10);
-			printk("profile_max: set to %lu\n", profile_max);
+			printk("profile_max: set to %u\n", (unsigned) profile_max);
 			}
 		buf = cp + 1;
 	}

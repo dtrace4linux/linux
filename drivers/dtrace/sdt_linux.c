@@ -100,7 +100,6 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 	sdt_probedesc_t *sdpd;
 	sdt_probe_t *sdp, *old;
 	sdt_provider_t *prov;
-	int len;
 
 	/*
 	 * One for all, and all for one:  if we haven't yet registered all of
@@ -117,7 +116,7 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 
 	for (sdpd = mp->sdt_probes; sdpd != NULL; sdpd = sdpd->sdpd_next) {
 		char *name = sdpd->sdpd_name, *func, *nname;
-		int i, j;
+		int i, j, len;
 		sdt_provider_t *prov;
 		ulong_t offs;
 		dtrace_id_t id;

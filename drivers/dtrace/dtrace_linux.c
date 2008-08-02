@@ -228,13 +228,6 @@ dtrace_vtime_disable(void)
 	} while	(cas32((uint32_t *)&dtrace_vtime_active,
 	    state, nstate) != state);
 }
-static int
-dtrace_xcall_func(dtrace_xcall_t func, void *arg)
-{
-        (*func)(arg);
-
-        return (0);
-}
 /*ARGSUSED*/
 void
 dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
@@ -253,25 +246,25 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 int
 fulword(const void *addr, uintptr_t *valuep)
 {
-	if (!validate_ptr(addr))
+	if (!validate_ptr((void *) addr))
 		return 1;
 
-	*valuep = dtrace_fulword(addr);
+	*valuep = dtrace_fulword((void *) addr);
 	return 0;
 }
 int
 fuword32(const void *addr, uint32_t *valuep)
 {
-	if (!validate_ptr(addr))
+	if (!validate_ptr((void *) addr))
 		return 1;
 
-	*valuep = dtrace_fuword32(addr);
+	*valuep = dtrace_fuword32((void *) addr);
 	return 0;
 }
 int
 sulword(const void *addr, ulong_t value)
 {
-	if (!validate_ptr(addr))
+	if (!validate_ptr((void *) addr))
 		return -1;
 
 	*(ulong_t *) addr = value;
@@ -280,7 +273,7 @@ sulword(const void *addr, ulong_t value)
 int
 suword32(const void *addr, uint32_t value)
 {
-	if (!validate_ptr(addr))
+	if (!validate_ptr((void *) addr))
 		return -1;
 
 	*(uint32_t *) addr = value;
@@ -361,10 +354,10 @@ lx_rdmsr(int x)
 {	u32 val1, val2;
 
 	rdmsr(x, val1, val2);
-	return (val2 << 32) | val1;
+	return ((u64) val2 << 32) | val1;
 }
 int
-validate_ptr(void *ptr)
+validate_ptr(const void *ptr)
 {	int	ret;
 
 	__validate_ptr(ptr, ret);
@@ -373,6 +366,15 @@ validate_ptr(void *ptr)
 	return ret;
 }
 
+/**********************************************************************/
+/*   MUTEX_NOT_HELD  macro  calls  mutex_owned. Linux doesnt seem to  */
+/*   have an assertion equivalent?				      */
+/**********************************************************************/
+int
+mutex_owned(mutex_t *mp)
+{
+	return atomic_read(&mp->count);
+}
 /**********************************************************************/
 /*   Parallel allocator to avoid touching kernel data structures. We  */
 /*   need  to  make  this  a  hash  table,  and provide free/garbage  */
@@ -473,7 +475,7 @@ par_setup_thread()
 /**********************************************************************/
 void *
 par_setup_thread2()
-{	int	init;
+{
 	par_alloc_t *p = par_lookup(get_current());
 	sol_proc_t	*solp;
 
@@ -492,14 +494,14 @@ uread(proc_t *p, void *addr, size_t len, uintptr_t dest)
 {	int (*func)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write) = 
 		fbt_get_access_process_vm();
 
-	return func(p, addr, len, dest, 0);
+	return func(p, (unsigned long) addr, (void *) dest, len, 0);
 }
 int 
 uwrite(proc_t *p, void *addr, size_t len, uintptr_t src)
 {	int (*func)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write) = 
 		fbt_get_access_process_vm();
 
-	return func(p, addr, len, src, 1);
+	return func(p, (unsigned long) addr, (void *) src, len, 1);
 }
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
@@ -613,13 +615,6 @@ static int dtracedrv_read_proc(char *page, char **start, off_t off,
 
 	// place holder for something useful later on.
 	len = sprintf(page, "hello");
-	return proc_calc_metrics(page, start, off, count, eof, len);
-}
-static int dtracedrv_helper_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int len;
-	len = sprintf(page, "hello");
-//	printk(KERN_WARNING "pgfault: %s", page);
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
 static int dtracedrv_ioctl(struct inode *inode, struct file *file,

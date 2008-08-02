@@ -213,7 +213,7 @@ extern uintptr_t	_userlimit;
 # define copyout(a, b, c) copy_to_user(b, a, c)
 
 char *linux_get_proc_comm(void);
-int validate_ptr(void *);
+int validate_ptr(const void *);
 
 /**********************************************************************/
 /*   Used by cyclic.c						      */

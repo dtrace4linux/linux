@@ -66,7 +66,7 @@ typedef enum {
                                 sizeof (kmutex_t))
 #define CPUC_PADSIZE            CPU_CACHE_COHERENCE_SIZE - CPUC_SIZE
 
-typedef struct cpu_t {
+typedef struct cpu {
         int             cpuid;
         struct cyc_cpu *cpu_cyclic;
         unsigned	cpu_flags;
@@ -77,7 +77,7 @@ typedef struct cpu_t {
         hrtime_t        cpu_dtrace_chillmark;   /* DTrace: chill mark time */
         hrtime_t        cpu_dtrace_chilled;     /* DTrace: total chill time */
         struct cpupart  *cpu_part;              /* partition with this CPU */
-	struct cpu_t *cpu_next;
+	struct cpu	*cpu_next;
 	struct cpu      *cpu_next_onln;         /* next online (enabled) CPU */
         struct cpu      *cpu_prev_onln;         /* prev online (enabled) CPU */
 	struct mutex	cpu_ft_lock;		/* fasttrap mutex.	*/

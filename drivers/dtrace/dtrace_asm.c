@@ -39,6 +39,7 @@ dtrace_getfp(void)
 
 #endif	/* __i386 */
 	);
+	return 0; // notreached
 }
 
 #if defined(__amd64)
@@ -51,6 +52,7 @@ dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 		"cmpxchgl %edx, (%rdi)\n"
 		"ret\n"
 		);
+	return 0; // notreached
 }
 
 void *
@@ -62,6 +64,7 @@ dtrace_casptr(void *target, void *cmp, void *new)
 		"cmpxchgq %rdx, (%rdi)\n"
 		"ret\n"
 		);
+	return 0; // notreached
 }
 
 #elif defined(__i386)
@@ -74,6 +77,7 @@ dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
 		);
+	return 0; // notreached
 }
 void *
 dtrace_casptr(void *target, void *cmp, void *new) 
@@ -84,6 +88,7 @@ dtrace_casptr(void *target, void *cmp, void *new)
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
 		);
+	return 0; // notreached
 }
 
 #endif	/* __i386 */
@@ -105,6 +110,7 @@ dtrace_caller(void)
 
 #endif	/* __i386 */
 		);
+	return 0; // notreached
 }
 
 /*ARGSUSED*/
@@ -175,6 +181,7 @@ dtrace_fulword(void *addr)
 		"movq	(%rdi), %rax\n"
 		"ret\n"
 		);
+	return 0; // notreached
 
 #elif defined(__i386)
 
@@ -193,6 +200,7 @@ dtrace_fuword8_nocheck(void *addr)
 		"movb	(%rdi), %al\n"
 		"ret\n"
 		);
+	return 0; // notreached
 
 #elif defined(__i386)
 
@@ -211,6 +219,7 @@ dtrace_fuword16_nocheck(void *addr)
 		"movw	(%rdi), %ax\n"
 		"ret\n"
 		);
+	return 0; // notreached
 
 #elif defined(__i386)
 
@@ -229,6 +238,7 @@ dtrace_fuword32_nocheck(void *addr)
 		"movl	(%rdi), %eax\n"
 		"ret\n"
 	);
+	return 0; // notreached
 
 #elif defined(__i386)
 
@@ -245,6 +255,7 @@ dtrace_fuword64_nocheck(void *addr)
 		"movq	(%rdi), %rax\n"
 		"ret\n"
 		);
+	return 0; // notreached
 
 #elif defined(__i386)
 
@@ -350,6 +361,7 @@ dtrace_interrupt_disable(void)
         	"cli\n"
         	"ret\n"
 	);
+	return 0; // notreached
 #elif defined(__i386)
 	/***********************************************/
 	/*   We  get kernel warnings because we break  */

@@ -39,7 +39,7 @@ TODO();
 }
 static int fasttrap_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
-{	int	ret;
+{
 TODO();
 	return -EIO;
 }
@@ -56,8 +56,8 @@ static struct miscdevice fasttrap_dev = {
 };
 int fasttrap_init(void)
 {	int	ret;
-	struct proc_dir_entry *ent;
 # if 0
+	struct proc_dir_entry *ent;
 static struct proc_dir_entry *dir;
 
 	/***********************************************/

@@ -26,7 +26,7 @@
 #ifndef	_FASTTRAP_ISA_H
 #define	_FASTTRAP_ISA_H
 
-#pragma ident	"@(#)fasttrap_isa.h	1.6	06/09/19 SMI"
+//#pragma ident	"@(#)fasttrap_isa.h	1.6	06/09/19 SMI"
 
 #include <sys/types.h>
 

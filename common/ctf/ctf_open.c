@@ -618,7 +618,8 @@ ctf_bufopen(const ctf_sect_t *ctfsect, const ctf_sect_t *symsect,
 	 * the data section's buffer pointer into ctf_buf, below.
 	 */
 	if (hp.cth_flags & CTF_F_COMPRESS) {
-		size_t srclen, dstlen;
+		size_t srclen;
+		int	dstlen;
 		const void *src;
 		int rc = Z_OK;
 

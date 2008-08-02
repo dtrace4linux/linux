@@ -66,7 +66,6 @@ static struct map {
 	};
 static int xkallsyms_num_syms;
 static long *xkallsyms_addresses;
-static void *xkallsyms_op;
 static unsigned int (*xkallsyms_expand_symbol)(int, char *);
 static unsigned int (*xget_symbol_offset)(int);
 static unsigned long (*xkallsyms_lookup_name)(char *);
@@ -271,7 +270,7 @@ TODO();
 	}
 
 	if (dtrace_here) 
-		printk("%s:modname=%s num_symtab=%d\n", __func__, modname, mp->num_symtab);
+		printk("%s:modname=%s num_symtab=%ld\n", __func__, modname, mp->num_symtab);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
@@ -635,7 +634,7 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 /*   Needed by systrace.c					      */
 /**********************************************************************/
 void *
-fbt_get_sys_call_table()
+fbt_get_sys_call_table(void)
 {
 	return xsys_call_table;
 }
@@ -643,27 +642,27 @@ fbt_get_sys_call_table()
 /*   Needed in cyclic.c						      */
 /**********************************************************************/
 void *
-fbt_get_hrtimer_cancel()
+fbt_get_hrtimer_cancel(void)
 {
 	return (void *) syms[10].m_ptr;
 }
 void *
-fbt_get_hrtimer_init()
+fbt_get_hrtimer_init(void)
 {
 	return (void *) syms[12].m_ptr;
 }
 void *
-fbt_get_hrtimer_start()
+fbt_get_hrtimer_start(void)
 {
 	return (void *) syms[11].m_ptr;
 }
 void *
-fbt_get_kernel_text_address()
+fbt_get_kernel_text_address(void)
 {
 	return (void *) syms[16].m_ptr;
 }
 void *
-fbt_get_access_process_vm()
+fbt_get_access_process_vm(void)
 {
 	return (void *) syms[13].m_ptr;
 }
@@ -746,10 +745,10 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 	struct module *mp = (struct module *) ctl;
 	ctf_file_t *fp = NULL;
 	ctf_funcinfo_t f;
-	int error;
+//	int error;
 	ctf_id_t argv[32], type;
 	int argc = sizeof (argv) / sizeof (ctf_id_t);
-	const char *parent;
+//	const char *parent;
 
 	if (mp->state != MODULE_STATE_LIVE ||
 	    get_refcount(mp) != fbt->fbtp_loadcnt)
@@ -1018,7 +1017,7 @@ fbt_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos)
 {	int	n;
 	int	orig_count = count;
-	char	*bufend = buf + count;
+	const char	*bufend = buf + count;
 	char	*cp;
 	char	*symend;
 	struct map *mp;
@@ -1120,7 +1119,7 @@ fbt_write(struct file *file, const char __user *buf,
 		syms[OFFSET_sys_call_table].m_ptr = (unsigned long *) *((long *) (ptr + 3));
 		printk("dtrace: sys_call_table located at %p\n",
 			syms[OFFSET_sys_call_table].m_ptr);
-		xsys_call_table = syms[OFFSET_sys_call_table].m_ptr;
+		xsys_call_table = (void **) syms[OFFSET_sys_call_table].m_ptr;
 		}
 	}
 	/***********************************************/

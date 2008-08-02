@@ -69,10 +69,13 @@ DEFINE_MUTEX(pidlock);
 timeout_id_t
 timeout(void (*func)(void *), void *arg, unsigned long ticks)
 {
+	TODO();
+	return 0;
 }
 void
 untimeout(timeout_id_t id)
 {
+	TODO();
 }
 void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
 void (*dtrace_fasttrap_exec_ptr)(proc_t *);
@@ -193,7 +196,9 @@ void (*dtrace_fasttrap_exit_ptr)(proc_t *);
  *	never hold the provider lock and creation lock simultaneously
  */
 
+# if defined(sun)
 static dev_info_t *fasttrap_devi;
+# endif
 static dtrace_meta_provider_id_t fasttrap_meta_id;
 
 static timeout_id_t fasttrap_timeout;
@@ -740,7 +745,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	fasttrap_bucket_t *bucket;
 	fasttrap_provider_t *provider = probe->ftp_prov;
 	fasttrap_tracepoint_t **pp, *tp;
-	fasttrap_id_t *id, **idp;
+	fasttrap_id_t *id, **idp = NULL;
 	pid_t pid;
 	uintptr_t pc;
 
@@ -1600,7 +1605,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	fasttrap_probe_t *pp;
 	fasttrap_tracepoint_t *tp;
 	char *name;
-	int i, aframes, whack;
+	int i, aframes = 0, whack;
 
 	/*
 	 * There needs to be at least one desired trace point.
@@ -1979,12 +1984,14 @@ static dtrace_mops_t fasttrap_mops = {
 	fasttrap_meta_remove
 };
 
+# if defined(sun)
 /*ARGSUSED*/
 static int
 fasttrap_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 {
 	return (0);
 }
+# endif
 
 /*ARGSUSED*/
 # if defined(sun)

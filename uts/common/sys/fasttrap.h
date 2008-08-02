@@ -10,7 +10,7 @@
 #ifndef	_SYS_FASTTRAP_H
 #define	_SYS_FASTTRAP_H
 
-#pragma ident	"@(#)fasttrap.h	1.3	04/08/31 SMI"
+//#pragma ident	"@(#)fasttrap.h	1.3	04/08/31 SMI"
 
 #include <sys/fasttrap_isa.h>
 #include <sys/dtrace.h>

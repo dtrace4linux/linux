@@ -65,6 +65,8 @@ struct modctl;
 	#	include <asm-x86/stacktrace.h>
 	# endif
 
+	# define MUTEX_NOT_HELD(x)	!mutex_owned(x)
+
 # else /* !__KERNEL */
 
 	# define	_LARGEFILE_SOURCE	1
@@ -117,13 +119,13 @@ typedef unsigned long long hrtime_t;
 /**********************************************************************/
 /*   Typedefs for kernel driver building.			      */
 /**********************************************************************/
-typedef unsigned int mutex_t;
+typedef struct mutex mutex_t;
 # if __KERNEL__
 	# include <asm/signal.h>
 	# include <linux/sched.h>
 	# define	SNOCD	0
 
-	# define aston(x) 0
+	# define aston(x) 
 
 	# define	t_did pid
 	# define	p_parent parent
@@ -199,7 +201,7 @@ typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 # endif
 typedef unsigned int uint_t;
-typedef unsigned int ulong_t;
+typedef unsigned long ulong_t;
 typedef unsigned long long u_longlong_t;
 typedef long long longlong_t;
 typedef long long offset_t;
@@ -484,5 +486,7 @@ void *dtrace_casptr(void *target, void *cmp, void *new);
 
 # define atomic_add_32(a, b) atomic_add(b, (atomic_t *) (a))
 void atomic_add_64(uint64_t *, int n);
+
+int	mutex_owned(mutex_t *m);
 
 # endif /* LINE_TYPES_H */

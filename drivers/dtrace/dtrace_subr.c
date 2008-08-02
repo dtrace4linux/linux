@@ -23,7 +23,7 @@
 #include <vm/seg_kmem.h>
 # endif
 
-# define ASSERT(x) {if (!(x)) panic("%s(%d): dtrace assertion failed", __FILE__, __LINE__);}
+//# define ASSERT(x) {if (!(x)) panic("%s(%d): dtrace assertion failed", __FILE__, __LINE__);}
 
 typedef struct dtrace_invop_hdlr {
 	int (*dtih_func)(uintptr_t, uintptr_t *, uintptr_t);

@@ -798,7 +798,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 {
 	proc_t *p = curproc;
 	user_desc_t *desc;
-	uint16_t sel, ndx, type;
+	uint16_t sel = 0, ndx, type;
 	uintptr_t limit;
 
 	switch (tp->ftt_segment) {
@@ -1170,7 +1170,7 @@ fasttrap_pid_probe(struct regs *rp)
 
 	case FASTTRAP_T_JCC:
 	{
-		uint_t taken;
+		uint_t taken = 0;
 
 		switch (tp->ftt_code) {
 		case FASTTRAP_JO:
@@ -1241,7 +1241,7 @@ fasttrap_pid_probe(struct regs *rp)
 
 	case FASTTRAP_T_LOOP:
 	{
-		uint_t taken;
+		uint_t taken = 0;
 #ifdef __amd64
 		greg_t cx = rp->r_rcx--;
 #else
@@ -1409,7 +1409,7 @@ fasttrap_pid_probe(struct regs *rp)
 
 	case FASTTRAP_T_COMMON:
 	{
-		uintptr_t addr;
+		uintptr_t addr = 0;
 #if defined(__amd64)
 		uint8_t scratch[2 * FASTTRAP_MAX_INSTR_SIZE + 22];
 #else
@@ -1530,7 +1530,7 @@ fasttrap_pid_probe(struct regs *rp)
 
 #ifdef __amd64
 		if (tp->ftt_ripmode != 0) {
-			greg_t *reg;
+			greg_t *reg = NULL;
 
 			ASSERT(p->p_model == DATAMODEL_LP64);
 			ASSERT(tp->ftt_ripmode &

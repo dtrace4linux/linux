@@ -159,7 +159,15 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	unsigned long *bos;
 
 //	sp = current->thread.rsp;
+# if defined(__i386)
 	sp = KSTK_ESP(current);
+# else
+	/***********************************************/
+	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
+	/*   set to -1).			       */
+	/***********************************************/
+	sp = task_pt_regs(current)->rsp;
+# endif
 	bos = sp;
 //printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.esp0, current->stack);
 //{int i; for (i = 0; i < 32; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}

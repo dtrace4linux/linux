@@ -85,7 +85,7 @@ static int print_trace_stack(void *data, char *name)
 
 static void print_trace_address(void *data, unsigned long addr)
 {
-printk("in print_trace_address addr=%p\n", addr);
+//printk("in print_trace_address addr=%p\n", addr);
 	if (g_depth < g_pcstack_limit)
 		g_pcstack[g_depth++] = addr;
 }
@@ -121,7 +121,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 }
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
-{
+{	uint64_t *pcstack_end = pcstack + pcstack_limit;
 	volatile uint8_t *flags =
 	    (volatile uint8_t *)&cpu_core[CPU->cpu_id].cpuc_dtrace_flags;
 
@@ -132,9 +132,8 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 		return;
 
 	*pcstack++ = (uint64_t)current->pid;
-	pcstack_limit--;
 
-	if (pcstack_limit <= 0)
+	if (pcstack >= pcstack_end)
 		return;
 
 	/***********************************************/
@@ -154,24 +153,43 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   Following  simple code will work so long  */
 	/*   as we have a framepointer.		       */
 	/***********************************************/
+
+	/***********************************************/
+	/*   Ye  gods! The world is an awful place to  */
+	/*   live. The target process, may or may not  */
+	/*   have   frame  pointers.  In  fact,  some  */
+	/*   frames  may have it and some may not (eg  */
+	/*   different   libraries  may  be  compiled  */
+	/*   differently).			       */
+	/*   					       */
+	/*   Looks like distro owners dont care about  */
+	/*   debuggabiity,   and  give  us  no  frame  */
+	/*   pointers.				       */
+	/*   					       */
+	/*   This  function  is  really important and  */
+	/*   useful.  On  modern  Linux  systems, gdb  */
+	/*   (and  pstack) contain all the smarts. In  */
+	/*   fact,  pstack  is often a wrapper around  */
+	/*   gdb  -  i.e. its so complex we cannot do  */
+	/*   this.				       */
+	/***********************************************/
+
+	/***********************************************/
+	/*   Bear  in  mind  that  user stacks can be  */
+	/*   megabytes  in  size,  vs  kernel  stacks  */
+	/*   which  are  limited  to a few K (4 or 8K  */
+	/*   typically).			       */
+	/***********************************************/
 	{
 	unsigned long *sp;
 	unsigned long *bos;
 
 //	sp = current->thread.rsp;
 # if defined(__i386)
-	sp = KSTK_ESP(current);
-# else
-	/***********************************************/
-	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
-	/*   set to -1).			       */
-	/***********************************************/
-	sp = task_pt_regs(current)->rsp;
-# endif
-	bos = sp;
-//printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.esp0, current->stack);
-//{int i; for (i = 0; i < 32; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
-	while (pcstack_limit-- > 0 &&
+	bos = sp = KSTK_ESP(current);
+//printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.rsp, current->stack);
+//{int i; for (i = 0; i < 64; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
+	while (pcstack < pcstack_end &&
 	       sp >= bos) {
 		if (!validate_ptr(sp))
 			break;
@@ -181,15 +199,33 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 			break;
 		sp = sp[0];
 	}
+# else
+	/***********************************************/
+	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
+	/*   set to -1).			       */
+	/***********************************************/
+	bos = sp = task_pt_regs(current)->rsp;
+	*pcstack++ = sp;
+//printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.rsp, current->stack);
+//{int i; for (i = 0; i < 64; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
+	while (pcstack < pcstack_end &&
+	       sp >= bos) {
+		if (validate_ptr(sp))
+			*pcstack++ = sp[0];
+		sp++;
+//printk("sp=%p limit=%d\n", sp, pcstack_limit);
+	}
+# endif
 	}
 
-	while (pcstack_limit-- > 0)
+	while (pcstack < pcstack_end)
 		*pcstack++ = NULL;
 }
 
 int
 dtrace_getustackdepth(void)
 {
+printk("need to do this dtrace_getustackdepth\n");
 # if 0
 	klwp_t *lwp = ttolwp(curthread);
 	proc_t *p = curproc;
@@ -228,6 +264,7 @@ dtrace_getustackdepth(void)
 void
 dtrace_getufpstack(uint64_t *pcstack, uint64_t *fpstack, int pcstack_limit)
 {
+printk("need to do this dtrace_getufpstack\n");
 # if 0
 	klwp_t *lwp = ttolwp(curthread);
 	proc_t *p = ttoproc(curthread);

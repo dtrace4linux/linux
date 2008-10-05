@@ -34,8 +34,9 @@ syscall::open:return
 /self->path != NULL && arg0 == -1/
 {
 	printf("%s: open for '%s' failed arg1=%d", execname, self->path, arg1);
+	printf("ustack=====>\n");
 	ustack();
-	printf("stack=\n");
+	printf("stack=====>\n");
 	stack();
 }
 
@@ -45,8 +46,9 @@ syscall::access:return
 /self->path != NULL && arg1 < 0/
 {
 	printf("%s: access('%s') failed arg1=%d", execname, self->path, arg1);
+	printf("ustack=====>\n");
 	ustack();
-	printf("stack=\n");
+	printf("stack=====>\n");
 	stack();
 }
 

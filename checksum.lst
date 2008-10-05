@@ -134,7 +134,7 @@ e3c3d9ce size=4715    mtime=1214910222 ./doc/lwn/lwn3.txt
 dfd143c2 size=3598    mtime=1214145469 ./drivers/checksum.lst
 279c2508 size=95      mtime=1215553111 ./drivers/dtrace/.gdbinit
 7a9a10e6 size=1329    mtime=1215334455 ./drivers/dtrace/Makefile
-f3019404 size=2071    mtime=1217669446 ./drivers/dtrace/checksum.lst
+a80d676a size=2071    mtime=1218487546 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 5575e87f size=9257    mtime=1215895065 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -147,15 +147,15 @@ d1e21501 size=2694    mtime=1212268299 ./drivers/dtrace/ctf_util.c
 10589bbe size=113949  mtime=1212273673 ./drivers/dtrace/dis_tables.c
 021c331d size=3096    mtime=1209891441 ./drivers/dtrace/dis_tables.h
 885d2e9d size=1612    mtime=1217616163 ./drivers/dtrace/divmod64.c
-acd0b767 size=413041  mtime=1217770906 ./drivers/dtrace/dtrace.c
+47b6467b size=413035  mtime=1218317771 ./drivers/dtrace/dtrace.c
 9d005bb4 size=6420    mtime=1217770368 ./drivers/dtrace/dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./drivers/dtrace/dtrace_asm.s
-7c81f1d7 size=16137   mtime=1217719873 ./drivers/dtrace/dtrace_isa.c
-62c49a21 size=18767   mtime=1217759331 ./drivers/dtrace/dtrace_linux.c
+a490fdc6 size=17768   mtime=1223329728 ./drivers/dtrace/dtrace_isa.c
+d31e13d6 size=18401   mtime=1217776715 ./drivers/dtrace/dtrace_linux.c
 a8dadfec size=7907    mtime=1217759311 ./drivers/dtrace/dtrace_linux.h
 cc816838 size=1210    mtime=1216929274 ./drivers/dtrace/dtrace_proto.h
-cd6d1c39 size=8961    mtime=1215369378 ./drivers/dtrace/dtrace_subr.c
-12692058 size=64702   mtime=1217771191 ./drivers/dtrace/fasttrap.c
+76d3ca16 size=8963    mtime=1217776754 ./drivers/dtrace/dtrace_subr.c
+1fb06174 size=64728   mtime=1217776813 ./drivers/dtrace/fasttrap.c
 f190e611 size=46234   mtime=1217759692 ./drivers/dtrace/fasttrap_isa.c
 e6e5941b size=2670    mtime=1217771034 ./drivers/dtrace/fasttrap_linux.c
 967a4ee0 size=30732   mtime=1217759580 ./drivers/dtrace/fbt_linux.c
@@ -165,7 +165,7 @@ e6e5941b size=2670    mtime=1217771034 ./drivers/dtrace/fasttrap_linux.c
 ed4821ca size=582     mtime=1213553114 ./drivers/dtrace/linux_pure.c
 d13c0d0e size=5028    mtime=1217008360 ./drivers/dtrace/load
 ccc7df77 size=7109    mtime=1210512452 ./drivers/dtrace/opensnoop
-2daf3748 size=13025   mtime=1217679686 ./drivers/dtrace/profile.c
+8607056e size=13029   mtime=1217779684 ./drivers/dtrace/profile.c
 27623753 size=9425    mtime=1217770190 ./drivers/dtrace/sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./drivers/dtrace/sdt_subr.c
 64fda882 size=25390   mtime=1217759819 ./drivers/dtrace/syscalls-x86-64.tbl
@@ -184,7 +184,7 @@ f9288166 size=2557    mtime=1207504852 ./drivers/include/sys/cpuvar_defs.h
 00000000 size=0       mtime=1207492677 ./drivers/include/sys/policy.h
 00000000 size=0       mtime=1207492675 ./drivers/include/sys/priv_impl.h
 00000000 size=0       mtime=1207492669 ./drivers/include/sys/rwlock_impl.h
-088b6633 size=14604   mtime=1217758834 ./drivers/include/sys/stdint.h
+e95c8ba2 size=14605   mtime=1217776501 ./drivers/include/sys/stdint.h
 00000000 size=0       mtime=1207492689 ./drivers/include/sys/taskq.h
 0d983f63 size=25      mtime=1208717953 ./drivers/include/sys/time.h
 03ac63a7 size=2603    mtime=1212251924 ./drivers/include/sys/types32.h
@@ -371,7 +371,7 @@ ec7ced1e size=1083    mtime=1106592659 ./libproc/spec/versions
 6a4be254 size=1116    mtime=1215938253 ./linux/elf.h
 4f86ff9c size=946     mtime=1207076895 ./linux/ieeefp.h
 1519dc3b size=105     mtime=1215879614 ./linux/link.h
-088b6633 size=14604   mtime=1217758834 ./linux/linux_types.h
+e95c8ba2 size=14605   mtime=1217776501 ./linux/linux_types.h
 da79045e size=23      mtime=1207085716 ./linux/priv.h
 34338239 size=505     mtime=1207086499 ./linux/proc_service.h
 918004c3 size=25      mtime=1206901288 ./linux/procfs.h
@@ -456,7 +456,7 @@ caa7190b size=72      mtime=1214861626 ./tests/dt007
 27863e6e size=1421    mtime=1215855554 ./tests/dt013
 e39a9663 size=79      mtime=1215856141 ./tests/dt014
 526fe191 size=141     mtime=1216912471 ./tests/dt015
-11dfd6e4 size=1442    mtime=1217246501 ./tests/dt016
+359d999b size=1506    mtime=1218306358 ./tests/dt016
 47178c92 size=1449    mtime=1215964265 ./tools/libgcc.pl
 d13c0d0e size=5028    mtime=1217008360 ./tools/load.pl
 32fa6128 size=1597    mtime=1214132701 ./tools/mksyscall.pl
@@ -494,7 +494,7 @@ e130ce61 size=397     mtime=1106592660 ./uts/common/dtrace/systrace.conf
 7c99ba8e size=97607   mtime=1212273515 ./uts/common/sys/dtrace.h
 452af7af size=63918   mtime=1214745334 ./uts/common/sys/dtrace_impl.h
 ac596ca1 size=2328    mtime=1217679801 ./uts/common/sys/fasttrap.h
-548cf16a size=7394    mtime=1215878872 ./uts/common/sys/fasttrap_impl.h
+2bca8c9e size=7396    mtime=1217776453 ./uts/common/sys/fasttrap_impl.h
 73e71145 size=5754    mtime=1215878827 ./uts/common/sys/lockstat.h
 f813922e size=7308    mtime=1214159217 ./uts/common/sys/sdt.h
 52f07ade size=2654    mtime=1217758938 ./uts/common/sys/sdt_impl.h

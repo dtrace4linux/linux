@@ -204,7 +204,7 @@ static void
 profile_provide(void *arg, const dtrace_probedesc_t *desc)
 {
 	int i, j, rate, kind;
-	hrtime_t val = 0, mult = 1, len;
+	hrtime_t val = 0, mult = 1, len = 0;
 	const char *name, *suffix = NULL;
 
 	const struct {

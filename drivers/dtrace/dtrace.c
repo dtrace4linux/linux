@@ -6293,7 +6293,6 @@ HERE();
 				break;
 			}
 		}
-HERE();
 
 		if (*flags & CPU_DTRACE_DROP)
 			continue;
@@ -10353,7 +10352,7 @@ dtrace_buffer_activate(dtrace_state_t *state)
 	dtrace_icookie_t cookie = dtrace_interrupt_disable();
 
 HERE();
-printk("cpu_get_id()=%d\n", cpu_get_id());
+//printk("cpu_get_id()=%d\n", cpu_get_id());
 	buf = &state->dts_buffer[cpu_get_id()];
 
 	if (buf->dtb_tomax != NULL) {

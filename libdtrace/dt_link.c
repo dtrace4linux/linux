@@ -1585,7 +1585,11 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 	}
 
 	if (!dtp->dt_lazyload) {
+# if defined(solaris)
 		const char *fmt = "%s -o %s -r -Blocal -Breduce /dev/fd/%d %s";
+# else
+		const char *fmt = "%s -o %s -r /dev/fd/%d %s";
+# endif
 
 		if (dtp->dt_oflags & DTRACE_O_LP64) {
 			(void) snprintf(drti, sizeof (drti),
@@ -1601,6 +1605,8 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 		cmd = alloca(len);
 
 		(void) snprintf(cmd, len, fmt, dtp->dt_ld_path, file, fd, drti);
+
+		printf("Invoking: %s\n", cmd);
 
 		if ((status = system(cmd)) == -1) {
 			ret = dt_link_error(dtp, NULL, -1, NULL,

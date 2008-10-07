@@ -1,3 +1,11 @@
+Wed Oct  8 22:38:54 2008  fox
+
+      82* libdtrace/dt_link.c: Some changes to allow dtrace -G to work.
+          Not there yet.
+
+      81* usdt/ New directory to create a simple USDT so we can
+          get things sorted.
+
 Sat Aug  2 11:58:07 2008  fox
 
       80* Archive: 1.0042

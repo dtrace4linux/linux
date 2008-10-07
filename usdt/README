@@ -1,0 +1,7 @@
+Simple USDT example, so we can start testing out USDT.
+
+Thanks to:
+
+http://blogs.sun.com/barts/entry/putting_user_defined_dtrace_probe
+
+which helped me get my head around this...

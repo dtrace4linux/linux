@@ -642,7 +642,11 @@ const dtrace_pattr_t _dtrace_prvdesc = {
 };
 
 const char *_dtrace_defcpp = "/usr/ccs/lib/cpp"; /* default cpp(1) to invoke */
+# if defined(solaris)
 const char *_dtrace_defld = "/usr/ccs/bin/ld";   /* default ld(1) to invoke */
+# else
+const char *_dtrace_defld = "ld";   /* default ld(1) to invoke */
+# endif
 
 const char *_dtrace_libdir = "/usr/lib/dtrace"; /* default library directory */
 const char *_dtrace_provdir = "/dev/dtrace/provider"; /* provider directory */

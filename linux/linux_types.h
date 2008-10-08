@@ -19,6 +19,7 @@
 # endif
 
 # define	_INT64_TYPE
+# define	_LITTLE_ENDIAN 1
 
 /**********************************************************************/
 /*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */

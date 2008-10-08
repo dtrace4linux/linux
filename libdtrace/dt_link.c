@@ -621,6 +621,8 @@ dump_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	elf_file.ehdr.e_ident[EI_DATA] = ELFDATA2MSB;
 #elif defined(_LITTLE_ENDIAN)
 	elf_file.ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
+#else
+# error help me
 #endif
 	elf_file.ehdr.e_type = ET_REL;
 #if defined(__sparc)
@@ -1570,9 +1572,14 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 		    "invalid link type %u\n", dtp->dt_linktype));
 	}
 
-
+	/***********************************************/
+	/*   This  assumes  /bin/ld  will  like input  */
+	/*   from /dev/fd/NN. Why bother?	       */
+	/***********************************************/
+# if defined(solaris)
 	if (!dtp->dt_lazyload)
 		(void) unlink(file);
+# endif
 
 	if (dtp->dt_oflags & DTRACE_O_LP64)
 		status = dump_elf64(dtp, dof, fd);
@@ -1599,8 +1606,7 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			    "%s/drti.o", _dtrace_libdir);
 		}
 
-		len = snprintf(&tmp, 1, fmt, dtp->dt_ld_path, file, fd,
-		    drti) + 1;
+		len = snprintf(&tmp, 1, fmt, dtp->dt_ld_path, file, fd, drti) + 1;
 
 		cmd = alloca(len);
 
@@ -1630,6 +1636,14 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			    file, dtp->dt_ld_path, WEXITSTATUS(status));
 			goto done;
 		}
+# if defined(linux)
+		/***********************************************/
+		/*   Remove  file  now - we keep it around in  */
+		/*   case we are debugging the linker above.   */
+		/***********************************************/
+printf("%s: unlinking file\n", __FILE__);
+		(void) unlink(file);
+# endif
 	} else {
 		(void) close(fd);
 	}

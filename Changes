@@ -1,3 +1,8 @@
+Thu Oct  9 22:36:16 2008  fox
+
+      83* linux_types.h: Add _LITTLE_ENDIAN definition, else dt_link.c
+          generates bad ELF .o files.
+
 Wed Oct  8 22:38:54 2008  fox
 
       82* libdtrace/dt_link.c: Some changes to allow dtrace -G to work.

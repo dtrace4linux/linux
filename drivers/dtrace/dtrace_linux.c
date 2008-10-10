@@ -564,7 +564,51 @@ priv_policy_only(const cred_t *a, int b, int c)
         return 0;
 }
 /**********************************************************************/
-/*   Module interface to the kernel.				      */
+/*   Module   interface   for   /dev/dtrace_helper.  I  really  want  */
+/*   /dev/dtrace/helper,  but havent figured out the kernel calls to  */
+/*   get this working yet.					      */
+/**********************************************************************/
+static int
+helper_open(struct inode *inode, struct file *file)
+{	int	ret = 0;
+
+	return -ret;
+}
+static int
+helper_release(struct inode *inode, struct file *file)
+{
+	dtrace_close(file, 0, 0, NULL);
+	return 0;
+}
+static int
+helper_read(ctf_file_t *fp, int fd)
+{
+	return -EIO;
+}
+static int 
+helper_read_proc(char *page, char **start, off_t off, int count, int *eof, void *data)
+{	int len;
+
+	// place holder for something useful later on.
+	len = sprintf(page, "hello");
+	return 0;
+}
+/**********************************************************************/
+/*   Invoked  by  drti.c  -- the USDT .o file linked into apps which  */
+/*   provide user space dtrace probes.				      */
+/**********************************************************************/
+static int 
+helper_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+{	int	ret;
+	int	rv = 0;
+
+	ret = dtrace_ioctl_helper(file, cmd, arg, 0, NULL, &rv);
+//HERE();
+if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
+        return ret ? -ret : rv;
+}
+/**********************************************************************/
+/*   Module interface for /dev/dtrace - the main driver.	      */
 /**********************************************************************/
 static int
 dtracedrv_open(struct inode *inode, struct file *file)
@@ -639,6 +683,18 @@ static struct miscdevice dtracedrv_dev = {
         "dtrace",
         &dtracedrv_fops
 };
+static const struct file_operations helper_fops = {
+        .read = helper_read,
+        .ioctl = helper_ioctl,
+        .open = helper_open,
+        .release = helper_release,
+};
+static struct miscdevice helper_dev = {
+        MISC_DYNAMIC_MINOR,
+        "dtrace_helper",
+        &helper_fops
+};
+
 static int __init dtracedrv_init(void)
 {	int	i, ret;
 static struct proc_dir_entry *dir;
@@ -683,7 +739,12 @@ static struct proc_dir_entry *dir;
 # endif
 	ret = misc_register(&dtracedrv_dev);
 	if (ret) {
-		printk(KERN_WARNING "dtracedrv: Unable to register misc device\n");
+		printk(KERN_WARNING "dtracedrv: Unable to register /dev/dtrace\n");
+		return ret;
+		}
+	ret = misc_register(&helper_dev);
+	if (ret) {
+		printk(KERN_WARNING "dtracedrv: Unable to register /dev/dtrace_helper\n");
 		return ret;
 		}
 
@@ -707,6 +768,8 @@ static void __exit dtracedrv_exit(void)
 	if (dtrace_attached()) {
 		dtrace_detach(NULL, 0);
 		}
+
+	misc_deregister(&helper_dev);
 
 	dtrace_profile_fini();
 	systrace_exit();

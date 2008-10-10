@@ -45,3 +45,7 @@ x 20080712 12. dtrace -s tests/dt013
 x 20080723 14. sys_call_table not visible in 2.6.23.1.
 
   20080729 15. proc2.c: Set pr_dmodel for 64b machine.
+
+  20081009 16. Build drti.o so that dtrace -G can work.
+
+  20081010 17. Build /dev/dtrace-helper function needed by dtrace -G.

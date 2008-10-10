@@ -1641,8 +1641,9 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 		/*   Remove  file  now - we keep it around in  */
 		/*   case we are debugging the linker above.   */
 		/***********************************************/
-printf("%s: unlinking file\n", __FILE__);
-		(void) unlink(file);
+		printf("%s: unlinking file: %s\n", __FILE__, file);
+		if (getenv("DTRACE_NO_UNLINK") == NULL)
+			(void) unlink(file);
 # endif
 	} else {
 		(void) close(fd);

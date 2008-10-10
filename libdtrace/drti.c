@@ -28,10 +28,17 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+# if defined(linux)
+# define __USE_GNU 1
+# endif
+
 #include <dlfcn.h>
 #include <link.h>
 #include <sys/dtrace.h>
 
+# if defined(linux)
+# undef __USE_GNU
+# endif
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,7 +62,12 @@
  *	DTRACE_DOF_INIT_DEVNAME		set the path to the helper node
  */
 
+# if defined(linux)
+# define dprintf dtrace_printf /* Avoid conflict with stdio.h */
+static const char *devname = "/dev/dtrace_helper";
+# else
 static const char *devname = "/dev/dtrace/helper";
+# endif
 static const char *olddevname = "/devices/pseudo/dtrace@0:helper";
 
 static const char *modname;	/* Name of this load object */
@@ -104,6 +116,9 @@ dtrace_dof_init(void)
 	if (getenv("DTRACE_DOF_INIT_DISABLE") != NULL)
 		return;
 
+# if !defined(RTLD_SELF)
+# define RTLD_SELF 0
+# endif
 	if (dlinfo(RTLD_SELF, RTLD_DI_LINKMAP, &lmp) == -1 || lmp == NULL) {
 		dprintf(1, "couldn't discover module name or address\n");
 		return;

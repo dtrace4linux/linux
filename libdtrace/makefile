@@ -30,7 +30,7 @@ H = \
 	./dt_xlator.h		\
 	./dtrace.h
 
-all: $(LIB)
+all: $(LIB) ../build/drti.o
 
 $(LIB): \
 	$(LIB)(dt_lex.o) \
@@ -92,6 +92,10 @@ $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
 	$(CC) $(CPPFLAGS) -c dt_lex.c
 	ar rv $(LIB) dt_lex.o
 	-rm -f dt_lex.o
+
+../build/drti.o: drti.c $(H)
+	$(CC) $(CPPFLAGS) -c drti.c
+	mv drti.o ../build
 
 clean:
 	-rm -f dt_grammar.h dt_lex.c *.o *.a

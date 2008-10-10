@@ -1,3 +1,8 @@
+Sat Oct 11 10:00:48 2008  fox
+
+      84* drivers/dtrace.c, dtrace_linux.c: Start to enable the 
+          /dev/dtrace_helper driver, needed for USDT.
+
 Thu Oct  9 22:36:16 2008  fox
 
       83* linux_types.h: Add _LITTLE_ENDIAN definition, else dt_link.c

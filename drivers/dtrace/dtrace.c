@@ -13644,7 +13644,7 @@ dtrace_helper_destroygen(int gen)
 	 * given generation number.
 	 */
 	for (;;) {
-		dtrace_helper_provider_t *prov;
+		dtrace_helper_provider_t *prov = NULL;
 
 		/*
 		 * Look for a helper provider with the right generation. We
@@ -14139,7 +14139,6 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 	return (0);
 }
 
-# if defined(sun)
 static int
 dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 {
@@ -14151,9 +14150,20 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 
+	/***********************************************/
+	/*   We  need  p_dtrace_helpers  in  the proc  */
+	/*   struct,  so  we  need  to do this in the  */
+	/*   shadow struct.			       */
+	/***********************************************/
+# if defined(linux)
+	par_setup_thread();
+	if ((help = curthread->p_dtrace_helpers) == NULL)
+		help = dtrace_helpers_create(curproc);
+# else
 	if ((help = curproc->p_dtrace_helpers) == NULL)
 		help = dtrace_helpers_create(curproc);
 
+# endif
 	vstate = &help->dthps_vstate;
 
 	if ((rv = dtrace_dof_slurp(dof, vstate, NULL, &enab,
@@ -14236,9 +14246,7 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 
 	return (gen);
 }
-# endif
 
-# if defined(sun)
 static dtrace_helpers_t *
 dtrace_helpers_create(proc_t *p)
 {
@@ -14256,9 +14264,7 @@ dtrace_helpers_create(proc_t *p)
 
 	return (help);
 }
-# endif
 
-# if defined(sun)
 static void
 dtrace_helpers_destroy(void)
 {
@@ -14350,7 +14356,6 @@ dtrace_helpers_destroy(void)
 	--dtrace_helpers;
 	mutex_exit(&dtrace_lock);
 }
-# endif
 
 # if defined(sun)
 static void
@@ -15033,6 +15038,10 @@ printk("dtrace_opens=%d dtrace_opens state=%p\n", dtrace_opens, state);
 # if defined(sun)
 static int
 dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv)
+# else
+int
+dtrace_ioctl_helper(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
+# endif
 {
 	int rval;
 	dof_helper_t help, *dhp = NULL;
@@ -15085,7 +15094,6 @@ dtrace_ioctl_helper(int cmd, intptr_t arg, int *rv)
 
 	return (ENOTTY);
 }
-# endif
 
 # if defined(sun)
 /*ARGSUSED*/

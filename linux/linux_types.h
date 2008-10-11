@@ -80,6 +80,11 @@ struct modctl;
 	# include	<pthread.h>
 	# include	<features.h>
 	# include	<time.h>
+
+	# define __USE_GNU 1 /* Need Lmid_t type */
+	# include	<dlfcn.h>
+	# undef __USE_GNU
+	
 	# include	<sys/time.h>
 	# include	<sys/processor.h>
 	# include	<sys/systm.h>
@@ -91,9 +96,6 @@ struct modctl;
 # endif /* __KERNEL__ */
 
 # include 	<sys/regset.h>
-
-// link.h
-#define LM_ID_BASE              0x00
 
 # define 	DEFAULTMUTEX PTHREAD_MUTEX_INITIALIZER
 

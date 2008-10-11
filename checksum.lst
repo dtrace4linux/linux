@@ -1,7 +1,7 @@
 57fb91aa size=65      mtime=1217317018 ./.gdbinit
 fdd8a3f2 size=105     mtime=1217403007 ./.ignore
 9dd4ad68 size=1887    mtime=1223592275 ./Bugs
-6b0ada61 size=11193   mtime=1223715671 ./Changes
+07532c18 size=11443   mtime=1223801286 ./Changes
 b78bfde9 size=631     mtime=1215963461 ./Differences
 fed0c352 size=18945   mtime=1106593216 ./LICENSING.NOTICE
 4ac00e19 size=712     mtime=1217667313 ./Packages
@@ -168,7 +168,7 @@ ccc7df77 size=7109    mtime=1210512452 ./drivers/dtrace/opensnoop
 8607056e size=13029   mtime=1217779684 ./drivers/dtrace/profile.c
 27623753 size=9425    mtime=1217770190 ./drivers/dtrace/sdt_linux.c
 08a8c2c8 size=39913   mtime=1212442074 ./drivers/dtrace/sdt_subr.c
-64fda882 size=25390   mtime=1223758853 ./drivers/dtrace/syscalls-x86-64.tbl
+64fda882 size=25390   mtime=1223801197 ./drivers/dtrace/syscalls-x86-64.tbl
 d2051143 size=23116   mtime=1217537660 ./drivers/dtrace/syscalls-x86.tbl
 615d63c9 size=14812   mtime=1217679725 ./drivers/dtrace/systrace.c
 b69bbf60 size=1111    mtime=1212275983 ./drivers/dtrace/uncompress.c
@@ -184,7 +184,7 @@ f9288166 size=2557    mtime=1207504852 ./drivers/include/sys/cpuvar_defs.h
 00000000 size=0       mtime=1207492677 ./drivers/include/sys/policy.h
 00000000 size=0       mtime=1207492675 ./drivers/include/sys/priv_impl.h
 00000000 size=0       mtime=1207492669 ./drivers/include/sys/rwlock_impl.h
-ba4804d2 size=14631   mtime=1223588144 ./drivers/include/sys/stdint.h
+ba3afeac size=14632   mtime=1223801191 ./drivers/include/sys/stdint.h
 00000000 size=0       mtime=1207492689 ./drivers/include/sys/taskq.h
 0d983f63 size=25      mtime=1208717953 ./drivers/include/sys/time.h
 03ac63a7 size=2603    mtime=1212251924 ./drivers/include/sys/types32.h
@@ -200,7 +200,7 @@ b25b8131 size=1802    mtime=1207775982 ./libctf/ctf_subr.c
 ae64217e size=417     mtime=1106592645 ./libctf/llib-lctf
 2c9ded25 size=2099    mtime=1217418623 ./libctf/makefile
 b69bbf60 size=1111    mtime=1212275983 ./libctf/uncompress.c
-f97c876c size=5092    mtime=1223675804 ./libdtrace/drti.c
+55eaa57a size=5289    mtime=1223759118 ./libdtrace/drti.c
 77491aaf size=44873   mtime=1210534589 ./libdtrace/dt_aggregate.c
 a60eb824 size=13757   mtime=1210536896 ./libdtrace/dt_as.c
 c39eae04 size=1950    mtime=1210534628 ./libdtrace/dt_as.h
@@ -225,7 +225,7 @@ c4b4700b size=30011   mtime=1214945785 ./libdtrace/dt_impl.h
 f9c65abb size=2635    mtime=1210534778 ./libdtrace/dt_inttab.c
 61c1a8e1 size=2345    mtime=1210534778 ./libdtrace/dt_inttab.h
 f50cf329 size=24833   mtime=1215215495 ./libdtrace/dt_lex.l
-df9cf37f size=44714   mtime=1223589508 ./libdtrace/dt_link.c
+3531658c size=44827   mtime=1223802787 ./libdtrace/dt_link.c
 ec39e5c4 size=2751    mtime=1210534806 ./libdtrace/dt_list.c
 b068143b size=1567    mtime=1210534806 ./libdtrace/dt_list.h
 7038b1e4 size=10092   mtime=1210535009 ./libdtrace/dt_map.c
@@ -270,7 +270,7 @@ e5beba6b size=2001    mtime=1210534482 ./libdtrace/io.sed.in
 fe22e36c size=1104    mtime=1210534482 ./libdtrace/ip.d.in
 7c9ef8f0 size=1447    mtime=1210534482 ./libdtrace/ip.sed.in
 695e30c7 size=1051    mtime=1210534530 ./libdtrace/llib-ldtrace
-6eedef9e size=2196    mtime=1223675831 ./libdtrace/makefile
+bf84b376 size=2194    mtime=1223758992 ./libdtrace/makefile
 8306bae8 size=1321    mtime=1210534505 ./libdtrace/mkerrno.sh
 8be668f6 size=1547    mtime=1210534505 ./libdtrace/mkerrtags.sh
 b7aee578 size=1474    mtime=1210537459 ./libdtrace/mknames.sh
@@ -371,7 +371,7 @@ ec7ced1e size=1083    mtime=1106592659 ./libproc/spec/versions
 6a4be254 size=1116    mtime=1215938253 ./linux/elf.h
 4f86ff9c size=946     mtime=1207076895 ./linux/ieeefp.h
 1519dc3b size=105     mtime=1215879614 ./linux/link.h
-ba4804d2 size=14631   mtime=1223588144 ./linux/linux_types.h
+ba3afeac size=14632   mtime=1223801191 ./linux/linux_types.h
 da79045e size=23      mtime=1207085716 ./linux/priv.h
 34338239 size=505     mtime=1207086499 ./linux/proc_service.h
 918004c3 size=25      mtime=1206901288 ./linux/procfs.h
@@ -462,7 +462,8 @@ d13c0d0e size=5028    mtime=1217008360 ./tools/load.pl
 32fa6128 size=1597    mtime=1214132701 ./tools/mksyscall.pl
 fd278f63 size=3084    mtime=1215294187 ./tools/runtests.pl
 ef3d9374 size=179     mtime=1223501929 ./usdt/README
-11ee6155 size=236     mtime=1223502589 ./usdt/makefile
+d769b93b size=205     mtime=1223802740 ./usdt/checksum.lst
+2b1d0a9b size=256     mtime=1223802737 ./usdt/makefile
 a9495fdb size=169     mtime=1223501883 ./usdt/simple.c
 20d20f48 size=67      mtime=1223501785 ./usdt/simple_probes.d
 3df7ad38 size=111     mtime=1213132025 ./utils/README

@@ -8,3 +8,6 @@ simple: simple_probes.o simple.o
 
 simple_probes.o: simple.o simple_probes.d
 	$(DTRACE) -G -64 -s simple_probes.d simple.o
+
+clean:
+	-rm -f *.o

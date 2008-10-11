@@ -1598,7 +1598,9 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 		const char *fmt = "%s -o %s -r /dev/fd/%d %s";
 # endif
 
-		if (dtp->dt_oflags & DTRACE_O_LP64) {
+		if (getenv("DTRACE_DRTI_O"))
+			(void) snprintf(drti, sizeof (drti), "%s", getenv("DTRACE_DRTI_O"));
+		else if (dtp->dt_oflags & DTRACE_O_LP64) {
 			(void) snprintf(drti, sizeof (drti),
 			    "%s/64/drti.o", _dtrace_libdir);
 		} else {
@@ -1636,7 +1638,7 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			    file, dtp->dt_ld_path, WEXITSTATUS(status));
 			goto done;
 		}
-# if defined(linux)
+# if defined(linux) && 0
 		/***********************************************/
 		/*   Remove  file  now - we keep it around in  */
 		/*   case we are debugging the linker above.   */

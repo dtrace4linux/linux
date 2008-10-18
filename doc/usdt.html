@@ -1,0 +1,107 @@
+<b>User Defined Tracing - How it works</b>
+
+<p>
+USDT is a mechanism for user land applications to embed their
+own probes into executables. For example, a Perl or Python 
+interpreter might use it to gain access to stack traces of applications
+which are already started.
+
+<p>
+The goal of the DTrace team was near zero overhead when not invoked.
+This works well - even commercial applications can embed
+probes and not worry about performance or run time dependencies.
+
+<p>
+There are a number of steps to make this work.
+
+<p>
+Heres an example:
+
+<pre>
+# include &lt;stdio.h>
+# include &lt;sys/sdt.h>
+
+int main(int argc, char **argv)
+{
+	while (1) {
+		printf("here on line %d\n", __LINE__);
+		DTRACE_PROBE1(simple, saw__line, 0x1234);
+		printf("here on line %d\n", __LINE__);
+		DTRACE_PROBE1(simple, saw__word, 0x87654321);
+		printf("here on line %d\n", __LINE__);
+		DTRACE_PROBE1(simple, saw__word, 0xdeadbeef);
+		printf("here on line %d\n", __LINE__);
+		sleep(1);
+		}
+}
+</pre>
+
+
+<p>
+The DTRACE_PROBEx macros translate into a function call.
+To gain near-zero overhead, during linking, the function call
+is replaced by a series of NOP instructions. Heres an example disassembly
+of the above
+
+<pre>
+0000000000400e7c &lt;main>:
+  400e7c:       55                      push   %rbp
+  400e7d:       48 89 e5                mov    %rsp,%rbp
+  400e80:       48 83 ec 10             sub    $0x10,%rsp
+  400e84:       89 7d fc                mov    %edi,0xfffffffffffffffc(%rbp)
+  400e87:       48 89 75 f0             mov    %rsi,0xfffffffffffffff0(%rbp)
+  400e8b:       be 07 00 00 00          mov    $0x7,%esi
+  400e90:       bf df 11 40 00          mov    $0x4011df,%edi
+  400e95:       b8 00 00 00 00          mov    $0x0,%eax
+  400e9a:       e8 01 f9 ff ff          callq  4007a0 &lt;printf@plt>
+  400e9f:       bf 34 12 00 00          mov    $0x1234,%edi
+  400ea4:       90                      nop
+  400ea5:       90                      nop
+  400ea6:       90                      nop
+  400ea7:       90                      nop
+  400ea8:       90                      nop
+  400ea9:       be 09 00 00 00          mov    $0x9,%esi
+  400eae:       bf df 11 40 00          mov    $0x4011df,%edi
+  400eb3:       b8 00 00 00 00          mov    $0x0,%eax
+  400eb8:       e8 e3 f8 ff ff          callq  4007a0 &lt;printf@plt>
+  400ebd:       bf 21 43 65 87          mov    $0x87654321,%edi
+  400ec2:       90                      nop
+  400ec3:       90                      nop
+  400ec4:       90                      nop
+  400ec5:       90                      nop
+  400ec6:       90                      nop
+  400ec7:       be 0b 00 00 00          mov    $0xb,%esi
+  ....
+</pre>
+
+<p>
+When an application is built, dtrace is run on the
+object files to rewrite the objects, stubbing out the calls
+for probes, and creating a table in the executable of the
+places where the stubs are located. (The code
+for this is located in libdtrace/dt_link.c).
+
+<p>
+When the application is started up, a piece of code is
+executed (before main() is called). [Code located in
+libdtrace/drti.c]. This code looks at the current system,
+to see if dtrace is loaded into the kernel and communicates
+with the /dev/dtrace/helper driver to inform it that new
+probes are available in this process.
+
+<p>
+Voila! We are done. Or nearly.
+
+<p>
+At this point, whilst the application is running, 'dtrace -l'
+should reveal your new probes.
+
+<b>The Kernel</b>
+
+When a user elects to monitor the probe, the patched (NOP-ed) code
+will be change into a call back into the kernel to notify the
+function/probe is being invoked.
+
+Cancellation of the probe will undo the patched code and we are done.
+
+

@@ -728,8 +728,13 @@ dt_symtab_lookup(Elf_Data *data_sym, int nsym, uintptr_t addr, uint_t shn,
 		    shn == sym->st_shndx &&
 		    sym->st_value <= addr &&
 		    addr < sym->st_value + sym->st_size) {
-			if (GELF_ST_BIND(sym->st_info) == STB_GLOBAL)
+# if defined(linux)
+			if (GELF_ST_BIND(sym->st_info) == STB_LOCAL) {
+# else
+			if (GELF_ST_BIND(sym->st_info) == STB_GLOBAL) {
+# endif
 				return (0);
+			}
 
 			ret = 0;
 			s = *sym;
@@ -1008,6 +1013,7 @@ dt_link_error(dtrace_hdl_t *dtp, Elf *elf, int fd, dt_link_pair_t *bufs,
 	return (dt_set_errno(dtp, EDT_COMPILER));
 }
 
+# define GOTO(x) do {printf("%s(%d): error\n", __FILE__, __LINE__); goto x; } while(0)
 static int
 process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 {
@@ -1102,7 +1108,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 	scn_rel = NULL;
 	while ((scn_rel = elf_nextscn(elf, scn_rel)) != NULL) {
 		if (gelf_getshdr(scn_rel, &shdr_rel) == NULL)
-			goto err;
+			GOTO(err);
 
 		/*
 		 * Skip any non-relocation sections.
@@ -1111,7 +1117,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			continue;
 
 		if ((data_rel = elf_getdata(scn_rel, NULL)) == NULL)
-			goto err;
+			GOTO(err);
 
 		/*
 		 * Grab the section, section header and section data for the
@@ -1120,7 +1126,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		if ((scn_sym = elf_getscn(elf, shdr_rel.sh_link)) == NULL ||
 		    gelf_getshdr(scn_sym, &shdr_sym) == NULL ||
 		    (data_sym = elf_getdata(scn_sym, NULL)) == NULL)
-			goto err;
+			GOTO(err);
 
 		/*
 		 * Ditto for that symbol table's string table.
@@ -1128,7 +1134,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		if ((scn_str = elf_getscn(elf, shdr_sym.sh_link)) == NULL ||
 		    gelf_getshdr(scn_str, &shdr_str) == NULL ||
 		    (data_str = elf_getdata(scn_str, NULL)) == NULL)
-			goto err;
+			GOTO(err);
 
 		/*
 		 * Grab the section, section header and section data for the
@@ -1139,7 +1145,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		if ((scn_tgt = elf_getscn(elf, shdr_rel.sh_info)) == NULL ||
 		    gelf_getshdr(scn_tgt, &shdr_tgt) == NULL ||
 		    (data_tgt = elf_getdata(scn_tgt, NULL)) == NULL)
-			goto err;
+			GOTO(err);
 
 		/*
 		 * We're looking for relocations to symbols matching this form:
@@ -1190,7 +1196,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			if (gelf_getsym(data_sym, GELF_R_SYM(rela.r_info),
 			    &rsym) == NULL) {
 				dt_strtab_destroy(strtab);
-				goto err;
+				GOTO(err);
 			}
 
 			s = (char *)data_str->d_buf + rsym.st_name;
@@ -1201,18 +1207,32 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			if (dt_symtab_lookup(data_sym, isym, rela.r_offset,
 			    shdr_rel.sh_info, &fsym) != 0) {
 				dt_strtab_destroy(strtab);
-				goto err;
+				GOTO(err);
 			}
 
+# if defined(linux)
+			if (fsym.st_shndx != 1 ||
+			    GELF_ST_BIND(fsym.st_info) != STB_GLOBAL)
+				continue;
+# else
 			if (GELF_ST_BIND(fsym.st_info) != STB_LOCAL)
 				continue;
+# endif
 
 			if (fsym.st_name > data_str->d_size) {
 				dt_strtab_destroy(strtab);
-				goto err;
+				GOTO(err);
 			}
 
+# if defined(linux)
+			/***********************************************/
+			/*   Is  this  a solaris bug? This appears to  */
+			/*   work.				       */
+			/***********************************************/
+			s = (char *)data_str->d_buf + rsym.st_name;
+# else
 			s = (char *)data_str->d_buf + fsym.st_name;
+# endif
 
 			/*
 			 * If this symbol isn't of type function, we've really
@@ -1228,11 +1248,12 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			    objkey, s) + 1;
 			if ((p = dt_alloc(dtp, len)) == NULL) {
 				dt_strtab_destroy(strtab);
-				goto err;
+				GOTO(err);
 			}
 			(void) snprintf(p, len, dt_symfmt, dt_symprefix,
 			    objkey, s);
 
+/*printf("dt_strab_index=%d p=%s\n", dt_strtab_index(strtab, p), p);*/
 			if (dt_strtab_index(strtab, p) == -1) {
 				nsym++;
 				(void) dt_strtab_insert(strtab, p);
@@ -1240,7 +1261,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 
 			dt_free(dtp, p);
 		}
-
+/*printf("nsym=%d isym=%d\n", nsym, isym);*/
 		/*
 		 * If needed, allocate the additional space for the symbol
 		 * table and string table copying the old data into the new
@@ -1262,19 +1283,19 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			dt_strtab_destroy(strtab);
 
 			if ((pair = dt_alloc(dtp, sizeof (*pair))) == NULL)
-				goto err;
+				GOTO(err);
 
 			if ((pair->dlp_str = dt_alloc(dtp, data_str->d_size +
 			    len)) == NULL) {
 				dt_free(dtp, pair);
-				goto err;
+				GOTO(err);
 			}
 
 			if ((pair->dlp_sym = dt_alloc(dtp, data_sym->d_size +
 			    nsym * symsize)) == NULL) {
 				dt_free(dtp, pair->dlp_str);
 				dt_free(dtp, pair);
-				goto err;
+				GOTO(err);
 			}
 
 			pair->dlp_next = bufs;
@@ -1318,17 +1339,19 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 				rela.r_info = rel.r_info;
 				rela.r_addend = 0;
 			}
+//if (rela.r_offset = 0 && rela.r_info == 0) continue;
 
 			ndx = GELF_R_SYM(rela.r_info);
 
 			if (gelf_getsym(data_sym, ndx, &rsym) == NULL ||
 			    rsym.st_name > data_str->d_size)
-				goto err;
+				GOTO(err);
 
 			s = (char *)data_str->d_buf + rsym.st_name;
 
 			if (strncmp(s, dt_prefix, sizeof (dt_prefix) - 1) != 0)
 				continue;
+/*printf("\n*** i=%d SHT_RELA=%x %x ndx=%d r_offset=%x r_addend=%d %s\n", i, SHT_RELA, shdr_rel.sh_type, ndx, rela.r_offset, rela.r_addend, s);*/
 
 			s += sizeof (dt_prefix) - 1;
 
@@ -1348,11 +1371,12 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			}
 
 			if (*s++ != '_')
-				goto err;
+				GOTO(err);
 
 			if ((p = strstr(s, "___")) == NULL ||
 			    p - s >= sizeof (pname))
-				goto err;
+				GOTO(err);
+/*printf("%s(%d) here sss=%s\n", __FILE__, __LINE__, s);*/
 
 			bcopy(s, pname, p - s);
 			pname[p - s] = '\0';
@@ -1361,10 +1385,10 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 
 			if (dt_symtab_lookup(data_sym, isym, rela.r_offset,
 			    shdr_rel.sh_info, &fsym) != 0)
-				goto err;
+				GOTO(err);
 
 			if (fsym.st_name > data_str->d_size)
-				goto err;
+				GOTO(err);
 
 			assert(GELF_ST_TYPE(fsym.st_info) == STT_FUNC);
 
@@ -1379,10 +1403,10 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			 */
 			s = (char *)data_str->d_buf + fsym.st_name;
 			r = NULL;
-
 			if (GELF_ST_BIND(fsym.st_info) == STB_LOCAL) {
 				dsym = fsym;
 				dsym.st_name = istr;
+/*printf("here (2|) name=%s istr=%x\n", s, istr);*/
 				dsym.st_info = GELF_ST_INFO(STB_GLOBAL,
 				    STT_FUNC);
 				dsym.st_other =
@@ -1392,6 +1416,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 				r = (char *)data_str->d_buf + istr;
 				istr += 1 + sprintf(r, dt_symfmt,
 				    dt_symprefix, objkey, s);
+/*printf("%s(%d) here isym=%d nsym=%d r=%s\n", __FILE__, __LINE__, isym, nsym, r);*/
 				isym++;
 				assert(isym <= nsym);
 
@@ -1399,7 +1424,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			    strlen(dt_symprefix)) == 0) {
 				r = s;
 				if ((s = strchr(s, '.')) == NULL)
-					goto err;
+					GOTO(err);
 				s++;
 			}
 
@@ -1418,7 +1443,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			off = rela.r_offset - fsym.st_value;
 			if (dt_modtext(dtp, data_tgt->d_buf, eprobe,
 			    &rela, &off) != 0) {
-				goto err;
+				GOTO(err);
 			}
 
 			if (dt_probe_define(pvp, prp, s, r, off, eprobe) != 0) {
@@ -1436,15 +1461,35 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			 * already been processed by an earlier link
 			 * invocation.
 			 */
+# if defined(linux)
+			/***********************************************/
+			/*   Linux  doesnt  have SHN_SUNW_IGNORE, but  */
+			/*   we  need  to  stop this relocation being  */
+			/*   handled again if we have the same probes  */
+			/*   in  multiple  places.  This  appears  to  */
+			/*   work.  Not  nice,  but seems to work for  */
+			/*   now.				       */
+			/***********************************************/
+			rela.r_info = 0;
+			rela.r_offset = 0;
+			rela.r_addend = 0;
+			(void) gelf_update_rela(data_rel, i, &rela);
+
+			if (rsym.st_shndx != SHN_SUNW_IGNORE) {
+				rsym.st_shndx = 1;
+				(void) gelf_update_sym(data_sym, ndx, &rsym);
+			}
+# else
 			if (rsym.st_shndx != SHN_SUNW_IGNORE) {
 				rsym.st_shndx = SHN_SUNW_IGNORE;
 				(void) gelf_update_sym(data_sym, ndx, &rsym);
 			}
+# endif
 		}
 	}
 
 	if (mod && elf_update(elf, ELF_C_WRITE) == -1)
-		goto err;
+		GOTO(err);
 
 	(void) elf_end(elf);
 	(void) close(fd);
@@ -1597,6 +1642,8 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 # else
 		const char *fmt = "%s -o %s -r /dev/fd/%d %s";
 # endif
+		char *drtip = drti;
+		struct stat sbuf;
 
 		if (getenv("DTRACE_DRTI_O"))
 			(void) snprintf(drti, sizeof (drti), "%s", getenv("DTRACE_DRTI_O"));
@@ -1607,6 +1654,19 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			(void) snprintf(drti, sizeof (drti),
 			    "%s/drti.o", _dtrace_libdir);
 		}
+
+		/***********************************************/
+		/*   See  if  we  can  find drti.o if its not  */
+		/*   installed in the standard location.       */
+		/***********************************************/
+		if (stat(drtip, &sbuf) < 0) {
+			printf("Cannot locate: %s\n", drtip);
+			printf("(You can set env DTRACE_DRTI_O to point to the location of the object file)\n");
+			ret = dt_link_error(dtp, NULL, -1, NULL,
+			    "drti.o is not available - please install it");
+			goto done;
+		}
+
 
 		len = snprintf(&tmp, 1, fmt, dtp->dt_ld_path, file, fd, drti) + 1;
 

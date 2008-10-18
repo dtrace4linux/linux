@@ -1176,6 +1176,13 @@ main(int argc, char *argv[])
 	if (getenv("YYDEBUG"))
 		yydebug = 1;
 
+# if linux
+	/***********************************************/
+	/*   #pragma  init()  doesnt  work  for  gcc.  */
+	/*   Doesnt matter.			       */
+	/***********************************************/
+	_dtrace_init();
+# endif
 	g_ofp = stdout;
 	g_pname = basename(argv[0]);
 

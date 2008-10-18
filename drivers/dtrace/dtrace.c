@@ -14150,6 +14150,7 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 
+HERE();
 	/***********************************************/
 	/*   We  need  p_dtrace_helpers  in  the proc  */
 	/*   struct,  so  we  need  to do this in the  */
@@ -14168,6 +14169,7 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 
 	if ((rv = dtrace_dof_slurp(dof, vstate, NULL, &enab,
 	    dhp != NULL ? dhp->dofhp_addr : 0, B_FALSE)) != 0) {
+HERE();
 		dtrace_dof_destroy(dof);
 		return (rv);
 	}
@@ -14175,7 +14177,9 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 	/*
 	 * Look for helper providers and validate their descriptions.
 	 */
+HERE();
 	if (dhp != NULL) {
+HERE();
 		for (i = 0; i < dof->dofh_secnum; i++) {
 			dof_sec_t *sec = (dof_sec_t *)(uintptr_t)(daddr +
 			    dof->dofh_secoff + i * dof->dofh_secsize);
@@ -14196,6 +14200,7 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 	/*
 	 * Now we need to walk through the ECB descriptions in the enabling.
 	 */
+HERE();
 	for (i = 0; i < enab->dten_ndesc; i++) {
 		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
 		dtrace_probedesc_t *desc = &ep->dted_probe;
@@ -14209,26 +14214,33 @@ dtrace_helper_slurp(dof_hdr_t *dof, dof_helper_t *dhp)
 		if (strcmp(desc->dtpd_func, "ustack") != 0)
 			continue;
 
+HERE();
 		if ((rv = dtrace_helper_action_add(DTRACE_HELPER_ACTION_USTACK,
 		    ep)) != 0) {
+HERE();
 			/*
 			 * Adding this helper action failed -- we are now going
 			 * to rip out the entire generation and return failure.
 			 */
 			(void) dtrace_helper_destroygen(help->dthps_generation);
+HERE();
 			dtrace_enabling_destroy(enab);
+HERE();
 			dtrace_dof_destroy(dof);
+HERE();
 			return (-1);
 		}
 
 		nhelpers++;
 	}
+HERE();
 
 	if (nhelpers < enab->dten_ndesc)
 		dtrace_dof_error(dof, "unmatched helpers");
 
 	gen = help->dthps_generation++;
 	dtrace_enabling_destroy(enab);
+HERE();
 
 	if (dhp != NULL && nprovs > 0) {
 		dhp->dofhp_dof = (uint64_t)(uintptr_t)dof;
@@ -15046,8 +15058,11 @@ dtrace_ioctl_helper(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, 
 	int rval;
 	dof_helper_t help, *dhp = NULL;
 
+HERE();
+
 	switch (cmd) {
 	case DTRACEHIOC_ADDDOF:
+PRINT_CASE(DTRACEHIOC_ADDDOF);
 		if (copyin((void *)arg, &help, sizeof (help)) != 0) {
 			dtrace_dof_error(NULL, "failed to copyin DOF helper");
 			return (EFAULT);
@@ -15058,6 +15073,7 @@ dtrace_ioctl_helper(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, 
 		/*FALLTHROUGH*/
 
 	case DTRACEHIOC_ADD: {
+PRINT_CASE(DTRACEHIOC_ADD);
 		dof_hdr_t *dof = dtrace_dof_copyin(arg, &rval);
 
 		if (dof == NULL)
@@ -15081,6 +15097,7 @@ dtrace_ioctl_helper(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, 
 	}
 
 	case DTRACEHIOC_REMOVE: {
+PRINT_CASE(DTRACEHIOC_REMOVE);
 		mutex_enter(&dtrace_lock);
 		rval = dtrace_helper_destroygen(arg);
 		mutex_exit(&dtrace_lock);

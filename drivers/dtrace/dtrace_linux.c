@@ -367,11 +367,11 @@ validate_ptr(const void *ptr)
 }
 
 /**********************************************************************/
-/*   MUTEX_NOT_HELD  macro  calls  mutex_owned. Linux doesnt seem to  */
+/*   MUTEX_NOT_HELD  macro  calls  mutex_count. Linux doesnt seem to  */
 /*   have an assertion equivalent?				      */
 /**********************************************************************/
 int
-mutex_owned(mutex_t *mp)
+mutex_count(mutex_t *mp)
 {
 	return atomic_read(&mp->count);
 }
@@ -577,7 +577,9 @@ helper_open(struct inode *inode, struct file *file)
 static int
 helper_release(struct inode *inode, struct file *file)
 {
-	dtrace_close(file, 0, 0, NULL);
+	/***********************************************/
+	/*   Dont do anything for the helper.	       */
+	/***********************************************/
 	return 0;
 }
 static int

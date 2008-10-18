@@ -1,3 +1,10 @@
+Sun Oct 19 09:58:28 2008  fox
+
+      87* dt_link.c: Now generates correct binary, but drti.o isnt
+          correct yet.
+
+      86* Archive: 1.0045
+
 Sun Oct 12 09:47:14 2008  fox
 
       85* drti.c: Allow us to specify $DTRACE_DRTI_O so we can find

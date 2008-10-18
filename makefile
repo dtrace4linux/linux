@@ -76,6 +76,7 @@ all0:
 	cd liblinux ; $(MAKE)
 	cd libproc/common ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
+	cd usdt ; $(MAKE)
 	for i in $(DRIVERS) ; \
 	do  \
 		echo "******** drivers/$$i" ; \

@@ -27,12 +27,14 @@
 #pragma ident	"@(#)drti.c	1.7	05/06/08 SMI"
 
 #include <unistd.h>
+#include <limits.h>
 #include <fcntl.h>
 # if defined(linux)
 # define __USE_GNU 1
+# define _GNU_SOURCE 1
 # endif
 
-#include <dlfcn.h>
+#include "/usr/include/dlfcn.h"
 #include <link.h>
 #include <sys/dtrace.h>
 
@@ -98,7 +100,7 @@ dprintf(int debug, const char *fmt, ...)
 }
 
 #pragma init(dtrace_dof_init)
-static void
+static void pragma_init
 dtrace_dof_init(void)
 {
 	dof_hdr_t *dof = &__SUNW_dof;
@@ -108,7 +110,7 @@ dtrace_dof_init(void)
 	Elf32_Ehdr *elf;
 #endif
 	dof_helper_t dh;
-	Link_map *lmp;
+	Link_map *lmp = 0;
 	Lmid_t lmid;
 	int fd;
 	const char *p;
@@ -116,9 +118,70 @@ dtrace_dof_init(void)
 	if (getenv("DTRACE_DOF_INIT_DISABLE") != NULL)
 		return;
 
-# if !defined(RTLD_SELF)
-# define RTLD_SELF 0
-# endif
+# if defined(linux)
+	{char *modname = NULL;
+	char	buf[PATH_MAX];
+	FILE	*fp;
+
+	snprintf(buf, sizeof buf, "/proc/%d/maps", (int) getpid());
+	if ((fp = fopen(buf, "r")) == NULL) {
+		dprintf(0, "drti: failed to open %s\n", buf);
+		}
+	while (fgets(buf, sizeof buf, fp)) {
+		char	*s1 = strtok(buf, "-");
+		char	*s2 = strtok(NULL, " ");
+		unsigned long p = (unsigned long) dtrace_dof_init;
+		unsigned long start;
+		unsigned long end;
+		if (s1 == NULL || s2 == NULL)
+			continue;
+
+		start = strtol(s1, NULL, 16);
+		end = strtol(s2, NULL, 16);
+		if (!(start <= p && p < end))
+			continue;
+		s1 = strtok(NULL, "\n");
+		modname = strchr(s1, '/');
+		elf = start;
+		break;
+		}
+
+	fclose(fp);
+
+	/***********************************************/
+	/*   We  want  to  find  our base address and  */
+	/*   module  name.  Dont  seem  to be able to  */
+	/*   rely on -lelf/-ldl so just do it here.    */
+	/***********************************************/
+	if (modname == NULL) {
+		dprintf(0, "drti: cannot locate self in shlibs\n");
+		return;
+	}
+
+	if (strchr(modname, '/'))
+		modname = strrchr(modname, '/') + 1;
+
+	if (dof->dofh_ident[DOF_ID_MAG0] != DOF_MAG_MAG0 ||
+	    dof->dofh_ident[DOF_ID_MAG1] != DOF_MAG_MAG1 ||
+	    dof->dofh_ident[DOF_ID_MAG2] != DOF_MAG_MAG2 ||
+	    dof->dofh_ident[DOF_ID_MAG3] != DOF_MAG_MAG3) {
+		dprintf(0, ".SUNW_dof section corrupt\n");
+		return;
+	}
+
+	dh.dofhp_dof = (uintptr_t)dof;
+	dh.dofhp_addr = elf->e_type == ET_DYN ? lmp->l_addr : 0;
+
+	if (lmid == 0) {
+		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),
+		    "%s", modname);
+	} else {
+		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),
+		    "LM%lu`%s", lmid, modname);
+	}
+	}
+# else
+//printf("dof=__SUNW_dof\n");
 	if (dlinfo(RTLD_SELF, RTLD_DI_LINKMAP, &lmp) == -1 || lmp == NULL) {
 		dprintf(1, "couldn't discover module name or address\n");
 		return;
@@ -154,6 +217,7 @@ dtrace_dof_init(void)
 		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),
 		    "LM%lu`%s", lmid, modname);
 	}
+# endif
 
 	if ((p = getenv("DTRACE_DOF_INIT_DEVNAME")) != NULL)
 		devname = p;
@@ -185,7 +249,7 @@ dtrace_dof_init(void)
 }
 
 #pragma fini(dtrace_dof_fini)
-static void
+static void pragma_fini
 dtrace_dof_fini(void)
 {
 	int fd;

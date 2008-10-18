@@ -22,6 +22,13 @@
 # define	_LITTLE_ENDIAN 1
 
 /**********************************************************************/
+/*   GCC  doesnt  use  pragmas but uses function attributes. Do this  */
+/*   here.							      */
+/**********************************************************************/
+# define pragma_init	__attribute__((__constructor__))
+# define pragma_fini	__attribute__((__destructor__))
+
+/**********************************************************************/
 /*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */
 /*   registers. Turn it off for some of the assembler code.	      */
 /**********************************************************************/
@@ -66,7 +73,7 @@ struct modctl;
 	#	include <asm-x86/stacktrace.h>
 	# endif
 
-	# define MUTEX_NOT_HELD(x)	!mutex_owned(x)
+	# define MUTEX_NOT_HELD(x)	mutex_count(x)
 
 # else /* !__KERNEL */
 
@@ -489,6 +496,6 @@ void *dtrace_casptr(void *target, void *cmp, void *new);
 # define atomic_add_32(a, b) atomic_add(b, (atomic_t *) (a))
 void atomic_add_64(uint64_t *, int n);
 
-int	mutex_owned(mutex_t *m);
+int	mutex_count(mutex_t *m);
 
 # endif /* LINE_TYPES_H */

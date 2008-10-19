@@ -10798,6 +10798,7 @@ dtrace_enabling_add(dtrace_enabling_t *enab, dtrace_ecbdesc_t *ecb)
 {
 	dtrace_ecbdesc_t **ndesc;
 	size_t osize, nsize;
+HERE();
 
 	/*
 	 * We can't add to enablings after we've enabled them, or after we've
@@ -12051,21 +12052,25 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 		dtrace_dof_error(dof, "DOF version mismatch");
 		return (-1);
 	}
+HERE();
 
 	if (dof->dofh_ident[DOF_ID_DIFVERS] != DIF_VERSION_2) {
 		dtrace_dof_error(dof, "DOF uses unsupported instruction set");
 		return (-1);
 	}
+HERE();
 
 	if (dof->dofh_ident[DOF_ID_DIFIREG] > DIF_DIR_NREGS) {
 		dtrace_dof_error(dof, "DOF uses too many integer registers");
 		return (-1);
 	}
+HERE();
 
 	if (dof->dofh_ident[DOF_ID_DIFTREG] > DIF_DTR_NREGS) {
 		dtrace_dof_error(dof, "DOF uses too many tuple registers");
 		return (-1);
 	}
+HERE();
 
 	for (i = DOF_ID_PAD; i < DOF_ID_SIZE; i++) {
 		if (dof->dofh_ident[i] != 0) {
@@ -12073,11 +12078,13 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 			return (-1);
 		}
 	}
+HERE();
 
 	if (dof->dofh_flags & ~DOF_FL_VALID) {
 		dtrace_dof_error(dof, "DOF has invalid flag bits set");
 		return (-1);
 	}
+HERE();
 
 	if (dof->dofh_secsize == 0) {
 		dtrace_dof_error(dof, "zero section header size");
@@ -12089,29 +12096,35 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 	 * data.  Note that we cast the section size and number of sections
 	 * to uint64_t's to prevent possible overflow in the multiplication.
 	 */
+HERE();
 	seclen = (uint64_t)dof->dofh_secnum * (uint64_t)dof->dofh_secsize;
 
+HERE();
 	if (dof->dofh_secoff > len || seclen > len ||
 	    dof->dofh_secoff + seclen > len) {
 		dtrace_dof_error(dof, "truncated section headers");
 		return (-1);
 	}
 
+HERE();
 	if (!IS_P2ALIGNED(dof->dofh_secoff, sizeof (uint64_t))) {
 		dtrace_dof_error(dof, "misaligned section headers");
 		return (-1);
 	}
+HERE();
 
 	if (!IS_P2ALIGNED(dof->dofh_secsize, sizeof (uint64_t))) {
 		dtrace_dof_error(dof, "misaligned section size");
 		return (-1);
 	}
+HERE();
 
 	/*
 	 * Take an initial pass through the section headers to be sure that
 	 * the headers don't have stray offsets.  If the 'noprobes' flag is
 	 * set, do not permit sections relating to providers, probes, or args.
 	 */
+printk("secnum=%d\n", dof->dofh_secnum);
 	for (i = 0; i < dof->dofh_secnum; i++) {
 		dof_sec_t *sec = (dof_sec_t *)(daddr +
 		    (uintptr_t)dof->dofh_secoff + i * dof->dofh_secsize);
@@ -12128,9 +12141,12 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 			}
 		}
 
+HERE();
+printk("sec %d: type=%d flags=%d align=%d offset=%d\n", i, sec->dofs_type, sec->dofs_flags, sec->dofs_align, sec->dofs_offset);
 		if (!(sec->dofs_flags & DOF_SECF_LOAD))
 			continue; /* just ignore non-loadable sections */
 
+HERE();
 		if (sec->dofs_align & (sec->dofs_align - 1)) {
 			dtrace_dof_error(dof, "bad section alignment");
 			return (-1);
@@ -12152,7 +12168,9 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 			dtrace_dof_error(dof, "non-terminating string table");
 			return (-1);
 		}
+HERE();
 	}
+HERE();
 
 	/*
 	 * Take a second pass through the sections and locate and perform any
@@ -12168,32 +12186,41 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 
 		switch (sec->dofs_type) {
 		case DOF_SECT_URELHDR:
+PRINT_CASE(DOF_SECT_URELHDR);
 			if (dtrace_dof_relocate(dof, sec, ubase) != 0)
 				return (-1);
 			break;
 		}
 	}
 
+HERE();
 	if ((enab = *enabp) == NULL)
 		enab = *enabp = dtrace_enabling_create(vstate);
+printk("enab=%x\n", enab);
 
 	for (i = 0; i < dof->dofh_secnum; i++) {
 		dof_sec_t *sec = (dof_sec_t *)(daddr +
 		    (uintptr_t)dof->dofh_secoff + i * dof->dofh_secsize);
 
+HERE();
 		if (sec->dofs_type != DOF_SECT_ECBDESC)
 			continue;
+HERE();
 
 		if ((ep = dtrace_dof_ecbdesc(dof, sec, vstate, cr)) == NULL) {
 			dtrace_enabling_destroy(enab);
+HERE();
 			*enabp = NULL;
 			return (-1);
 		}
 
+HERE();
 		dtrace_enabling_add(enab, ep);
+HERE();
 	}
 
-	return (0);
+HERE();
+	return (0);			
 }
 
 /*
@@ -13794,7 +13821,10 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 	mutex_enter(&dtrace_meta_lock);
 	mutex_enter(&dtrace_lock);
 
+HERE();
+printk("dtrace_meta_pid=%x\n", dtrace_meta_pid);
 	if (!dtrace_attached() || dtrace_meta_pid == NULL) {
+HERE();
 		/*
 		 * If the dtrace module is loaded but not attached, or if
 		 * there aren't isn't a meta provider registered to deal with
@@ -13822,6 +13852,7 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 		 * meta provider.
 		 */
 
+HERE();
 		mutex_exit(&dtrace_lock);
 
 		dtrace_helper_provide(dofhp, p->p_pid);
@@ -13835,13 +13866,16 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 		int i;
 		mutex_exit(&dtrace_lock);
 
+HERE();
 		for (i = 0; i < help->dthps_nprovs; i++) {
+HERE();
 			dtrace_helper_provide(&help->dthps_provs[i]->dthp_prov,
 			    p->p_pid);
 		}
 	}
 
 	mutex_exit(&dtrace_meta_lock);
+HERE();
 }
 
 static int
@@ -14184,15 +14218,17 @@ HERE();
 			dof_sec_t *sec = (dof_sec_t *)(uintptr_t)(daddr +
 			    dof->dofh_secoff + i * dof->dofh_secsize);
 
+HERE();
 			if (sec->dofs_type != DOF_SECT_PROVIDER)
 				continue;
+HERE();
 
 			if (dtrace_helper_provider_validate(dof, sec) != 0) {
 				dtrace_enabling_destroy(enab);
 				dtrace_dof_destroy(dof);
 				return (-1);
 			}
-
+HERE();
 			nprovs++;
 		}
 	}
@@ -14201,10 +14237,12 @@ HERE();
 	 * Now we need to walk through the ECB descriptions in the enabling.
 	 */
 HERE();
+printk("nprovs=%d\n", nprovs);
 	for (i = 0; i < enab->dten_ndesc; i++) {
 		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
 		dtrace_probedesc_t *desc = &ep->dted_probe;
 
+printk("xxhelper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
 		if (strcmp(desc->dtpd_provider, "dtrace") != 0)
 			continue;
 
@@ -14215,6 +14253,7 @@ HERE();
 			continue;
 
 HERE();
+printk("helper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
 		if ((rv = dtrace_helper_action_add(DTRACE_HELPER_ACTION_USTACK,
 		    ep)) != 0) {
 HERE();
@@ -14241,11 +14280,14 @@ HERE();
 	gen = help->dthps_generation++;
 	dtrace_enabling_destroy(enab);
 HERE();
+printk("dhp=%p\n", dhp);
 
 	if (dhp != NULL && nprovs > 0) {
 		dhp->dofhp_dof = (uint64_t)(uintptr_t)dof;
+HERE();
 		if (dtrace_helper_provider_add(dhp, gen) == 0) {
 			mutex_exit(&dtrace_lock);
+HERE();
 			dtrace_helper_provider_register(curproc, help, dhp);
 			mutex_enter(&dtrace_lock);
 

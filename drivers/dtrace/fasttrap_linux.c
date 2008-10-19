@@ -10,7 +10,8 @@
 /**********************************************************************/
 
 #include <dtrace_linux.h>
-#include <sys/dtrace.h>
+#include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
 #include <linux/cpumask.h>
 
 #include <linux/errno.h>
@@ -86,10 +87,14 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	printk(KERN_WARNING "fasttrap loaded: /dev/fasttrap now available\n");
 
+	fasttrap_attach();
+
 	return 0;
 }
 void fasttrap_exit(void)
 {
+	fasttrap_detach();
+
 	printk(KERN_WARNING "fasttrap driver unloaded.\n");
 /*	remove_proc_entry("dtrace/dtrace", 0);
 	remove_proc_entry("dtrace/helper", 0);

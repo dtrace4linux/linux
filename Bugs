@@ -46,6 +46,12 @@ x 20080723 14. sys_call_table not visible in 2.6.23.1.
 
   20080729 15. proc2.c: Set pr_dmodel for 64b machine.
 
-  20081009 16. Build drti.o so that dtrace -G can work.
+x 20081009 16. Build drti.o so that dtrace -G can work.
+	        Done
 
-  20081010 17. Build /dev/dtrace-helper function needed by dtrace -G.
+x 20081010 17. Build /dev/dtrace-helper function needed by dtrace -G.
+               Done
+
+20081019 18. fasttrap_attach() call in fasttrap.c takes us into new
+	territory which breaks us. Need to init the mutexes in fasttrap_attach.
+

@@ -21,6 +21,9 @@ int uread(proc_t *, void *, size_t, uintptr_t);
 int uwrite(proc_t *, void *, size_t, uintptr_t);
 void *fbt_get_access_process_vm(void);
 void *fbt_get_kernel_text_address(void);
+int	fasttrap_attach(void);
+int	fasttrap_detach(void);
+proc_t *prfind(int p);
 
 # endif
 

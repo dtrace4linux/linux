@@ -40,6 +40,7 @@ release:
 	cd .. ; mv dtrace dtrace-$(rel) ; \
 	tar cvf - --exclude=*.o \
 		--exclude=.*.cmd \
+		--exclude=*.so \
 		--exclude=*.mod.c \
 		--exclude=build/dtrace \
 		--exclude=libdtrace/dt_grammar.h \
@@ -76,7 +77,7 @@ all0:
 	cd liblinux ; $(MAKE)
 	cd libproc/common ; $(MAKE)
 	cd cmd/dtrace ; $(MAKE)
-	cd usdt ; $(MAKE)
+	cd usdt/c ; $(MAKE)
 	for i in $(DRIVERS) ; \
 	do  \
 		echo "******** drivers/$$i" ; \

@@ -1,13 +1,13 @@
-CC=gcc -I../uts/common
+CC=gcc -I../../uts/common
 #BITS=-m64
 CFLAGS=$(BITS)
 DTRACE=dtrace
-DTRACE_DRTI_O=../build/drti.o
+DTRACE_DRTI_O=../../build/drti.o
 
-all:	simple
+all:	../../build/simple-c
 
-simple: simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O)
-	$(CC) -Wl,-rpath `pwd` -o simple $(BITS) simple_probes.o simple.o shlib.so -ldl
+../../build/simple-c: simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O)
+	$(CC) -Wl,-rpath `pwd` -o ../../build/simple-c $(BITS) simple_probes.o simple.o shlib.so -ldl
 
 simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O)
 	if [ "$BUILD_i386" = 1 ]; then \
@@ -19,6 +19,6 @@ simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O)
 
 shlib.so: shlib.c
 	$(CC) -c shlib.c
-	ld -G -o shlib.so
+	ld -G -o shlib.so shlib.o
 clean:
 	-rm -f simple *.o *.so

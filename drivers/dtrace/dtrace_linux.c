@@ -445,10 +445,17 @@ par_lookup(void *ptr)
 /*   addition,  we  may  need  to do garbage collection or intercept  */
 /*   thread/proc death in the main kernel.			      */
 /**********************************************************************/
+# undef task_struct
+void	*par_setup_thread1(struct task_struct *);
 void
 par_setup_thread()
+{
+	par_setup_thread1(get_current());
+}
+void *
+par_setup_thread1(struct task_struct *tp)
 {	int	init;
-	par_alloc_t *p = par_alloc(get_current(), sizeof *curthread, &init);
+	par_alloc_t *p = par_alloc(tp, sizeof *curthread, &init);
 	sol_proc_t	*solp = (sol_proc_t *) (p + 1);
 
 	if (init) {
@@ -457,18 +464,19 @@ par_setup_thread()
 	}
 
 	curthread = solp;
-	curthread->pid = get_current()->pid;
-	curthread->p_pid = get_current()->pid;
-	curthread->p_task = get_current();
+	curthread->pid = tp->pid;
+	curthread->p_pid = tp->pid;
+	curthread->p_task = tp;
 	/***********************************************/
 	/*   2.6.24.4    kernel    has   parent   and  */
 	/*   real_parent,  but RH FC8 (2.6.24.4 also)  */
 	/*   doesnt have real_parent.		       */
 	/***********************************************/
-	if (get_current()->parent) {
-		curthread->p_ppid = 
-		curthread->ppid = get_current()->parent->pid;
+	if (tp->parent) {
+		curthread->p_ppid = tp->parent->pid;
+		curthread->ppid = tp->parent->pid;
 	}
+	return curthread;
 }
 /**********************************************************************/
 /*   Lookup a proc without allocating a shadow structure.	      */
@@ -485,7 +493,19 @@ par_setup_thread2()
 	solp = (sol_proc_t *) (p + 1);
 	return solp;
 }
+/**********************************************************************/
+/*   Lookup process by proc id.					      */
+/**********************************************************************/
+proc_t *
+prfind(int p)
+{
+	struct task_struct *tp = find_task_by_pid(p);
 
+	if (!tp)
+		return tp;
+
+	return par_setup_thread1(tp);
+}
 /**********************************************************************/
 /*   Read from a procs memory.					      */
 /**********************************************************************/

@@ -1,0 +1,4 @@
+C code test/example of a USDT. Just make and run - and it should show
+up in the 'dtrace -l' list.
+
+

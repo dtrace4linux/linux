@@ -34,13 +34,13 @@
 #include <sys/fasttrap_isa.h>
 #include <sys/dtrace.h>
 #include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
 #include <linux/sort.h>
 
 // Temporary definitions so we can compile.
 # define	sprlock(pid) 0
 # define	sprlock_proc(p)
 # define	sprunlock(p)
-# define	prfind(p) find_task_by_pid(p)
 # define RW_WRITER 2
 #define SEXITING   0x00000002   /* process is exiting */
 #define SFORKING   0x00000008   /* tells called functions that we're forking */
@@ -1365,7 +1365,10 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	ASSERT(pattr != NULL);
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
+HERE();
+printk("bucket=%d\n", FASTTRAP_PROVS_INDEX(pid, name));
 	mutex_enter(&bucket->ftb_mtx);
+HERE();
 
 	/*
 	 * Take a lap through the list and return the match if we find it.
@@ -1373,8 +1376,11 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
 		    !fp->ftp_retired) {
+HERE();
 			mutex_enter(&fp->ftp_mtx);
+HERE();
 			mutex_exit(&bucket->ftb_mtx);
+HERE();
 			return (fp);
 		}
 	}
@@ -1383,19 +1389,27 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	 * Drop the bucket lock so we don't try to perform a sleeping
 	 * allocation under it.
 	 */
+HERE();
 	mutex_exit(&bucket->ftb_mtx);
+HERE();
 
 	/*
 	 * Make sure the process exists, isn't a child created as the result
 	 * of a vfork(2), and isn't a zombie (but may be in fork).
 	 */
 	mutex_enter(&pidlock);
+HERE();
 	if ((p = prfind(pid)) == NULL) {
+HERE();
 		mutex_exit(&pidlock);
+HERE();
 		return (NULL);
 	}
+HERE();
 	mutex_enter(&p->p_lock);
+HERE();
 	mutex_exit(&pidlock);
+HERE();
 	if (p->p_flag & (SVFORK | SEXITING)) {
 		mutex_exit(&p->p_lock);
 		return (NULL);
@@ -1823,6 +1837,7 @@ fasttrap_meta_provide(void *arg, dtrace_helper_provdesc_t *dhpv, pid_t pid)
 	if (dhpv->dthpv_pattr.dtpa_args.dtat_class > DTRACE_CLASS_ISA)
 		dhpv->dthpv_pattr.dtpa_args.dtat_class = DTRACE_CLASS_ISA;
 
+HERE();
 	if ((provider = fasttrap_provider_lookup(pid, dhpv->dthpv_provname,
 	    &dhpv->dthpv_pattr)) == NULL) {
 		cmn_err(CE_WARN, "failed to instantiate provider %s for "
@@ -1836,6 +1851,7 @@ fasttrap_meta_provide(void *arg, dtrace_helper_provdesc_t *dhpv, pid_t pid)
 	 */
 	provider->ftp_mcount++;
 
+HERE();
 	mutex_exit(&provider->ftp_mtx);
 
 	return (provider);
@@ -2200,6 +2216,7 @@ fasttrap_attach(void)
 # endif
 {
 	ulong_t nent = 1000;
+	int	i;
 
 # if defined(sun)
 	switch (cmd) {
@@ -2224,6 +2241,7 @@ fasttrap_attach(void)
 	/*
 	 * Install our hooks into fork(2), exec(2), and exit(2).
 	 */
+HERE();
 	dtrace_fasttrap_fork_ptr = &fasttrap_fork;
 	dtrace_fasttrap_exit_ptr = &fasttrap_exec_exit;
 	dtrace_fasttrap_exec_ptr = &fasttrap_exec_exit;
@@ -2233,6 +2251,7 @@ fasttrap_attach(void)
 	fasttrap_max = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
 	    "fasttrap-max-probes", FASTTRAP_MAX_DEFAULT);
 # endif
+HERE();
 	fasttrap_total = 0;
 
 	/*
@@ -2243,6 +2262,7 @@ fasttrap_attach(void)
 	    "fasttrap-hash-size", FASTTRAP_TPOINTS_DEFAULT_SIZE);
 # endif
 
+HERE();
 	if (nent == 0 || nent > 0x1000000)
 		nent = FASTTRAP_TPOINTS_DEFAULT_SIZE;
 
@@ -2250,11 +2270,17 @@ fasttrap_attach(void)
 		fasttrap_tpoints.fth_nent = nent;
 	else
 		fasttrap_tpoints.fth_nent = 1 << fasttrap_highbit(nent);
+HERE();
 	ASSERT(fasttrap_tpoints.fth_nent > 0);
 	fasttrap_tpoints.fth_mask = fasttrap_tpoints.fth_nent - 1;
 	fasttrap_tpoints.fth_table = kmem_zalloc(fasttrap_tpoints.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
+	for (i = 0; i < fasttrap_tpoints.fth_nent; i++) {
+printk("tp mutex_init %d\n", i);
+		mutex_init(&fasttrap_tpoints.fth_table[i].ftb_mtx);
+	}
 
+HERE();
 	/*
 	 * ... and the providers hash table...
 	 */
@@ -2263,11 +2289,17 @@ fasttrap_attach(void)
 		fasttrap_provs.fth_nent = nent;
 	else
 		fasttrap_provs.fth_nent = 1 << fasttrap_highbit(nent);
+HERE();
 	ASSERT(fasttrap_provs.fth_nent > 0);
 	fasttrap_provs.fth_mask = fasttrap_provs.fth_nent - 1;
 
+HERE();
 	fasttrap_provs.fth_table = kmem_zalloc(fasttrap_provs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
+	for (i = 0; i < fasttrap_provs.fth_nent; i++) {
+printk("provs mutex_init %d\n", i);
+		mutex_init(&fasttrap_provs.fth_table[i].ftb_mtx);
+	}
 
 	/*
 	 * ... and the procs hash table.
@@ -2277,13 +2309,16 @@ fasttrap_attach(void)
 		fasttrap_procs.fth_nent = nent;
 	else
 		fasttrap_procs.fth_nent = 1 << fasttrap_highbit(nent);
+HERE();
 	ASSERT(fasttrap_procs.fth_nent > 0);
 	fasttrap_procs.fth_mask = fasttrap_procs.fth_nent - 1;
 	fasttrap_procs.fth_table = kmem_zalloc(fasttrap_procs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 
+HERE();
 	(void) dtrace_meta_register("fasttrap", &fasttrap_mops, NULL,
 	    &fasttrap_meta_id);
+HERE();
 
 	return (DDI_SUCCESS);
 }

@@ -1,6 +1,10 @@
 ./build/dtrace
+./build/simple-c
+./build/simple-cpp
 ./libdtrace/dt_grammar.h
 ./libdtrace/dt_lex.c
+./usdt/c/simple.o
+./usdt/cpp/simple.o
 ./utils/access
 ./utils/mknod
 ./utils/pread

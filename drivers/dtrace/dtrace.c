@@ -7112,11 +7112,9 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 		return (EINVAL);
 	}
 
-HERE();
 	if ((priv & DTRACE_PRIV_KERNEL) &&
 	    (priv & (DTRACE_PRIV_USER | DTRACE_PRIV_OWNER)) &&
 	    pops->dtps_usermode == NULL) {
-HERE();
 		cmn_err(CE_WARN, "failed to register provider '%s': need "
 		    "dtps_usermode() op for given privilege attributes", name);
 		return (EINVAL);
@@ -7173,6 +7171,7 @@ HERE();
 
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&dtrace_lock);
+HERE();
 
 	/*
 	 * If there is at least one provider registered, we'll add this
@@ -7185,6 +7184,7 @@ HERE();
 		dtrace_provider = provider;
 	}
 
+HERE();
 	if (dtrace_retained != NULL) {
 		dtrace_enabling_provide(provider);
 
@@ -7200,8 +7200,10 @@ HERE();
 		return (0);
 	}
 
+HERE();
 	mutex_exit(&dtrace_lock);
 	mutex_exit(&dtrace_provider_lock);
+HERE();
 
 	return (0);
 }
@@ -14203,7 +14205,6 @@ HERE();
 
 	if ((rv = dtrace_dof_slurp(dof, vstate, NULL, &enab,
 	    dhp != NULL ? dhp->dofhp_addr : 0, B_FALSE)) != 0) {
-HERE();
 		dtrace_dof_destroy(dof);
 		return (rv);
 	}
@@ -14211,9 +14212,7 @@ HERE();
 	/*
 	 * Look for helper providers and validate their descriptions.
 	 */
-HERE();
 	if (dhp != NULL) {
-HERE();
 		for (i = 0; i < dof->dofh_secnum; i++) {
 			dof_sec_t *sec = (dof_sec_t *)(uintptr_t)(daddr +
 			    dof->dofh_secoff + i * dof->dofh_secsize);
@@ -14221,7 +14220,6 @@ HERE();
 HERE();
 			if (sec->dofs_type != DOF_SECT_PROVIDER)
 				continue;
-HERE();
 
 			if (dtrace_helper_provider_validate(dof, sec) != 0) {
 				dtrace_enabling_destroy(enab);
@@ -14262,9 +14260,7 @@ HERE();
 			 * to rip out the entire generation and return failure.
 			 */
 			(void) dtrace_helper_destroygen(help->dthps_generation);
-HERE();
 			dtrace_enabling_destroy(enab);
-HERE();
 			dtrace_dof_destroy(dof);
 HERE();
 			return (-1);

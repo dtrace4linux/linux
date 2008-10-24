@@ -503,7 +503,7 @@ prfind(int p)
 
 	if (!tp)
 		return tp;
-
+HERE();
 	return par_setup_thread1(tp);
 }
 /**********************************************************************/

@@ -1,3 +1,8 @@
+Sat Oct 25 10:18:22 2008  fox
+
+      88* fasttrap.c: Can now run a USDT enabled app, but not showing up
+          on 'dtrace -l'. No longer hangs/crashes the kernel.
+
 Sun Oct 19 09:58:28 2008  fox
 
       87* dt_link.c: Now generates correct binary, but drti.o isnt

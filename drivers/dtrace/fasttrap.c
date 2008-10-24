@@ -1242,7 +1242,9 @@ fasttrap_proc_lookup(pid_t pid)
 	fasttrap_proc_t *fprc, *new_fprc;
 
 	bucket = &fasttrap_procs.fth_table[FASTTRAP_PROCS_INDEX(pid)];
+HERE();
 	mutex_enter(&bucket->ftb_mtx);
+HERE();
 
 	for (fprc = bucket->ftb_data; fprc != NULL; fprc = fprc->ftpc_next) {
 		if (fprc->ftpc_pid == pid && fprc->ftpc_acount != 0) {
@@ -1376,11 +1378,8 @@ HERE();
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
 		    !fp->ftp_retired) {
-HERE();
 			mutex_enter(&fp->ftp_mtx);
-HERE();
 			mutex_exit(&bucket->ftb_mtx);
-HERE();
 			return (fp);
 		}
 	}
@@ -1389,23 +1388,17 @@ HERE();
 	 * Drop the bucket lock so we don't try to perform a sleeping
 	 * allocation under it.
 	 */
-HERE();
 	mutex_exit(&bucket->ftb_mtx);
-HERE();
 
 	/*
 	 * Make sure the process exists, isn't a child created as the result
 	 * of a vfork(2), and isn't a zombie (but may be in fork).
 	 */
 	mutex_enter(&pidlock);
-HERE();
 	if ((p = prfind(pid)) == NULL) {
-HERE();
 		mutex_exit(&pidlock);
-HERE();
 		return (NULL);
 	}
-HERE();
 	mutex_enter(&p->p_lock);
 HERE();
 	mutex_exit(&pidlock);
@@ -1434,11 +1427,17 @@ HERE();
 
 	new_fp = kmem_zalloc(sizeof (fasttrap_provider_t), KM_SLEEP);
 	new_fp->ftp_pid = pid;
+HERE();
 	new_fp->ftp_proc = fasttrap_proc_lookup(pid);
+	mutex_init(&new_fp->ftp_mtx);
+	mutex_init(&new_fp->ftp_cmtx);
+HERE();
 
 	ASSERT(new_fp->ftp_proc != NULL);
 
+HERE();
 	mutex_enter(&bucket->ftb_mtx);
+HERE();
 
 	/*
 	 * Take another lap through the list to make sure a provider hasn't
@@ -1454,6 +1453,7 @@ HERE();
 			return (fp);
 		}
 	}
+HERE();
 
 	(void) strcpy(new_fp->ftp_name, name);
 
@@ -1470,17 +1470,25 @@ HERE();
 	    DTRACE_PRIV_PROC | DTRACE_PRIV_OWNER | DTRACE_PRIV_ZONEOWNER, cred,
 	    pattr == &pid_attr ? &pid_pops : &usdt_pops, new_fp,
 	    &new_fp->ftp_provid) != 0) {
+HERE();
 		mutex_exit(&bucket->ftb_mtx);
+HERE();
 		fasttrap_provider_free(new_fp);
+HERE();
 		crfree(cred);
+HERE();
 		return (NULL);
 	}
 
+HERE();
 	new_fp->ftp_next = bucket->ftb_data;
 	bucket->ftb_data = new_fp;
 
+HERE();
 	mutex_enter(&new_fp->ftp_mtx);
+HERE();
 	mutex_exit(&bucket->ftb_mtx);
+HERE();
 
 	crfree(cred);
 	return (new_fp);
@@ -2314,6 +2322,10 @@ HERE();
 	fasttrap_procs.fth_mask = fasttrap_procs.fth_nent - 1;
 	fasttrap_procs.fth_table = kmem_zalloc(fasttrap_procs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
+	for (i = 0; i < fasttrap_procs.fth_nent; i++) {
+printk("procs mutex_init %d\n", i);
+		mutex_init(&fasttrap_procs.fth_table[i].ftb_mtx);
+	}
 
 HERE();
 	(void) dtrace_meta_register("fasttrap", &fasttrap_mops, NULL,

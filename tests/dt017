@@ -1,0 +1,2 @@
+#! /bin/sh
+dtrace -n 'profile-1999{ @[execname] = count(); }'

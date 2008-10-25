@@ -71,6 +71,8 @@ int	fasttrap_init(void);
 void	fasttrap_exit(void);
 int	fbt_init(void);
 void	fbt_exit(void);
+int	sdt_init(void);
+void	sdt_exit(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 
@@ -783,6 +785,7 @@ static struct proc_dir_entry *dir;
 	fbt_init();
 	systrace_init();
 	dtrace_profile_init();
+	sdt_init();
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
@@ -793,6 +796,7 @@ static void __exit dtracedrv_exit(void)
 
 	misc_deregister(&helper_dev);
 
+	sdt_exit();
 	dtrace_profile_fini();
 	systrace_exit();
 	fbt_exit();

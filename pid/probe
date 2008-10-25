@@ -1,0 +1,10 @@
+#!/usr/sbin/dtrace -s
+#pragma D option quiet
+
+BEGIN {
+printf("Target pid: %d\n", $target);
+}
+
+pid$target:::entry {
+printf("%s:%s:%s:%s\n", probeprov, probemod, probefunc, probename);
+}

@@ -1427,17 +1427,13 @@ HERE();
 
 	new_fp = kmem_zalloc(sizeof (fasttrap_provider_t), KM_SLEEP);
 	new_fp->ftp_pid = pid;
-HERE();
 	new_fp->ftp_proc = fasttrap_proc_lookup(pid);
 	mutex_init(&new_fp->ftp_mtx);
 	mutex_init(&new_fp->ftp_cmtx);
-HERE();
 
 	ASSERT(new_fp->ftp_proc != NULL);
 
-HERE();
 	mutex_enter(&bucket->ftb_mtx);
-HERE();
 
 	/*
 	 * Take another lap through the list to make sure a provider hasn't
@@ -1470,20 +1466,16 @@ HERE();
 	    DTRACE_PRIV_PROC | DTRACE_PRIV_OWNER | DTRACE_PRIV_ZONEOWNER, cred,
 	    pattr == &pid_attr ? &pid_pops : &usdt_pops, new_fp,
 	    &new_fp->ftp_provid) != 0) {
-HERE();
 		mutex_exit(&bucket->ftb_mtx);
-HERE();
 		fasttrap_provider_free(new_fp);
-HERE();
 		crfree(cred);
-HERE();
 		return (NULL);
 	}
 
-HERE();
 	new_fp->ftp_next = bucket->ftb_data;
 	bucket->ftb_data = new_fp;
 
+printk("new provide: '%s'\n", provname);
 HERE();
 	mutex_enter(&new_fp->ftp_mtx);
 HERE();
@@ -2249,7 +2241,6 @@ fasttrap_attach(void)
 	/*
 	 * Install our hooks into fork(2), exec(2), and exit(2).
 	 */
-HERE();
 	dtrace_fasttrap_fork_ptr = &fasttrap_fork;
 	dtrace_fasttrap_exit_ptr = &fasttrap_exec_exit;
 	dtrace_fasttrap_exec_ptr = &fasttrap_exec_exit;
@@ -2259,7 +2250,6 @@ HERE();
 	fasttrap_max = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
 	    "fasttrap-max-probes", FASTTRAP_MAX_DEFAULT);
 # endif
-HERE();
 	fasttrap_total = 0;
 
 	/*
@@ -2270,7 +2260,6 @@ HERE();
 	    "fasttrap-hash-size", FASTTRAP_TPOINTS_DEFAULT_SIZE);
 # endif
 
-HERE();
 	if (nent == 0 || nent > 0x1000000)
 		nent = FASTTRAP_TPOINTS_DEFAULT_SIZE;
 
@@ -2278,17 +2267,15 @@ HERE();
 		fasttrap_tpoints.fth_nent = nent;
 	else
 		fasttrap_tpoints.fth_nent = 1 << fasttrap_highbit(nent);
-HERE();
+
 	ASSERT(fasttrap_tpoints.fth_nent > 0);
 	fasttrap_tpoints.fth_mask = fasttrap_tpoints.fth_nent - 1;
 	fasttrap_tpoints.fth_table = kmem_zalloc(fasttrap_tpoints.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 	for (i = 0; i < fasttrap_tpoints.fth_nent; i++) {
-printk("tp mutex_init %d\n", i);
 		mutex_init(&fasttrap_tpoints.fth_table[i].ftb_mtx);
 	}
 
-HERE();
 	/*
 	 * ... and the providers hash table...
 	 */
@@ -2297,15 +2284,13 @@ HERE();
 		fasttrap_provs.fth_nent = nent;
 	else
 		fasttrap_provs.fth_nent = 1 << fasttrap_highbit(nent);
-HERE();
+
 	ASSERT(fasttrap_provs.fth_nent > 0);
 	fasttrap_provs.fth_mask = fasttrap_provs.fth_nent - 1;
 
-HERE();
 	fasttrap_provs.fth_table = kmem_zalloc(fasttrap_provs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 	for (i = 0; i < fasttrap_provs.fth_nent; i++) {
-printk("provs mutex_init %d\n", i);
 		mutex_init(&fasttrap_provs.fth_table[i].ftb_mtx);
 	}
 

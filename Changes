@@ -1,3 +1,7 @@
+Sun Oct 26 16:54:54 2008  fox
+
+      89* dtrace_linux.c: Enable /dev/sdt
+
 Sat Oct 25 10:18:22 2008  fox
 
       88* fasttrap.c: Can now run a USDT enabled app, but not showing up

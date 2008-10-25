@@ -12,6 +12,11 @@
 #include "Pcontrol.h"
 #include "libproc.h"
 
+int fork1()
+{
+	printf("proc2.c: fork1 called:%s\n", __func__);
+	return fork();
+}
 int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 {	int	fd;
 	char	buf[4096];

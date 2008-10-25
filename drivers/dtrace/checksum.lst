@@ -16,11 +16,11 @@ d1e21501 size=2694    mtime=1212268299 ./ctf_util.c
 9d005bb4 size=6420    mtime=1217770368 ./dtrace_asm.c
 95e2691f size=6716    mtime=1213740595 ./dtrace_asm.s
 a490fdc6 size=17768   mtime=1223329728 ./dtrace_isa.c
-1b0b8d87 size=20840   mtime=1224886831 ./dtrace_linux.c
+5b3333b4 size=20907   mtime=1225039764 ./dtrace_linux.c
 a8dadfec size=7907    mtime=1223755558 ./dtrace_linux.h
 3365309e size=1324    mtime=1224541783 ./dtrace_proto.h
 76d3ca16 size=8963    mtime=1217776754 ./dtrace_subr.c
-76b31ac0 size=65511   mtime=1224926240 ./fasttrap.c
+cb5adc39 size=65480   mtime=1224926409 ./fasttrap.c
 f190e611 size=46234   mtime=1217759692 ./fasttrap_isa.c
 765d9239 size=2743    mtime=1224449843 ./fasttrap_linux.c
 967a4ee0 size=30732   mtime=1217759580 ./fbt_linux.c

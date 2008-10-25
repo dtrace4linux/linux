@@ -60,7 +60,7 @@
 #include "Putil.h"
 #include "P32ton.h"
 
-# if linux
+# if defined(linux)
 # define	AS_PROCNAME "mem"
 # else
 # define	AS_PROCNAME "as"
@@ -310,7 +310,11 @@ Pxcreate(const char *file,	/* executable file name */
 	 * Exclusive write open advises others not to interfere.
 	 * There is no reason for any of these open()s to fail.
 	 */
+# if defined(linux)
+	(void) strcpy(fname, "mem");
+# else
 	(void) strcpy(fname, "as");
+# endif
 	if ((fd = open(procname, (O_RDWR|O_EXCL))) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
 		dprintf("Pcreate: failed to open %s: %s\n",

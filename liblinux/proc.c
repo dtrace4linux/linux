@@ -50,7 +50,6 @@ dt_pid_create_entry_probe() { printf("proc-stub:%s\n", __func__); }
 dt_pid_create_glob_offset_probes() { printf("proc-stub:%s\n", __func__); }
 dt_pid_create_offset_probe() { printf("proc-stub:%s\n", __func__); }
 dt_pid_create_return_probe() { printf("proc-stub:%s\n", __func__); }
-fork1() { printf("proc-stub:%s\n", __func__); }
 
 int modctl() { printf("proc-stub:%s\n", __func__); return -1; }
 int p_online(int processorid, int flag) 

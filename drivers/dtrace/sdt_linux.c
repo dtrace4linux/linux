@@ -395,9 +395,6 @@ int sdt_init(void)
 
 	sdt_attach();
 
-	/***********************************************/
-	/*   Helper not presently implemented :-(      */
-	/***********************************************/
 	printk(KERN_WARNING "sdt loaded: /dev/sdt now available\n");
 
 	initted = 1;

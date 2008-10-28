@@ -1013,7 +1013,6 @@ dt_link_error(dtrace_hdl_t *dtp, Elf *elf, int fd, dt_link_pair_t *bufs,
 	return (dt_set_errno(dtp, EDT_COMPILER));
 }
 
-# define GOTO(x) do {printf("%s(%d): error\n", __FILE__, __LINE__); goto x; } while(0)
 static int
 process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 {

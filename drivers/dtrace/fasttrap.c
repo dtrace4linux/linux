@@ -2308,7 +2308,6 @@ HERE();
 	fasttrap_procs.fth_table = kmem_zalloc(fasttrap_procs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 	for (i = 0; i < fasttrap_procs.fth_nent; i++) {
-printk("procs mutex_init %d\n", i);
 		mutex_init(&fasttrap_procs.fth_table[i].ftb_mtx);
 	}
 

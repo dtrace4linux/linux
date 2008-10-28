@@ -18,7 +18,9 @@ x 20080708 3. dtrace -f syscall::open:entry -- failing probe lookup
 
   20080708 4. wade thru variables lookup
   20080708 5. validate ustack/stack
-  20080708 6. fastrap
+x  20080708 6. fastrap
+            Merged and compiled, but other bug issues to resolve.
+
   20080708 7. fix dtrace -l being erratic on driver reloads
   20080708 8. implement hashing on par_alloc.
   20080708 9. dtrace -s tests/dt010
@@ -52,6 +54,10 @@ x 20081009 16. Build drti.o so that dtrace -G can work.
 x 20081010 17. Build /dev/dtrace-helper function needed by dtrace -G.
                Done
 
-20081019 18. fasttrap_attach() call in fasttrap.c takes us into new
+x  20081019 18. fasttrap_attach() call in fasttrap.c takes us into new
 	territory which breaks us. Need to init the mutexes in fasttrap_attach.
+	Done.
 
+  20081026 19. dtrace -P fbt
+               Panics the kernel, but likely due to intercepting stuff we 
+	       shouldnt be allowed to.

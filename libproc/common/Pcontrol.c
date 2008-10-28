@@ -656,7 +656,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			rc = G_STRANGE;
 			break;
 		}
-		goto err;
+		GOTO(err);
 	}
 	P->asfd = fd;
 
@@ -676,10 +676,13 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			rc = G_STRANGE;
 			break;
 		}
-		goto err;
+		GOTO(err);
 	}
 	P->statfd = fd;
 
+# if linux
+printf("%s(%d): Need /proc/pid/ctl - continuing\n", __FILE__, __LINE__);
+# else
 	if (!(flags & PGRAB_RDONLY)) {
 		(void) strcpy(fname, "ctl");
 		if ((fd = open(procname, O_WRONLY)) < 0 ||
@@ -697,10 +700,11 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 				rc = G_STRANGE;
 				break;
 			}
-			goto err;
+			GOTO(err);
 		}
 		P->ctlfd = fd;
 	}
+# endif
 
 	P->state = PS_RUN;
 	P->pid = pid;
@@ -719,7 +723,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 #ifndef _LP64
 		if (errno == EOVERFLOW) {
 			rc = G_LP64;
-			goto err;
+			GOTO(err);
 		}
 #endif
 		if (P->state == PS_LOST) {	/* WoV */
@@ -732,7 +736,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		else
 			rc = G_STRANGE;
 
-		goto err;
+		GOTO(err);
 	}
 
 	/*
@@ -740,7 +744,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	 */
 	if (P->status.pr_flags & PR_ISSYS) {
 		rc = G_SYS;
-		goto err;
+		GOTO(err);
 	}
 #ifndef _LP64
 	/*
@@ -748,7 +752,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	 */
 	if (P->status.pr_dmodel == PR_MODEL_LP64) {
 		rc = G_LP64;
-		goto err;
+		GOTO(err);
 	}
 #endif
 
@@ -781,7 +785,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		    magic2 == 0xfeedbeef &&
 		    !(flags & PGRAB_RDONLY)) {
 			rc = G_SELF;
-			goto err;
+			GOTO(err);
 		}
 	}
 
@@ -806,7 +810,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 				dprintf("Pgrab: failed to set RLC\n");
 				rc = G_STRANGE;
 			}
-			goto err;
+			GOTO(err);
 		}
 	}
 
@@ -850,7 +854,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 #ifndef _LP64
 			if (errno == EOVERFLOW) {
 				rc = G_LP64;
-				goto err;
+				GOTO(err);
 			}
 #endif
 			if (P->state == PS_LOST) {	/* WoV */
@@ -866,7 +870,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 				} else {
 					rc = G_ZOMB;
 				}
-				goto err;
+				GOTO(err);
 			}
 		}
 
@@ -877,7 +881,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		if (!(P->status.pr_flags & (PR_ISTOP|PR_DSTOP))) {
 			dprintf("Pgrab: process is not stopped\n");
 			rc = G_STRANGE;
-			goto err;
+			GOTO(err);
 		}
 #ifndef _LP64
 		/*
@@ -886,7 +890,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		 */
 		if (P->status.pr_dmodel == PR_MODEL_LP64) {
 			rc = G_LP64;
-			goto err;
+			GOTO(err);
 		}
 #endif
 	}
@@ -1387,6 +1391,17 @@ Preopen(struct ps_prochandle *P)
 	}
 	P->statfd = fd;
 
+# if linux
+	if ((fd = open("/dev/dtrace_ctl", O_RDWR)) < 0 ||
+	    close(P->ctlfd) < 0 ||
+	    (fd = dupfd(fd, P->ctlfd)) != P->ctlfd) {
+		dprintf("Preopen: failed to open /dev/dtrace_ctl: %s\n",
+		    strerror(errno));
+		if (fd >= 0)
+			(void) close(fd);
+		return (-1);
+	}
+# else
 	(void) strcpy(fname, "ctl");
 	if ((fd = open(procname, O_WRONLY)) < 0 ||
 	    close(P->ctlfd) < 0 ||
@@ -1397,6 +1412,7 @@ Preopen(struct ps_prochandle *P)
 			(void) close(fd);
 		return (-1);
 	}
+# endif
 	P->ctlfd = fd;
 
 	/*
@@ -3059,7 +3075,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 	if (P->state == PS_DEAD) {	/* core file */
 		if (getlwpstatus(P, lwpid, &L->lwp_status) == -1) {
 			rc = G_NOPROC;
-			goto err;
+			GOTO(err);
 		}
 		L->lwp_state = PS_DEAD;
 		*perr = 0;
@@ -3088,7 +3104,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 			rc = G_STRANGE;
 			break;
 		}
-		goto err;
+		GOTO(err);
 	}
 	L->lwp_statfd = fd;
 
@@ -3103,7 +3119,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 			rc = G_STRANGE;
 			break;
 		}
-		goto err;
+		GOTO(err);
 	}
 
 	(void) strcpy(fname, "lwpctl");
@@ -3119,7 +3135,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 			rc = G_STRANGE;
 			break;
 		}
-		goto err;
+		GOTO(err);
 	}
 	L->lwp_ctlfd = fd;
 

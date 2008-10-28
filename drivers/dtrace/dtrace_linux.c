@@ -65,6 +65,8 @@ dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
 int	ctf_init(void);
 void	ctf_exit(void);
+int	ctl_init(void);
+void	ctl_exit(void);
 int	dtrace_profile_init(void);
 int	dtrace_profile_fini(void);
 int	fasttrap_init(void);
@@ -786,6 +788,7 @@ static struct proc_dir_entry *dir;
 	systrace_init();
 	dtrace_profile_init();
 	sdt_init();
+	ctl_init();
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
@@ -796,6 +799,7 @@ static void __exit dtracedrv_exit(void)
 
 	misc_deregister(&helper_dev);
 
+	ctl_exit();
 	sdt_exit();
 	dtrace_profile_fini();
 	systrace_exit();

@@ -29,6 +29,13 @@
 # define pragma_fini	__attribute__((__destructor__))
 
 /**********************************************************************/
+/*   When  trying  to  debug  where we are failing, we convert "goto  */
+/*   xxx;"  into this so we can figure out which line we are failing  */
+/*   on.							      */
+/**********************************************************************/
+# define GOTO(x) do {printf("%s(%d): error\n", __FILE__, __LINE__); goto x; } while(0)
+
+/**********************************************************************/
 /*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */
 /*   registers. Turn it off for some of the assembler code.	      */
 /**********************************************************************/

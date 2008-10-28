@@ -6,6 +6,7 @@ dtracedrv-objs := \
 	ctf_mod.o \
 	ctf_open.o \
 	ctf_lookup.o \
+	ctl.o \
 	cyclic_linux.o \
 	dis_tables.o \
 	dtrace.o \

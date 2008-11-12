@@ -1,7 +1,7 @@
 CC=g++ -I../../uts/common
 #BITS=-m64
 CFLAGS=$(BITS)
-DTRACE=dtrace
+DTRACE=../../build/dtrace
 DTRACE_DRTI_O=../../build/drti.o
 
 all:	../../build/simple-cpp

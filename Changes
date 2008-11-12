@@ -1,3 +1,8 @@
+Wed Nov 12 22:10:51 2008  fox
+
+      90* usdt/*/makefile: Use our compiled dtrace, rather than anything in
+          the environment.
+
 Sun Oct 26 16:54:54 2008  fox
 
       89* dtrace_linux.c: Enable /dev/sdt

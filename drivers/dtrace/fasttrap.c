@@ -202,7 +202,7 @@ static dev_info_t *fasttrap_devi;
 static dtrace_meta_provider_id_t fasttrap_meta_id;
 
 static timeout_id_t fasttrap_timeout;
-static kmutex_t fasttrap_cleanup_mtx;
+static DEFINE_MUTEX(fasttrap_cleanup_mtx);
 static uint_t fasttrap_cleanup_work;
 
 /*
@@ -1368,7 +1368,7 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
 HERE();
-printk("bucket=%d\n", FASTTRAP_PROVS_INDEX(pid, name));
+printk("bucket=%ld\n", FASTTRAP_PROVS_INDEX(pid, name));
 	mutex_enter(&bucket->ftb_mtx);
 HERE();
 
@@ -2348,6 +2348,7 @@ fasttrap_detach(void)
 	 * meta-provider. We can fail to unregister as a meta-provider
 	 * if providers we manage still exist.
 	 */
+HERE();
 	if (fasttrap_meta_id != DTRACE_METAPROVNONE &&
 	    dtrace_meta_unregister(fasttrap_meta_id) != 0)
 		return (DDI_FAILURE);
@@ -2356,9 +2357,11 @@ fasttrap_detach(void)
 	 * Prevent any new timeouts from running by setting fasttrap_timeout
 	 * to a non-zero value, and wait for the current timeout to complete.
 	 */
+HERE();
 	mutex_enter(&fasttrap_cleanup_mtx);
 	fasttrap_cleanup_work = 0;
 
+HERE();
 	while (fasttrap_timeout != (timeout_id_t)1) {
 		tmp = fasttrap_timeout;
 		fasttrap_timeout = (timeout_id_t)1;
@@ -2370,8 +2373,11 @@ fasttrap_detach(void)
 		}
 	}
 
+HERE();
 	fasttrap_cleanup_work = 0;
+HERE();
 	mutex_exit(&fasttrap_cleanup_mtx);
+HERE();
 
 	/*
 	 * Iterate over all of our providers. If there's still a process
@@ -2405,6 +2411,7 @@ fasttrap_detach(void)
 
 		mutex_exit(&bucket->ftb_mtx);
 	}
+HERE();
 
 	if (fail) {
 		uint_t work;
@@ -2433,10 +2440,12 @@ fasttrap_detach(void)
 	mutex_exit(&fasttrap_count_mtx);
 #endif
 
+HERE();
 	kmem_free(fasttrap_tpoints.fth_table,
 	    fasttrap_tpoints.fth_nent * sizeof (fasttrap_bucket_t));
 	fasttrap_tpoints.fth_nent = 0;
 
+HERE();
 	kmem_free(fasttrap_provs.fth_table,
 	    fasttrap_provs.fth_nent * sizeof (fasttrap_bucket_t));
 	fasttrap_provs.fth_nent = 0;

@@ -40,6 +40,43 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 int dtrace_here;
 module_param(dtrace_here, int, 0);
 
+/**********************************************************************/
+/*   Stuff we stash away from /proc/kallsyms.			      */
+/**********************************************************************/
+static struct map {
+	char		*m_name;
+	unsigned long	*m_ptr;
+	} syms[] = {
+/* 0 */	{"kallsyms_op",            NULL},
+/* 1 */	{"kallsyms_num_syms",      NULL},
+/* 2 */	{"kallsyms_addresses",     NULL},
+/* 3 */	{"kallsyms_expand_symbol", NULL},
+/* 4 */	{"get_symbol_offset",      NULL},
+/* 5 */	{"kallsyms_lookup_name",   NULL},
+/* 6 */	{"modules",                NULL},
+/* 7 */	{"__symbol_get",           NULL},
+/* 8 */	{"sys_call_table",         NULL},
+/* 9 */	{"**  reserved",           NULL},
+/* 10 */{"hrtimer_cancel",         NULL},
+/* 11 */{"hrtimer_start",          NULL},
+/* 12 */{"hrtimer_init",           NULL},
+/* 13 */{"access_process_vm",      NULL},
+/* 14 */{"syscall_call",           NULL}, /* Backup for i386 2.6.23 kernel to help */
+				 	  /* find the sys_call_table.		  */
+/* 15 */{"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
+				 	  /* find the modules table. 		  */
+/* 16 */{"kernel_text_address",    NULL},
+	{0}
+	};
+static int xkallsyms_num_syms;
+static long *xkallsyms_addresses;
+static unsigned int (*xkallsyms_expand_symbol)(int, char *);
+static unsigned int (*xget_symbol_offset)(int);
+static unsigned long (*xkallsyms_lookup_name)(char *);
+static void *xmodules;
+static void *(*x__symbol_get)(const char *);
+static void **xsys_call_table;
+
 uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
 cpu_t	*cpu_list;
@@ -247,6 +284,42 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	}
 }
 
+/**********************************************************************/
+/*   Needed by systrace.c					      */
+/**********************************************************************/
+void *
+fbt_get_sys_call_table(void)
+{
+	return xsys_call_table;
+}
+/**********************************************************************/
+/*   Needed in cyclic.c						      */
+/**********************************************************************/
+void *
+fbt_get_hrtimer_cancel(void)
+{
+	return (void *) syms[10].m_ptr;
+}
+void *
+fbt_get_hrtimer_init(void)
+{
+	return (void *) syms[12].m_ptr;
+}
+void *
+fbt_get_hrtimer_start(void)
+{
+	return (void *) syms[11].m_ptr;
+}
+void *
+fbt_get_kernel_text_address(void)
+{
+	return (void *) syms[16].m_ptr;
+}
+void *
+fbt_get_access_process_vm(void)
+{
+	return (void *) syms[13].m_ptr;
+}
 int
 fulword(const void *addr, uintptr_t *valuep)
 {
@@ -264,6 +337,35 @@ fuword32(const void *addr, uint32_t *valuep)
 
 	*valuep = dtrace_fuword32((void *) addr);
 	return 0;
+}
+struct module *
+get_module(int n)
+{	struct module *modp;
+	struct list_head *head = (struct list_head *) xmodules;
+
+//printk("get_module(%d) head=%p\n", n, head);
+	if (head == NULL)
+		return NULL;
+
+	list_for_each_entry(modp, head, list) {
+		if (n-- == 0) {
+			return modp;
+		}
+	}
+	return NULL;
+}
+/**********************************************************************/
+/*   Interface kallsyms_lookup_name.				      */
+/**********************************************************************/
+unsigned long
+get_proc_addr(char *name)
+{
+	if (xkallsyms_lookup_name == NULL) {
+		printk("get_proc_addr: No value for xkallsyms_lookup_name\n");
+		return 0;
+		}
+
+	return (*xkallsyms_lookup_name)(name);
 }
 int
 sulword(const void *addr, ulong_t value)
@@ -509,6 +611,153 @@ prfind(int p)
 		return tp;
 HERE();
 	return par_setup_thread1(tp);
+}
+/**********************************************************************/
+/*   Called  from  /dev/fbt  driver  to allow us to populate address  */
+/*   entries.  Shouldnt  be in the /dev/fbt, and will migrate to its  */
+/*   own dtrace_ctl driver at a later date.			      */
+/**********************************************************************/
+ssize_t 
+syms_write(struct file *file, const char __user *buf,
+			      size_t count, loff_t *pos)
+{
+	int	n;
+	int	orig_count = count;
+	const char	*bufend = buf + count;
+	char	*cp;
+	char	*symend;
+	struct map *mp;
+
+//printk("write: '%*.*s'\n", count, count, buf);
+	/***********************************************/
+	/*   Allow  for 'nm -p' format so we can just  */
+	/*   do:				       */
+	/*   grep XXX /proc/kallsyms > /dev/fbt	       */
+	/***********************************************/
+	while (buf < bufend) {
+		count = bufend - buf;
+		if ((cp = memchr(buf, ' ', count)) == NULL ||
+		     cp + 3 >= bufend ||
+		     cp[1] == ' ' ||
+		     cp[2] != ' ') {
+			return -EIO;
+		}
+
+		if ((cp = memchr(buf, '\n', count)) == NULL) {
+			return -EIO;
+		}
+		symend = cp--;
+		while (cp > buf && cp[-1] != ' ')
+			cp--;
+		n = symend - cp;
+//printk("sym='%*.*s'\n", n, n, cp);
+		for (mp = syms; mp->m_name; mp++) {
+			if (strlen(mp->m_name) == n &&
+			    memcmp(mp->m_name, cp, n) == 0)
+			    	break;
+		}
+		if (mp->m_name != NULL) {
+			mp->m_ptr = simple_strtoul(buf, NULL, 16);
+			if (1 || dtrace_here)
+				printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
+		}
+		buf = symend + 1;
+	}
+
+	if (syms[1].m_ptr)
+		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
+	xkallsyms_addresses 	= (long *) syms[2].m_ptr;
+	xkallsyms_expand_symbol = (unsigned int (*)(int, char *)) syms[3].m_ptr;
+	xget_symbol_offset 	= (unsigned int (*)(int)) syms[4].m_ptr;
+	xkallsyms_lookup_name 	= (unsigned long (*)(char *)) syms[5].m_ptr;
+	xmodules 		= (void *) syms[6].m_ptr;
+	x__symbol_get		= (void *(*)(const char *)) syms[7].m_ptr;
+	xsys_call_table 	= (void **) syms[8].m_ptr;
+
+	/***********************************************/
+	/*   Dump out the symtab for debugging.	       */
+	/***********************************************/
+# if 0
+	if (xkallsyms_num_syms > 0 && xkallsyms_addresses) {
+		int	i;
+		unsigned int off = 0;
+		for (i = 0; i < 10 && i < xkallsyms_num_syms; i++) {
+			unsigned long addr = xkallsyms_addresses[i];
+			char buf[512];
+			off = xkallsyms_expand_symbol(off, buf);
+			printk("%d: %p '%s'\n", i, addr, buf);
+			}
+	}
+# endif
+
+# if 0
+	if (xget_symbol_offset && xkallsyms_expand_symbol) {
+		int	i;
+		unsigned int off = 0;
+		for (i = 0; i < 2; i++) {
+			unsigned long addr = (*xget_symbol_offset)(i);
+			char buf[512];
+			off = xkallsyms_expand_symbol(addr, buf);
+			printk("%d: %p '%s'\n", i, addr, buf);
+			}
+	}
+# endif
+
+	/***********************************************/
+	/*   On 2.6.23.1 kernel I have, in i386 mode,  */
+	/*   we  have no exported sys_call_table, and  */
+	/*   we   need   it.   Instead,   we  do  get  */
+	/*   syscall_call  (code  in  entry.S) and we  */
+	/*   can use that to find the syscall table.   */
+	/*   					       */
+	/*   We are looking at an instruction:	       */
+	/*   					       */
+	/*   call *sys_call_table(,%eax,4)	       */
+	/***********************************************/
+# define OFFSET_modules		6
+# define OFFSET_sys_call_table	8
+# define OFFSET_syscall_call	14
+# define OFFSET_print_modules	15
+	{unsigned char *ptr = (unsigned char *) syms[OFFSET_syscall_call].m_ptr;
+	if (ptr &&
+	    syms[OFFSET_sys_call_table].m_ptr == NULL &&
+	    ptr[0] == 0xff && ptr[1] == 0x14 && ptr[2] == 0x85) {
+		syms[OFFSET_sys_call_table].m_ptr = (unsigned long *) *((long *) (ptr + 3));
+		printk("dtrace: sys_call_table located at %p\n",
+			syms[OFFSET_sys_call_table].m_ptr);
+		xsys_call_table = (void **) syms[OFFSET_sys_call_table].m_ptr;
+		}
+	}
+	/***********************************************/
+	/*   Handle modules[] missing in 2.6.23.1      */
+	/***********************************************/
+	{unsigned char *ptr = (unsigned char *) syms[OFFSET_print_modules].m_ptr;
+//if (ptr) {printk("print_modules* %02x %02x %02x\n", ptr[16], ptr[17], ptr[22]); }
+	if (ptr &&
+	    syms[OFFSET_modules].m_ptr == NULL &&
+	    ptr[16] == 0x8b && ptr[17] == 0x15 && ptr[22] == 0x8d) {
+		syms[OFFSET_modules].m_ptr = (unsigned long *) *((long *) 
+			(ptr + 18));
+		xmodules = syms[OFFSET_modules].m_ptr;
+		printk("dtrace: modules[] located at %p\n",
+			syms[OFFSET_modules].m_ptr);
+		}
+	}
+
+	/***********************************************/
+	/*   Dump out the table (for debugging).       */
+	/***********************************************/
+# if 0
+	{int i;
+	for (i = 0; i <= 14; i++) {
+		printk("[%d] %s %p\n", i, syms[i].m_name, syms[i].m_ptr);
+	}
+	}
+# endif
+
+	if (xkallsyms_lookup_name)
+		hunt_init();
+	return orig_count;
 }
 /**********************************************************************/
 /*   Read from a procs memory.					      */

@@ -4,6 +4,11 @@
 /*   Prototypes  we  *used*  to need because we split dtrace.c up to  */
 /*   make it easier to debug.   				      */
 /**********************************************************************/
+ssize_t syms_write(struct file *file, const char __user *buf,
+			      size_t count, loff_t *pos);
+unsigned long get_proc_addr(char *name);
+void	hunt_init(void);
+
 void	dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *);
 void	dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp);
 int dtrace_detach(dev_info_t *devi, ddi_detach_cmd_t cmd);

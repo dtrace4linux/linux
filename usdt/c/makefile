@@ -1,4 +1,4 @@
-CC=gcc -I../../uts/common
+CC=gcc -I../../uts/common -fPIC
 #BITS=-m64
 CFLAGS=$(BITS)
 DTRACE=../../build/dtrace

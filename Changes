@@ -1,3 +1,11 @@
+Wed Dec  3 23:16:40 2008  fox
+
+      92* Archive: 1.0046
+
+      91* drivers/dtrace/ctl.c: We now have a /proc/$$/ctl driver visible.
+          It doesnt do anything yet, but we have now patched a running
+	  kernel.
+
 Wed Nov 12 22:10:51 2008  fox
 
       90* usdt/*/makefile: Use our compiled dtrace, rather than anything in

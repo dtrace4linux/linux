@@ -15111,8 +15111,8 @@ PRINT_CASE(DTRACEHIOC_ADDDOF);
 		/*FALLTHROUGH*/
 
 	case DTRACEHIOC_ADD: {
-PRINT_CASE(DTRACEHIOC_ADD);
 		dof_hdr_t *dof = dtrace_dof_copyin(arg, &rval);
+PRINT_CASE(DTRACEHIOC_ADD);
 
 		if (dof == NULL)
 			return (rval);

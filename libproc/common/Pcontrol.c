@@ -682,6 +682,26 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 
 # if linux
 printf("%s(%d): Need /proc/pid/ctl - continuing\n", __FILE__, __LINE__);
+	if (!(flags & PGRAB_RDONLY)) {
+		if ((fd = open("/dev/dtrace_ctl", O_WRONLY)) < 0 ||
+		    (fd = dupfd(fd, 0)) < 0) {
+			switch (errno) {
+			case ENOENT:
+				rc = G_NOPROC;
+				break;
+			case EMFILE:
+				rc = G_NOFD;
+				break;
+			default:
+				dprintf("Pgrab: failed to open %s: %s\n",
+				    procname, strerror(errno));
+				rc = G_STRANGE;
+				break;
+			}
+			GOTO(err);
+		}
+		P->ctlfd = fd;
+	}
 # else
 	if (!(flags & PGRAB_RDONLY)) {
 		(void) strcpy(fname, "ctl");

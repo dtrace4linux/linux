@@ -308,7 +308,7 @@ int	dtrace_helptrace_enabled = 0;
 static dtrace_errhash_t	dtrace_errhash[DTRACE_ERRHASHSZ];
 static const char *dtrace_errlast;
 static kthread_t *dtrace_errthread;
-static kmutex_t dtrace_errlock;
+static DEFINE_MUTEX(dtrace_errlock);
 #endif
 
 /*

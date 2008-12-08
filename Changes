@@ -1,3 +1,18 @@
+Mon Dec  8 22:07:48 2008  fox
+
+      95* dtrace_linux.c: Patch for on_each_cpu, smp_call_function, and
+          asm/stacktrace.h
+          <ppluzhnikov@google.com>
+
+Thu Dec  4 20:53:33 2008  fox
+
+      94* drivers/dtrace/dtrace_isa.c: Fix to handle kernel 2.6.26 and
+          above.
+          (ppluzhnikov@google.com).
+
+      93* drivers/dtrace/dtrace.c: Fix dtrace_errlock bad mutex defn.
+          (ppluzhnikov@google.com).
+
 Wed Dec  3 23:16:40 2008  fox
 
       92* Archive: 1.0046

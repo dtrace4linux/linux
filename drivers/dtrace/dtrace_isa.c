@@ -109,7 +109,11 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	g_depth = 0;
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
+#else
 	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
+#endif
 	depth = g_depth;
 	mutex_exit(&dtrace_stack_mutex);
 
@@ -204,7 +208,11 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
 	/*   set to -1).			       */
 	/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+	bos = sp = task_pt_regs(current)->sp;
+#else
 	bos = sp = task_pt_regs(current)->rsp;
+#endif
 	*pcstack++ = sp;
 //printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.rsp, current->stack);
 //{int i; for (i = 0; i < 64; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}

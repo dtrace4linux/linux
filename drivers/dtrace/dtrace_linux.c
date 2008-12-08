@@ -278,9 +278,17 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 		/*   Dont   call  smp_call_function  as  this  */
 		/*   doesnt work.			       */
 		/***********************************************/
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
 		on_each_cpu(func, arg, 0, TRUE);
+#else
+		on_each_cpu(func, arg, TRUE);
+#endif
 	} else {
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
 		smp_call_function_single(cpu, func, arg, 0, TRUE);
+#else
+		smp_call_function_single(cpu, func, arg, TRUE);
+#endif
 	}
 }
 
@@ -605,7 +613,11 @@ par_setup_thread2()
 proc_t *
 prfind(int p)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	struct task_struct *tp = find_task_by_pid(p);
+#else
+	struct task_struct *tp = find_task_by_vpid(p);
+#endif
 
 	if (!tp)
 		return tp;

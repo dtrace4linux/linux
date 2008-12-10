@@ -33,19 +33,47 @@ sub main
 	my $ver = `uname -r`;
 	chomp($ver);
 
+        my $bits = 0;
+        my $machine = `uname -m`;
+        if ($machine =~ /x86_64/) {
+          $bits = 64;
+        } elsif ($bits =~ /i[34567]86/) {
+          $bits = 32;
+        } else {
+          die "Unexpected machine: $machine";
+        }
+
 	my %calls;
-	foreach my $f (glob("/lib/modules/$ver/build/include/asm/unistd*")) {
+        my @unistd_h_candidates 
+          = (
+             # linux-2.6.15, 2.6.23:
+             "/lib/modules/$ver/build/include/asm/unistd.h",
+             # linux-2.6.26:
+             "/lib/modules/$ver/build/include/asm-x86/unistd_$bits.h",
+             # linux-2.6.28-rc7:
+             "/lib/modules/$ver/build/arch/x86/include/asm/unistd_$bits.h"
+             );
+
+        my $syscall_count = 0;
+        foreach my $f (@unistd_h_candidates) {
+          if (-e $f) {
 		print "Processing: $f\n";
 		my $fh = new FileHandle($f);
 		if (!$fh) {
-			print "Cannot open -- $!\n";
-			next;
+			die "Cannot open $f: $!";
 		}
 		while (<$fh>) {
 			next if !/define\s+(__NR[A-Z_a-z0-9]+)\s+(.*)/;
 			$calls{$1} = $2;
+                        $syscall_count += 1;
 		}
+                last;
+          }
 	}
+
+        # Make sure we've found reasonable number of system calls.
+        # 2.6.15 i386 has 300+, x86_64 has 255
+        die "Unable to generate syscall table" unless ($syscall_count > 200);
 
 	my $name = $ARGV[0];
 	my $fh = new FileHandle(">drivers/dtrace/syscalls-$name.tbl");

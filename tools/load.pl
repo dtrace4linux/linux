@@ -19,7 +19,8 @@ my $SUDO = "setuid root";
 #   Command line switches.					      #
 #######################################################################
 my %opts = (
-	here => 0
+	here => 0,
+	v => 0,
 	);
 
 sub main
@@ -29,6 +30,7 @@ sub main
 		'fast',
 		'help',
 		'here',
+		'v+',
 		);
 
 	usage() if ($opts{help});
@@ -36,12 +38,10 @@ sub main
 		$SUDO = "sudo";
 	}
 	print "Syncing...\n";
-	system("sync ; sync");
+	spawn("sync ; sync");
 	if ( -e "/dev/dtrace" ) {
-		print "rmmod dtracedrv\n";
-		system("$SUDO rmmod dtracedrv");
-		#sleep 1
-		system("sync ; sync");
+		spawn("$SUDO rmmod dtracedrv");
+		spawn("sync ; sync");
 	}
 
 	#####################################################################
@@ -51,6 +51,23 @@ sub main
 	#####################################################################
 	print "Loading: dtracedrv.ko\n";
 	spawn("$SUDO insmod dtracedrv.ko dtrace_here=$opts{here}");
+        my $sectop = "/sys/module/dtracedrv/sections/";
+        if ($opts{v} > 1 && -e $sectop . ".text") {
+          # print KGDB module load command
+          print "# KGDB:\n";
+          open(IN, $sectop . ".text");
+          my $line = <IN>; chomp($line);
+          my $cmd = "add-symbol-file dtracedrv.ko " . $line;
+          foreach my $s (".bss", ".eh_frame", ".data", ".rodata",
+                         ".init.text", ".exit.text") {
+            my $ss = $sectop . $s;
+            if (-e $ss && open(IN, $ss)) {
+              $line = <IN>; chomp($line);
+              $cmd .= " -s $s " . $line;
+            }
+          }
+          print $cmd, "\n";
+        }
 	sleep(1);
 
 	mkdev("/dev/dtrace");
@@ -109,7 +126,10 @@ sub main
 			}
 			next if !defined($syms{$rawsym});
 			my $fh = new FileHandle(">/dev/fbt");
-			print $fh $syms{$rawsym} . "\n";
+                        if (1 < $opts{v}) {
+                          print STDERR "echo \"$syms{$rawsym}\" > /dev/fbt\n";
+                        }
+                        print $fh $syms{$rawsym} . "\n";
 			$done = 1;
 			last;
 		}
@@ -135,7 +155,7 @@ sub main
 				print "rename error /tmp/probes.current -- $!\n";
 			}
 		}
-		system("../../build/dtrace -l | tee $pname | wc -l ");
+		spawn("../../build/dtrace -l | tee $pname | wc -l ");
 		unlink("/tmp/probes.current");
 		if (!symlink($pname, "/tmp/probes.current")) {
 			print "symlink($pname, /tmp/probes.current) error -- $!\n";
@@ -156,14 +176,14 @@ sub mkdev
 		my $dev = <$fh>;
 		chomp($dev);
 		$dev =~ s/:/ /;
-		system("$SUDO mknod /dev/$name c $dev");
+		spawn("$SUDO mknod /dev/$name c $dev");
 	}
-	system("$SUDO chmod 666 /dev/$name");
+	spawn("$SUDO chmod 666 /dev/$name");
 }
 sub spawn
 {	my $cmd = shift;
 
-	print $cmd, "\n";
+	print $cmd, "\n" if $opts{'v'};
 	system($cmd);
 }
 
@@ -173,12 +193,13 @@ sub spawn
 sub usage
 {
 	print "load.pl: load dtrace driver and prime the links to the kernel.\n";
-	print "Usage: load.pl [-here] ]-fast]\n";
+	print "Usage: load.pl [-v] [-here] [-fast]\n";
 	print "\n";
 	print "Switches:\n";
 	print "\n";
-	print "   -fast   Dont do 'dtrace -l' after load to avoid kernel messages\n";
-	print "   -here   Enable tracing to /var/log/messages\n";
+	print "   -v      Be more verbose about loading process (repeat for more).\n";
+	print "   -fast   Dont do 'dtrace -l' after load to avoid kernel messages.\n";
+	print "   -here   Enable tracing to /var/log/messages\n.";
 	print "\n";
 	exit(1);
 }

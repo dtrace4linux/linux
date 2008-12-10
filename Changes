@@ -1,3 +1,11 @@
+Wed Dec 10 10:46:25 2008  fox
+
+      97* tools/mksyscalls.pl: [PATCH] Add verbosity flag; print KGDB module load address.
+          <ppluzhnikov@google.com>
+
+      96* tools/mksyscalls.pl: Change to find unistd.h which keeps moving.
+          <ppluzhnikov@google.com>
+
 Mon Dec  8 22:07:48 2008  fox
 
       95* dtrace_linux.c: Patch for on_each_cpu, smp_call_function, and

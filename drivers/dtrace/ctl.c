@@ -32,6 +32,11 @@
 #include <sys/modctl.h>
 #include <sys/dtrace.h>
 #include <sys/stack.h>
+//#include <sys/procfs.h>
+#define PCNULL   0L     /* null request, advance to next message */
+#define PCSTOP   1L     /* direct process or lwp to stop and wait for stop */
+#define PCDSTOP  2L     /* direct process or lwp to stop */
+#define PCWSTOP  3L     /* wait for process or lwp to stop, no timeout */
 
 /**********************************************************************/
 /*   Structure for patching the kernel.				      */
@@ -268,7 +273,8 @@ HERE();
 
 # if __amd64
 	/***********************************************/
-	/*   64-bit code ues RIP relative addressing.  */
+	/*   64-bit    code    uses    RIP   relative  */
+	/*   addressing.			       */
 	/***********************************************/
 	new_proc = (caddr_t *) ((unsigned char *) new_proc - (cp + 4));
 # endif
@@ -339,6 +345,21 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
 	return proc_pident_lookup(dir, dentry, pidt, nents);
 }
 /**********************************************************************/
+/*   Handle /procfs style ioctls on the process.		      */
+/**********************************************************************/
+static int
+ctl_ioctl(struct inode *ino, struct file *filp,
+           unsigned int cmd, unsigned long arg)
+{
+        struct inode *inode = filp->f_path.dentry->d_inode;
+
+        switch (cmd) {
+                default:
+                        return -EINVAL;
+        }
+}
+
+/**********************************************************************/
 /*   Intercept  calls  to  proc_pident_lookup so we can patch in the  */
 /*   /ctl sub-entry.						      */
 /**********************************************************************/
@@ -364,6 +385,10 @@ static int proc_pident_readdir2(struct file *filp,
 static int
 ctl_open(struct inode *inode, int flag, int otyp, cred_t *cred_p)
 {
+	/***********************************************/
+	/*   Might want a owner/root permission check  */
+	/*   here.				       */
+	/***********************************************/
 	return (0);
 }
 
@@ -373,34 +398,36 @@ ctl_open(struct inode *inode, int flag, int otyp, cred_t *cred_p)
 /*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
 /*   tree, then we wouldnt need this hack.			      */
 /**********************************************************************/
+# undef task_struct
 static ssize_t 
 ctl_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos)
 {
 	int	orig_count = count;
-	char	*bufend = (char *) buf + count;
-	char	*cp;
+	long	*ctlp;
+	struct inode *inode = file->f_path.dentry->d_inode;
+	struct task_struct *task = find_task_by_pid(PROC_I(inode)->pid);
 
-//printk("write: '%*.*s'\n", count, count, buf);
-	/***********************************************/
-	/*   Allow for 'name=value'		       */
-	/***********************************************/
-	while (buf < bufend) {
-		count = bufend - buf;
-		if ((cp = memchr(buf, '\n', count)) == NULL) {
-			return -EIO;
-		}
-		if (strncmp(buf, "profile_max=", 12) == 0) {
-//			profile_max = simple_strtoul(buf, NULL, 10);
-//			printk("profile_max: set to %u\n", (unsigned) profile_max);
-			}
-		buf = cp + 1;
-	}
+	if (count < 2 * sizeof(long)) 
+		return -EIO;
+
+	ctlp = (long *) buf;
+	task_lock(task);
+	switch (ctlp[0]) {
+	  case PCDSTOP:
+# if 0
+		// still working on this; this doesnt compile for now.
+		task->ptrace |= PT_PTRACED;
+# endif
+	  	return count;
+	  }
+	task_unlock(task);
 	return orig_count;
 }
 static const struct file_operations ctl_fops = {
-        .open = ctl_open,
+        .open  = ctl_open,
         .write = ctl_write,
+	.ioctl = ctl_ioctl,
 };
 
 static struct miscdevice ctl_dev = {

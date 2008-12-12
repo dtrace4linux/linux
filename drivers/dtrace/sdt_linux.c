@@ -35,6 +35,7 @@
 #include <sys/stack.h>
 #include <sys/sdt.h>
 #include <sys/sdt_impl.h>
+#include <sys/dtrace_impl.h>
 
 #define	SDT_PATCHVAL	0xf0
 #define	SDT_ADDR2NDX(addr)	((((uintptr_t)(addr)) >> 4) & sdt_probetab_mask)
@@ -293,6 +294,97 @@ sdt_disable(void *arg, dtrace_id_t id, void *parg)
 	}
 }
 
+/*ARGSUSED*/
+uint64_t
+sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
+{
+	uintptr_t val;
+	struct frame *fp = (struct frame *)dtrace_getfp();
+	uintptr_t *stack;
+	int i;
+#if defined(__amd64)
+	/*
+	 * A total of 6 arguments are passed via registers; any argument with
+	 * index of 5 or lower is therefore in a register.
+	 */
+	int inreg = 5;
+#endif
+
+# if defined(TODOxxx)
+	// TODO ... we dont have the struct frame in scope... disable for now
+	for (i = 1; i <= aframes; i++) {
+		fp = (struct frame *)(fp->fr_savfp);
+
+		if (fp->fr_savpc == (pc_t)dtrace_invop_callsite) {
+#if !defined(__amd64)
+			/*
+			 * If we pass through the invalid op handler, we will
+			 * use the pointer that it passed to the stack as the
+			 * second argument to dtrace_invop() as the pointer to
+			 * the stack.
+			 */
+			stack = ((uintptr_t **)&fp[1])[1];
+#else
+			/*
+			 * In the case of amd64, we will use the pointer to the
+			 * regs structure that was pushed when we took the
+			 * trap.  To get this structure, we must increment
+			 * beyond the frame structure.  If the argument that
+			 * we're seeking is passed on the stack, we'll pull
+			 * the true stack pointer out of the saved registers
+			 * and decrement our argument by the number of
+			 * arguments passed in registers; if the argument
+			 * we're seeking is passed in regsiters, we can just
+			 * load it directly.
+			 */
+			struct regs *rp = (struct regs *)((uintptr_t)&fp[1] +
+			    sizeof (uintptr_t));
+
+			if (argno <= inreg) {
+				stack = (uintptr_t *)&rp->r_rdi;
+			} else {
+				stack = (uintptr_t *)(rp->r_rsp);
+				argno -= (inreg + 1);
+			}
+#endif
+			goto load;
+		}
+	}
+
+	/*
+	 * We know that we did not come through a trap to get into
+	 * dtrace_probe() -- the provider simply called dtrace_probe()
+	 * directly.  As this is the case, we need to shift the argument
+	 * that we're looking for:  the probe ID is the first argument to
+	 * dtrace_probe(), so the argument n will actually be found where
+	 * one would expect to find argument (n + 1).
+	 */
+	argno++;
+
+#if defined(__amd64)
+	if (argno <= inreg) {
+		/*
+		 * This shouldn't happen.  If the argument is passed in a
+		 * register then it should have been, well, passed in a
+		 * register...
+		 */
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_ILLOP);
+		return (0);
+	}
+
+	argno -= (inreg + 1);
+#endif
+	stack = (uintptr_t *)&fp[1];
+#endif /* TODOxxx*/
+
+load:
+	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+	val = stack[argno];
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
+
+	return (val);
+}
+
 static dtrace_pops_t sdt_pops = {
 	NULL,
 	sdt_provide_module,
@@ -301,7 +393,7 @@ static dtrace_pops_t sdt_pops = {
 	NULL,
 	NULL,
 	sdt_getargdesc,
-	NULL,
+	sdt_getarg,
 	NULL,
 	sdt_destroy
 };

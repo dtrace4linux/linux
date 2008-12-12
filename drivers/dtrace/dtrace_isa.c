@@ -674,7 +674,7 @@ dtrace_copyinstr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
 	if (dtrace_copycheck(uaddr, kaddr, size))
-		dtrace_copystr(uaddr, kaddr, size);
+		dtrace_copystr(uaddr, kaddr, size, flags);
 }
 
 void
@@ -682,7 +682,7 @@ dtrace_copyoutstr(uintptr_t kaddr, uintptr_t uaddr, size_t size,
     volatile uint16_t *flags)
 {
 	if (dtrace_copycheck(uaddr, kaddr, size))
-		dtrace_copystr(kaddr, uaddr, size);
+		dtrace_copystr(kaddr, uaddr, size, flags);
 }
 
 uint8_t

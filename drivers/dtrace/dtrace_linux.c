@@ -365,7 +365,7 @@ get_module(int n)
 /**********************************************************************/
 /*   Interface kallsyms_lookup_name.				      */
 /**********************************************************************/
-unsigned long
+void *
 get_proc_addr(char *name)
 {
 	if (xkallsyms_lookup_name == NULL) {
@@ -373,7 +373,7 @@ get_proc_addr(char *name)
 		return 0;
 		}
 
-	return (*xkallsyms_lookup_name)(name);
+	return (void *) (*xkallsyms_lookup_name)(name);
 }
 int
 sulword(const void *addr, ulong_t value)
@@ -613,11 +613,7 @@ par_setup_thread2()
 proc_t *
 prfind(int p)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-	struct task_struct *tp = find_task_by_pid(p);
-#else
 	struct task_struct *tp = find_task_by_vpid(p);
-#endif
 
 	if (!tp)
 		return tp;

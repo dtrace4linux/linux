@@ -137,7 +137,8 @@ dtrace_copy(uintptr_t src, uintptr_t dest, size_t size)
 
 /*ARGSUSED*/
 void
-dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size) 
+dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
+	 volatile uint16_t *flags) 
 {
 
 #if defined(__amd64)
@@ -153,10 +154,16 @@ dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 		"addq	$1, %rsi\n"		/* increment destination pointer */
 		"subq	$1, %rdx\n"		/* decrement remaining count */
 		"cmpb	$0, %al\n"
-		"je	1f\n"
+		"je	2f\n"
+	        "testq   $0xfff, %rdx\n"        /* test if count is 4k-aligned */
+                "jnz     1f\n"                  /* if not, continue with copying */
+		// CPU_DTRACE_BADADDR == 0x04
+		"testq   $0x04, (%rcx)\n" /* load and test dtrace flags */  
+	        "jnz     2f\n"
+"1:\n"
 		"cmpq	$0, %rdx\n"
 		"jne	0b\n"
-"1:\n"
+"2:\n"
 		"leave\n"
 		"ret\n"
 		);

@@ -27,11 +27,13 @@
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <dtrace_proto.h>
+# undef task_struct
 #include <linux/miscdevice.h>
 #include <linux/proc_fs.h>
 #include <sys/modctl.h>
 #include <sys/dtrace.h>
 #include <sys/stack.h>
+#include <linux/ptrace.h>
 //#include <sys/procfs.h>
 #define PCNULL   0L     /* null request, advance to next message */
 #define PCSTOP   1L     /* direct process or lwp to stop and wait for stop */
@@ -278,7 +280,7 @@ HERE();
 	/***********************************************/
 	new_proc = (caddr_t *) ((unsigned char *) new_proc - (cp + 4));
 # endif
-printk("i=%d poff=%d patching %p new_proc=%p old=%p\n", i, poff, cp, new_proc, pp->p_value);
+printk("i=%d poff=%d patching %p new_proc=%p old=%d\n", i, poff, cp, new_proc, pp->p_value);
 	*(int32_t *) cp = (int32_t) new_proc;
 HERE();
 	return 0;
@@ -292,7 +294,7 @@ HERE();
 /*   Allocate the tgid base entry table if we havent done so yet.     */
 /**********************************************************************/
 static void
-patch_tgid_base_stuff(struct pid_entry *ents, int nents)
+patch_tgid_base_stuff(const struct pid_entry *ents, int nents)
 {
 	void	*ptr;
 	struct pid_entry *tgid_base_stuff = NULL;
@@ -330,7 +332,7 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
                                          struct dentry *dentry,
                                          const struct pid_entry *ents,
                                          unsigned int nents)
-{	struct pid_entry *pidt = ents;
+{	const struct pid_entry *pidt = ents;
 
 	patch_tgid_base_stuff(ents, nents);
 
@@ -366,7 +368,7 @@ ctl_ioctl(struct inode *ino, struct file *filp,
 static int proc_pident_readdir2(struct file *filp,
                 void *dirent, filldir_t filldir,
                 const struct pid_entry *ents, unsigned int nents)
-{	struct pid_entry *pidt = ents;
+{	const struct pid_entry *pidt = ents;
 
 	patch_tgid_base_stuff(ents, nents);
 
@@ -398,7 +400,6 @@ ctl_open(struct inode *inode, int flag, int otyp, cred_t *cred_p)
 /*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
 /*   tree, then we wouldnt need this hack.			      */
 /**********************************************************************/
-# undef task_struct
 static ssize_t 
 ctl_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos)
@@ -406,7 +407,7 @@ ctl_write(struct file *file, const char __user *buf,
 	int	orig_count = count;
 	long	*ctlp;
 	struct inode *inode = file->f_path.dentry->d_inode;
-	struct task_struct *task = find_task_by_pid(PROC_I(inode)->pid);
+	struct task_struct *task = find_task_by_vpid(PROC_I(inode)->pid);
 
 	if (count < 2 * sizeof(long)) 
 		return -EIO;
@@ -415,9 +416,9 @@ ctl_write(struct file *file, const char __user *buf,
 	task_lock(task);
 	switch (ctlp[0]) {
 	  case PCDSTOP:
-# if 0
+# if 1
 		// still working on this; this doesnt compile for now.
-		task->ptrace |= PT_PTRACED;
+//		task->ptrace |= PT_PTRACED;
 # endif
 	  	return count;
 	  }

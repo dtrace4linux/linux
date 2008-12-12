@@ -1,3 +1,20 @@
+Fri Dec 12 21:03:00 2008  fox
+
+     102* ctl.c: Fix find_task_by_pid, and improve make-me script.
+
+     101* Archive: 1.0048
+
+     100* dtrace_linux.c: Suggestion to use find_task_by_vpid vs
+          find_task_by_pid to avoid kernel-ifdefs.
+          <ppluzhnikov@google.com>
+
+      99* drivers/dtrace/dtrace_asm.c, sdt_linux.c, dtrace_isa.c
+          Some more OpenSolaris 20081211 alignment changes. Nothing
+	  functional fixed, since many of the ON source changes are
+	  more in the Sun kernel code than the common stuff here.
+
+      98* drivers/dtrace/dtrace.c: Merge in changes from OpenSolaris 20081211.
+
 Wed Dec 10 10:46:25 2008  fox
 
       97* tools/mksyscalls.pl: [PATCH] Add verbosity flag; print KGDB module load address.

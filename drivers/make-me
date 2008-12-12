@@ -9,10 +9,24 @@ warn=warn
 if [ ! -f /home/fox/bin/warn ]; then
 	warn=
 fi
+
+#####################################################################
+#   Default to building kernel for current kernel.
+#####################################################################
+build_dir=/lib/modules/`uname -r`/build
+
 finished=no
 while [ $finished = "no" ]
 do
 	case $1 in
+	  -b)
+	  	##############################################
+	  	#   Let  us  build  from multiple kernels on
+	  	#   the machine.
+	  	##############################################
+	  	build_dir=$2
+		shift ; shift
+		;;
 	  -*) flags="$flags $1"
 		shift
 		;;
@@ -22,14 +36,21 @@ do
 	esac
 done
 
+#####################################################################
+#   Nastiness for 32-bit builds.
+#####################################################################
 if [ `uname -m` != x86_64 ]; then
 
   	export PTR32=-D_ILP32
 	export BUILD_i386=1
 fi
 
-build_dir=/lib/modules/`uname -r`/build
 if [ ! -d $build_dir ]; then
 	build_dir=/usr/src/linux/
 fi
+
+#####################################################################
+#   Let Linux have the floor...
+#####################################################################
+echo $warn make $flags -C $build_dir M=`pwd` $@
 exec $warn make $flags -C $build_dir M=`pwd` $@

@@ -210,6 +210,7 @@ static dtrace_ecb_t	*dtrace_ecb_create_cache; /* cached created ECB */
 static dtrace_genid_t   dtrace_probegen;        /* current probe generation */
 static dtrace_helpers_t *dtrace_deferred_pid;	/* deferred helper list */
 static dtrace_enabling_t *dtrace_retained;      /* list of retained enablings */
+static dtrace_genid_t	dtrace_retained_gen;	/* current retained enab gen */
 static dtrace_dynvar_t  dtrace_dynhash_sink;    /* end of dynamic hash chains */
 
 /*
@@ -10913,6 +10914,7 @@ dtrace_enabling_destroy(dtrace_enabling_t *enab)
 		ASSERT(enab->dten_vstate->dtvs_state != NULL);
 		ASSERT(enab->dten_vstate->dtvs_state->dts_nretained > 0);
 		enab->dten_vstate->dtvs_state->dts_nretained--;
+		dtrace_retained_gen++;
 	}
 
 	if (enab->dten_prev == NULL) {
@@ -11140,7 +11142,8 @@ dtrace_enabling_matchall(void)
 # define getzoneid(x) 1
 		cr = cr; /* avoid compiler warning */
 # endif
-		if (INGLOBALZONE(curproc) || getzoneid() == crgetzoneid(cr))
+		if (INGLOBALZONE(curproc) ||
+		    cr != NULL && getzoneid() == crgetzoneid(cr))
 			(void) dtrace_enabling_match(enab, NULL);
 	}
 
@@ -11200,6 +11203,7 @@ dtrace_enabling_provide(dtrace_provider_t *prv)
 {
 	int i, all = 0;
 	dtrace_probedesc_t desc;
+	dtrace_genid_t gen;
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(MUTEX_HELD(&dtrace_provider_lock));
@@ -11213,12 +11217,21 @@ dtrace_enabling_provide(dtrace_provider_t *prv)
 		dtrace_enabling_t *enab = dtrace_retained;
 		void *parg = prv->dtpv_arg;
 
+retry:
+		gen = dtrace_retained_gen;
 		for (; enab != NULL; enab = enab->dten_next) {
 			for (i = 0; i < enab->dten_ndesc; i++) {
 				desc = enab->dten_desc[i]->dted_probe;
 				mutex_exit(&dtrace_lock);
 				prv->dtpv_pops.dtps_provide(parg, &desc);
 				mutex_enter(&dtrace_lock);
+				/*
+				 * Process the retained enablings again if
+				 * they have changed while we weren't holding
+				 * dtrace_lock.
+				 */
+				if (gen != dtrace_retained_gen)
+					goto retry;
 			}
 		}
 	} while (all && (prv = prv->dtpv_next) != NULL);

@@ -6,7 +6,7 @@
 /**********************************************************************/
 ssize_t syms_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos);
-unsigned long get_proc_addr(char *name);
+void *get_proc_addr(char *name);
 void	hunt_init(void);
 
 void	dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *);

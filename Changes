@@ -1,3 +1,11 @@
+Sat Dec 13 08:45:52 2008  fox
+
+     104* systrace.c: Avoid panicing 2.6.27.8 kernel due to bad
+          syscall name.
+
+     103* ctl.c: Fix crash on unloading driver.
+          <ppluzhnikov@google.com>
+
 Fri Dec 12 21:03:00 2008  fox
 
      102* ctl.c: Fix find_task_by_pid, and improve make-me script.

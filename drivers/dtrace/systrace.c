@@ -292,7 +292,11 @@ HERE();
 	for (i = 0; i < NSYSCALL; i++) {
 		char	*name = syscallnames[i];
 
-		if (name == NULL)
+		/***********************************************/
+		/*   Be  careful  in  case we have rubbish in  */
+		/*   the name.				       */
+		/***********************************************/
+		if (name == NULL || !validate_ptr(name))
 			continue;
 
 		if (strncmp(name, "__NR_", 5) == 0)
@@ -306,11 +310,11 @@ HERE();
 			continue;
 
 		if (dtrace_here)
-			printk("systrace_provide: patch syscall %s\n", name);
+			printk("systrace_provide: patch syscall #%d: %s\n", i, name);
 		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
-//HERE();
+
 		(void) dtrace_probe_create(systrace_id, NULL, name,
 		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));

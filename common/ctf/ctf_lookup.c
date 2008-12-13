@@ -25,7 +25,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)ctf_lookup.c	1.6	06/01/07 SMI"
+//#pragma ident	"@(#)ctf_lookup.c	1.6	06/01/07 SMI"
 
 #include <sys/sysmacros.h>
 #include <ctf_impl.h>

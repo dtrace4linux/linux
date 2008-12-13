@@ -271,6 +271,7 @@ HERE();
 	/*   instr we are going to patch.	       */
 	/***********************************************/
 	cp += poff + i;
+	pp->p_addr = cp;
 	pp->p_value = *(int32_t *) cp;
 
 # if __amd64

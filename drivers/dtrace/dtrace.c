@@ -7708,16 +7708,16 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 
 //			printk("dtrace_probe_provide: #%d %p %s\n", i, modp, modp->name);
 
-printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
+//printk("prov=%p\n", prv->dtpv_pops.dtps_provide_module);
 			prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, 
 				(struct modctl *) modp);
-HERE();
+//HERE();
 		}
 		}
 # endif
 		mutex_exit(&mod_lock);
 	} while (all && (prv = prv->dtpv_next) != NULL);
-HERE();
+//HERE();
 }
 
 # if defined(sun)

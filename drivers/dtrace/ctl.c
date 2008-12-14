@@ -34,11 +34,14 @@
 #include <sys/dtrace.h>
 #include <sys/stack.h>
 #include <linux/ptrace.h>
+#include <linux/pid.h>
 //#include <sys/procfs.h>
 #define PCNULL   0L     /* null request, advance to next message */
 #define PCSTOP   1L     /* direct process or lwp to stop and wait for stop */
 #define PCDSTOP  2L     /* direct process or lwp to stop */
 #define PCWSTOP  3L     /* wait for process or lwp to stop, no timeout */
+
+static void *(*fn_get_pid_task)();
 
 /**********************************************************************/
 /*   Structure for patching the kernel.				      */
@@ -56,6 +59,9 @@ typedef struct patch_t {
 
 patch_t	save_proc_tgid_base_lookup = {"proc_tgid_base_lookup", 0, 0};
 patch_t	save_proc_tgid_base_readdir = {"proc_tgid_base_readdir", 0, 0};
+
+static struct file_operations *ptr_proc_info_file_operations;
+static struct file_operations save_proc_info_file_operations;
 
 /**********************************************************************/
 /*   This needs to agree with the kernel source.		      */
@@ -81,7 +87,9 @@ int (*proc_pident_readdir)(struct file *filp,
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
-static int hunt_proc(patch_t *pp, unsigned char *pattern, int size, int (*new_proc)());
+static int proc_pid_ctl_write(struct file *file, const char __user *buf,
+            size_t count, loff_t *offset);
+static int hunt_proc(patch_t *pp, unsigned char *pattern, int size, void *new_proc);
 static struct dentry *proc_pident_lookup2(struct inode *dir,
                                          struct dentry *dentry,
                                          const struct pid_entry *ents,
@@ -104,7 +112,14 @@ hunt_cleanup()
 		*(int32_t *) save_proc_tgid_base_lookup.p_addr = save_proc_tgid_base_lookup.p_value;
 	if (save_proc_tgid_base_readdir.p_addr)
 		*(int32_t *) save_proc_tgid_base_readdir.p_addr = save_proc_tgid_base_readdir.p_value;
+
+	if (ptr_proc_info_file_operations)
+		*ptr_proc_info_file_operations = save_proc_info_file_operations;
 }
+/**********************************************************************/
+/*   Called  from  dtrace_linux.c after get_proc_addr() is ready for  */
+/*   action.							      */
+/**********************************************************************/
 void
 hunt_init()
 {
@@ -113,6 +128,13 @@ hunt_init()
 
 	proc_pident_lookup = get_proc_addr("proc_pident_lookup");
 	proc_pident_readdir = get_proc_addr("proc_pident_readdir");
+	fn_get_pid_task = get_proc_addr("get_pid_task");
+	if ((ptr_proc_info_file_operations = get_proc_addr("proc_info_file_operations")) == NULL) {
+		printk("ctl.c: Cannot locate proc_info_file_operations\n");
+		ptr_proc_info_file_operations->write = proc_pid_ctl_write;
+	} else {
+		save_proc_info_file_operations = *ptr_proc_info_file_operations;
+	}
 }
 /**********************************************************************/
 /*   Routine to find the tgid_base_stuff table in the /proc (base.c)  */
@@ -195,7 +217,6 @@ static unsigned char pattern[] = {
 	P_DONTCARE, 0,
 	P_EQ, 0xe9,
 # else
-	# error -- not yet filled in
 // 0xc019b402 <proc_tgid_base_lookup+0>:   sub    $0x4,%esp
 // 0xc019b405 <proc_tgid_base_lookup+3>:   mov    $0xc03c3bf4,%ecx
 // 0xc019b40a <proc_tgid_base_lookup+8>:   movl   $0x19,(%esp)
@@ -216,7 +237,7 @@ static unsigned char pattern[] = {
 		proc_pident_readdir2);
 }
 static int
-hunt_proc(patch_t *pp, unsigned char *pattern, int size, int (*new_proc)())
+hunt_proc(patch_t *pp, unsigned char *pattern, int size, void *new_proc)
 {	unsigned char *cp;
 	int	i, j;
 	int	found = 0;
@@ -271,7 +292,7 @@ HERE();
 	/*   instr we are going to patch.	       */
 	/***********************************************/
 	cp += poff + i;
-	pp->p_addr = cp;
+	pp->p_addr = (caddr_t *) cp;
 	pp->p_value = *(int32_t *) cp;
 
 # if __amd64
@@ -279,17 +300,29 @@ HERE();
 	/*   64-bit    code    uses    RIP   relative  */
 	/*   addressing.			       */
 	/***********************************************/
-	new_proc = (caddr_t *) ((unsigned char *) new_proc - (cp + 4));
+	new_proc = (void *) ((unsigned char *) new_proc - (cp + 4));
 # endif
 printk("i=%d poff=%d patching %p new_proc=%p old=%d\n", i, poff, cp, new_proc, pp->p_value);
-	*(int32_t *) cp = (int32_t) new_proc;
+	*(int32_t *) cp = (int32_t) (long) new_proc;
 HERE();
 	return 0;
 }
-static int proc_pid_ctl(struct task_struct *task, char *buffer)
+/**********************************************************************/
+/*   Read from the device.					      */
+/**********************************************************************/
+static int proc_pid_ctl_read(struct task_struct *task, char *buffer)
 {
 HERE();
 	return sprintf(buffer, "hello world");
+}
+/**********************************************************************/
+/*   Write a control message.					      */
+/**********************************************************************/
+static int proc_pid_ctl_write(struct file *file, const char __user *buf,
+            size_t count, loff_t *offset)
+{
+HERE();
+	return 0;
 }
 /**********************************************************************/
 /*   Allocate the tgid base entry table if we havent done so yet.     */
@@ -321,7 +354,7 @@ HERE();
 		tgid_base_stuff_2[nents].mode = S_IFREG | 0640;
 		tgid_base_stuff_2[nents].iop = NULL;
 		tgid_base_stuff_2[nents].fop = ptr;
-		tgid_base_stuff_2[nents].op.proc_read = proc_pid_ctl; 
+		tgid_base_stuff_2[nents].op.proc_read = proc_pid_ctl_read; 
 HERE();
 		}
 }
@@ -354,8 +387,6 @@ static int
 ctl_ioctl(struct inode *ino, struct file *filp,
            unsigned int cmd, unsigned long arg)
 {
-        struct inode *inode = filp->f_path.dentry->d_inode;
-
         switch (cmd) {
                 default:
                         return -EINVAL;
@@ -386,7 +417,7 @@ static int proc_pident_readdir2(struct file *filp,
 
 /*ARGSUSED*/
 static int
-ctl_open(struct inode *inode, int flag, int otyp, cred_t *cred_p)
+ctl_open(struct inode *inode, struct file *file)
 {
 	/***********************************************/
 	/*   Might want a owner/root permission check  */
@@ -408,20 +439,25 @@ ctl_write(struct file *file, const char __user *buf,
 	int	orig_count = count;
 	long	*ctlp;
 	struct inode *inode = file->f_path.dentry->d_inode;
-	struct task_struct *task = find_task_by_vpid(PROC_I(inode)->pid);
+	struct task_struct *task;
+
+printk("ctl_write: count=%d\n", (int) count);
 
 	if (count < 2 * sizeof(long)) 
 		return -EIO;
 
+	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);;
+
 	ctlp = (long *) buf;
 	task_lock(task);
+printk("ctl_write: %ld %ld\n", ctlp[0], ctlp[1]);
 	switch (ctlp[0]) {
 	  case PCDSTOP:
-# if 1
+# if defined(PT_PTRACED)
 		// still working on this; this doesnt compile for now.
-//		task->ptrace |= PT_PTRACED;
+		task->ptrace |= PT_PTRACED;
 # endif
-	  	return count;
+	  	break;
 	  }
 	task_unlock(task);
 	return orig_count;
@@ -432,22 +468,9 @@ static const struct file_operations ctl_fops = {
 	.ioctl = ctl_ioctl,
 };
 
-static struct miscdevice ctl_dev = {
-        MISC_DYNAMIC_MINOR,
-        "dtrace_ctl",
-        &ctl_fops
-};
-
 int ctl_init(void)
-{	int	ret;
-
-	ret = misc_register(&ctl_dev);
-	if (ret) {
-		printk(KERN_WARNING "ctl: Unable to register misc device\n");
-		return ret;
-		}
-
-	printk(KERN_WARNING "ctl loaded: /dev/dtrace_ctl now available\n");
+{
+	printk(KERN_WARNING "ctl loaded: /proc/pid/ctl now available\n");
 
 	return 0;
 }
@@ -455,7 +478,6 @@ void ctl_exit(void)
 {
 	hunt_cleanup();
 
-	printk(KERN_WARNING "ctl driver unloaded.\n");
-	misc_deregister(&ctl_dev);
+	printk(KERN_WARNING "ctl: /proc/pid/ctl driver unloaded.\n");
 }
 

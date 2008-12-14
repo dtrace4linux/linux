@@ -71,7 +71,6 @@ sub main
 	sleep(1);
 
 	mkdev("/dev/dtrace");
-	mkdev("/dev/dtrace_ctl");
 	mkdev("/dev/dtrace_helper");
 	mkdev("/dev/fbt");
 	

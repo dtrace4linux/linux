@@ -131,8 +131,8 @@ hunt_init()
 	fn_get_pid_task = get_proc_addr("get_pid_task");
 	if ((ptr_proc_info_file_operations = get_proc_addr("proc_info_file_operations")) == NULL) {
 		printk("ctl.c: Cannot locate proc_info_file_operations\n");
-		ptr_proc_info_file_operations->write = proc_pid_ctl_write;
 	} else {
+		ptr_proc_info_file_operations->write = proc_pid_ctl_write;
 		save_proc_info_file_operations = *ptr_proc_info_file_operations;
 	}
 }
@@ -316,13 +316,39 @@ HERE();
 	return sprintf(buffer, "hello world");
 }
 /**********************************************************************/
-/*   Write a control message.					      */
+/*   Emulate  writing  of  /proc/$$/ctl  on  solaris,  but  this  is  */
+/*   /dev/dtrace_ctl, so we need an extra argument of the PID we are  */
+/*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
+/*   tree, then we wouldnt need this hack.			      */
 /**********************************************************************/
 static int proc_pid_ctl_write(struct file *file, const char __user *buf,
             size_t count, loff_t *offset)
 {
-HERE();
-	return 0;
+	int	orig_count = count;
+	long	*ctlp;
+	struct inode *inode = file->f_path.dentry->d_inode;
+	struct task_struct *task;
+
+printk("ctl_write: count=%d\n", (int) count);
+
+	if (count < 2 * sizeof(long)) 
+		return -EIO;
+
+	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);;
+
+	ctlp = (long *) buf;
+	task_lock(task);
+printk("ctl_write: %ld %ld\n", ctlp[0], ctlp[1]);
+	switch (ctlp[0]) {
+	  case PCDSTOP:
+# if defined(PT_PTRACED)
+		// still working on this; this doesnt compile for now.
+		task->ptrace |= PT_PTRACED;
+# endif
+	  	break;
+	  }
+	task_unlock(task);
+	return orig_count;
 }
 /**********************************************************************/
 /*   Allocate the tgid base entry table if we havent done so yet.     */
@@ -415,58 +441,6 @@ static int proc_pident_readdir2(struct file *filp,
 	return proc_pident_readdir(filp, dirent, filldir, pidt, nents);
 }
 
-/*ARGSUSED*/
-static int
-ctl_open(struct inode *inode, struct file *file)
-{
-	/***********************************************/
-	/*   Might want a owner/root permission check  */
-	/*   here.				       */
-	/***********************************************/
-	return (0);
-}
-
-/**********************************************************************/
-/*   Emulate  writing  of  /proc/$$/ctl  on  solaris,  but  this  is  */
-/*   /dev/dtrace_ctl, so we need an extra argument of the PID we are  */
-/*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
-/*   tree, then we wouldnt need this hack.			      */
-/**********************************************************************/
-static ssize_t 
-ctl_write(struct file *file, const char __user *buf,
-			      size_t count, loff_t *pos)
-{
-	int	orig_count = count;
-	long	*ctlp;
-	struct inode *inode = file->f_path.dentry->d_inode;
-	struct task_struct *task;
-
-printk("ctl_write: count=%d\n", (int) count);
-
-	if (count < 2 * sizeof(long)) 
-		return -EIO;
-
-	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);;
-
-	ctlp = (long *) buf;
-	task_lock(task);
-printk("ctl_write: %ld %ld\n", ctlp[0], ctlp[1]);
-	switch (ctlp[0]) {
-	  case PCDSTOP:
-# if defined(PT_PTRACED)
-		// still working on this; this doesnt compile for now.
-		task->ptrace |= PT_PTRACED;
-# endif
-	  	break;
-	  }
-	task_unlock(task);
-	return orig_count;
-}
-static const struct file_operations ctl_fops = {
-        .open  = ctl_open,
-        .write = ctl_write,
-	.ioctl = ctl_ioctl,
-};
 
 int ctl_init(void)
 {

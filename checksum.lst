@@ -136,7 +136,7 @@ cceb499b size=3647    mtime=1224417136 ./doc/usdt.html
 f9a55709 size=3628    mtime=1229124917 ./drivers/checksum.lst
 279c2508 size=95      mtime=1215553111 ./drivers/dtrace/.gdbinit
 39bcc285 size=1338    mtime=1225149543 ./drivers/dtrace/Makefile
-cad1ed66 size=2064    mtime=1229292477 ./drivers/dtrace/checksum.lst
+c0908f26 size=2064    mtime=1229384209 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -144,7 +144,7 @@ f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 9f4023ec size=2210    mtime=1209938771 ./drivers/dtrace/ctf_subr.c
 b33c7986 size=22411   mtime=1212251961 ./drivers/dtrace/ctf_types.c
 d1e21501 size=2694    mtime=1212268299 ./drivers/dtrace/ctf_util.c
-d5288d1c size=16193   mtime=1229291988 ./drivers/dtrace/ctl.c
+4500e2a3 size=15506   mtime=1229384206 ./drivers/dtrace/ctl.c
 21ff7626 size=108179  mtime=1213994232 ./drivers/dtrace/cyclic.c
 594180cd size=4719    mtime=1215036314 ./drivers/dtrace/cyclic_linux.c
 10589bbe size=113949  mtime=1212273673 ./drivers/dtrace/dis_tables.c

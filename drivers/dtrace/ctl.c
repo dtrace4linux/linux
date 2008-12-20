@@ -335,6 +335,7 @@ printk("ctl_write: count=%d\n", (int) count);
 		return -EIO;
 
 	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);;
+printk("task=%p\n", task);
 
 	ctlp = (long *) buf;
 	task_lock(task);

@@ -60,13 +60,15 @@ release:
 
 all:
 	tools/libgcc.pl
-	if [ `uname -m` != x86_64 ]; then \
+	case `uname -m` in \
+	  x86-64) \
+		tools/mksyscall.pl x86-64 ; \
+		;; \
+	  *) \
 	  	export PTR32="-D_ILP32 -D_LONGLONG_TYPE" ; \
 		export BUILD_i386=1 ; \
 		tools/mksyscall.pl x86 ; \
-	else \
-		tools/mksyscall.pl x86-64 ; \
-	fi ; \
+	esac ; \
 	if [ ! -d build ] ; then \
 		mkdir build ; \
 	fi ; \

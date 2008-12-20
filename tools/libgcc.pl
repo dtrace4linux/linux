@@ -49,6 +49,11 @@ EOF
 				}
 
 				print "$wd\n";
+				###############################################
+				#   Remove   destination   -   we  may  have  #
+				#   upgraded our OS.			      #
+				###############################################
+				unlink("build/x86-32/libgcc.a");
 				if (!symlink("$wd/libgcc.a", "build/x86-32/libgcc.a")) {
 					print "Error creating symlink build/libgcc.a -- $!\n";
 					exit(1);

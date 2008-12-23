@@ -61,15 +61,15 @@
 #define	SYSTRACE_ENTRY(id)		((1 << SYSTRACE_SHIFT) | (id))
 #define	SYSTRACE_RETURN(id)		(id)
 
-# if !defined(__NR_syscall_max)
-#	define NSYSCALL NR_syscalls
-# else
-#	define NSYSCALL __NR_syscall_max
+# if !defined(__NR_syscall_max)                                              
+#       if !defined(NR_syscalls)                                             
+#               define NSYSCALL (sizeof syscallnames / sizeof syscallnames[0])
+#       else                                                                 
+#               define NSYSCALL NR_syscalls                                  
+#       endif                                                                
+# else                                                                       
+#       define NSYSCALL __NR_syscall_max                                     
 # endif
-
-#if ((1 << SYSTRACE_SHIFT) <= NSYSCALL)
-#error 1 << SYSTRACE_SHIFT must exceed number of system calls
-#endif
 
 /**********************************************************************/
 /*   Get a list of system call names here.			      */
@@ -381,9 +381,14 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	/*   dont care for now.			       */
 	/***********************************************/
 #define kern_to_page(kaddr)     pfn_to_page(((unsigned long) kaddr) >> PAGE_SHIFT)
-	change_page_attr(kern_to_page(&sysent[sysnum].sy_callc), 1, PAGE_KERNEL);
-	HERE();
-	global_flush_tlb();
+
+#	if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+		set_pages_rw(kern_to_page(&sysent[sysnum].sy_callc), 1);
+#	else
+		change_page_attr(kern_to_page(&sysent[sysnum].sy_callc), 1, PAGE_KERNEL);
+		HERE();
+		global_flush_tlb();
+#	endif
 # else
 	/***********************************************/
 	/*   In  2.6.24.4 and related kernels, x86-64  */
@@ -520,6 +525,14 @@ static int initted;
 int systrace_init(void)
 {	int	ret;
 
+	/***********************************************/
+	/*   This  is  a  run-time  and not a compile  */
+	/*   time test.				       */
+	/***********************************************/
+	if ((1 << SYSTRACE_SHIFT) <= NSYSCALL) {
+		printk("systrace: 1 << SYSTRACE_SHIFT must exceed number of system calls\n");
+		return 0;
+	}
 	ret = misc_register(&systrace_dev);
 	if (ret) {
 		printk(KERN_WARNING "systrace: Unable to register misc device\n");

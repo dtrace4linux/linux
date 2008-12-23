@@ -295,7 +295,7 @@ HERE();
 	pp->p_addr = (caddr_t *) cp;
 	pp->p_value = *(int32_t *) cp;
 
-# if __amd64
+# if defined(__amd64)
 	/***********************************************/
 	/*   64-bit    code    uses    RIP   relative  */
 	/*   addressing.			       */
@@ -406,18 +406,6 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
 		}
 
 	return proc_pident_lookup(dir, dentry, pidt, nents);
-}
-/**********************************************************************/
-/*   Handle /procfs style ioctls on the process.		      */
-/**********************************************************************/
-static int
-ctl_ioctl(struct inode *ino, struct file *filp,
-           unsigned int cmd, unsigned long arg)
-{
-        switch (cmd) {
-                default:
-                        return -EINVAL;
-        }
 }
 
 /**********************************************************************/

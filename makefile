@@ -43,6 +43,8 @@ release:
 		--exclude=*.so \
 		--exclude=*.mod.c \
 		--exclude=build/dtrace \
+		--exclude=build/simple-c \
+		--exclude=build/simple-cpp \
 		--exclude=libdtrace/dt_grammar.h \
 		--exclude=libdtrace/dt_lex.c \
 		--exclude=.tmp_versions \
@@ -61,7 +63,7 @@ release:
 all:
 	tools/libgcc.pl
 	case `uname -m` in \
-	  x86-64) \
+	  x86*64) \
 		tools/mksyscall.pl x86-64 ; \
 		;; \
 	  *) \
@@ -89,6 +91,8 @@ all0:
 
 clean:
 	rm -rf build/*
+	rm -f usdt/*/*.o
+	rm -f usdt/*/*.so
 	cd libctf ; $(MAKE) clean
 	cd libdtrace ; $(MAKE) clean
 	cd liblinux ; $(MAKE) clean
@@ -101,9 +105,10 @@ clean:
 
 newf:
 	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \
-		grep -v ./build | grep -v ./tags | \
+		grep -v /build | grep -v ./tags | \
 		grep -v ./cmd/dtrace/dtrace$$ | \
 		grep -v dt_grammar.h | \
+		grep -v '\*.so' | \
 		grep -v '\.o$$'`
 
 test:

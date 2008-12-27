@@ -11,6 +11,7 @@ CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 LIB = ../build/liblinux.a
 
 $(LIB): \
+	$(LIB)(getopt.o) \
 	$(LIB)(gmatch.o) \
 	$(LIB)(proc.o) \
 	$(LIB)(proc2.o) \

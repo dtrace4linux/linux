@@ -4,8 +4,12 @@
 ./libdtrace/dt_grammar.h
 ./libdtrace/dt_lex.c
 ./usdt/c/simple.o
+./usdt/c/shlib.so
 ./usdt/cpp/simple.o
+./usdt/cpp/shlib.so
 ./utils/access
 ./utils/mknod
 ./utils/pread
-
+./drivers/dtrace/syscalls-x86.tbl
+./drivers/dtrace/syscalls-x86-64.tbl
+./.git

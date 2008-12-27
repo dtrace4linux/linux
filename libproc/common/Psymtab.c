@@ -3101,6 +3101,9 @@ again:
 			/*
 			 * Bail if we have a corrupted environment
 			 */
+# if !defined(ARG_MAX)
+#	define	ARG_MAX 131072
+# endif
 			if (buflen >= ARG_MAX)
 				return (-1);
 			buflen *= 2;

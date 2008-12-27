@@ -13838,7 +13838,7 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 	mutex_enter(&dtrace_lock);
 
 HERE();
-printk("dtrace_meta_pid=%x\n", dtrace_meta_pid);
+printk("dtrace_meta_pid=%p\n", dtrace_meta_pid);
 	if (!dtrace_attached() || dtrace_meta_pid == NULL) {
 HERE();
 		/*

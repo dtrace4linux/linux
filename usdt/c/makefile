@@ -10,7 +10,7 @@ all:	../../build/simple-c
 	$(CC) -Wl,-rpath `pwd` -o ../../build/simple-c $(BITS) simple_probes.o simple.o shlib.so -ldl
 
 simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O)
-	if [ "$BUILD_i386" = 1 ]; then \
+	if [ "$$BUILD_i386" = 1 ]; then \
 		BITS=32 ; \
 	else \
 		BITS=64 ; \

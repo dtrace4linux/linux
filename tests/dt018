@@ -1,0 +1,1 @@
+dtrace -c $HOME/src/dtrace/usdt/c/simple

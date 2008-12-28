@@ -1037,6 +1037,13 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 	key_t objkey;
 	dt_link_pair_t *pair, *bufs = NULL;
 	dt_strtab_t *strtab;
+# if linux
+	/***********************************************/
+	/*   This  is  fine(?) for ELF64, but not for  */
+	/*   ELF32 -- its the .text section.	       */
+	/***********************************************/
+	int	sh_text = 1;
+# endif
 
 	if ((fd = open64(obj, O_RDWR)) == -1) {
 		return (dt_link_error(dtp, elf, fd, bufs,
@@ -1104,6 +1111,36 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		    "failed to generate unique key for object file: %s", obj));
 	}
 
+# if linux
+	/***********************************************/
+	/*   Find  the ".text" section, since we need  */
+	/*   it below.				       */
+	/***********************************************/
+	{int i;
+	GElf_Ehdr ehdr;
+	Elf_Scn *strscn;
+	GElf_Shdr hdr_str;
+
+	if (gelf_getehdr(elf, &ehdr) == NULL)
+		GOTO(err);
+	if ((strscn = elf_getscn(elf, ehdr.e_shstrndx)) == NULL)
+		GOTO(err);
+	if (gelf_getshdr(strscn, &hdr_str) == NULL)
+		GOTO(err);
+	if ((data_str = elf_getdata(strscn, NULL)) == NULL)
+		GOTO(err);
+	scn_rel = NULL;
+	for (i = 0; (scn_rel = elf_nextscn(elf, scn_rel)) != NULL; i++) {
+		if (gelf_getshdr(scn_rel, &shdr_rel) == NULL)
+			GOTO(err);
+		s = (char *)data_str->d_buf + shdr_rel.sh_name;
+		if (strcmp(s, ".text") == 0) {
+			sh_text = i + 1; /* Not sure about the +1, but it works for now */
+			break;
+		}
+	}
+	}
+# endif
 	scn_rel = NULL;
 	while ((scn_rel = elf_nextscn(elf, scn_rel)) != NULL) {
 		if (gelf_getshdr(scn_rel, &shdr_rel) == NULL)
@@ -1181,9 +1218,15 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		for (i = 0; i < shdr_rel.sh_size / shdr_rel.sh_entsize; i++) {
 
 			if (shdr_rel.sh_type == SHT_RELA) {
+				/***********************************************/
+				/*   Tend to get here for 64-bit ELF files.    */
+				/***********************************************/
 				if (gelf_getrela(data_rel, i, &rela) == NULL)
 					continue;
 			} else {
+				/***********************************************/
+				/*   Tend to get here for 32-bit ELF files.    */
+				/***********************************************/
 				GElf_Rel rel;
 				if (gelf_getrel(data_rel, i, &rel) == NULL)
 					continue;
@@ -1475,7 +1518,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			(void) gelf_update_rela(data_rel, i, &rela);
 
 			if (rsym.st_shndx != SHN_SUNW_IGNORE) {
-				rsym.st_shndx = 1;
+				rsym.st_shndx = sh_text+1;
 				(void) gelf_update_sym(data_sym, ndx, &rsym);
 			}
 # else

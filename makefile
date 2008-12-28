@@ -42,6 +42,7 @@ release:
 		--exclude=.*.cmd \
 		--exclude=*.so \
 		--exclude=*.mod.c \
+		--exclude=build/config.sh \
 		--exclude=build/dtrace \
 		--exclude=build/simple-c \
 		--exclude=build/simple-cpp \
@@ -62,6 +63,7 @@ release:
 
 all:
 	tools/libgcc.pl
+	echo >build/config.sh
 	case `uname -m` in \
 	  x86*64) \
 		tools/mksyscall.pl x86-64 ; \
@@ -69,6 +71,8 @@ all:
 	  *) \
 	  	export PTR32="-D_ILP32 -D_LONGLONG_TYPE" ; \
 		export BUILD_i386=1 ; \
+		echo export PTR32=\"$$PTR32\" > build/config.sh ; \
+		echo 'export BUILD_i386=1' >> build/config.sh ; \
 		tools/mksyscall.pl x86 ; \
 	esac ; \
 	if [ ! -d build ] ; then \

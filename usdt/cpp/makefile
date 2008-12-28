@@ -13,6 +13,7 @@ simple_probes.h: simple_probes.d
 	$(DTRACE) -h -s simple_probes.d
 
 simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O)
+	. ../../build/config.sh ; \
 	if [ "$BUILD_i386" = 1 ]; then \
 		BITS=32 ; \
 	else \

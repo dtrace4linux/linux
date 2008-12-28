@@ -43,6 +43,7 @@
 #include <linux/syscalls.h>
 #include <sys/dtrace.h>
 #include <sys/systrace.h>
+#include <dtrace_proto.h>
 
 # if defined(sun)
 #include <sys/stat.h>
@@ -115,6 +116,7 @@ void	*fbt_get_sys_call_table(void);
 void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
     uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 void	*par_setup_thread2(void);
+int (*fn_set_memory_rw)(unsigned long addr, int numpages);
 
 # define linux_get_syscall() get_current()->thread.trap_no
 
@@ -237,6 +239,8 @@ systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed)
 {
 	systrace_sysent_t *sysent = *interposed;
 	int i;
+
+	fn_set_memory_rw = get_proc_addr("set_memory_rw");
 
 	if (sysent == NULL) {
 		*interposed = sysent = kmem_zalloc(sizeof (systrace_sysent_t) *
@@ -383,7 +387,11 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 #define kern_to_page(kaddr)     pfn_to_page(((unsigned long) kaddr) >> PAGE_SHIFT)
 
 #	if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-		set_pages_rw(kern_to_page(&sysent[sysnum].sy_callc), 1);
+		if (fn_set_memory_rw == NULL) {
+			printk("systrace.c: cannot locate set_memory_rw in this kernel..aborting\n");
+			return;
+		}
+		fn_set_memory_rw(kern_to_page(&sysent[sysnum].sy_callc), 1);
 #	else
 		change_page_attr(kern_to_page(&sysent[sysnum].sy_callc), 1, PAGE_KERNEL);
 		HERE();

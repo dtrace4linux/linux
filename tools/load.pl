@@ -109,7 +109,6 @@ sub main
 		hrtimer_init
 		hrtimer_start
 		kallsyms_addresses:optional
-		kallsyms_expand_symbol
 		kallsyms_lookup_name
 		kallsyms_num_syms:optional
 		kallsyms_op:optional
@@ -125,10 +124,13 @@ sub main
 			}
 			next if !defined($syms{$rawsym});
 			my $fh = new FileHandle(">/dev/fbt");
+			if (!$fh) {
+				print "Cannot open /dev/fbt -- $!\n";
+			}
                         if (1 < $opts{v}) {
                           print STDERR "echo \"$syms{$rawsym}\" > /dev/fbt\n";
                         }
-                        print $fh $syms{$rawsym} . "\n";
+                        print $fh $syms{$rawsym} . "\n" if $fh;
 			$done = 1;
 			last;
 		}

@@ -344,6 +344,8 @@ printk("ctl_write: %ld %ld\n", ctlp[0], ctlp[1]);
 	  case PCDSTOP:
 # if defined(PT_PTRACED)
 		// still working on this; this doesnt compile for now.
+		// Mustnt leave this set on proc exit, else we BUG() in the
+		// kernel: exit.c:889
 		task->ptrace |= PT_PTRACED;
 # endif
 	  	break;

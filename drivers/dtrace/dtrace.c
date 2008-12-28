@@ -12158,7 +12158,7 @@ printk("secnum=%d\n", dof->dofh_secnum);
 		}
 
 HERE();
-printk("sec %d: type=%d flags=%d align=%d offset=%d\n", i, sec->dofs_type, sec->dofs_flags, sec->dofs_align, sec->dofs_offset);
+printk("sec %d: type=%d flags=%d align=%d offset=%d\n", i, sec->dofs_type, sec->dofs_flags, sec->dofs_align, (int) sec->dofs_offset);
 		if (!(sec->dofs_flags & DOF_SECF_LOAD))
 			continue; /* just ignore non-loadable sections */
 

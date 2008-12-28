@@ -1,3 +1,14 @@
+Sun Dec 28 00:02:27 2008  fox
+
+     109* dtrace_linux.c: Remove old no-longer needed kernel dependencies
+          so we can compile on 2.6.28
+
+     108* drivers/dtrace/systrace.c: Fixes to build on 2.6.27.10 kernel
+          for 32-bit.
+
+     107* dt_link.c: Generate correct ELF patchups for 32-bit libc6 code.
+          (usdt now builds the user space simple executable)
+
 Sat Dec 27 04:35:47 2008  fox
 
      106* liblinux/getopt.c: Add this because some getopt()s are doing

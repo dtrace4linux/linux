@@ -93,7 +93,7 @@ void *fbt_get_hrtimer_init(void);
 /**********************************************************************/
 static int (*fn_hrtimer_init)(struct hrtimer *timer, clockid_t which_clock,
                          enum hrtimer_mode mode);
-static int (*fn_hrtimer_cancel)(struct hrtime *);
+static int (*fn_hrtimer_cancel)(struct hrtimer *);
 static int (*fn_hrtimer_start)(struct hrtimer *timer, ktime_t tim,
                          const enum hrtimer_mode mode);
 

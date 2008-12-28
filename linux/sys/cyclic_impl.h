@@ -425,7 +425,7 @@ typedef struct cyc_backend {
 } cyc_backend_t;
 
 extern void cyclic_init(cyc_backend_t *be, hrtime_t resolution);
-extern void cyclic_mp_init();
+extern void cyclic_mp_init(void);
 
 #ifdef DEBUG
 #define	CYCLIC_TRACE

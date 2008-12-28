@@ -50,8 +50,8 @@ static struct map {
 /* 0 */	{"kallsyms_op",            NULL},
 /* 1 */	{"kallsyms_num_syms",      NULL},
 /* 2 */	{"kallsyms_addresses",     NULL},
-/* 3 */	{"kallsyms_expand_symbol", NULL},
-/* 4 */	{"get_symbol_offset",      NULL},
+/* 3 */	{"kallsyms_expand_symbol", NULL}, /* No longer needed. */
+/* 4 */	{"get_symbol_offset",      NULL}, /* No longer needed. */
 /* 5 */	{"kallsyms_lookup_name",   NULL},
 /* 6 */	{"modules",                NULL},
 /* 7 */	{"__symbol_get",           NULL},
@@ -70,8 +70,6 @@ static struct map {
 	};
 static int xkallsyms_num_syms;
 static long *xkallsyms_addresses;
-static unsigned int (*xkallsyms_expand_symbol)(int, char *);
-static unsigned int (*xget_symbol_offset)(int);
 static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void *(*x__symbol_get)(const char *);
@@ -192,7 +190,7 @@ dump_mem(char *cp, int len)
 			sprintf(buf + strlen(buf), "%02x ", *cp++ & 0xff);
 			}
 		strcat(buf, "\n");
-		printk(buf);
+		printk("%s", buf);
 		}
 }
 /**********************************************************************/
@@ -616,7 +614,7 @@ prfind(int p)
 	struct task_struct *tp = find_task_by_vpid(p);
 
 	if (!tp)
-		return tp;
+		return (proc_t *) tp;
 HERE();
 	return par_setup_thread1(tp);
 }
@@ -665,7 +663,7 @@ syms_write(struct file *file, const char __user *buf,
 			    	break;
 		}
 		if (mp->m_name != NULL) {
-			mp->m_ptr = simple_strtoul(buf, NULL, 16);
+			mp->m_ptr = (unsigned long *) simple_strtoul(buf, NULL, 16);
 			if (1 || dtrace_here)
 				printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
 		}
@@ -675,41 +673,10 @@ syms_write(struct file *file, const char __user *buf,
 	if (syms[1].m_ptr)
 		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
 	xkallsyms_addresses 	= (long *) syms[2].m_ptr;
-	xkallsyms_expand_symbol = (unsigned int (*)(int, char *)) syms[3].m_ptr;
-	xget_symbol_offset 	= (unsigned int (*)(int)) syms[4].m_ptr;
 	xkallsyms_lookup_name 	= (unsigned long (*)(char *)) syms[5].m_ptr;
 	xmodules 		= (void *) syms[6].m_ptr;
 	x__symbol_get		= (void *(*)(const char *)) syms[7].m_ptr;
 	xsys_call_table 	= (void **) syms[8].m_ptr;
-
-	/***********************************************/
-	/*   Dump out the symtab for debugging.	       */
-	/***********************************************/
-# if 0
-	if (xkallsyms_num_syms > 0 && xkallsyms_addresses) {
-		int	i;
-		unsigned int off = 0;
-		for (i = 0; i < 10 && i < xkallsyms_num_syms; i++) {
-			unsigned long addr = xkallsyms_addresses[i];
-			char buf[512];
-			off = xkallsyms_expand_symbol(off, buf);
-			printk("%d: %p '%s'\n", i, addr, buf);
-			}
-	}
-# endif
-
-# if 0
-	if (xget_symbol_offset && xkallsyms_expand_symbol) {
-		int	i;
-		unsigned int off = 0;
-		for (i = 0; i < 2; i++) {
-			unsigned long addr = (*xget_symbol_offset)(i);
-			char buf[512];
-			off = xkallsyms_expand_symbol(addr, buf);
-			printk("%d: %p '%s'\n", i, addr, buf);
-			}
-	}
-# endif
 
 	/***********************************************/
 	/*   On 2.6.23.1 kernel I have, in i386 mode,  */
@@ -868,6 +835,7 @@ helper_read(ctf_file_t *fp, int fd)
 {
 	return -EIO;
 }
+/*
 static int 
 helper_read_proc(char *page, char **start, off_t off, int count, int *eof, void *data)
 {	int len;
@@ -876,6 +844,7 @@ helper_read_proc(char *page, char **start, off_t off, int count, int *eof, void 
 	len = sprintf(page, "hello");
 	return 0;
 }
+*/
 /**********************************************************************/
 /*   Invoked  by  drti.c  -- the USDT .o file linked into apps which  */
 /*   provide user space dtrace probes.				      */

@@ -83,6 +83,8 @@ struct dentry *(*proc_pident_lookup)(struct inode *dir,
 int (*proc_pident_readdir)(struct file *filp,
                 void *dirent, filldir_t filldir,
                 const struct pid_entry *ents, unsigned int nents);
+int (*fn_profile_event_register)(enum profile_type type, struct notifier_block *n);
+int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block *n);
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -100,6 +102,11 @@ static int proc_pident_readdir2(struct file *filp,
 static void hunt_proc_tgid_base_lookup(void);
 static void hunt_proc_tgid_base_readdir(void);
 
+static int proc_notifier(struct notifier_block *, unsigned long, void *);
+static struct notifier_block n = {
+	.notifier_call = proc_notifier,
+	};
+
 /**********************************************************************/
 /*   Free up and unpatch anything we modified.			      */
 /**********************************************************************/
@@ -115,6 +122,9 @@ hunt_cleanup()
 
 	if (ptr_proc_info_file_operations)
 		*ptr_proc_info_file_operations = save_proc_info_file_operations;
+
+	if (fn_profile_event_unregister)
+		fn_profile_event_unregister(PROFILE_TASK_EXIT, &n);
 }
 /**********************************************************************/
 /*   Called  from  dtrace_linux.c after get_proc_addr() is ready for  */
@@ -123,6 +133,13 @@ hunt_cleanup()
 void
 hunt_init()
 {
+static int first_time = TRUE;
+
+	if (!first_time)
+		return;
+
+	first_time = FALSE;
+
 	hunt_proc_tgid_base_lookup();
 	hunt_proc_tgid_base_readdir();
 
@@ -134,6 +151,21 @@ hunt_init()
 	} else {
 		ptr_proc_info_file_operations->write = proc_pid_ctl_write;
 		save_proc_info_file_operations = *ptr_proc_info_file_operations;
+	}
+
+	fn_profile_event_register = 
+		(int (*)(enum profile_type type, struct notifier_block *n))
+			get_proc_addr("profile_event_register");
+	fn_profile_event_unregister = 
+		(int (*)(enum profile_type type, struct notifier_block *n))
+			get_proc_addr("profile_event_unregister");
+
+	/***********************************************/
+	/*   We  need to intercept proc death in case  */
+	/*   we are tracing it.			       */
+	/***********************************************/
+	if (fn_profile_event_register) {
+		fn_profile_event_register(PROFILE_TASK_EXIT, &n);
 	}
 }
 /**********************************************************************/
@@ -334,8 +366,8 @@ printk("ctl_write: count=%d\n", (int) count);
 	if (count < 2 * sizeof(long)) 
 		return -EIO;
 
-	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);;
-printk("task=%p\n", task);
+	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);
+printk("task=%p pid=%p\n", task, PROC_I(inode)->pid);
 
 	ctlp = (long *) buf;
 	task_lock(task);
@@ -362,13 +394,13 @@ patch_tgid_base_stuff(const struct pid_entry *ents, int nents)
 	void	*ptr;
 	struct pid_entry *tgid_base_stuff = NULL;
 
-HERE();
 	if (tgid_base_stuff_2 == NULL &&
 	    (ptr = get_proc_addr("proc_info_file_operations")) != NULL &&
 	    (tgid_base_stuff = get_proc_addr("tgid_base_stuff")) != NULL &&
 	    (unsigned) tgid_base_stuff[0].len < 32 &&
 	    (unsigned) tgid_base_stuff[1].len < 32) {
 
+HERE();
 	    	/***********************************************/
 	    	/*   Sanity check that the op structure looks  */
 	    	/*   reasonable.			       */
@@ -388,6 +420,15 @@ HERE();
 		}
 }
 /**********************************************************************/
+/*   Call on proc exit, so we can detach ourselves from the proc.     */
+/**********************************************************************/
+static int 
+proc_notifier(struct notifier_block *n, unsigned long code, void *ptr)
+{
+printk("proc_notifier: code=%lu ptr=%p\n", code, ptr);
+	return 0;
+}
+/**********************************************************************/
 /*   Intercept  calls  to  proc_pident_lookup so we can patch in the  */
 /*   /ctl sub-entry.						      */
 /**********************************************************************/
@@ -398,6 +439,7 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
 {	const struct pid_entry *pidt = ents;
 
 	patch_tgid_base_stuff(ents, nents);
+HERE();
 
 	/***********************************************/
 	/*   Handle sanity failure above.	       */
@@ -407,6 +449,7 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
 		pidt = tgid_base_stuff_2;
 		}
 
+HERE();
 	return proc_pident_lookup(dir, dentry, pidt, nents);
 }
 
@@ -424,11 +467,13 @@ static int proc_pident_readdir2(struct file *filp,
 	/***********************************************/
 	/*   Handle sanity failure above.	       */
 	/***********************************************/
+HERE();
 	if (tgid_base_stuff_2) {
 		nents++;
 		pidt = tgid_base_stuff_2;
 		}
 
+HERE();
 	return proc_pident_readdir(filp, dirent, filldir, pidt, nents);
 }
 

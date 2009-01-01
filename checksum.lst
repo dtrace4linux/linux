@@ -1,5 +1,5 @@
 57fb91aa size=65      mtime=1217317018 ./.gdbinit
-b53e5af0 size=294     mtime=1230353988 ./.ignore
+6e6513dc size=309     mtime=1230664359 ./.ignore
 cfe34ea4 size=2278    mtime=1225141603 ./Bugs
 1aed6627 size=14321   mtime=1230503021 ./Changes
 b78bfde9 size=631     mtime=1215963461 ./Differences
@@ -7,7 +7,7 @@ fed0c352 size=18945   mtime=1106593216 ./LICENSING.NOTICE
 4ac00e19 size=712     mtime=1217667313 ./Packages
 071025a0 size=3779    mtime=1215125212 ./README
 00000000 size=0       mtime=1216581733 ./TIMESTAMP
-00000000 size=1       mtime=1230477998 ./build/config.sh
+00000000 size=1       mtime=1230571466 ./build/config.sh
 288e6cea size=48199   mtime=1230338836 ./cmd/dtrace/dtrace.c
 df966664 size=879     mtime=1215861176 ./cmd/dtrace/makefile
 118f26ce size=801     mtime=1106592642 ./cmd/intrstat/Makefile
@@ -137,7 +137,7 @@ cceb499b size=3647    mtime=1224417136 ./doc/usdt.html
 f9a55709 size=3628    mtime=1229124917 ./drivers/checksum.lst
 279c2508 size=95      mtime=1215553111 ./drivers/dtrace/.gdbinit
 39bcc285 size=1338    mtime=1225149543 ./drivers/dtrace/Makefile
-c0908f26 size=2064    mtime=1229384209 ./drivers/dtrace/checksum.lst
+821d5bab size=2064    mtime=1230669700 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -145,7 +145,7 @@ f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 9f4023ec size=2210    mtime=1209938771 ./drivers/dtrace/ctf_subr.c
 b33c7986 size=22411   mtime=1212251961 ./drivers/dtrace/ctf_types.c
 d1e21501 size=2694    mtime=1212268299 ./drivers/dtrace/ctf_util.c
-3af3ecdf size=15103   mtime=1230508272 ./drivers/dtrace/ctl.c
+97145186 size=16580   mtime=1230669691 ./drivers/dtrace/ctl.c
 21ff7626 size=108179  mtime=1213994232 ./drivers/dtrace/cyclic.c
 b72b2063 size=4720    mtime=1230480351 ./drivers/dtrace/cyclic_linux.c
 10589bbe size=113949  mtime=1212273673 ./drivers/dtrace/dis_tables.c

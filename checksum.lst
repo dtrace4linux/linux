@@ -137,7 +137,7 @@ cceb499b size=3647    mtime=1224417136 ./doc/usdt.html
 f9a55709 size=3628    mtime=1229124917 ./drivers/checksum.lst
 279c2508 size=95      mtime=1215553111 ./drivers/dtrace/.gdbinit
 39bcc285 size=1338    mtime=1225149543 ./drivers/dtrace/Makefile
-821d5bab size=2064    mtime=1230669700 ./drivers/dtrace/checksum.lst
+0c8bbdc1 size=2064    mtime=1230842959 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -145,13 +145,13 @@ f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 9f4023ec size=2210    mtime=1209938771 ./drivers/dtrace/ctf_subr.c
 b33c7986 size=22411   mtime=1212251961 ./drivers/dtrace/ctf_types.c
 d1e21501 size=2694    mtime=1212268299 ./drivers/dtrace/ctf_util.c
-97145186 size=16580   mtime=1230669691 ./drivers/dtrace/ctl.c
+febed4a3 size=16754   mtime=1230932049 ./drivers/dtrace/ctl.c
 21ff7626 size=108179  mtime=1213994232 ./drivers/dtrace/cyclic.c
 b72b2063 size=4720    mtime=1230480351 ./drivers/dtrace/cyclic_linux.c
 10589bbe size=113949  mtime=1212273673 ./drivers/dtrace/dis_tables.c
 021c331d size=3096    mtime=1209891441 ./drivers/dtrace/dis_tables.h
 885d2e9d size=1612    mtime=1217616163 ./drivers/dtrace/divmod64.c
-57462391 size=414784  mtime=1230423037 ./drivers/dtrace/dtrace.c
+be9d4eb9 size=414776  mtime=1230842450 ./drivers/dtrace/dtrace.c
 8495c1ec size=6733    mtime=1229122208 ./drivers/dtrace/dtrace_asm.c
 8dd62f6b size=18007   mtime=1229119687 ./drivers/dtrace/dtrace_isa.c
 f5737078 size=28044   mtime=1230503602 ./drivers/dtrace/dtrace_linux.c
@@ -306,7 +306,7 @@ da503e97 size=474     mtime=1106592654 ./libproc/amd64/Makefile
 35b23c24 size=14116   mtime=1215942038 ./libproc/amd64/Pisadep.c
 d41399eb size=22392   mtime=1215962768 ./libproc/common/P32ton.c
 01a51a09 size=2994    mtime=1215858247 ./libproc/common/P32ton.h
-8c7495ff size=88362   mtime=1227468580 ./libproc/common/Pcontrol.c
+8d3b3cad size=88687   mtime=1230931619 ./libproc/common/Pcontrol.c
 1da7c045 size=11958   mtime=1215858464 ./libproc/common/Pcontrol.h
 93e8c9ad size=58197   mtime=1215879758 ./libproc/common/Pcore.c
 69179533 size=8946    mtime=1215859244 ./libproc/common/Pexecname.c

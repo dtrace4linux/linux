@@ -7,13 +7,13 @@ f6df25f1 size=9259    mtime=1229158409 ./ctf_lookup.c
 9f4023ec size=2210    mtime=1209938771 ./ctf_subr.c
 b33c7986 size=22411   mtime=1212251961 ./ctf_types.c
 d1e21501 size=2694    mtime=1212268299 ./ctf_util.c
-f69993dc size=16735   mtime=1230840574 ./ctl.c
+35487956 size=16735   mtime=1230842955 ./ctl.c
 21ff7626 size=108179  mtime=1213994232 ./cyclic.c
 b72b2063 size=4720    mtime=1230480351 ./cyclic_linux.c
 10589bbe size=113949  mtime=1212273673 ./dis_tables.c
 021c331d size=3096    mtime=1209891441 ./dis_tables.h
 885d2e9d size=1612    mtime=1217616163 ./divmod64.c
-57462391 size=414784  mtime=1230423037 ./dtrace.c
+be9d4eb9 size=414776  mtime=1230842450 ./dtrace.c
 8495c1ec size=6733    mtime=1229122208 ./dtrace_asm.c
 8dd62f6b size=18007   mtime=1229119687 ./dtrace_isa.c
 f5737078 size=28044   mtime=1230503602 ./dtrace_linux.c

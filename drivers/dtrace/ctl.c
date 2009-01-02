@@ -424,8 +424,10 @@ HERE();
 /**********************************************************************/
 static int 
 proc_notifier(struct notifier_block *n, unsigned long code, void *ptr)
-{
-printk("proc_notifier: code=%lu ptr=%p\n", code, ptr);
+{	struct task_struct *task = (struct task_struct *) ptr;
+
+printk("proc_notifier: code=%lu ptr=%p ptrace=%lx\n", code, ptr, task->ptrace);
+	task->ptrace = 0;
 	return 0;
 }
 /**********************************************************************/
@@ -439,7 +441,6 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
 {	const struct pid_entry *pidt = ents;
 
 	patch_tgid_base_stuff(ents, nents);
-HERE();
 
 	/***********************************************/
 	/*   Handle sanity failure above.	       */

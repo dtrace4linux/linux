@@ -1310,6 +1310,7 @@ Psync(struct ps_prochandle *P)
 	int n = 0;
 
 	if (P->flags & SETHOLD) {
+printf("%s(%d): sync SETHOLD\n", __FILE__, __LINE__);
 		cmd[0] = PCSHOLD;
 		iov[n].iov_base = (caddr_t)&cmd[0];
 		iov[n++].iov_len = sizeof (long);
@@ -1317,6 +1318,7 @@ Psync(struct ps_prochandle *P)
 		iov[n++].iov_len = sizeof (P->status.pr_lwp.pr_lwphold);
 	}
 	if (P->flags & SETREGS) {
+printf("%s(%d): sync SETREGS\n", __FILE__, __LINE__);
 		cmd[1] = PCSREG;
 #ifdef __i386
 		/* XX64 we should probably restore REG_GS after this */
@@ -1331,6 +1333,7 @@ Psync(struct ps_prochandle *P)
 		iov[n++].iov_len = sizeof (P->status.pr_lwp.pr_reg);
 	}
 	if (P->flags & SETSIG) {
+printf("%s(%d): sync SETSIG\n", __FILE__, __LINE__);
 		cmd[2] = PCSTRACE;
 		iov[n].iov_base = (caddr_t)&cmd[2];
 		iov[n++].iov_len = sizeof (long);
@@ -1338,6 +1341,7 @@ Psync(struct ps_prochandle *P)
 		iov[n++].iov_len = sizeof (P->status.pr_sigtrace);
 	}
 	if (P->flags & SETFAULT) {
+printf("%s(%d): sync SETFAULT\n", __FILE__, __LINE__);
 		cmd[3] = PCSFAULT;
 		iov[n].iov_base = (caddr_t)&cmd[3];
 		iov[n++].iov_len = sizeof (long);
@@ -1345,6 +1349,7 @@ Psync(struct ps_prochandle *P)
 		iov[n++].iov_len = sizeof (P->status.pr_flttrace);
 	}
 	if (P->flags & SETENTRY) {
+printf("%s(%d): sync SETENTRY\n", __FILE__, __LINE__);
 		cmd[4] = PCSENTRY;
 		iov[n].iov_base = (caddr_t)&cmd[4];
 		iov[n++].iov_len = sizeof (long);
@@ -1352,6 +1357,7 @@ Psync(struct ps_prochandle *P)
 		iov[n++].iov_len = sizeof (P->status.pr_sysentry);
 	}
 	if (P->flags & SETEXIT) {
+printf("%s(%d): sync SETEXIT\n", __FILE__, __LINE__);
 		cmd[5] = PCSEXIT;
 		iov[n].iov_base = (caddr_t)&cmd[5];
 		iov[n++].iov_len = sizeof (long);

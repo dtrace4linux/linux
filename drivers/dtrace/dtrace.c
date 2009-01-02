@@ -7565,7 +7565,6 @@ static int
 dtrace_probe_lookup_match(dtrace_probe_t *probe, void *arg)
 {
 	*((dtrace_id_t *)arg) = probe->dtpr_id;
-HERE();
 
 	return (DTRACE_MATCH_DONE);
 }

@@ -40,6 +40,34 @@
 #define PCSTOP   1L     /* direct process or lwp to stop and wait for stop */
 #define PCDSTOP  2L     /* direct process or lwp to stop */
 #define PCWSTOP  3L     /* wait for process or lwp to stop, no timeout */
+#define PCTWSTOP 4L     /* wait for stop, with long millisecond timeout arg */
+#define	PCRUN    5L     /* make process/lwp runnable, w/ long flags argument */
+#define PCCSIG   6L     /* clear current signal from lwp */
+#define PCCFAULT 7L     /* clear current fault from lwp */
+#define PCSSIG   8L     /* set current signal from siginfo_t argument */
+#define PCKILL   9L     /* post a signal to process/lwp, long argument */
+#define PCUNKILL 10L    /* delete a pending signal from process/lwp, long arg */
+#define PCSHOLD  11L    /* set lwp signal mask from sigset_t argument */
+#define PCSTRACE 12L    /* set traced signal set from sigset_t argument */
+#define PCSFAULT 13L    /* set traced fault set from fltset_t argument */
+#define PCSENTRY 14L    /* set traced syscall entry set from sysset_t arg */
+#define PCSEXIT  15L    /* set traced syscall exit set from sysset_t arg */
+#define PCSET    16L    /* set modes from long argument */
+#define PCUNSET  17L    /* unset modes from long argument */
+#define PCSREG   18L    /* set lwp general registers from prgregset_t arg */
+#define PCSFPREG 19L    /* set lwp floating-point registers from prfpregset_t */
+#define PCSXREG  20L    /* set lwp extra registers from prxregset_t arg */
+#define PCNICE   21L    /* set nice priority from long argument */
+#define PCSVADDR 22L    /* set %pc virtual address from long argument */
+#define PCWATCH  23L    /* set/unset watched memory area from prwatch_t arg */
+#define PCAGENT  24L    /* create agent lwp with regs from prgregset_t arg */
+#define PCREAD   25L    /* read from the address space via priovec_t arg */
+#define PCWRITE  26L    /* write to the address space via priovec_t arg */
+#define PCSCRED  27L    /* set process credentials from prcred_t argument */
+#define PCSASRS  28L    /* set ancillary state registers from asrset_t arg */
+#define PCSPRIV  29L    /* set process privileges from prpriv_t argument */
+#define PCSZONE  30L    /* set zoneid from zoneid_t argument */
+#define PCSCREDX 31L    /* as PCSCRED but with supplemental groups */
 
 static void *(*fn_get_pid_task)();
 
@@ -357,32 +385,74 @@ static int proc_pid_ctl_write(struct file *file, const char __user *buf,
             size_t count, loff_t *offset)
 {
 	int	orig_count = count;
-	long	*ctlp;
+	long	*ctlp = (long *) buf;
+	long	*ctlend = (long *) (buf + count);
 	struct inode *inode = file->f_path.dentry->d_inode;
 	struct task_struct *task;
 
-printk("ctl_write: count=%d\n", (int) count);
-
-	if (count < 2 * sizeof(long)) 
-		return -EIO;
-
 	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);
-printk("task=%p pid=%p\n", task, PROC_I(inode)->pid);
+printk("ctl_write: count=%d task=%p pid=%p\n", (int) count,
+task, PROC_I(inode)->pid);
 
-	ctlp = (long *) buf;
-	task_lock(task);
-printk("ctl_write: %ld %ld\n", ctlp[0], ctlp[1]);
-	switch (ctlp[0]) {
-	  case PCDSTOP:
-# if defined(PT_PTRACED)
-		// still working on this; this doesnt compile for now.
-		// Mustnt leave this set on proc exit, else we BUG() in the
-		// kernel: exit.c:889
-		task->ptrace |= PT_PTRACED;
-# endif
-	  	break;
-	  }
-	task_unlock(task);
+	while (ctlp < ctlend) {
+		int	size = 1;
+		int	skip_out = FALSE;
+
+	printk("ctl_write: %s ctl[0]=%lx ctlp[1]=%lx\n", 
+		ctlp[0] == PCNULL ? "PCNULL" : 
+		ctlp[0] == PCSTOP ? "PCSTOP" :
+		ctlp[0] == PCDSTOP ? "PCDSTOP" :
+		ctlp[0] == PCWSTOP ? "PCWSTOP" :
+		ctlp[0] == PCTWSTOP ? "PCTWSTOP" :
+		ctlp[0] == PCRUN ? "PCRUN" :
+		ctlp[0] == PCSENTRY ? "PCSENTRY" :
+		ctlp[0] == PCSEXIT ? "PCSEXIT" : "??",
+		ctlp[0], ctlp[1]);
+		switch (ctlp[0]) {
+		  case PCNULL:
+		  	/***********************************************/
+		  	/*   Null request - do nothing.		       */
+		  	/***********************************************/
+		  	break;
+
+		  case PCDSTOP:
+			// still working on this; this doesnt compile for now.
+			//task_lock(task);
+	//		task->ptrace |= PT_PTRACED;
+			force_sig(SIGSTOP, task);
+			//task_unlock(task);
+	//		send_sig_info(SIGSTOP, SEND_SIG_FORCED, task);
+			size = 3;
+		  	break;
+		  case PCWSTOP:
+		  case PCTWSTOP:
+		  	/***********************************************/
+		  	/*   Wait  for  process  to  stop. ctlp[1] is  */
+		  	/*   msec to wait.			       */
+		  	/***********************************************/
+			while (task->state <= 0) {
+				msleep(1000);
+				printk("tick stop: %lx\n", task->state);
+			}
+			size = 2;
+		  	break;
+		  case PCRUN:
+		  	/***********************************************/
+		  	/*   Make proc runnable again.		       */
+		  	/***********************************************/
+			force_sig(SIGCONT, task);
+			break;
+		  default:
+		  	printk("ctl: parse error - skipping out\n");
+			skip_out = TRUE;
+			break;
+		  }
+		if (skip_out)
+			break;
+
+		count -= size * sizeof(long);
+		ctlp += size;
+		}
 	return orig_count;
 }
 /**********************************************************************/
@@ -426,8 +496,8 @@ static int
 proc_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct task_struct *task = (struct task_struct *) ptr;
 
-printk("proc_notifier: code=%lu ptr=%p ptrace=%lx\n", code, ptr, task->ptrace);
-	task->ptrace = 0;
+printk("proc_notifier: code=%lu ptr=%p ptrace=%lx\n", code, ptr, (long) task->ptrace);
+//	task->ptrace = 0;
 	return 0;
 }
 /**********************************************************************/
@@ -468,7 +538,6 @@ static int proc_pident_readdir2(struct file *filp,
 	/***********************************************/
 	/*   Handle sanity failure above.	       */
 	/***********************************************/
-HERE();
 	if (tgid_base_stuff_2) {
 		nents++;
 		pidt = tgid_base_stuff_2;

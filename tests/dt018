@@ -1,1 +1,1 @@
-dtrace -c $HOME/src/dtrace/usdt/c/simple
+dtrace -c $HOME/src/dtrace/build/simple-c

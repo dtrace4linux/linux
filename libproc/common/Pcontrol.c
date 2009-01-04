@@ -1788,15 +1788,16 @@ Pstopstatus(struct ps_prochandle *P,
 	err = (rc < 0)? errno : 0;
 	Psync(P);
 
-	if (P->agentstatfd < 0) {
+HERE();
 # if linux
-		if (lx_read_stat(P, &P->status) < 0)
-			err = errno;
+	sleep(1);
+	if (lx_read_stat(P, &P->status) < 0)
+		err = errno;
 # else
+	if (P->agentstatfd < 0) {
 		if (pread(P->statfd, &P->status,
 		    sizeof (P->status), (off_t)0) < 0)
 			err = errno;
-# endif
 	} else {
 HERE();
 		if (pread(P->agentstatfd, &P->status.pr_lwp,
@@ -1804,6 +1805,7 @@ HERE();
 			err = errno;
 		P->status.pr_flags = P->status.pr_lwp.pr_flags;
 	}
+# endif
 
 HERE();
 	if (err) {
@@ -1846,6 +1848,8 @@ HERE();
 
 	if (!(P->status.pr_flags & PR_STOPPED)) {
 HERE();
+printf("something is wrong....not stoppped....sleeping (pid=%d)\n", P->pid);
+sleep(100);
 		P->state = PS_RUN;
 		if (request == PCNULL || request == PCDSTOP || msec != 0)
 			return (0);

@@ -101,10 +101,11 @@ sub main
 	###############################################
 	print "Preparing symbols...\n";
 	my $err = 0;
+	# Symbols we used to need, but no longer:
+	# get_symbol_offset
 	foreach my $s (qw/
 		__symbol_get
 		access_process_vm
-		get_symbol_offset
 		hrtimer_cancel
 		hrtimer_init
 		hrtimer_start

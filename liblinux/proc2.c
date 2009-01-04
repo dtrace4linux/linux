@@ -40,6 +40,7 @@ HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
 	if ((fd = open(buf, O_RDONLY)) < 0)
 		return -1;
 	n = read(fd, buf, sizeof buf);
+	close(fd);
 
 	sscanf(buf, "%ld %s %s %ld %ld %ld %ld "
 		"%ld %ld %ld %ld "	 // flt
@@ -63,6 +64,11 @@ HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
 		&cpu, &rt_priority, &policy);
 
 	pst->pr_dmodel = PR_MODEL_ILP32;
+printf("lx_read_stat pid=%d: state='%s'\n", P->pid, state);
+	if (*state == 'T')
+		pst->pr_flags |= PR_STOPPED;
+	P->status.pr_flags = pst->pr_flags;
+
 	pst->pr_pid = pid;
 	pst->pr_ppid = ppid;
 	pst->pr_sid = sid;

@@ -26,6 +26,8 @@
 # if !defined(RTLD_DB_H)
 # define	RTLD_DB_H
 
+struct ps_prochandle;
+
 # include	<linux_types.h>
 # include	<link.h>
 

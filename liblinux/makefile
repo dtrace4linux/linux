@@ -15,7 +15,9 @@ $(LIB): \
 	$(LIB)(gmatch.o) \
 	$(LIB)(proc.o) \
 	$(LIB)(proc2.o) \
+	$(LIB)(proc_create.o) \
 	$(LIB)(proc_names.o) \
+	$(LIB)(proc_util.o) \
 	$(LIB)(rd.o) \
 	$(LIB)(strlcpy.o) \
 

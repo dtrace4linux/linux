@@ -1861,6 +1861,10 @@ main(int argc, char *argv[])
 
 	if (sigaction(SIGTERM, NULL, &oact) == 0 && oact.sa_handler != SIG_IGN)
 		(void) sigaction(SIGTERM, &act, NULL);
+#if !defined(sun)
+	if (sigaction(SIGUSR1, NULL, &oact) == 0 && oact.sa_handler != SIG_IGN)
+		(void) sigaction(SIGUSR1, &act, NULL);
+#endif
 
 	/*
 	 * Now that tracing is active and we are ready to consume trace data,

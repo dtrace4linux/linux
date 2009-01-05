@@ -7,8 +7,8 @@ fed0c352 size=18945   mtime=1106593216 ./LICENSING.NOTICE
 4ac00e19 size=712     mtime=1217667313 ./Packages
 071025a0 size=3779    mtime=1215125212 ./README
 00000000 size=0       mtime=1216581733 ./TIMESTAMP
-00000000 size=1       mtime=1231072378 ./build/config.sh
-288e6cea size=48199   mtime=1230338836 ./cmd/dtrace/dtrace.c
+00000000 size=1       mtime=1231173638 ./build/config.sh
+4181abca size=48338   mtime=1231194833 ./cmd/dtrace/dtrace.c
 df966664 size=879     mtime=1215861176 ./cmd/dtrace/makefile
 118f26ce size=801     mtime=1106592642 ./cmd/intrstat/Makefile
 0cba365e size=801     mtime=1106592642 ./cmd/intrstat/Makefile.com
@@ -145,7 +145,7 @@ f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 9f4023ec size=2210    mtime=1209938771 ./drivers/dtrace/ctf_subr.c
 b33c7986 size=22411   mtime=1212251961 ./drivers/dtrace/ctf_types.c
 d1e21501 size=2694    mtime=1212268299 ./drivers/dtrace/ctf_util.c
-fcc6f96c size=20074   mtime=1231077485 ./drivers/dtrace/ctl.c
+7933c6f9 size=20770   mtime=1231151944 ./drivers/dtrace/ctl.c
 21ff7626 size=108179  mtime=1213994232 ./drivers/dtrace/cyclic.c
 b72b2063 size=4720    mtime=1230480351 ./drivers/dtrace/cyclic_linux.c
 10589bbe size=113949  mtime=1212273673 ./drivers/dtrace/dis_tables.c
@@ -158,7 +158,7 @@ f5737078 size=28044   mtime=1230503602 ./drivers/dtrace/dtrace_linux.c
 a8dadfec size=7907    mtime=1223755558 ./drivers/dtrace/dtrace_linux.h
 b6d20964 size=1479    mtime=1229039527 ./drivers/dtrace/dtrace_proto.h
 76d3ca16 size=8963    mtime=1217776754 ./drivers/dtrace/dtrace_subr.c
-a7998c40 size=65399   mtime=1228082139 ./drivers/dtrace/fasttrap.c
+83aff9db size=65455   mtime=1231165109 ./drivers/dtrace/fasttrap.c
 f190e611 size=46234   mtime=1217759692 ./drivers/dtrace/fasttrap_isa.c
 765d9239 size=2743    mtime=1224449843 ./drivers/dtrace/fasttrap_linux.c
 23f2fc8a size=23926   mtime=1229289245 ./drivers/dtrace/fbt_linux.c
@@ -244,7 +244,7 @@ f16cdaf8 size=4498    mtime=1210535024 ./libdtrace/dt_pcb.h
 4771a0bb size=13759   mtime=1210534936 ./libdtrace/dt_pragma.c
 378d7213 size=51070   mtime=1210535668 ./libdtrace/dt_printf.c
 78460c83 size=5002    mtime=1210534844 ./libdtrace/dt_printf.h
-ef956fa4 size=34276   mtime=1214950110 ./libdtrace/dt_proc.c
+ad5b05fa size=37171   mtime=1231184332 ./libdtrace/dt_proc.c
 96d72759 size=4624    mtime=1210534910 ./libdtrace/dt_proc.h
 07bc8866 size=14073   mtime=1213825360 ./libdtrace/dt_program.c
 af7cfe36 size=1919    mtime=1210534900 ./libdtrace/dt_program.h
@@ -292,12 +292,15 @@ d255ddd2 size=1685    mtime=1210534482 ./libdtrace/sysevent.d.in
 23c12cd4 size=1973    mtime=1210533738 ./libdtrace/unistd.d
 861790c6 size=84828   mtime=1207339541 ./liblinux/Psymtab.c
 3fdfdaa0 size=2991    mtime=1216242211 ./liblinux/Putil.c
+7b2915f7 size=1705    mtime=1231169002 ./liblinux/_libproc.h
 8557f2a0 size=9646    mtime=1230352527 ./liblinux/getopt.c
 bdddd1e3 size=93      mtime=1207769009 ./liblinux/gmatch.c
-1ec9edc1 size=469     mtime=1230352530 ./liblinux/makefile
-3f3c398a size=2982    mtime=1225021236 ./liblinux/proc.c
+270edfb6 size=517     mtime=1231170353 ./liblinux/makefile
+5c058d12 size=1274    mtime=1231168196 ./liblinux/proc.c
 76a3b201 size=4006    mtime=1231066766 ./liblinux/proc2.c
+6b838c34 size=4594    mtime=1231171611 ./liblinux/proc_create.c
 a0a44b98 size=7363    mtime=1215942162 ./liblinux/proc_names.c
+898f50a6 size=2907    mtime=1231173637 ./liblinux/proc_util.c
 351a13f0 size=1548    mtime=1217447208 ./liblinux/rd.c
 d4b66db2 size=1763    mtime=1207602319 ./liblinux/strlcpy.c
 49b1ed99 size=1540    mtime=1106592654 ./libproc/Makefile
@@ -306,7 +309,7 @@ da503e97 size=474     mtime=1106592654 ./libproc/amd64/Makefile
 35b23c24 size=14116   mtime=1215942038 ./libproc/amd64/Pisadep.c
 d41399eb size=22392   mtime=1215962768 ./libproc/common/P32ton.c
 01a51a09 size=2994    mtime=1215858247 ./libproc/common/P32ton.h
-39ebc6bd size=88793   mtime=1231066269 ./libproc/common/Pcontrol.c
+2758c4f2 size=95896   mtime=1231166805 ./libproc/common/Pcontrol.c
 1da7c045 size=11958   mtime=1215858464 ./libproc/common/Pcontrol.h
 93e8c9ad size=58197   mtime=1215879758 ./libproc/common/Pcore.c
 69179533 size=8946    mtime=1215859244 ./libproc/common/Pexecname.c
@@ -379,7 +382,7 @@ da79045e size=23      mtime=1207085716 ./linux/priv.h
 918004c3 size=25      mtime=1206901288 ./linux/procfs.h
 00000000 size=0       mtime=1207170415 ./linux/project.h
 fa0c0bd3 size=34      mtime=1206902380 ./linux/rctl.h
-ab60ed98 size=6236    mtime=1217444110 ./linux/rtld_db.h
+09d6b6fd size=6259    mtime=1231173594 ./linux/rtld_db.h
 1a1c31cd size=59      mtime=1207077188 ./linux/stdio.h
 ffc5f2e6 size=21      mtime=1209290977 ./linux/strings.h
 8d27f39a size=181     mtime=1207082270 ./linux/synch.h

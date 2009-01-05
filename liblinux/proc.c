@@ -8,40 +8,11 @@ int	_libproc_debug;		/* set non-zero to enable debugging printfs */
 int	blockable_sigs;	/* signals to block when we need to be safe */
 
 getzonenamebyid() { printf("%s\n", __func__); }
-//Pcreate() { printf("proc-stub:%s\n", __func__); }
-//Pcreate_error() { printf("proc-stub:%s\n", __func__); }
-//Pctlfd() { printf("proc-stub:%s\n", __func__); }
-//Pdelbkpt() { printf("proc-stub:%s\n", __func__); }
-//Pfault() { printf("proc-stub:%s\n", __func__); }
-//Pgrab() { printf("proc-stub:%s\n", __func__); }
-//Pgrab_error() { printf("proc-stub:%s\n", __func__); }
-//Plmid() { printf("proc-stub:%s\n", __func__); }
-//Plmid_to_map() { printf("proc-stub:%s\n", __func__); }
-//Plookup_by_addr() { printf("proc-stub:%s\n", __func__); }
-//Pname_to_map() { printf("proc-stub:%s\n", __func__); }
-//Pobject_iter() { printf("proc-stub:%s\n", __func__); }
-//Pobjname() { printf("proc-stub:%s\n", __func__); }
-//Ppltdest() { printf("proc-stub:%s\n", __func__); }
-//Ppsinfo() { printf("proc-stub:%s\n", __func__); }
-//Prd_agent() { printf("proc-stub:%s\n", __func__); }
-//Pread() { printf("proc-stub:%s\n", __func__); }
-//Prelease() { printf("proc-stub:%s\n", __func__); }
-//Preopen() { printf("proc-stub:%s\n", __func__); }
-//Preset_maps() { printf("proc-stub:%s\n", __func__); }
-//Psetbkpt() { printf("proc-stub:%s\n", __func__); }
-//Psetflags() { printf("proc-stub:%s\n", __func__); }
-//Psetrun() { printf("proc-stub:%s\n", __func__); }
-//Pstate() { printf("proc-stub:%s\n", __func__); }
-//Pstatus() { printf("proc-stub:%s\n", __func__); }
-//Pstopstatus() { printf("proc-stub:%s\n", __func__); }
 OBJFS_MODID(int x) 
 {
 	printf("proc-stub:%s\n", __func__);
 	return 0;
 }
-//Psync() { printf("proc-stub:%s\n", __func__); }
-//Psysentry() { printf("proc-stub:%s\n", __func__); }
-//Psysexit() { printf("proc-stub:%s\n", __func__); }
 __priv_free_info() { printf("proc-stub:%s\n", __func__); }
 _mutex_held() { printf("proc-stub:%s\n", __func__); }
 _rw_read_held() { printf("proc-stub:%s\n", __func__); }
@@ -57,7 +28,4 @@ int p_online(int processorid, int flag)
 //	printf("proc-stub:%s: processorid=%d flag=%d\n", __func__, processorid, flag); 
 	return 2; // P_ONLINE
 }
-//pr_close() { printf("proc-stub:%s\n", __func__); }
-//pr_ioctl() { printf("proc-stub:%s\n", __func__); }
-//pr_open() { printf("proc-stub:%s\n", __func__); }
 

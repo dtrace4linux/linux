@@ -1475,7 +1475,7 @@ HERE();
 	new_fp->ftp_next = bucket->ftb_data;
 	bucket->ftb_data = new_fp;
 
-printk("new provide: '%s'\n", provname);
+printk("%s(%d):new USDT provider: '%s'\n", __FILE__, __LINE__, provname);
 HERE();
 	mutex_enter(&new_fp->ftp_mtx);
 HERE();
@@ -1666,6 +1666,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	mutex_enter(&provider->ftp_cmtx);
 
 	if (name == NULL) {
+HERE();
 		for (i = 0; i < pdata->ftps_noffs; i++) {
 			char name_str[17];
 
@@ -1701,7 +1702,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 			pp->ftp_tps[0].fit_tp = tp;
 			pp->ftp_tps[0].fit_id.fti_probe = pp;
 			pp->ftp_tps[0].fit_id.fti_ptype = pdata->ftps_type;
-
+HERE();
 			pp->ftp_id = dtrace_probe_create(provider->ftp_provid,
 			    pdata->ftps_mod, pdata->ftps_func, name_str,
 			    FASTTRAP_OFFSET_AFRAMES, pp);
@@ -1710,6 +1711,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	} else if (dtrace_probe_lookup(provider->ftp_provid, pdata->ftps_mod,
 	    pdata->ftps_func, name) == 0) {
 		atomic_add_32(&fasttrap_total, pdata->ftps_noffs);
+HERE();
 
 		if (fasttrap_total > fasttrap_max) {
 			atomic_add_32(&fasttrap_total, -pdata->ftps_noffs);

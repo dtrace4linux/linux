@@ -398,7 +398,7 @@ task, PROC_I(inode)->pid);
 		int	size = 1;
 		int	skip_out = FALSE;
 
-	printk("ctl_write: %s ctl[0]=%lx ctlp[1]=%lx\n", 
+	printk("ctl_write: %s ctl[0]=%lx ctl[1]=%lx ctl[2]=%lx\n", 
 		ctlp[0] == PCNULL ? "PCNULL" : 
 		ctlp[0] == PCSTOP ? "PCSTOP" :
 		ctlp[0] == PCDSTOP ? "PCDSTOP" :
@@ -407,7 +407,7 @@ task, PROC_I(inode)->pid);
 		ctlp[0] == PCRUN ? "PCRUN" :
 		ctlp[0] == PCSENTRY ? "PCSENTRY" :
 		ctlp[0] == PCSEXIT ? "PCSEXIT" : "??",
-		ctlp[0], ctlp[1]);
+		ctlp[0], ctlp[1], ctlp[2]);
 		switch (ctlp[0]) {
 		  case PCNULL:
 		  	/***********************************************/
@@ -430,6 +430,7 @@ task, PROC_I(inode)->pid);
 		  	/*   Wait  for  process  to  stop. ctlp[1] is  */
 		  	/*   msec to wait.			       */
 		  	/***********************************************/
+			force_sig(SIGSTOP, task);
 			while (task->state <= 0) {
 				msleep(1000);
 				printk("tick stop: %lx\n", task->state);
@@ -441,7 +442,27 @@ task, PROC_I(inode)->pid);
 		  	/*   Make proc runnable again.		       */
 		  	/***********************************************/
 			force_sig(SIGCONT, task);
+			/***********************************************/
+			/*   Second  arg  says  what to do - eg abort  */
+			/*   syscall, single step, deliver fault etc.  */
+			/***********************************************/
+			/*   PRCSIG/PRCFAULT/PRSTEP/PRSABORT/PRSTOP    */
+		  	size = 2;
 			break;
+
+			/***********************************************/
+			/*   PCSENTRY  and  PCSEXIT  will  be  called  */
+			/*   twice -- since in userland a pwrite() is  */
+			/*   executed. We need to keep state, but see  */
+			/*   if we can fudge it for now...	       */
+			/***********************************************/
+		  case PCSENTRY:
+		  	size = 2;
+		  	break;
+		  case PCSEXIT:
+		  	size = 2;
+		  	break;
+
 		  default:
 		  	printk("ctl: parse error - skipping out\n");
 			skip_out = TRUE;
@@ -496,7 +517,7 @@ static int
 proc_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct task_struct *task = (struct task_struct *) ptr;
 
-printk("proc_notifier: code=%lu ptr=%p ptrace=%lx\n", code, ptr, (long) task->ptrace);
+printk("proc_notifier: code=%lu ptr=%p\n", code, ptr);
 //	task->ptrace = 0;
 	return 0;
 }

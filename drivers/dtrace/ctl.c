@@ -507,7 +507,7 @@ HERE();
 		tgid_base_stuff_2[nents].iop = NULL;
 		tgid_base_stuff_2[nents].fop = ptr;
 		tgid_base_stuff_2[nents].op.proc_read = proc_pid_ctl_read; 
-HERE();
+//HERE();
 		}
 }
 /**********************************************************************/
@@ -541,7 +541,7 @@ static struct dentry *proc_pident_lookup2(struct inode *dir,
 		pidt = tgid_base_stuff_2;
 		}
 
-HERE();
+//HERE();
 	return proc_pident_lookup(dir, dentry, pidt, nents);
 }
 
@@ -564,7 +564,7 @@ static int proc_pident_readdir2(struct file *filp,
 		pidt = tgid_base_stuff_2;
 		}
 
-HERE();
+//HERE();
 	return proc_pident_readdir(filp, dirent, filldir, pidt, nents);
 }
 

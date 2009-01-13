@@ -1,3 +1,11 @@
+Tue Jan 13 23:52:50 2009  fox
+
+     111* Archive: 1.0049
+
+     110* fasttrap.c: Define fasttrap_max so that USDT starts to work.
+          libdtrace/: Lots of hackery to allow us to launch a process.
+	  (Not yet working to completion yet)
+
 Sun Dec 28 00:02:27 2008  fox
 
      109* dtrace_linux.c: Remove old no-longer needed kernel dependencies

@@ -95,6 +95,7 @@
 #if defined(linux)
 #	define	Pstate(x)	proc_state(x)
 #endif
+char *rd_errstr(int);
 
 static dt_bkpt_t *
 dt_proc_bpcreate(dt_proc_t *dpr, uintptr_t addr, dt_bkpt_f *func, void *data)
@@ -353,7 +354,7 @@ dt_proc_attach(dt_proc_t *dpr, int exec)
 		dt_proc_rdwatch(dpr, RD_DLACTIVITY, "RD_DLACTIVITY");
 	} else {
 		dt_dprintf("pid %d: failed to enable rtld events: %s\n",
-		    (int)dpr->dpr_pid, dpr->dpr_rtld ? (char *) rd_errstr(err) :
+		    (int)dpr->dpr_pid, dpr->dpr_rtld ? rd_errstr(err) :
 		    "rtld_db agent initialization failed");
 	}
 
@@ -463,16 +464,11 @@ typedef struct dt_proc_control_data {
 static void *
 dt_proc_control(void *arg)
 {
-printf("in dt_proc_control: arg=%p\n", arg);
 	dt_proc_control_data_t *datap = arg;
-printf("in dt_proc_control: datap=%p\n", datap);
 	dtrace_hdl_t *dtp = datap->dpcd_hdl;
-printf("in dt_proc_control: dpcd_proc=%p\n", datap->dpcd_proc);
 	dt_proc_t *dpr = datap->dpcd_proc;
-printf("in dt_proc_control: dpr_hdl=%p\n", dpr->dpr_hdl);
 	dt_proc_hash_t *dph = dpr->dpr_hdl->dt_procs;
 	struct ps_prochandle *P = dpr->dpr_proc;
-	int pid = dpr->dpr_pid;
 
 #if defined(sun)
 	int pfd = Pctlfd(P);
@@ -481,6 +477,9 @@ printf("in dt_proc_control: dpr_hdl=%p\n", dpr->dpr_hdl);
 #endif
 	int notify = B_FALSE;
 
+	proc_create2(P);
+	dpr->dpr_pid = proc_getpid(P);
+	int pid = dpr->dpr_pid;
 	/*
 	 * We disable the POSIX thread cancellation mechanism so that the
 	 * client program using libdtrace can't accidentally cancel our thread.
@@ -494,7 +493,9 @@ printf("in dt_proc_control: dpr_hdl=%p\n", dpr->dpr_hdl);
 	 * to be able to catch breakpoints and efficiently single-step over
 	 * them, and we need to enable librtld_db to watch libdl activity.
 	 */
+printf("thread:mutex_lock %p\n", &dpr->dpr_lock);
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
+printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 #if defined(sun)
 	(void) Punsetflags(P, PR_ASYNC);	/* require synchronous mode */
 	(void) Psetflags(P, PR_BPTADJ);		/* always adjust eip on x86 */
@@ -546,7 +547,7 @@ printf("in dt_proc_control: dpr_hdl=%p\n", dpr->dpr_hdl);
 	 * If PR_KLC is set, we created the process; otherwise we grabbed it.
 	 * Check for an appropriate stop request and wait for dt_proc_continue.
 	 */
-printf("%s(%d): in thread dt_proc_control\n", __FILE__, __LINE__);
+printf("%s(%d): in thread dt_proc_control flags=%x PR_KLC=%x\n", __FILE__, __LINE__, proc_getflags(P), PR_KLC);
 	if (proc_getflags(P) & PR_KLC)
 		dt_proc_stop(dpr, DT_PROC_STOP_CREATE);
 	else
@@ -589,10 +590,11 @@ pwait_locked:
 #endif
 
 #if defined(sun)
-		switch (Pstate(P)) {
+		switch (Pstate(P))
 #else
-		switch (proc_state(P)) {
+		switch (proc_state(P))
 #endif
+		{
 		case PS_STOP:
 #if defined(TODOxxx)
 			psp = &Pstatus(P)->pr_lwp;
@@ -854,11 +856,12 @@ dt_proc_create_thread(dtrace_hdl_t *dtp, dt_proc_t *dpr, uint_t stop)
 	pthread_attr_t a;
 	int err;
 
+printf("main:mutex_lock %p\n", &dpr->dpr_lock);
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
 	dpr->dpr_stop |= stop; /* set bit for initial rendezvous */
 
 	(void) pthread_attr_init(&a);
-	(void) pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
+//	(void) pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
 
 	(void) sigfillset(&nset);
 	(void) sigdelset(&nset, SIGABRT);	/* unblocked for assert() */
@@ -885,7 +888,7 @@ printf("creating thread...&data=%p\n", &data);
 	 * the caller can then apply dt_proc_continue() to resume both.
 	 */
 	if (err == 0) {
-printf("0..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done, dpr->dpr_stop);
+printf("0..waiting for dt_proc_control....dpr_done=%d stop=%d !stop=%d\n", dpr->dpr_done, dpr->dpr_stop, !(dpr->dpr_stop & DT_PROC_STOP_IDLE));
 		while (!dpr->dpr_done && !(dpr->dpr_stop & DT_PROC_STOP_IDLE)) {
 printf("1..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done, dpr->dpr_stop);
 			(void) pthread_cond_wait(&dpr->dpr_cv, &dpr->dpr_lock);
@@ -969,12 +972,15 @@ dt_proc_create(dtrace_hdl_t *dtp, const char *file, char *const *argv)
         dpr->dpr_pid = proc_getpid(dpr->dpr_proc);
 #endif
 
-#if defined(sun)
+#if defined(sun) || 1
 	if (dt_proc_create_thread(dtp, dpr, dtp->dt_prcmode) != 0)
 #else
 	if (dt_proc_create_thread(dtp, dpr, DT_PROC_STOP_IDLE) != 0)
 #endif
 		return (NULL); /* dt_proc_error() has been called for us */
+# if linux
+        dpr->dpr_pid = proc_getpid(dpr->dpr_proc);
+# endif
 
 	dpr->dpr_hash = dph->dph_hash[dpr->dpr_pid & (dph->dph_hashlen - 1)];
 	dph->dph_hash[dpr->dpr_pid & (dph->dph_hashlen - 1)] = dpr;

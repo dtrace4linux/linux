@@ -68,9 +68,11 @@ rd_log(const int on_off)
 	rtld_db_logging = on_off;
 	(void) mutex_unlock(&glob_mutex);
 }
+char *
 rd_errstr()
 {
 	printf("proc-stub:%s\n", __func__);
+	return "rd_errstr:dont know what error\n";
 }
 rd_event_addr()
 {

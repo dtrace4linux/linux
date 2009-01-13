@@ -7476,7 +7476,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	dtrace_provider_t *provider = (dtrace_provider_t *)prov;
 	dtrace_id_t id;
 
-//HERE();
+HERE();
 //printk("creating: %s:%s:%s\n", mod, func, name);
 	if (provider == dtrace_provider) {
 		ASSERT(MUTEX_HELD(&dtrace_lock));
@@ -7879,6 +7879,8 @@ dtrace_helper_provide_one(dof_helper_t *dhp, dof_sec_t *sec, pid_t pid)
 	/*
 	 * Create the probes.
 	 */
+HERE();
+printk("nprobes=%d\n", nprobes);
 	for (i = 0; i < nprobes; i++) {
 		probe = (dof_probe_t *)(uintptr_t)(daddr +
 		    prb_sec->dofs_offset + i * prb_sec->dofs_entsize);
@@ -7886,6 +7888,7 @@ dtrace_helper_provide_one(dof_helper_t *dhp, dof_sec_t *sec, pid_t pid)
 		dhpb.dthpb_mod = dhp->dofhp_mod;
 		dhpb.dthpb_func = strtab + probe->dofpr_func;
 		dhpb.dthpb_name = strtab + probe->dofpr_name;
+printk("probe %d: func=%s name=%s\n", i, dhpb.dthpb_func, dhpb.dthpb_name);
 		dhpb.dthpb_base = probe->dofpr_addr;
 		dhpb.dthpb_offs = off + probe->dofpr_offidx;
 		dhpb.dthpb_noffs = probe->dofpr_noffs;
@@ -11143,7 +11146,7 @@ dtrace_enabling_matchall(void)
 		cr = cr; /* avoid compiler warning */
 # endif
 		if (INGLOBALZONE(curproc) ||
-		    cr != NULL && getzoneid() == crgetzoneid(cr))
+		    (cr != NULL && getzoneid() == crgetzoneid(cr)))
 			(void) dtrace_enabling_match(enab, NULL);
 	}
 
@@ -12034,7 +12037,6 @@ dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr,
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(dof->dofh_loadsz >= sizeof (dof_hdr_t));
-HERE();
 	/*
 	 * Check the DOF header identification bytes.  In addition to checking
 	 * valid settings, we also verify that unused bits/bytes are zeroed so
@@ -12042,14 +12044,12 @@ HERE();
 	 */
 	if (bcmp(&dof->dofh_ident[DOF_ID_MAG0],
 	    DOF_MAG_STRING, DOF_MAG_STRLEN) != 0) {
-HERE();
 		dtrace_dof_error(dof, "DOF magic string mismatch");
 		return (-1);
 	}
 
 	if (dof->dofh_ident[DOF_ID_MODEL] != DOF_MODEL_ILP32 &&
 	    dof->dofh_ident[DOF_ID_MODEL] != DOF_MODEL_LP64) {
-HERE();
 		dtrace_dof_error(dof, "DOF has invalid data model");
 		return (-1);
 	}
@@ -12067,7 +12067,6 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 		dtrace_dof_error(dof, "DOF version mismatch");
 		return (-1);
 	}
-HERE();
 
 	if (dof->dofh_ident[DOF_ID_DIFVERS] != DIF_VERSION_2) {
 		dtrace_dof_error(dof, "DOF uses unsupported instruction set");
@@ -12079,13 +12078,11 @@ HERE();
 		dtrace_dof_error(dof, "DOF uses too many integer registers");
 		return (-1);
 	}
-HERE();
 
 	if (dof->dofh_ident[DOF_ID_DIFTREG] > DIF_DTR_NREGS) {
 		dtrace_dof_error(dof, "DOF uses too many tuple registers");
 		return (-1);
 	}
-HERE();
 
 	for (i = DOF_ID_PAD; i < DOF_ID_SIZE; i++) {
 		if (dof->dofh_ident[i] != 0) {
@@ -12093,7 +12090,6 @@ HERE();
 			return (-1);
 		}
 	}
-HERE();
 
 	if (dof->dofh_flags & ~DOF_FL_VALID) {
 		dtrace_dof_error(dof, "DOF has invalid flag bits set");
@@ -12121,25 +12117,22 @@ HERE();
 		return (-1);
 	}
 
-HERE();
 	if (!IS_P2ALIGNED(dof->dofh_secoff, sizeof (uint64_t))) {
 		dtrace_dof_error(dof, "misaligned section headers");
 		return (-1);
 	}
-HERE();
 
 	if (!IS_P2ALIGNED(dof->dofh_secsize, sizeof (uint64_t))) {
 		dtrace_dof_error(dof, "misaligned section size");
 		return (-1);
 	}
-HERE();
 
 	/*
 	 * Take an initial pass through the section headers to be sure that
 	 * the headers don't have stray offsets.  If the 'noprobes' flag is
 	 * set, do not permit sections relating to providers, probes, or args.
 	 */
-printk("secnum=%d\n", dof->dofh_secnum);
+//printk("secnum=%d\n", dof->dofh_secnum);
 	for (i = 0; i < dof->dofh_secnum; i++) {
 		dof_sec_t *sec = (dof_sec_t *)(daddr +
 		    (uintptr_t)dof->dofh_secoff + i * dof->dofh_secsize);
@@ -12183,9 +12176,7 @@ HERE();
 			dtrace_dof_error(dof, "non-terminating string table");
 			return (-1);
 		}
-HERE();
 	}
-HERE();
 
 	/*
 	 * Take a second pass through the sections and locate and perform any
@@ -13837,7 +13828,7 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 	mutex_enter(&dtrace_lock);
 
 HERE();
-printk("dtrace_meta_pid=%p\n", dtrace_meta_pid);
+printk("dtrace_meta_pid=%p dtrace_provider=%p p_pid=%d\n", dtrace_meta_pid, dtrace_provider, p->p_pid);
 	if (!dtrace_attached() || dtrace_meta_pid == NULL) {
 HERE();
 		/*
@@ -14247,7 +14238,6 @@ HERE();
 	/*
 	 * Now we need to walk through the ECB descriptions in the enabling.
 	 */
-HERE();
 printk("nprovs=%d\n", nprovs);
 	for (i = 0; i < enab->dten_ndesc; i++) {
 		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
@@ -14267,7 +14257,6 @@ HERE();
 printk("helper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
 		if ((rv = dtrace_helper_action_add(DTRACE_HELPER_ACTION_USTACK,
 		    ep)) != 0) {
-HERE();
 			/*
 			 * Adding this helper action failed -- we are now going
 			 * to rip out the entire generation and return failure.
@@ -14302,6 +14291,8 @@ HERE();
 
 			destroy = 0;
 		}
+else
+printk("FAILED TO ADD PROV\n");
 	}
 
 	if (destroy)
@@ -15569,7 +15560,7 @@ PRINT_CASE(DTRACEIOC_PROBES);
 			}
 
 		} else {
-//printk("nprobes=%d\n", dtrace_nprobes);
+//printk("nprobes=%d dtpd_id=%d\n", dtrace_nprobes, desc.dtpd_id);
 			for (i = desc.dtpd_id; i <= dtrace_nprobes; i++) {
 				if ((probe = dtrace_probes[i - 1]) != NULL &&
 				    dtrace_match_priv(probe, priv, uid, zoneid))

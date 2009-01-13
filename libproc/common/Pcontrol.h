@@ -222,6 +222,11 @@ struct ps_prochandle {
 	core_info_t *core;	/* information specific to core (if PS_DEAD) */
 	uintptr_t *ucaddrs;	/* ucontext-list addresses */
 	uint_t	ucnelems;	/* number of elements in the ucaddrs list */
+	/***********************************************/
+	/*   Private for proc_create.		       */
+	/***********************************************/
+	int	p_flags;
+	int	p_status;
 };
 
 /* flags */

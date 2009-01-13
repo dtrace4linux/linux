@@ -26,7 +26,6 @@
  * $FreeBSD$
  */
 
-#include "_libproc.h"
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -35,13 +34,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/ptrace.h>
+#include "Pcontrol.h"
 
-void proc_free(struct proc_handle *phdl);
+void proc_free(struct ps_prochandle *phdl);
 
 int
-proc_attach(pid_t pid, int flags, struct proc_handle **pphdl)
+proc_attach(pid_t pid, int flags, struct ps_prochandle **pphdl)
 {
-	struct proc_handle *phdl;
+	struct ps_prochandle *phdl;
 # if defined(freebsd)
 	struct kevent kev;
 # endif
@@ -55,13 +56,13 @@ proc_attach(pid_t pid, int flags, struct proc_handle **pphdl)
 	 * Allocate memory for the process handle, a structure containing
 	 * all things related to the process.
 	 */
-	if ((phdl = malloc(sizeof(struct proc_handle))) == NULL)
+	if ((phdl = malloc(sizeof(struct ps_prochandle))) == NULL)
 		return (ENOMEM);
 
-	memset(phdl, 0, sizeof(struct proc_handle));
+	memset(phdl, 0, sizeof(struct ps_prochandle));
 	phdl->pid = pid;
 	phdl->flags = flags;
-	phdl->status = PS_RUN;
+	phdl->p_status = PS_RUN;
 
 # if defined(freebsd)
 	EV_SET(&kev, pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT,
@@ -85,7 +86,7 @@ proc_attach(pid_t pid, int flags, struct proc_handle **pphdl)
 	else if (WIFSTOPPED(status) == 0)
 		err(4, "ERROR: child process %d status 0x%x", pid, status);
 	else
-		phdl->status = PS_STOP;
+		phdl->p_status = PS_STOP;
 
 	if (error)
 		proc_free(phdl);
@@ -95,10 +96,43 @@ proc_attach(pid_t pid, int flags, struct proc_handle **pphdl)
 	return (error);
 }
 
+/**********************************************************************/
+/*   Dont  fork the proc til we are in a thread, since ptrace() wont  */
+/*   work if we are a sibling of the target.			      */
+/**********************************************************************/
+const char *glob_file;
+char *const *glob_argv;
+
+int 
+proc_create2(struct ps_prochandle *phdl)
+{	int	pid;
+	int	status;
+
+	if ((pid = fork()) == -1) {
+		perror("fork");
+		return -1;
+	}
+	if (pid == 0) {
+		if (ptrace(PT_TRACE_ME, 0, 0, 0) != 0)
+			_exit(1);
+
+		/* Execute the specified file: */
+printf("child:doing execp %s\n", glob_file);
+		execvp(glob_file, glob_argv);
+
+		/* Couldn't execute the file. */
+		_exit(2);
+	}
+	/* Wait for the child process to stop. */
+	if (waitpid(pid, &status, WUNTRACED) == -1)
+                err(3, "ERROR: child process %d didn't stop as expected", pid);
+	phdl->pid = pid;
+	return 0;
+}
 int
-proc_create(const char *file, char * const *argv, struct proc_handle **pphdl)
+proc_create(const char *file, char * const *argv, struct ps_prochandle **pphdl)
 {
-	struct proc_handle *phdl;
+	struct ps_prochandle *phdl;
 # if defined(freebsd)
 	struct kevent kev;
 # endif
@@ -110,27 +144,36 @@ proc_create(const char *file, char * const *argv, struct proc_handle **pphdl)
 	 * Allocate memory for the process handle, a structure containing
 	 * all things related to the process.
 	 */
-	if ((phdl = malloc(sizeof(struct proc_handle))) == NULL)
+	if ((phdl = malloc(sizeof(struct ps_prochandle))) == NULL)
 		return (ENOMEM);
 
+# if 1
+	glob_file = file;
+	glob_argv = argv;
+	phdl->p_status = PS_STOP;
+	*pphdl = phdl;
+	return 0;
+# endif
 	/* Fork a new process. */
 	if ((pid = fork()) == -1)
 		error = errno;
 	else if (pid == 0) {
 		/* The child expects to be traced. */
+printf("child:doing ptrace(PT_TRACE_ME)\n");
 		if (ptrace(PT_TRACE_ME, 0, 0, 0) != 0)
 			_exit(1);
 
 		/* Execute the specified file: */
+printf("child:doing execp %s\n", file);
 		execvp(file, argv);
 
 		/* Couldn't execute the file. */
 		_exit(2);
 	} else {
 		/* The parent owns the process handle. */
-		memset(phdl, 0, sizeof(struct proc_handle));
+		memset(phdl, 0, sizeof(struct ps_prochandle));
 		phdl->pid = pid;
-		phdl->status = PS_IDLE;
+		phdl->p_status = PS_IDLE;
 
 # if defined(freebsd)
 		EV_SET(&kev, pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT,
@@ -151,7 +194,7 @@ proc_create(const char *file, char * const *argv, struct proc_handle **pphdl)
 		if (WIFSTOPPED(status) == 0)
                 	err(4, "ERROR: child process %d status 0x%x", pid, status);
 		else
-			phdl->status = PS_STOP;
+			phdl->p_status = PS_STOP;
 	}
 
 	if (error)
@@ -163,7 +206,7 @@ proc_create(const char *file, char * const *argv, struct proc_handle **pphdl)
 }
 
 void
-proc_free(struct proc_handle *phdl)
+proc_free(struct ps_prochandle *phdl)
 {
 	free(phdl);
 }

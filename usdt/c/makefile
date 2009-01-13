@@ -1,3 +1,4 @@
+#	$(DTRACE) -h -s simple_probes.d 
 CC=gcc -I../../uts/common -fPIC
 #BITS=-m64
 CFLAGS=$(BITS)

@@ -36,6 +36,7 @@
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
 #include <linux/sort.h>
+#include <linux/module.h>
 
 // Temporary definitions so we can compile.
 # define	sprlock(pid) 0
@@ -218,7 +219,12 @@ static volatile uint64_t fasttrap_mod_gen;
  * probe; fasttrap_total is capped at fasttrap_max.
  */
 #define	FASTTRAP_MAX_DEFAULT		250000
+# if defined(sun)
 static uint32_t fasttrap_max;
+# else
+uint32_t fasttrap_max;
+module_param(fasttrap_max, int, 0);
+# endif
 static uint32_t fasttrap_total;
 
 
@@ -990,9 +996,12 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 	 * a fork in which the traced process is being born and we're copying
 	 * USDT probes. Otherwise, the process is gone so bail.
 	 */
+HERE();
 	if ((p = sprlock(probe->ftp_pid)) == NULL) {
+HERE();
 		if ((curproc->p_flag & SFORKING) == 0)
 			return;
+HERE();
 
 		mutex_enter(&pidlock);
 		p = prfind(probe->ftp_pid);
@@ -1013,6 +1022,7 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 
 	ASSERT(!(p->p_flag & SVFORK));
 	mutex_exit(&p->p_lock);
+HERE();
 
 	/*
 	 * We have to enable the trap entry point before any user threads have
@@ -1254,11 +1264,13 @@ HERE();
 			atomic_add_64(&fprc->ftpc_acount, 1);
 			ASSERT(fprc->ftpc_acount <= fprc->ftpc_rcount);
 			mutex_exit(&fprc->ftpc_mtx);
+HERE();
 
 			return (fprc);
 		}
 	}
 
+HERE();
 	/*
 	 * Drop the bucket lock so we don't try to perform a sleeping
 	 * allocation under it.
@@ -1286,10 +1298,12 @@ HERE();
 			mutex_exit(&fprc->ftpc_mtx);
 
 			kmem_free(new_fprc, sizeof (fasttrap_proc_t));
+HERE();
 
 			return (fprc);
 		}
 	}
+HERE();
 
 	new_fprc->ftpc_next = bucket->ftb_data;
 	bucket->ftb_data = new_fprc;
@@ -1367,10 +1381,7 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	ASSERT(pattr != NULL);
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
-HERE();
-printk("bucket=%ld\n", FASTTRAP_PROVS_INDEX(pid, name));
 	mutex_enter(&bucket->ftb_mtx);
-HERE();
 
 	/*
 	 * Take a lap through the list and return the match if we find it.
@@ -1394,19 +1405,22 @@ HERE();
 	 * Make sure the process exists, isn't a child created as the result
 	 * of a vfork(2), and isn't a zombie (but may be in fork).
 	 */
+HERE();
 	mutex_enter(&pidlock);
 	if ((p = prfind(pid)) == NULL) {
+HERE();
 		mutex_exit(&pidlock);
 		return (NULL);
 	}
+HERE();
 	mutex_enter(&p->p_lock);
-HERE();
 	mutex_exit(&pidlock);
-HERE();
 	if (p->p_flag & (SVFORK | SEXITING)) {
+HERE();
 		mutex_exit(&p->p_lock);
 		return (NULL);
 	}
+HERE();
 
 	/*
 	 * Increment p_dtrace_probes so that the process knows to inform us
@@ -1476,11 +1490,8 @@ HERE();
 	bucket->ftb_data = new_fp;
 
 printk("%s(%d):new USDT provider: '%s'\n", __FILE__, __LINE__, provname);
-HERE();
 	mutex_enter(&new_fp->ftp_mtx);
-HERE();
 	mutex_exit(&bucket->ftb_mtx);
-HERE();
 
 	crfree(cred);
 	return (new_fp);
@@ -1894,6 +1905,7 @@ fasttrap_meta_create_probe(void *arg, void *parg,
 		    dhpb->dthpb_base + dhpb->dthpb_enoffs[i - 1])
 			return;
 	}
+HERE();
 
 	/*
 	 * Grab the creation lock to ensure consistency between calls to
@@ -1977,6 +1989,7 @@ fasttrap_meta_create_probe(void *arg, void *parg,
 	/*
 	 * The probe is fully constructed -- register it with DTrace.
 	 */
+HERE();
 	pp->ftp_id = dtrace_probe_create(provider->ftp_provid, dhpb->dthpb_mod,
 	    dhpb->dthpb_func, dhpb->dthpb_name, FASTTRAP_OFFSET_AFRAMES, pp);
 
@@ -2251,6 +2264,9 @@ fasttrap_attach(void)
 # if defined(sun)
 	fasttrap_max = ddi_getprop(DDI_DEV_T_ANY, devi, DDI_PROP_DONTPASS,
 	    "fasttrap-max-probes", FASTTRAP_MAX_DEFAULT);
+# else
+	if (fasttrap_max == 0)
+		fasttrap_max = FASTTRAP_MAX_DEFAULT;
 # endif
 	fasttrap_total = 0;
 

@@ -33,6 +33,7 @@ H = \
 all: $(LIB) ../build/drti.o
 
 $(LIB): \
+	$(LIB)(dis_tables.o) \
 	$(LIB)(dt_lex.o) \
 	$(LIB)(dt_aggregate.o) \
 	$(LIB)(dt_as.o) \
@@ -49,6 +50,7 @@ $(LIB): \
 	$(LIB)(dt_handle.o) \
 	$(LIB)(dt_ident.o) \
 	$(LIB)(dt_inttab.o) \
+	$(LIB)(dt_isadep.o) \
 	$(LIB)(dt_list.o) \
 	$(LIB)(dt_link.o) \
 	$(LIB)(dt_module.o) \
@@ -97,6 +99,14 @@ $(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
 	$(CC) $(CPPFLAGS) -c drti.c
 	mv drti.o ../build
 
+$(LIB)(dis_tables.o): ../drivers/dtrace/dis_tables.c $(H)
+	$(CC) $(CPPFLAGS) -Ii386 -I../drivers/dtrace -c ../drivers/dtrace/dis_tables.c
+	ar rv $(LIB) dis_tables.o
+	-rm -f dis_tables.o
+$(LIB)(dt_isadep.o): i386/dt_isadep.c $(H)
+	$(CC) $(CPPFLAGS) -Ii386 -I../drivers/dtrace -c i386/dt_isadep.c
+	ar rv $(LIB) dt_isadep.o
+	-rm -f dt_isadep.o
 clean:
 	-rm -f dt_grammar.h dt_lex.c *.o *.a
 

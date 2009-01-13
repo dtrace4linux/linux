@@ -1,3 +1,4 @@
+# include <stdio.h>
 
 /**********************************************************************/
 /*   Stubs which we have yet to implement. Just log we got called so  */
@@ -14,13 +15,12 @@ OBJFS_MODID(int x)
 	return 0;
 }
 __priv_free_info() { printf("proc-stub:%s\n", __func__); }
-_mutex_held() { printf("proc-stub:%s\n", __func__); }
 _rw_read_held() { printf("proc-stub:%s\n", __func__); }
 _rw_write_held() { printf("proc-stub:%s\n", __func__); }
-dt_pid_create_entry_probe() { printf("proc-stub:%s\n", __func__); }
-dt_pid_create_glob_offset_probes() { printf("proc-stub:%s\n", __func__); }
-dt_pid_create_offset_probe() { printf("proc-stub:%s\n", __func__); }
-dt_pid_create_return_probe() { printf("proc-stub:%s\n", __func__); }
+//dt_pid_create_entry_probe() { printf("proc-stub:%s\n", __func__); }
+//dt_pid_create_glob_offset_probes() { printf("proc-stub:%s\n", __func__); }
+//dt_pid_create_offset_probe() { printf("proc-stub:%s\n", __func__); }
+//dt_pid_create_return_probe() { printf("proc-stub:%s\n", __func__); }
 
 int modctl() { printf("proc-stub:%s\n", __func__); return -1; }
 int p_online(int processorid, int flag) 

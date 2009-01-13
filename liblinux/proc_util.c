@@ -26,7 +26,6 @@
  * $FreeBSD$
  */
 
-#include "_libproc.h"
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -34,38 +33,50 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include <sys/ptrace.h>
+#include "Pcontrol.h"
 
 int
-proc_clearflags(struct proc_handle *phdl, int mask)
+proc_clearflags(struct ps_prochandle *phdl, int mask)
 {
 	if (phdl == NULL)
 		return (EINVAL);
 
-	phdl->flags &= ~mask;
+printf("HERE:%s\n", __func__);
+	phdl->p_flags &= ~mask;
 
 	return (0);
 }
 
 int
-proc_continue(struct proc_handle *phdl)
+proc_continue(struct ps_prochandle *phdl)
 {
 	if (phdl == NULL)
 		return (EINVAL);
 
-	if (ptrace(PT_CONTINUE, phdl->pid, (caddr_t)(uintptr_t) 1, 0) != 0)
+printf("HERE:%s phdl=%p\n", __func__, phdl);
+	while (ptrace(PT_CONTINUE, phdl->pid, (caddr_t)(uintptr_t) 1, 0) != 0) {
+		fprintf(stderr, "Error: pid=%d ", phdl->pid);
+		perror("ptrace(PT_CONTINUE)");
+		if (ptrace(PTRACE_ATTACH, phdl->pid, 0, 0) < 0) {
+			perror("ptrace(PTRACE_ATTACH)");
+		}
+		break;
 		return (errno);
+	}
 
-	phdl->status = PS_RUN;
+	phdl->p_status = PS_RUN;
 
 	return (0);
 }
 
 int
-proc_detach(struct proc_handle *phdl)
+proc_detach(struct ps_prochandle *phdl)
 {
 	if (phdl == NULL)
 		return (EINVAL);
 
+printf("HERE:%s\n", __func__);
 	if (ptrace(PT_DETACH, phdl->pid, 0, 0) != 0)
 		return (errno);
 
@@ -73,36 +84,39 @@ proc_detach(struct proc_handle *phdl)
 }
 
 int
-proc_getflags(struct proc_handle *phdl)
+proc_getflags(struct ps_prochandle *phdl)
 {
 	if (phdl == NULL)
 		return (-1);
 
-	return(phdl->flags);
+printf("HERE:%s\n", __func__);
+	return(phdl->p_flags);
 }
 
 int
-proc_setflags(struct proc_handle *phdl, int mask)
+proc_setflags(struct ps_prochandle *phdl, int mask)
 {
 	if (phdl == NULL)
 		return (EINVAL);
 
-	phdl->flags |= mask;
+printf("HERE:%s\n", __func__);
+	phdl->p_flags |= mask;
 
 	return (0);
 }
 
 int
-proc_state(struct proc_handle *phdl)
+proc_state(struct ps_prochandle *phdl)
 {
 	if (phdl == NULL)
 		return (-1);
 
-	return (phdl->status);
+printf("HERE:%s\n", __func__);
+	return (phdl->p_status);
 }
 
 int
-proc_wait(struct proc_handle *phdl)
+proc_wait(struct ps_prochandle *phdl)
 {	struct stat sbuf;
 	char	buf[128];
 	int status = 0;
@@ -110,21 +124,22 @@ proc_wait(struct proc_handle *phdl)
 	if (phdl == NULL)
 		return (EINVAL);
 
+printf("HERE:%s\n", __func__);
 	waitpid(phdl->pid, &status, 0);
 	snprintf(buf, sizeof buf, "/proc/%d", phdl->pid);
 	int fd = stat(buf, &sbuf);
 	if (fd < 0) {
-		phdl->status = PS_UNDEAD;
+		phdl->p_status = PS_UNDEAD;
 		}
-printf("%s(%d):%s:here...status=%d\n", __FILE__, __LINE__, __func__, status);
 	return status;
 }
 
 pid_t
-proc_getpid(struct proc_handle *phdl)
+proc_getpid(struct ps_prochandle *phdl)
 {
 	if (phdl == NULL)
 		return (-1);
 
+printf("HERE:%s\n", __func__);
 	return (phdl->pid);
 }

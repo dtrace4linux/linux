@@ -10,13 +10,13 @@ int main(int argc, char **argv)
 	fred();
 
 	for (n = 0; ; n++) {
-		printf("%d: here on line %d\n", n, __LINE__);
+		printf("PID:%d %d: here on line %d\n", getpid(), n, __LINE__);
 		DTRACE_PROBE1(simple, saw__line, 0x1234);
-		printf("here on line %d\n", __LINE__);
+		printf("PID:%d here on line %d\n", getpid(), __LINE__);
 		DTRACE_PROBE1(simple, saw__word, 0x87654321);
-		printf("here on line %d\n", __LINE__);
+		printf("PID:%d here on line %d\n", getpid(), __LINE__);
 		DTRACE_PROBE1(simple, saw__word, 0xdeadbeef);
-		printf("here on line %d\n", __LINE__);
-		sleep(1);
+		printf("PID:%d here on line %d\n", getpid(), __LINE__);
+		sleep(2);
 		}
 }

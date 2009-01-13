@@ -68,6 +68,8 @@
 #include <sys/sysi86.h>
 #endif
 
+struct rlimit64;
+
 #ifdef	__cplusplus
 extern "C" {
 #endif

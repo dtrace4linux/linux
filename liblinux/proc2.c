@@ -12,6 +12,14 @@
 #include "Pcontrol.h"
 #include "libproc.h"
 
+_mutex_held(pthread_mutex_t *mp)
+{
+	if (pthread_mutex_trylock(mp)) {
+		pthread_mutex_unlock(mp);
+		return 1;
+	}
+	return 0;
+}
 int fork1()
 {
 	printf("proc2.c: fork1 called:%s\n", __func__);

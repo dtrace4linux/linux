@@ -116,7 +116,6 @@ typedef struct	sol_proc_t {
 	int		p_pid;
 	int		p_ppid;
 	int		t_sig_check;
-	struct task_struct *t_proc;
 	void            *p_dtrace_helpers; /* DTrace helpers, if any */
 	struct sol_proc_t *t_procp;
         struct  cred    *p_cred;        /* process credentials */

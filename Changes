@@ -1,3 +1,12 @@
+Thu Jan 15 20:56:19 2009  fox
+
+     114* Archive: 1.0050
+
+     113* tests/dt019: Simple usdt example we are trying to make work.
+
+     112* fasttrap.c: Avoid kernel panic when we find the target to intercept.
+          Still not write because we commented out uread/uwrite.
+
 Tue Jan 13 23:52:50 2009  fox
 
      111* Archive: 1.0049

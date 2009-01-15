@@ -10065,7 +10065,9 @@ dtrace_ecb_disable(dtrace_ecb_t *ecb)
 	dtrace_ecb_t *pecb, *prev = NULL;
 	dtrace_probe_t *probe = ecb->dte_probe;
 
+HERE();
 	ASSERT(MUTEX_HELD(&dtrace_lock));
+HERE();
 
 	if (probe == NULL) {
 		/*
@@ -10074,20 +10076,24 @@ dtrace_ecb_disable(dtrace_ecb_t *ecb)
 		return;
 	}
 
+HERE();
 	for (pecb = probe->dtpr_ecb; pecb != NULL; pecb = pecb->dte_next) {
 		if (pecb == ecb)
 			break;
 		prev = pecb;
 	}
 
+HERE();
 	ASSERT(pecb != NULL);
 
+HERE();
 	if (prev == NULL) {
 		probe->dtpr_ecb = ecb->dte_next;
 	} else {
 		prev->dte_next = ecb->dte_next;
 	}
 
+HERE();
 	if (ecb == probe->dtpr_ecb_last) {
 		ASSERT(ecb->dte_next == NULL);
 		probe->dtpr_ecb_last = prev;
@@ -10097,8 +10103,10 @@ dtrace_ecb_disable(dtrace_ecb_t *ecb)
 	 * The ECB has been disconnected from the probe; now sync to assure
 	 * that all CPUs have seen the change before returning.
 	 */
+HERE();
 	dtrace_sync();
 
+HERE();
 	if (probe->dtpr_ecb == NULL) {
 		/*
 		 * That was the last ECB on the probe; clear the predicate
@@ -10106,6 +10114,7 @@ dtrace_ecb_disable(dtrace_ecb_t *ecb)
 		 * to assure that we'll never hit it again.
 		 */
 		dtrace_provider_t *prov = probe->dtpr_provider;
+HERE();
 
 		ASSERT(ecb->dte_next == NULL);
 		ASSERT(probe->dtpr_ecb_last == NULL);
@@ -10122,6 +10131,7 @@ dtrace_ecb_disable(dtrace_ecb_t *ecb)
 		ASSERT(probe->dtpr_ecb_last != NULL);
 		ASSERT(probe->dtpr_predcache == DTRACE_CACHEIDNONE);
 
+HERE();
 		if (probe->dtpr_ecb == probe->dtpr_ecb_last) {
 			dtrace_predicate_t *p = probe->dtpr_ecb->dte_predicate;
 
@@ -12202,16 +12212,13 @@ PRINT_CASE(DOF_SECT_URELHDR);
 HERE();
 	if ((enab = *enabp) == NULL)
 		enab = *enabp = dtrace_enabling_create(vstate);
-printk("enab=%x\n", enab);
 
 	for (i = 0; i < dof->dofh_secnum; i++) {
 		dof_sec_t *sec = (dof_sec_t *)(daddr +
 		    (uintptr_t)dof->dofh_secoff + i * dof->dofh_secsize);
 
-HERE();
 		if (sec->dofs_type != DOF_SECT_ECBDESC)
 			continue;
-HERE();
 
 		if ((ep = dtrace_dof_ecbdesc(dof, sec, vstate, cr)) == NULL) {
 			dtrace_enabling_destroy(enab);
@@ -13235,6 +13242,7 @@ HERE();
          * First, retract any retained enablings for this state.
          */
         dtrace_enabling_retract(state);
+HERE();
         ASSERT(state->dts_nretained == 0);
 
 	if (state->dts_activity == DTRACE_ACTIVITY_ACTIVE ||
@@ -13251,12 +13259,14 @@ HERE();
 		state->dts_activity = DTRACE_ACTIVITY_KILLED;
 		dtrace_sync();
 	}
+HERE();
 	
 	/*
 	 * Release the credential hold we took in dtrace_state_create().
 	 */
 	if (state->dts_cred.dcr_cred != NULL)
 		crfree(state->dts_cred.dcr_cred);
+HERE();
 
 	/*
 	 * Now we can safely disable and destroy any enabled probes.  Because
@@ -13278,8 +13288,11 @@ HERE();
 					continue;
 			}
 
+HERE();
 			dtrace_ecb_disable(ecb);
+HERE();
 			dtrace_ecb_destroy(ecb);
+HERE();
 		}
 
 		if (!match)
@@ -13292,23 +13305,33 @@ HERE();
 	 */
 	dtrace_sync();
 
+HERE();
 	dtrace_buffer_free(state->dts_buffer);
+HERE();
 	dtrace_buffer_free(state->dts_aggbuffer);
+HERE();
 
 	for (i = 0; i < nspec; i++)
 		dtrace_buffer_free(spec[i].dtsp_buffer);
 
+HERE();
 	if (state->dts_cleaner != CYCLIC_NONE)
 		cyclic_remove(state->dts_cleaner);
 
+HERE();
 	if (state->dts_deadman != CYCLIC_NONE)
 		cyclic_remove(state->dts_deadman);
 
+HERE();
 	dtrace_dstate_fini(&vstate->dtvs_dynvars);
+HERE();
 	dtrace_vstate_fini(vstate);
+HERE();
 	kmem_free(state->dts_ecbs, state->dts_necbs * sizeof (dtrace_ecb_t *));
+HERE();
 
 	if (state->dts_aggregations != NULL) {
+HERE();
 #ifdef DEBUG
 		for (i = 0; i < state->dts_naggregations; i++)
 			ASSERT(state->dts_aggregations[i] == NULL);
@@ -13317,16 +13340,22 @@ HERE();
 		kmem_free(state->dts_aggregations,
 		    state->dts_naggregations * sizeof (dtrace_aggregation_t *));
 	}
+HERE();
 
 	kmem_free(state->dts_buffer, bufsize);
+HERE();
 	kmem_free(state->dts_aggbuffer, bufsize);
+HERE();
 
 	for (i = 0; i < nspec; i++)
 		kmem_free(spec[i].dtsp_buffer, bufsize);
+HERE();
 
 	kmem_free(spec, nspec * sizeof (dtrace_speculation_t));
+HERE();
 
 	dtrace_format_destroy(state);
+HERE();
 
 	vmem_destroy(state->dts_aggid_arena);
 # if defined(sun)

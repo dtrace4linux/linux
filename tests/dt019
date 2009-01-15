@@ -1,0 +1,7 @@
+# check usdt attaching/kill
+set +x
+
+build/simple-c &
+sleep 5
+echo launching dtrace...
+dtrace -n :::saw-word

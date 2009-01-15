@@ -614,7 +614,7 @@ prfind(int p)
 	struct task_struct *tp = find_task_by_vpid(p);
 
 	if (!tp)
-		return (proc_t *) tp;
+		return (proc_t *) NULL;
 HERE();
 	return par_setup_thread1(tp);
 }
@@ -741,15 +741,21 @@ int
 uread(proc_t *p, void *addr, size_t len, uintptr_t dest)
 {	int (*func)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write) = 
 		fbt_get_access_process_vm();
+	int	ret;
 
-	return func(p, (unsigned long) addr, (void *) dest, len, 0);
+	ret = func(p->p_task, (unsigned long) addr, (void *) dest, len, 0);
+printk("uread %p %p %d %p -- func=%p ret=%d\n", p, addr, (int) len, dest, func, ret);
+	return ret;
 }
 int 
-uwrite(proc_t *p, void *addr, size_t len, uintptr_t src)
+uwrite(proc_t *p, void *src, size_t len, uintptr_t addr)
 {	int (*func)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write) = 
 		fbt_get_access_process_vm();
+	int	ret;
 
-	return func(p, (unsigned long) addr, (void *) src, len, 1);
+	ret = func(p->p_task, (unsigned long) addr, (void *) src, len, 1);
+printk("uwrite %p %p %d src=%p %02x -- func=%p ret=%d\n", p, addr, (int) len, src, *(unsigned char *) src, func, ret);
+	return ret;
 }
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
@@ -979,6 +985,9 @@ static struct proc_dir_entry *dir;
 		mutex_init(&cpu_list[i].cpu_ft_lock);
 		}
 	cpu_list[NR_CPUS-1].cpu_next = cpu_list;
+	for (i = 0; i < CONFIG_NR_CPUS; i++) {
+		mutex_init(&cpu_core[i].cpuc_pid_lock);
+	}
 
 # if 0
 	struct proc_dir_entry *ent;

@@ -264,8 +264,10 @@ fasttrap_tracepoint_init(proc_t *p, fasttrap_tracepoint_t *tp, uintptr_t pc,
 	 * pages, we potentially read the instruction in two parts. If the
 	 * second part fails, we just zero out that part of the instruction.
 	 */
+HERE();
 	if (uread(p, &instr[0], first, pc) != 0)
 		return (-1);
+HERE();
 	if (len > first &&
 	    uread(p, &instr[first], len - first, pc + first) != 0) {
 		bzero(&instr[first], len - first);
@@ -277,6 +279,7 @@ fasttrap_tracepoint_init(proc_t *p, fasttrap_tracepoint_t *tp, uintptr_t pc,
 	 */
 	if ((size = dtrace_instr_size_isa(instr, p->p_model, &rmindex)) <= 0)
 		return (-1);
+HERE();
 
 	/*
 	 * Make sure the disassembler isn't completely broken.
@@ -625,7 +628,7 @@ int
 fasttrap_tracepoint_install(proc_t *p, fasttrap_tracepoint_t *tp)
 {
 	fasttrap_instr_t instr = FASTTRAP_INSTR;
-
+HERE();
 	if (uwrite(p, &instr, 1, tp->ftt_pc) != 0)
 		return (-1);
 

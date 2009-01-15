@@ -39,9 +39,25 @@
 #include <linux/module.h>
 
 // Temporary definitions so we can compile.
-# define	sprlock(pid) 0
-# define	sprlock_proc(p)
-# define	sprunlock(p)
+proc_t *
+sprlock(int pid)
+{
+	proc_t *p = prfind(pid);
+	if (!p)
+		return NULL;
+	mutex_enter(&p->p_lock);
+	return p;
+}
+void
+sprlock_proc(proc_t *p)
+{
+	mutex_enter(&p->p_lock);
+}
+void
+sprunlock(proc_t *p)
+{
+	mutex_exit(&p->p_lock);
+}
 # define RW_WRITER 2
 #define SEXITING   0x00000002   /* process is exiting */
 #define SFORKING   0x00000008   /* tells called functions that we're forking */
@@ -341,9 +357,17 @@ fasttrap_mod_barrier(uint64_t gen)
 
 	fasttrap_mod_gen++;
 
+	/***********************************************/
+	/*   Need  to  fix  this  - we need to ensure  */
+	/*   this is really a memory barrier.	       */
+	/***********************************************/
+
+HERE();
 	for (i = 0; i < NCPU; i++) {
+printk("fasttrap_mod_barrier: i=%d\n", i);
 		mutex_enter(&cpu_core[i].cpuc_pid_lock);
 		mutex_exit(&cpu_core[i].cpuc_pid_lock);
+HERE();
 	}
 }
 
@@ -582,6 +606,7 @@ fasttrap_tracepoint_enable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 
 	ASSERT(index < probe->ftp_ntps);
 
+HERE();
 	pid = probe->ftp_pid;
 	pc = probe->ftp_tps[index].fit_tp->ftt_pc;
 	id = &probe->ftp_tps[index].fit_id;
@@ -589,6 +614,7 @@ fasttrap_tracepoint_enable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	ASSERT(probe->ftp_tps[index].fit_tp->ftt_pid == pid);
 
 	ASSERT(!(p->p_flag & SVFORK));
+HERE();
 
 	/*
 	 * Before we make any modifications, make sure we've imposed a barrier
@@ -597,6 +623,7 @@ fasttrap_tracepoint_enable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	fasttrap_mod_barrier(probe->ftp_gen);
 
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
+HERE();
 
 	/*
 	 * If the tracepoint has already been enabled, just add our id to the
@@ -609,7 +636,9 @@ fasttrap_tracepoint_enable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	 * defunct.
 	 */
 again:
+HERE();
 	mutex_enter(&bucket->ftb_mtx);
+HERE();
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		/*
 		 * Note that it's safe to access the active count on the
@@ -636,6 +665,7 @@ again:
 		 * since we're holding P_PR_LOCK for this process.
 		 */
 		ASSERT(tp->ftt_ids != NULL || tp->ftt_retids != NULL);
+HERE();
 
 		switch (id->fti_ptype) {
 		case DTFTP_ENTRY:
@@ -658,8 +688,10 @@ again:
 		default:
 			ASSERT(0);
 		}
+HERE();
 
 		mutex_exit(&bucket->ftb_mtx);
+HERE();
 
 		if (new_tp != NULL) {
 			new_tp->ftt_ids = NULL;
@@ -673,13 +705,18 @@ again:
 	 * If we have a good tracepoint ready to go, install it now while
 	 * we have the lock held and no one can screw with us.
 	 */
+HERE();
 	if (new_tp != NULL) {
 		int rc = 0;
 
+HERE();
 		new_tp->ftt_next = bucket->ftb_data;
+HERE();
 		membar_producer();
 		bucket->ftb_data = new_tp;
+HERE();
 		membar_producer();
+HERE();
 		mutex_exit(&bucket->ftb_mtx);
 
 		/*
@@ -688,8 +725,10 @@ again:
 		 * indicate that this tracepoint must still be disabled
 		 * by calling fasttrap_tracepoint_disable().
 		 */
+HERE();
 		if (fasttrap_tracepoint_install(p, new_tp) != 0)
 			rc = FASTTRAP_ENABLE_PARTIAL;
+HERE();
 
 		/*
 		 * Increment the count of the number of tracepoints active in
@@ -701,13 +740,16 @@ again:
 		return (rc);
 	}
 
+HERE();
 	mutex_exit(&bucket->ftb_mtx);
+HERE();
 
 	/*
 	 * Initialize the tracepoint that's been preallocated with the probe.
 	 */
 	new_tp = probe->ftp_tps[index].fit_tp;
 
+HERE();
 	ASSERT(new_tp->ftt_pid == pid);
 	ASSERT(new_tp->ftt_pc == pc);
 	ASSERT(new_tp->ftt_proc == probe->ftp_prov->ftp_proc);
@@ -736,8 +778,10 @@ again:
 	 * If the ISA-dependent initialization goes to plan, go back to the
 	 * beginning and try to install this freshly made tracepoint.
 	 */
+HERE();
 	if (fasttrap_tracepoint_init(p, new_tp, pc, id->fti_ptype) == 0)
 		goto again;
+HERE();
 
 	new_tp->ftt_ids = NULL;
 	new_tp->ftt_retids = NULL;
@@ -938,26 +982,42 @@ fasttrap_disable_callbacks(void)
 {
 	ASSERT(MUTEX_HELD(&cpu_lock));
 
+HERE();
 	mutex_enter(&fasttrap_count_mtx);
 	ASSERT(fasttrap_pid_count > 0);
 	fasttrap_pid_count--;
 	if (fasttrap_pid_count == 0) {
+# if defined(TODOxxx)
+		/***********************************************/
+		/*   20090115  PDF I guess they are trying to  */
+		/*   ensure  no  other cpu comes in here, but  */
+		/*   we  have  a  blocking  mutex  protecting  */
+		/*   this,  so  not  really  sure  whats  the  */
+		/*   purpose   here.  (I  note  rw_enter  and  */
+		/*   friends are in the ZFS code, so this may  */
+		/*   be  a  nice sync mechanism for solaris).  */
+		/***********************************************/
 		cpu_t *cur, *cpu = CPU;
 
 		for (cur = cpu->cpu_next_onln; cur != cpu;
 		    cur = cur->cpu_next_onln) {
 			rw_enter(&cur->cpu_ft_lock, RW_WRITER);
 		}
+# endif
 
 		dtrace_pid_probe_ptr = NULL;
 		dtrace_return_probe_ptr = NULL;
 
+# if defined(TODOxxx)
 		for (cur = cpu->cpu_next_onln; cur != cpu;
 		    cur = cur->cpu_next_onln) {
 			rw_exit(&cur->cpu_ft_lock);
 		}
+# endif
 	}
+HERE();
 	mutex_exit(&fasttrap_count_mtx);
+HERE();
 }
 
 /*ARGSUSED*/
@@ -1030,13 +1090,16 @@ HERE();
 	 * in their process's text.
 	 */
 	fasttrap_enable_callbacks();
+HERE();
 
 	/*
 	 * Enable all the tracepoints and add this probe's id to each
 	 * tracepoint's list of active probes.
 	 */
 	for (i = 0; i < probe->ftp_ntps; i++) {
+printk("i=%d\n", i);
 		if ((rc = fasttrap_tracepoint_enable(p, probe, i)) != 0) {
+HERE();
 			/*
 			 * If enabling the tracepoint failed completely,
 			 * we don't have to disable it; if the failure
@@ -1052,7 +1115,9 @@ HERE();
 			 * created so far for this probe.
 			 */
 			while (i >= 0) {
+HERE();
 				fasttrap_tracepoint_disable(p, probe, i);
+HERE();
 				i--;
 			}
 
@@ -1082,6 +1147,7 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 	fasttrap_provider_t *provider = probe->ftp_prov;
 	proc_t *p;
 	int i, whack = 0;
+HERE();
 
 	ASSERT(id == probe->ftp_id);
 
@@ -1091,13 +1157,16 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 	 * provider lock as a point of mutual exclusion to prevent other
 	 * DTrace consumers from disabling this probe.
 	 */
+HERE();
 	if ((p = sprlock(probe->ftp_pid)) != NULL) {
 		ASSERT(!(p->p_flag & SVFORK));
 		mutex_exit(&p->p_lock);
 	}
 
+HERE();
 	mutex_enter(&provider->ftp_mtx);
 
+HERE();
 	/*
 	 * Disable all the associated tracepoints (for fully enabled probes).
 	 */
@@ -1107,6 +1176,7 @@ fasttrap_pid_disable(void *arg, dtrace_id_t id, void *parg)
 		}
 	}
 
+HERE();
 	ASSERT(provider->ftp_rcount > 0);
 	provider->ftp_rcount--;
 

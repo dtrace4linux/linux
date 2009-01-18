@@ -84,6 +84,8 @@ struct modctl;
 
 	# define MUTEX_NOT_HELD(x)	mutex_count(x)
 
+	# define PS_VM X86_VM_MASK
+
 # else /* !__KERNEL */
 
 	# define	_LARGEFILE_SOURCE	1
@@ -145,6 +147,7 @@ typedef struct mutex mutex_t;
 	# define	SNOCD	0
 
 	# define aston(x) 
+	# define krwlock_t mutex_t
 
 	# define	t_did pid
 	# define	p_parent parent

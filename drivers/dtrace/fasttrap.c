@@ -34,6 +34,7 @@
 #include <sys/fasttrap_isa.h>
 #include <sys/dtrace.h>
 #include <sys/dtrace_impl.h>
+#include <sys/rwlock.h>
 #include "dtrace_proto.h"
 #include <linux/sort.h>
 #include <linux/module.h>
@@ -66,8 +67,6 @@ sprunlock(proc_t *p)
 #define VREAD           00400
 #define VWRITE          00200
 
-# define rw_enter(a, b)
-# define rw_exit(a)
 # define priv_proc_cred_perm(cr, p, ptr, flags) 0
 static void swap_func(void *p1, void *p2, int size)
 {
@@ -364,7 +363,6 @@ fasttrap_mod_barrier(uint64_t gen)
 
 HERE();
 	for (i = 0; i < NCPU; i++) {
-printk("fasttrap_mod_barrier: i=%d\n", i);
 		mutex_enter(&cpu_core[i].cpuc_pid_lock);
 		mutex_exit(&cpu_core[i].cpuc_pid_lock);
 HERE();
@@ -636,9 +634,7 @@ HERE();
 	 * defunct.
 	 */
 again:
-HERE();
 	mutex_enter(&bucket->ftb_mtx);
-HERE();
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		/*
 		 * Note that it's safe to access the active count on the
@@ -709,14 +705,10 @@ HERE();
 	if (new_tp != NULL) {
 		int rc = 0;
 
-HERE();
 		new_tp->ftt_next = bucket->ftb_data;
-HERE();
 		membar_producer();
 		bucket->ftb_data = new_tp;
-HERE();
 		membar_producer();
-HERE();
 		mutex_exit(&bucket->ftb_mtx);
 
 		/*
@@ -742,7 +734,6 @@ HERE();
 
 HERE();
 	mutex_exit(&bucket->ftb_mtx);
-HERE();
 
 	/*
 	 * Initialize the tracepoint that's been preallocated with the probe.
@@ -1097,7 +1088,6 @@ HERE();
 	 * tracepoint's list of active probes.
 	 */
 	for (i = 0; i < probe->ftp_ntps; i++) {
-printk("i=%d\n", i);
 		if ((rc = fasttrap_tracepoint_enable(p, probe, i)) != 0) {
 HERE();
 			/*

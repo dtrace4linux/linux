@@ -25,6 +25,8 @@
 #include <linux/thread_info.h>
 #include <linux/smp.h>
 #include <asm/current.h>
+#include <linux/kdebug.h>
+#include <sys/rwlock.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
@@ -92,6 +94,15 @@ sol_proc_t	*curthread;
 
 dtrace_vtime_state_t dtrace_vtime_active = 0;
 dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
+
+/**********************************************************************/
+/*   Stuff for INT3 interception.				      */
+/**********************************************************************/
+static int proc_notifier_int3(struct notifier_block *, unsigned long, void *);
+static struct notifier_block n_int3 = {
+	.notifier_call = proc_notifier_int3,
+	};
+static	int (*fn_register_die_notifier)(struct notifier_block *);
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -193,6 +204,35 @@ dump_mem(char *cp, int len)
 		printk("%s", buf);
 		}
 }
+/**********************************************************************/
+/*   Register notifications for ourselves here.			      */
+/**********************************************************************/
+static void
+dtrace_linux_init(void)
+{
+	if (fn_register_die_notifier)
+		return;
+
+	fn_register_die_notifier = get_proc_addr("register_die_notifier");
+	if (fn_register_die_notifier == NULL) {
+		printk("dtrace: register_die_notifier is NULL : FIX ME !\n");
+	} else {
+		(*fn_register_die_notifier)(&n_int3);
+	}
+}
+/**********************************************************************/
+/*   Cleanup notifications before we get unloaded.		      */
+/**********************************************************************/
+static void
+dtrace_linux_fini(void)
+{
+	int (*fn_unregister_die_notifier)(struct notifier_block *) = 
+		get_proc_addr("unregister_die_notifier");
+	if (fn_unregister_die_notifier) {
+		(*fn_unregister_die_notifier)(&n_int3);
+	}
+}
+
 /**********************************************************************/
 /*   CPU specific - used by profiles.c to handle amount of frames in  */
 /*   the clock ticks.						      */
@@ -333,6 +373,15 @@ fulword(const void *addr, uintptr_t *valuep)
 		return 1;
 
 	*valuep = dtrace_fulword((void *) addr);
+	return 0;
+}
+int
+fuword8(const void *addr, unsigned char *valuep)
+{
+	if (!validate_ptr((void *) addr))
+		return 1;
+
+	*valuep = dtrace_fuword8((void *) addr);
 	return 0;
 }
 int
@@ -606,6 +655,26 @@ par_setup_thread2()
 	return solp;
 }
 /**********************************************************************/
+/*   Handle  an  INT3 (0xCC) single step trap, for USDT and let rest  */
+/*   of the engine know something fired.			      */
+/**********************************************************************/
+static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
+{	struct die_args *args = (struct die_args *) ptr;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+# define PC ip
+#else
+# define PC rip
+#endif
+	printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
+		(void *) args->regs->PC, 
+		smp_processor_id());
+	dtrace_user_probe(3, (struct regs *) args->regs, 
+		(caddr_t) args->regs->PC, 
+		smp_processor_id());
+	return NOTIFY_OK;
+}
+/**********************************************************************/
 /*   Lookup process by proc id.					      */
 /**********************************************************************/
 proc_t *
@@ -617,6 +686,16 @@ prfind(int p)
 		return (proc_t *) NULL;
 HERE();
 	return par_setup_thread1(tp);
+}
+void
+rw_enter(krwlock_t *p, krw_t type)
+{
+	TODO();
+}
+void
+rw_exit(krwlock_t *p)
+{
+	TODO();
 }
 /**********************************************************************/
 /*   Called  from  /dev/fbt  driver  to allow us to populate address  */
@@ -730,9 +809,25 @@ syms_write(struct file *file, const char __user *buf,
 	}
 # endif
 
-	if (xkallsyms_lookup_name)
+	if (xkallsyms_lookup_name) {
 		hunt_init();
+		dtrace_linux_init();
+	}
 	return orig_count;
+}
+void
+trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu)
+{
+TODO();
+}
+/**********************************************************************/
+/*   Deliver signal to a proc.					      */
+/**********************************************************************/
+int
+tsignal(proc_t *p, int sig)
+{
+	send_sig(sig, SEND_SIG_PRIV, p);
+	return 0;
 }
 /**********************************************************************/
 /*   Read from a procs memory.					      */
@@ -744,7 +839,7 @@ uread(proc_t *p, void *addr, size_t len, uintptr_t dest)
 	int	ret;
 
 	ret = func(p->p_task, (unsigned long) addr, (void *) dest, len, 0);
-printk("uread %p %p %d %p -- func=%p ret=%d\n", p, addr, (int) len, dest, func, ret);
+printk("uread %p %p %d %p -- func=%p ret=%d\n", p, addr, (int) len, (void *) dest, func, ret);
 	return ret;
 }
 int 
@@ -754,7 +849,7 @@ uwrite(proc_t *p, void *src, size_t len, uintptr_t addr)
 	int	ret;
 
 	ret = func(p->p_task, (unsigned long) addr, (void *) src, len, 1);
-printk("uwrite %p %p %d src=%p %02x -- func=%p ret=%d\n", p, addr, (int) len, src, *(unsigned char *) src, func, ret);
+printk("uwrite %p %p %d src=%p %02x -- func=%p ret=%d\n", p, (void *) addr, (int) len, src, *(unsigned char *) src, func, ret);
 	return ret;
 }
 /**********************************************************************/
@@ -836,8 +931,8 @@ helper_release(struct inode *inode, struct file *file)
 	/***********************************************/
 	return 0;
 }
-static int
-helper_read(ctf_file_t *fp, int fd)
+static ssize_t
+helper_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
 	return -EIO;
 }
@@ -895,12 +990,13 @@ dtracedrv_release(struct inode *inode, struct file *file)
 	dtrace_close(file, 0, 0, NULL);
 	return 0;
 }
-static int
-dtracedrv_read(ctf_file_t *fp, int fd)
+static ssize_t
+dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
 //HERE();
 	return -EIO;
 }
+# if 0
 static int proc_calc_metrics(char *page, char **start, off_t off,
 				 int count, int *eof, int len)
 {
@@ -911,6 +1007,8 @@ static int proc_calc_metrics(char *page, char **start, off_t off,
 	if (len<0) len = 0;
 	return len;
 }
+# endif
+# if 0
 static int dtracedrv_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
 {	int len;
@@ -919,6 +1017,7 @@ static int dtracedrv_read_proc(char *page, char **start, off_t off,
 	len = sprintf(page, "hello");
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
+# endif
 static int dtracedrv_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
 {	int	ret;
@@ -1024,6 +1123,15 @@ static struct proc_dir_entry *dir;
 	dtrace_profile_init();
 	sdt_init();
 	ctl_init();
+
+	/***********************************************/
+	/*   We  cannot  call  this  til  we  get the  */
+	/*   /proc/kallsyms  entry.  So we defer this  */
+	/*   til   we   get   this   and   call  from  */
+	/*   syms_write().			       */
+	/***********************************************/
+	/* dtrace_linux_init(); */
+
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
@@ -1034,6 +1142,7 @@ static void __exit dtracedrv_exit(void)
 
 	misc_deregister(&helper_dev);
 
+	dtrace_linux_fini();
 	ctl_exit();
 	sdt_exit();
 	dtrace_profile_fini();

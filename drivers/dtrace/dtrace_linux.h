@@ -243,6 +243,7 @@ typedef struct par_module_t {
 void *par_alloc(void *, int, int *);
 void par_free(void *ptr);
 int fulword(const void *addr, uintptr_t *valuep);
+int fuword8(const void *addr, unsigned char *valuep);
 int fuword32(const void *addr, uint32_t *valuep);
 int suword32(const void *addr, uint32_t value);
 int sulword(const void *addr, ulong_t value);

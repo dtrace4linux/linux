@@ -11,12 +11,18 @@
 
 #include <dtrace_linux.h>
 #include <sys/dtrace.h>
+#include <sys/dtrace_impl.h>
+#include <dtrace_proto.h>
 #include <sys/fasttrap.h>
+#include <sys/rwlock.h>
 
 # if defined(sun)
 #include <sys/x_call.h>
 #include <sys/cmn_err.h>
+#endif
+
 #include <sys/trap.h>
+# if defined(sun)
 #include <sys/psw.h>
 #include <sys/privregs.h>
 #include <sys/machsystm.h>
@@ -154,11 +160,13 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 		(xc_func_t)dtrace_xcall_func);
 	kpreempt_enable();
 }
+# endif
 
 void
 dtrace_sync_func(void)
 {}
 
+# if 0
 void
 dtrace_sync(void)
 {
@@ -170,15 +178,22 @@ int (*dtrace_fasttrap_probe_ptr)(struct regs *);
 int (*dtrace_pid_probe_ptr)(struct regs *);
 int (*dtrace_return_probe_ptr)(struct regs *);
 
-# if 0
 void
-dtrace_user_probe(struct regs *rp, caddr_t addr, processorid_t cpuid)
+dtrace_user_probe(int trapno, struct pt_regs *rp, caddr_t addr, processorid_t cpuid)
 {
 	krwlock_t *rwp;
 	proc_t *p = curproc;
+#if defined(sun)
 	extern void trap(struct regs *, caddr_t, processorid_t);
+#endif
 
-	if (USERMODE(rp->r_cs) || (rp->r_ps & PS_VM)) {
+# define r_pc ip
+
+//	if (USERMODE(rp->r_cs) || (rp->r_ps & PS_VM)) {
+HERE();
+	if (user_mode(rp) || (rp->flags & PS_VM)) {
+HERE();
+# if 0
 		if (curthread->t_cred != p->p_cred) {
 			cred_t *oldcred = curthread->t_cred;
 			/*
@@ -189,9 +204,10 @@ dtrace_user_probe(struct regs *rp, caddr_t addr, processorid_t cpuid)
 			curthread->t_cred = crgetcred();
 			crfree(oldcred);
 		}
+# endif
 	}
 
-	if (rp->r_trapno == T_DTRACE_RET) {
+	if (trapno == T_DTRACE_RET) {
 		uint8_t step = curthread->t_dtrace_step;
 		uint8_t ret = curthread->t_dtrace_ret;
 		uintptr_t npc = curthread->t_dtrace_npc;
@@ -238,15 +254,16 @@ dtrace_user_probe(struct regs *rp, caddr_t addr, processorid_t cpuid)
 		rw_exit(rwp);
 		rp->r_pc = npc;
 
-	} else if (rp->r_trapno == T_DTRACE_PROBE) {
+	} else if (trapno == T_DTRACE_PROBE) {
 		rwp = &CPU->cpu_ft_lock;
 		rw_enter(rwp, RW_READER);
 		if (dtrace_fasttrap_probe_ptr != NULL)
 			(void) (*dtrace_fasttrap_probe_ptr)(rp);
 		rw_exit(rwp);
 
-	} else if (rp->r_trapno == T_BPTFLT) {
+	} else if (trapno == T_BPTFLT) {
 		uint8_t instr;
+HERE();
 		rwp = &CPU->cpu_ft_lock;
 
 		/*
@@ -277,12 +294,12 @@ dtrace_user_probe(struct regs *rp, caddr_t addr, processorid_t cpuid)
 		}
 
 		trap(rp, addr, cpuid);
-
 	} else {
 		trap(rp, addr, cpuid);
 	}
 }
 
+# if 0
 void
 dtrace_safe_synchronous_signal(void)
 {

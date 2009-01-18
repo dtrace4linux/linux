@@ -38,9 +38,9 @@
 #include <sys/regset.h>
 #include <sys/privregs.h>
 #include <sys/segments.h>
+#include <sys/trap.h>
 
 #define SVFORK     0x00040000   /* child of vfork that has not yet exec'd */
-#define T_DTRACE_RET    0x7f    /*      DTrace pid return               */
 
 # endif
 
@@ -838,6 +838,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	 * Check the bounds and grab the descriptor out of the specified
 	 * descriptor table.
 	 */
+	 TODO();
 # if defined(TODOxxx)
 	if (SELISLDT(sel)) {
 		if (ndx > p->p_ldtlimit)
@@ -1419,6 +1420,7 @@ fasttrap_pid_probe(struct regs *rp)
 		uint8_t scratch[2 * FASTTRAP_MAX_INSTR_SIZE + 7];
 #endif
 		uint_t i = 0;
+		TODO();
 # if defined(TODOxxx)
 		klwp_t *lwp = ttolwp(curthread);
 
@@ -1726,6 +1728,7 @@ uint64_t
 fasttrap_pid_getarg(void *arg, dtrace_id_t id, void *parg, int argno,
     int aframes)
 {
+	TODO();
 # if defined(TODOxxx)
 	return (fasttrap_anarg(ttolwp(curthread)->lwp_regs, 1, argno));
 # endif
@@ -1737,6 +1740,7 @@ uint64_t
 fasttrap_usdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno,
     int aframes)
 {
+	TODO();
 # if defined(TODOxxx)
 	return (fasttrap_anarg(ttolwp(curthread)->lwp_regs, 0, argno));
 # endif

@@ -7172,7 +7172,6 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&dtrace_lock);
-HERE();
 
 	/*
 	 * If there is at least one provider registered, we'll add this
@@ -7201,10 +7200,8 @@ HERE();
 		return (0);
 	}
 
-HERE();
 	mutex_exit(&dtrace_lock);
 	mutex_exit(&dtrace_provider_lock);
-HERE();
 
 	return (0);
 }
@@ -13290,7 +13287,6 @@ HERE();
 
 HERE();
 			dtrace_ecb_disable(ecb);
-HERE();
 			dtrace_ecb_destroy(ecb);
 HERE();
 		}
@@ -13305,11 +13301,8 @@ HERE();
 	 */
 	dtrace_sync();
 
-HERE();
 	dtrace_buffer_free(state->dts_buffer);
-HERE();
 	dtrace_buffer_free(state->dts_aggbuffer);
-HERE();
 
 	for (i = 0; i < nspec; i++)
 		dtrace_buffer_free(spec[i].dtsp_buffer);
@@ -13322,13 +13315,9 @@ HERE();
 	if (state->dts_deadman != CYCLIC_NONE)
 		cyclic_remove(state->dts_deadman);
 
-HERE();
 	dtrace_dstate_fini(&vstate->dtvs_dynvars);
-HERE();
 	dtrace_vstate_fini(vstate);
-HERE();
 	kmem_free(state->dts_ecbs, state->dts_necbs * sizeof (dtrace_ecb_t *));
-HERE();
 
 	if (state->dts_aggregations != NULL) {
 HERE();
@@ -13340,12 +13329,9 @@ HERE();
 		kmem_free(state->dts_aggregations,
 		    state->dts_naggregations * sizeof (dtrace_aggregation_t *));
 	}
-HERE();
 
 	kmem_free(state->dts_buffer, bufsize);
-HERE();
 	kmem_free(state->dts_aggbuffer, bufsize);
-HERE();
 
 	for (i = 0; i < nspec; i++)
 		kmem_free(spec[i].dtsp_buffer, bufsize);

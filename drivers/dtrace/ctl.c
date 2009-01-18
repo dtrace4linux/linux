@@ -69,7 +69,7 @@
 #define PCSZONE  30L    /* set zoneid from zoneid_t argument */
 #define PCSCREDX 31L    /* as PCSCRED but with supplemental groups */
 
-static void *(*fn_get_pid_task)();
+static void *(*fn_get_pid_task)(void *, int);
 
 /**********************************************************************/
 /*   Structure for patching the kernel.				      */
@@ -117,7 +117,7 @@ int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
-static int proc_pid_ctl_write(struct file *file, const char __user *buf,
+static ssize_t proc_pid_ctl_write(struct file *file, const char __user *buf,
             size_t count, loff_t *offset);
 static int hunt_proc(patch_t *pp, unsigned char *pattern, int size, void *new_proc);
 static struct dentry *proc_pident_lookup2(struct inode *dir,
@@ -139,7 +139,7 @@ static struct notifier_block n = {
 /*   Free up and unpatch anything we modified.			      */
 /**********************************************************************/
 static void
-hunt_cleanup()
+hunt_cleanup(void)
 {
 	if (tgid_base_stuff_2)
 		kfree(tgid_base_stuff_2);
@@ -195,6 +195,7 @@ static int first_time = TRUE;
 	if (fn_profile_event_register) {
 		fn_profile_event_register(PROFILE_TASK_EXIT, &n);
 	}
+
 }
 /**********************************************************************/
 /*   Routine to find the tgid_base_stuff table in the /proc (base.c)  */
@@ -381,7 +382,7 @@ HERE();
 /*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
 /*   tree, then we wouldnt need this hack.			      */
 /**********************************************************************/
-static int proc_pid_ctl_write(struct file *file, const char __user *buf,
+static ssize_t proc_pid_ctl_write(struct file *file, const char __user *buf,
             size_t count, loff_t *offset)
 {
 	int	orig_count = count;
@@ -515,10 +516,13 @@ HERE();
 /**********************************************************************/
 static int 
 proc_notifier(struct notifier_block *n, unsigned long code, void *ptr)
-{	struct task_struct *task = (struct task_struct *) ptr;
+{
+# if 0
+	struct task_struct *task = (struct task_struct *) ptr;
 
 printk("proc_notifier: code=%lu ptr=%p\n", code, ptr);
 //	task->ptrace = 0;
+# endif
 	return 0;
 }
 /**********************************************************************/

@@ -689,9 +689,9 @@ uint8_t
 dtrace_fuword8(void *uaddr)
 {
 	extern uint8_t dtrace_fuword8_nocheck(void *);
-	if ((uintptr_t)uaddr >= _userlimit) {
+	if (!access_ok(VERIFY_READ, uaddr, 1)) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
-HERE2();
+		printk("dtrace_fuword8: uaddr=%p CPU_DTRACE_BADADDR\n", uaddr);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = (uintptr_t)uaddr;
 		return (0);
 	}
@@ -702,8 +702,8 @@ uint16_t
 dtrace_fuword16(void *uaddr)
 {
 	extern uint16_t dtrace_fuword16_nocheck(void *);
-	if ((uintptr_t)uaddr >= _userlimit) {
-HERE2();
+	if (!access_ok(VERIFY_WRITE, uaddr, 2)) {
+		printk("dtrace_fuword16: uaddr=%p CPU_DTRACE_BADADDR\n", uaddr);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[CPU->cpu_id].cpuc_dtrace_illval = (uintptr_t)uaddr;
 		return (0);

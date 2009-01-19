@@ -178,7 +178,12 @@ int (*dtrace_fasttrap_probe_ptr)(struct regs *);
 int (*dtrace_pid_probe_ptr)(struct regs *);
 int (*dtrace_return_probe_ptr)(struct regs *);
 
-void
+/**********************************************************************/
+/*   Slight  change  from  Solaris. The trap handler calls us, so we  */
+/*   need to let the handler know if we took it or to pass it up the  */
+/*   chain.							      */
+/**********************************************************************/
+int
 dtrace_user_probe(int trapno, struct pt_regs *rp, caddr_t addr, processorid_t cpuid)
 {
 	krwlock_t *rwp;
@@ -229,7 +234,7 @@ HERE();
 		 */
 		if (step == 0) {
 			tsignal(curthread, SIGILL);
-			return;
+			return 1;
 		}
 
 		/*
@@ -240,7 +245,7 @@ HERE();
 		 */
 		if (ret == 0) {
 			rp->r_pc = npc;
-			return;
+			return 1;
 		}
 
 		/*
@@ -253,6 +258,7 @@ HERE();
 			(void) (*dtrace_return_probe_ptr)(rp);
 		rw_exit(rwp);
 		rp->r_pc = npc;
+		return 1;
 
 	} else if (trapno == T_DTRACE_PROBE) {
 		rwp = &CPU->cpu_ft_lock;
@@ -260,10 +266,13 @@ HERE();
 		if (dtrace_fasttrap_probe_ptr != NULL)
 			(void) (*dtrace_fasttrap_probe_ptr)(rp);
 		rw_exit(rwp);
+		return 1;
 
 	} else if (trapno == T_BPTFLT) {
 		uint8_t instr;
 HERE();
+		if (dtrace_pid_probe_ptr == NULL)
+			return 0;
 		rwp = &CPU->cpu_ft_lock;
 
 		/*
@@ -274,10 +283,11 @@ HERE();
 		 * breakpoint placed by a conventional debugger.
 		 */
 		rw_enter(rwp, RW_READER);
+printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 		if (dtrace_pid_probe_ptr != NULL &&
 		    (*dtrace_pid_probe_ptr)(rp) == 0) {
 			rw_exit(rwp);
-			return;
+			return 1;
 		}
 		rw_exit(rwp);
 
@@ -289,13 +299,18 @@ HERE();
 		 */
 		if (fuword8((void *)(rp->r_pc - 1), &instr) == 0 &&
 		    instr != FASTTRAP_INSTR) {
+HERE();
+printk("instr=%x\n", instr);
 			rp->r_pc--;
-			return;
+			return 1;
 		}
+HERE();
 
-		trap(rp, addr, cpuid);
+//		trap(rp, addr, cpuid);
+		return 0;
 	} else {
-		trap(rp, addr, cpuid);
+//		trap(rp, addr, cpuid);
+		return 0;
 	}
 }
 

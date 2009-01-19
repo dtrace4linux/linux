@@ -32,7 +32,7 @@ proc_t *prfind(int p);
 int	tsignal(proc_t *, int);
 void	trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu);
 
-void dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
+int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 
 # endif
 

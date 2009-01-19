@@ -924,6 +924,7 @@ fasttrap_pid_probe(struct regs *rp)
 	dtrace_icookie_t cookie;
 	uint_t is_enabled = 0;
 
+HERE();
 	/*
 	 * It's possible that a user (in a veritable orgy of bad planning)
 	 * could redirect this thread's flow of control before it reached the

@@ -669,9 +669,12 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 	printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
 		(void *) args->regs->PC, 
 		smp_processor_id());
-	dtrace_user_probe(3, (struct regs *) args->regs, 
+	if (dtrace_user_probe(3, (struct regs *) args->regs, 
 		(caddr_t) args->regs->PC, 
-		smp_processor_id());
+		smp_processor_id())) {
+		HERE();
+		return NOTIFY_STOP_MASK;
+	}
 	return NOTIFY_OK;
 }
 /**********************************************************************/

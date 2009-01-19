@@ -138,7 +138,7 @@ cceb499b size=3647    mtime=1224417136 ./doc/usdt.html
 f9a55709 size=3628    mtime=1229124917 ./drivers/checksum.lst
 279c2508 size=95      mtime=1215553111 ./drivers/dtrace/.gdbinit
 39bcc285 size=1338    mtime=1225149543 ./drivers/dtrace/Makefile
-8051acce size=2064    mtime=1232313671 ./drivers/dtrace/checksum.lst
+bbf7edb3 size=2064    mtime=1232313798 ./drivers/dtrace/checksum.lst
 50a7050f size=3304    mtime=1212268290 ./drivers/dtrace/ctf_hash.c
 f6df25f1 size=9259    mtime=1229158409 ./drivers/dtrace/ctf_lookup.c
 0ecc6cfa size=4102    mtime=1212273404 ./drivers/dtrace/ctf_mod.c
@@ -155,10 +155,10 @@ b72b2063 size=4720    mtime=1230480351 ./drivers/dtrace/cyclic_linux.c
 0bb275a9 size=415001  mtime=1232293721 ./drivers/dtrace/dtrace.c
 8495c1ec size=6733    mtime=1229122208 ./drivers/dtrace/dtrace_asm.c
 8dd62f6b size=18007   mtime=1229119687 ./drivers/dtrace/dtrace_isa.c
-c8b5248b size=31595   mtime=1232313669 ./drivers/dtrace/dtrace_linux.c
+2d96b432 size=31644   mtime=1232313737 ./drivers/dtrace/dtrace_linux.c
 ba4189e8 size=7932    mtime=1232311672 ./drivers/dtrace/dtrace_linux.h
 a871911f size=1656    mtime=1232309341 ./drivers/dtrace/dtrace_proto.h
-98e9215c size=9264    mtime=1232313470 ./drivers/dtrace/dtrace_subr.c
+7a84d182 size=9207    mtime=1232313797 ./drivers/dtrace/dtrace_subr.c
 eeb3cc65 size=66737   mtime=1232313584 ./drivers/dtrace/fasttrap.c
 0aab52a0 size=46250   mtime=1232307067 ./drivers/dtrace/fasttrap_isa.c
 765d9239 size=2743    mtime=1224449843 ./drivers/dtrace/fasttrap_linux.c
@@ -167,7 +167,7 @@ eeb3cc65 size=66737   mtime=1232313584 ./drivers/dtrace/fasttrap.c
 3352dc34 size=3838    mtime=1209890275 ./drivers/dtrace/instr_size.c
 1c74d8b2 size=1044    mtime=1214742876 ./drivers/dtrace/kcpp
 ed4821ca size=582     mtime=1213553114 ./drivers/dtrace/linux_pure.c
-2db87a7d size=6056    mtime=1231075914 ./drivers/dtrace/load
+17d79373 size=6043    mtime=1232397502 ./drivers/dtrace/load
 ccc7df77 size=7109    mtime=1210512452 ./drivers/dtrace/opensnoop
 8607056e size=13029   mtime=1217779684 ./drivers/dtrace/profile.c
 1484182a size=11803   mtime=1229121198 ./drivers/dtrace/sdt_linux.c
@@ -470,7 +470,7 @@ cb7ee991 size=42      mtime=1231012808 ./tests/dt018
 564fc62d size=108     mtime=1232053072 ./tests/dt019
 987412d2 size=638     mtime=1226528616 ./tools/get-deps.pl
 e004e82e size=1677    mtime=1229812358 ./tools/libgcc.pl
-2db87a7d size=6056    mtime=1231075914 ./tools/load.pl
+17d79373 size=6043    mtime=1232397502 ./tools/load.pl
 1a869488 size=3146    mtime=1229984974 ./tools/mksyscall.pl
 fd278f63 size=3084    mtime=1215294187 ./tools/runtests.pl
 3d77e8be size=286     mtime=1224531666 ./usdt/README

@@ -30,6 +30,7 @@ sub main
 		'fast',
 		'help',
 		'here',
+		'unload',
 		'v+',
 		);
 
@@ -42,6 +43,7 @@ sub main
 	if ( -e "/dev/dtrace" ) {
 		spawn("$SUDO rmmod dtracedrv");
 		spawn("sync ; sync");
+		exit(0) if $opts{unload};
 	}
 
 	#####################################################################
@@ -194,15 +196,18 @@ sub spawn
 #######################################################################
 sub usage
 {
-	print "load.pl: load dtrace driver and prime the links to the kernel.\n";
-	print "Usage: load.pl [-v] [-here] [-fast]\n";
-	print "\n";
-	print "Switches:\n";
-	print "\n";
-	print "   -v      Be more verbose about loading process (repeat for more).\n";
-	print "   -fast   Dont do 'dtrace -l' after load to avoid kernel messages.\n";
-	print "   -here   Enable tracing to /var/log/messages\n.";
-	print "\n";
+	print <<EOF;
+load.pl: load dtrace driver and prime the links to the kernel.
+Usage: load.pl [-v] [-here] [-fast]
+
+Switches:
+
+   -v      Be more verbose about loading process (repeat for more).
+   -fast   Dont do 'dtrace -l' after load to avoid kernel messages.
+   -here   Enable tracing to /var/log/messages.
+   -unload Unload the dtrace driver.
+
+EOF
 	exit(1);
 }
 

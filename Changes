@@ -1,3 +1,7 @@
+Mon Jan 26 22:42:20 2009  fox
+
+     116* dtrace_linux.c: Fix uwrite() interface.
+
 Sun Jan 18 18:51:13 2009  fox
 
      115* dtrace_linux.c: Put in a trap handler for INT3 and pass onto

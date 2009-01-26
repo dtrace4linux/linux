@@ -955,6 +955,8 @@ fasttrap_enable_callbacks(void)
 	 * we can be sure that no threads have tried to follow this
 	 * function pointer yet.
 	 */
+HERE();
+printk("fasttrap_pid_count=%d\n", fasttrap_pid_count);
 	mutex_enter(&fasttrap_count_mtx);
 	if (fasttrap_pid_count == 0) {
 		ASSERT(dtrace_pid_probe_ptr == NULL);
@@ -966,6 +968,7 @@ fasttrap_enable_callbacks(void)
 	ASSERT(dtrace_return_probe_ptr == &fasttrap_return_probe);
 	fasttrap_pid_count++;
 	mutex_exit(&fasttrap_count_mtx);
+printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 }
 
 static void
@@ -996,6 +999,7 @@ HERE();
 		}
 # endif
 
+printk("dtrace_pid_probe_ptr=set to zero\n");
 		dtrace_pid_probe_ptr = NULL;
 		dtrace_return_probe_ptr = NULL;
 

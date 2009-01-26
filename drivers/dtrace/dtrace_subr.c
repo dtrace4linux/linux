@@ -187,11 +187,13 @@ int
 dtrace_user_probe(int trapno, struct pt_regs *rp, caddr_t addr, processorid_t cpuid)
 {
 	krwlock_t *rwp;
-	proc_t *p = curproc;
+	proc_t *p;
 #if defined(sun)
 	extern void trap(struct regs *, caddr_t, processorid_t);
 #endif
 
+	par_setup_thread();
+	p = curproc;
 # define r_pc ip
 
 //	if (USERMODE(rp->r_cs) || (rp->r_ps & PS_VM)) {
@@ -271,6 +273,8 @@ HERE();
 	} else if (trapno == T_BPTFLT) {
 		uint8_t instr;
 HERE();
+printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
+
 		if (dtrace_pid_probe_ptr == NULL)
 			return 0;
 		rwp = &CPU->cpu_ft_lock;

@@ -932,6 +932,7 @@ HERE();
 	 * since it's in a unrecoverable state.
 	 */
 	if (curthread->t_dtrace_step) {
+HERE();
 		ASSERT(curthread->t_dtrace_on);
 		fasttrap_sigtrap(p, curthread, pc);
 		return (0);
@@ -940,6 +941,7 @@ HERE();
 	/*
 	 * Clear all user tracing flags.
 	 */
+HERE();
 	curthread->t_dtrace_ft = 0;
 	curthread->t_dtrace_pc = 0;
 	curthread->t_dtrace_npc = 0;
@@ -963,10 +965,13 @@ HERE();
 	mutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
 
+HERE();
+printk("pid=%d\n", pid);
 	/*
 	 * Lookup the tracepoint that the process just hit.
 	 */
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
+printk("pid:%d ftt_pipd:%d pc:%p ftt_pc:%p acount:%d\n", pid, tp->ftt_pid, pc, tp->ftt_pc, tp->ftt_proc->ftpc_acount);
 		if (pid == tp->ftt_pid && pc == tp->ftt_pc &&
 		    tp->ftt_proc->ftpc_acount != 0)
 			break;
@@ -979,6 +984,7 @@ HERE();
 	 */
 	if (tp == NULL) {
 		mutex_exit(pid_mtx);
+HERE();
 		return (-1);
 	}
 
@@ -991,6 +997,7 @@ HERE();
 	if (tp->ftt_ids != NULL) {
 		fasttrap_id_t *id;
 
+HERE();
 #ifdef __amd64
 		if (p->p_model == DATAMODEL_LP64) {
 			for (id = tp->ftt_ids; id != NULL; id = id->fti_next) {
@@ -1092,6 +1099,7 @@ HERE();
 		}
 #endif
 	}
+HERE();
 
 	/*
 	 * We're about to do a bunch of work so we cache a local copy of

@@ -853,7 +853,7 @@ uwrite(proc_t *p, void *src, size_t len, uintptr_t addr)
 
 	ret = func(p->p_task, (unsigned long) addr, (void *) src, len, 1);
 printk("uwrite %p %p %d src=%p %02x -- func=%p ret=%d\n", p, (void *) addr, (int) len, src, *(unsigned char *) src, func, ret);
-	return ret;
+	return ret == len ? 0 : -1;
 }
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */

@@ -59,6 +59,32 @@
 #include <sys/archsystm.h>
 # endif
 
+#if linux
+# define regs pt_regs
+# define r_rip ip
+# define r_pc ip
+# define r_rax ax
+# define r_rfl flags
+# define r_rsp sp
+# define r_rbp bp
+# define r_rdi di
+# define r_rsi si
+# define r_rbx bx
+# define r_rcx cx
+# define r_rdx dx
+# define r_r8 r8
+# define r_r9 r9
+# define r_r10 r10
+# define r_r11 r11
+# define r_r12 r12
+# define r_r13 r13
+# define r_r14 r14
+# define r_r15 r15
+# define r_gs gs
+# define r_fs fs
+# define r_cs cs
+# define r_ss ss
+#endif
 /*
  * Lossless User-Land Tracing on x86
  * ---------------------------------
@@ -294,6 +320,7 @@ HERE();
 	 */
 	if (size > len)
 		return (-1);
+HERE();
 
 	tp->ftt_size = (uint8_t)size;
 	tp->ftt_segment = FASTTRAP_SEG_NONE;
@@ -620,6 +647,7 @@ HERE();
 		}
 	}
 #endif
+HERE();
 
 	return (0);
 }
@@ -809,16 +837,32 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 		sel = rp->r_cs;
 		break;
 	case FASTTRAP_SEG_DS:
+#if linux
+		TODO();
+#else
 		sel = rp->r_ds;
+#endif
 		break;
 	case FASTTRAP_SEG_ES:
+#if linux
+		TODO();
+#else
 		sel = rp->r_es;
+#endif
 		break;
 	case FASTTRAP_SEG_FS:
+#if linux
+		TODO();
+#else
 		sel = rp->r_fs;
+#endif
 		break;
 	case FASTTRAP_SEG_GS:
+#if linux
+		TODO();
+#else
 		sel = rp->r_gs;
+#endif
 		break;
 	case FASTTRAP_SEG_SS:
 		sel = rp->r_ss;
@@ -964,7 +1008,7 @@ HERE();
 	pid_mtx = &cpu_core[CPU->cpu_id].cpuc_pid_lock;
 	mutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
-
+printk("probe: bucket=%p pid=%d pc=%p\n", bucket, pid, pc);
 HERE();
 printk("pid=%d\n", pid);
 	/*
@@ -1759,6 +1803,9 @@ static ulong_t
 fasttrap_getreg(struct regs *rp, uint_t reg)
 {
 #ifdef __amd64
+#if linux
+# define RETURN(x) TODO(); return 0;
+#endif
 	switch (reg) {
 	case REG_R15:		return (rp->r_r15);
 	case REG_R14:		return (rp->r_r14);
@@ -1775,17 +1822,17 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_RDX:		return (rp->r_rdx);
 	case REG_RCX:		return (rp->r_rcx);
 	case REG_RAX:		return (rp->r_rax);
-	case REG_TRAPNO:	return (rp->r_trapno);
-	case REG_ERR:		return (rp->r_err);
+	case REG_TRAPNO:	RETURN(rp->r_trapno);
+	case REG_ERR:		RETURN(rp->r_err);
 	case REG_RIP:		return (rp->r_rip);
 	case REG_CS:		return (rp->r_cs);
 	case REG_RFL:		return (rp->r_rfl);
 	case REG_RSP:		return (rp->r_rsp);
 	case REG_SS:		return (rp->r_ss);
-	case REG_FS:		return (rp->r_fs);
-	case REG_GS:		return (rp->r_gs);
-	case REG_DS:		return (rp->r_ds);
-	case REG_ES:		return (rp->r_es);
+	case REG_FS:		RETURN(rp->r_fs);
+	case REG_GS:		RETURN(rp->r_gs);
+	case REG_DS:		RETURN(rp->r_ds);
+	case REG_ES:		RETURN(rp->r_es);
 	case REG_FSBASE:	return (lx_rdmsr(MSR_AMD_FSBASE));
 	case REG_GSBASE:	return (lx_rdmsr(MSR_AMD_GSBASE));
 	}

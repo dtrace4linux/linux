@@ -12079,7 +12079,6 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 		dtrace_dof_error(dof, "DOF uses unsupported instruction set");
 		return (-1);
 	}
-HERE();
 
 	if (dof->dofh_ident[DOF_ID_DIFIREG] > DIF_DIR_NREGS) {
 		dtrace_dof_error(dof, "DOF uses too many integer registers");
@@ -12102,7 +12101,6 @@ HERE();
 		dtrace_dof_error(dof, "DOF has invalid flag bits set");
 		return (-1);
 	}
-HERE();
 
 	if (dof->dofh_secsize == 0) {
 		dtrace_dof_error(dof, "zero section header size");
@@ -12114,10 +12112,8 @@ HERE();
 	 * data.  Note that we cast the section size and number of sections
 	 * to uint64_t's to prevent possible overflow in the multiplication.
 	 */
-HERE();
 	seclen = (uint64_t)dof->dofh_secnum * (uint64_t)dof->dofh_secsize;
 
-HERE();
 	if (dof->dofh_secoff > len || seclen > len ||
 	    dof->dofh_secoff + seclen > len) {
 		dtrace_dof_error(dof, "truncated section headers");

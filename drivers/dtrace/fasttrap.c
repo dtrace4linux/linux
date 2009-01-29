@@ -44,6 +44,7 @@ proc_t *
 sprlock(int pid)
 {
 	proc_t *p = prfind(pid);
+printk("sprlock: pid=%d\n", pid);
 	if (!p)
 		return NULL;
 	mutex_enter(&p->p_lock);
@@ -621,6 +622,7 @@ HERE();
 	fasttrap_mod_barrier(probe->ftp_gen);
 
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
+printk("bucket=%p pid=%d pc=%p\n", bucket, pid, pc);
 HERE();
 
 	/*
@@ -634,6 +636,7 @@ HERE();
 	 * defunct.
 	 */
 again:
+printk("again...\n");
 	mutex_enter(&bucket->ftb_mtx);
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		/*
@@ -720,6 +723,7 @@ HERE();
 HERE();
 		if (fasttrap_tracepoint_install(p, new_tp) != 0)
 			rc = FASTTRAP_ENABLE_PARTIAL;
+printk("rc=%d FASTTRAP_ENABLE_PARTIAL=%d\n", rc, FASTTRAP_ENABLE_PARTIAL);
 HERE();
 
 		/*
@@ -1078,6 +1082,7 @@ HERE();
 	ASSERT(!(p->p_flag & SVFORK));
 	mutex_exit(&p->p_lock);
 HERE();
+printk("pid=%d p=%p\n", probe->ftp_pid, p);
 
 	/*
 	 * We have to enable the trap entry point before any user threads have

@@ -273,7 +273,6 @@ HERE();
 	} else if (trapno == T_BPTFLT) {
 		uint8_t instr;
 HERE();
-printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 
 		if (dtrace_pid_probe_ptr == NULL)
 			return 0;
@@ -290,6 +289,8 @@ printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 		if (dtrace_pid_probe_ptr != NULL &&
 		    (*dtrace_pid_probe_ptr)(rp) == 0) {
+HERE();
+printk("Good probe exit!\n");
 			rw_exit(rwp);
 			return 1;
 		}

@@ -61,11 +61,33 @@
 
 #if linux
 # define regs pt_regs
+
+# ifdef __amd64
+#   define r_rsp sp
+#   define r_pc ip
+# else
+#   undef r_sp
+#   define r_sp sp
+#   define r_rsp sp
+
+#   undef r_pc
+#   define r_pc ip
+
+#   undef r_r0
+#   define r_r0 ax
+
+#   undef r_r1
+#   define r_r1 dx
+#   undef r_ps
+#   define r_ps flags
+
+#   define r_ecx cx
+#   define r_ebp bp
+# endif
+
 # define r_rip ip
-# define r_pc ip
 # define r_rax ax
 # define r_rfl flags
-# define r_rsp sp
 # define r_rbp bp
 # define r_rdi di
 # define r_rsi si
@@ -1010,7 +1032,6 @@ HERE();
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
 printk("probe: bucket=%p pid=%d pc=%p\n", bucket, pid, pc);
 HERE();
-printk("pid=%d\n", pid);
 	/*
 	 * Lookup the tracepoint that the process just hit.
 	 */
@@ -1173,6 +1194,7 @@ HERE();
 	 * exotic way to shoot oneself in the foot.
 	 */
 	if (is_enabled) {
+HERE();
 		rp->r_r0 = 1;
 		new_pc = rp->r_pc;
 		goto done;
@@ -1184,6 +1206,7 @@ HERE();
 	 * common cases. The rest we have the thread execute back in user-
 	 * land.
 	 */
+HERE();
 	switch (tp->ftt_type) {
 	case FASTTRAP_T_RET:
 	case FASTTRAP_T_RET16:
@@ -1192,6 +1215,7 @@ HERE();
 		uintptr_t addr;
 		int ret;
 
+PRINT_CASE(FASTTRAP_T_RET);
 		/*
 		 * We have to emulate _every_ facet of the behavior of a ret
 		 * instruction including what happens if the load from %esp
@@ -1229,6 +1253,7 @@ HERE();
 	{
 		uint_t taken = 0;
 
+PRINT_CASE(FASTTRAP_T_JCC);
 		switch (tp->ftt_code) {
 		case FASTTRAP_JO:
 			taken = (rp->r_ps & FASTTRAP_EFLAGS_OF) != 0;
@@ -1305,6 +1330,7 @@ HERE();
 		greg_t cx = rp->r_ecx--;
 #endif
 
+PRINT_CASE(FASTTRAP_T_LOOP);
 		switch (tp->ftt_code) {
 		case FASTTRAP_LOOPNZ:
 			taken = (rp->r_ps & FASTTRAP_EFLAGS_ZF) == 0 &&
@@ -1334,6 +1360,7 @@ HERE();
 		greg_t cx = rp->r_ecx;
 #endif
 
+PRINT_CASE(FASTTRAP_T_JCXZ);
 		if (cx == 0)
 			new_pc = tp->ftt_dest;
 		else
@@ -1345,6 +1372,7 @@ HERE();
 	{
 		int ret;
 		uintptr_t addr;
+PRINT_CASE(FASTTRAP_T_PUSHL_EBP);
 #ifdef __amd64
 		if (p->p_model == DATAMODEL_NATIVE) {
 #endif
@@ -1370,11 +1398,13 @@ HERE();
 	}
 
 	case FASTTRAP_T_NOP:
+PRINT_CASE(FASTTRAP_T_NOP);
 		new_pc = pc + tp->ftt_size;
 		break;
 
 	case FASTTRAP_T_JMP:
 	case FASTTRAP_T_CALL:
+PRINT_CASE(FASTTRAP_T_CALL);
 		if (tp->ftt_code == 0) {
 			new_pc = tp->ftt_dest;
 		} else {
@@ -1473,6 +1503,7 @@ HERE();
 		uint8_t scratch[2 * FASTTRAP_MAX_INSTR_SIZE + 7];
 #endif
 		uint_t i = 0;
+PRINT_CASE(FASTTRAP_T_COMMON);
 		TODO();
 # if defined(TODOxxx)
 		klwp_t *lwp = ttolwp(curthread);
@@ -1702,6 +1733,7 @@ HERE();
 	default:
 		panic("fasttrap: mishandled an instruction");
 	}
+HERE();
 
 done:
 	/*
@@ -1711,6 +1743,7 @@ done:
 	 * time around.
 	 */
 	if (tp->ftt_retids != NULL) {
+HERE();
 		/*
 		 * We need to wait until the results of the instruction are
 		 * apparent before invoking any return probes. If this
@@ -1736,6 +1769,7 @@ done:
 		}
 	}
 
+HERE();
 	rp->r_pc = new_pc;
 
 	return (0);
@@ -1802,11 +1836,11 @@ fasttrap_usdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno,
 static ulong_t
 fasttrap_getreg(struct regs *rp, uint_t reg)
 {
-#ifdef __amd64
 #if linux
 # define RETURN(x) TODO(); return 0;
 #endif
 	switch (reg) {
+#ifdef __amd64
 	case REG_R15:		return (rp->r_r15);
 	case REG_R14:		return (rp->r_r14);
 	case REG_R13:		return (rp->r_r13);
@@ -1815,6 +1849,7 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_R10:		return (rp->r_r10);
 	case REG_R9:		return (rp->r_r9);
 	case REG_R8:		return (rp->r_r8);
+#endif
 	case REG_RDI:		return (rp->r_rdi);
 	case REG_RSI:		return (rp->r_rsi);
 	case REG_RBP:		return (rp->r_rbp);
@@ -1839,10 +1874,4 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 
 	panic("dtrace: illegal register constant");
 	/*NOTREACHED*/
-#else
-	if (reg >= _NGREG)
-		panic("dtrace: illegal register constant");
-
-	return (((greg_t *)&rp->r_gs)[reg]);
-#endif
 }

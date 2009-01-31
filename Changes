@@ -1,3 +1,12 @@
+Sat Jan 31 10:42:32 2009  fox
+
+     119* fasttrap_isa.c: Changes to compile on 32bit kernel (tested on
+          2.6.28 kernel).
+
+Fri Jan 30 22:48:51 2009  fox
+
+     118* dt_lex.l: Compat support for AS4 version of flex.
+
 Tue Jan 27 23:22:35 2009  fox
 
      117* Archive: 1.0051

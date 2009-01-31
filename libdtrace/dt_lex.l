@@ -77,6 +77,7 @@ static int id_or_type(const char *);
  * S4 - D control line scan (locate control directives only and invoke S3)
  */
 %}
+%option yylineno
 %e 1500		/* maximum nodes */
 %p 3700		/* maximum positions */
 %n 600		/* maximum states */

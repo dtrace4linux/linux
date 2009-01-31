@@ -13281,7 +13281,6 @@ HERE();
 					continue;
 			}
 
-HERE();
 			dtrace_ecb_disable(ecb);
 			dtrace_ecb_destroy(ecb);
 HERE();

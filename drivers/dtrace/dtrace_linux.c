@@ -673,7 +673,7 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 		(caddr_t) args->regs->PC, 
 		smp_processor_id())) {
 		HERE();
-		return NOTIFY_STOP_MASK;
+		return NOTIFY_STOP;
 	}
 	return NOTIFY_OK;
 }

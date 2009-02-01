@@ -3,6 +3,7 @@
 ./build/simple-c
 ./build/simple-cpp
 ./checksum.lst
+./drivers/dtrace/checksum.lst
 ./drivers/dtrace/syscalls-x86-64.tbl
 ./drivers/dtrace/syscalls-x86.tbl
 ./libdtrace/dt_grammar.h

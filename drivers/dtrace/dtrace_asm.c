@@ -117,7 +117,7 @@ dtrace_caller(void)
 void
 dtrace_copy(uintptr_t src, uintptr_t dest, size_t size) 
 {
-#if defined(__amd64)
+#if 0 && defined(__amd64)
 	__asm(
 		"pushq	%rbp\n"
 		"movq	%rsp, %rbp\n"
@@ -141,8 +141,13 @@ dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
 	 volatile uint16_t *flags) 
 {
 
-#if defined(__amd64)
-
+#if 0 && defined(__amd64)
+	/***********************************************/
+	/*   This doesnt work -- could be a silly gcc  */
+	/*   calling  convention,  but  for  now  the  */
+	/*   portable  C code for 386 mode works just  */
+	/*   fine.				       */
+	/***********************************************/
 	__asm(
 		"pushq	%rbp\n"
 		"movq	%rsp, %rbp\n"

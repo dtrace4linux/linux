@@ -104,9 +104,21 @@ static struct notifier_block n_int3 = {
 	};
 static	int (*fn_register_die_notifier)(struct notifier_block *);
 
+static int (*fn_profile_event_register)(enum profile_type type, struct notifier_block *n);
+static int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block *n);
+
+/**********************************************************************/
+/*   Process exiting notifier.					      */
+/**********************************************************************/
+static int proc_exit_notifier(struct notifier_block *, unsigned long, void *);
+static struct notifier_block n_exit = {
+	.notifier_call = proc_exit_notifier,
+	};
+
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+static void * par_lookup(void *ptr);
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
 int	ctf_init(void);
@@ -205,6 +217,18 @@ dump_mem(char *cp, int len)
 		}
 }
 /**********************************************************************/
+/*   Return  the  datamodel (64b/32b) mode of the underlying binary.  */
+/*   Linux  doesnt  seem  to mark a proc as 64/32, but relies on the  */
+/*   class  vtable  for  the  underlying  executable  file format to  */
+/*   handle this in an OO way.					      */
+/**********************************************************************/
+int
+dtrace_data_model(proc_t *p)
+{
+return DATAMODEL_LP64;
+	return p->p_model;
+}
+/**********************************************************************/
 /*   Register notifications for ourselves here.			      */
 /**********************************************************************/
 static void
@@ -213,11 +237,32 @@ dtrace_linux_init(void)
 	if (fn_register_die_notifier)
 		return;
 
+	/***********************************************/
+	/*   Register 0xcc INT3 breakpoint trap.       */
+	/***********************************************/
 	fn_register_die_notifier = get_proc_addr("register_die_notifier");
 	if (fn_register_die_notifier == NULL) {
 		printk("dtrace: register_die_notifier is NULL : FIX ME !\n");
 	} else {
 		(*fn_register_die_notifier)(&n_int3);
+	}
+
+	/***********************************************/
+	/*   Register proc exit hook.		       */
+	/***********************************************/
+	fn_profile_event_register = 
+		(int (*)(enum profile_type type, struct notifier_block *n))
+			get_proc_addr("profile_event_register");
+	fn_profile_event_unregister = 
+		(int (*)(enum profile_type type, struct notifier_block *n))
+			get_proc_addr("profile_event_unregister");
+
+	/***********************************************/
+	/*   We  need to intercept proc death in case  */
+	/*   we are tracing it.			       */
+	/***********************************************/
+	if (fn_profile_event_register) {
+		fn_profile_event_register(PROFILE_TASK_EXIT, &n_exit);
 	}
 }
 /**********************************************************************/
@@ -230,6 +275,9 @@ dtrace_linux_fini(void)
 		get_proc_addr("unregister_die_notifier");
 	if (fn_unregister_die_notifier) {
 		(*fn_unregister_die_notifier)(&n_int3);
+	}
+	if (fn_profile_event_unregister) {
+		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
 	}
 }
 
@@ -566,6 +614,19 @@ par_alloc(void *ptr, int size, int *init)
 	return p;
 }
 /**********************************************************************/
+/*   Find  thread  without allocating a shadow struct. Needed during  */
+/*   proc exit.							      */
+/**********************************************************************/
+proc_t *
+par_find_thread(struct task_struct *t)
+{	par_alloc_t *p = par_lookup(t);
+
+	if (p == NULL)
+		return NULL;
+
+	return (proc_t *) (p + 1);
+}
+/**********************************************************************/
 /*   Free the parallel pointer.					      */
 /**********************************************************************/
 void
@@ -588,7 +649,7 @@ par_free(void *ptr)
 /*   Map  pointer to the shadowed area. Dont create if its not there  */
 /*   already.							      */
 /**********************************************************************/
-void *
+static void *
 par_lookup(void *ptr)
 {	par_alloc_t *p;
 	
@@ -645,18 +706,44 @@ par_setup_thread1(struct task_struct *tp)
 void *
 par_setup_thread2()
 {
-	par_alloc_t *p = par_lookup(get_current());
-	sol_proc_t	*solp;
+	return par_find_thread(get_current());
+}
+/**********************************************************************/
+/*   Call on proc exit, so we can detach ourselves from the proc. We  */
+/*   may  have  a  USDT  enabled app dying, so we need to remove the  */
+/*   probes. Also need to garbage collect the shadow proc structure,  */
+/*   so we dont leak memory.					      */
+/**********************************************************************/
+static int 
+proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
+{
+	struct task_struct *task = (struct task_struct *) ptr;
+	proc_t *p;
 
-	if (p == NULL)
-		return NULL;
+printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
+	/***********************************************/
+	/*   See  if  we know this proc - if so, need  */
+	/*   to let fasttrap retire the probes.	       */
+	/***********************************************/
+	if (dtrace_fasttrap_exit_ptr &&
+	    (p = par_find_thread(task)) != NULL) {
+HERE();
+		dtrace_fasttrap_exit_ptr(p);
+	}
 
-	solp = (sol_proc_t *) (p + 1);
-	return solp;
+	return 0;
 }
 /**********************************************************************/
 /*   Handle  an  INT3 (0xCC) single step trap, for USDT and let rest  */
-/*   of the engine know something fired.			      */
+/*   of  the  engine  know  something  fired. This happens for *all*  */
+/*   breakpoint  traps,  so  we have a go and decide if its ours. If  */
+/*   not,  we  let the rest of the kernel manage it, e.g. for gdb or  */
+/*   strace. We should be able to run gdb on a proc which has active  */
+/*   probes,  since  the  bkpt  address  determines  who has it. (Of  */
+/*   course,  dont  try  and  plant  a  breakpoint  on  a  USDT trap  */
+/*   instruction  as your user space app may never see it, but thats  */
+/*   being  a  little silly I think, unless of course you are single  */
+/*   stepping (stepi) through foreign code.			      */
 /**********************************************************************/
 static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
@@ -664,12 +751,12 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 # define PC ip
 #else
-# define PC rip
+# define PC ip
 #endif
 	printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
 		(void *) args->regs->PC, 
 		smp_processor_id());
-	if (dtrace_user_probe(3, (struct regs *) args->regs, 
+	if (dtrace_user_probe(3, args->regs, 
 		(caddr_t) args->regs->PC, 
 		smp_processor_id())) {
 		HERE();
@@ -829,7 +916,7 @@ TODO();
 int
 tsignal(proc_t *p, int sig)
 {
-	send_sig(sig, SEND_SIG_PRIV, p);
+	send_sig(sig, p->p_task, 0);
 	return 0;
 }
 /**********************************************************************/

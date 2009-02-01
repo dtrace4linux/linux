@@ -31,12 +31,14 @@ notice:
 	echo rel=$(rel)
 	@echo "make all        - build everything - auto-detect (32 or 64 bit)"
 	@echo "make clean      - clean out *.o/*.a and binaries"
+	@echo "make install    - install files into target locations"
 	@echo "make release    - create a new tarball for distribution"
 	@echo "make load       - install the driver"
 	@echo "make unload     - remove the driver"
 	@echo "make test       - run cmd/dtrace regression tests."
 
 release:
+	find . -name checksum.lst | xargs rm -f
 	cd .. ; mv dtrace dtrace-$(rel) ; \
 	tar cvf - --exclude=*.o \
 		--exclude=.*.cmd \
@@ -67,11 +69,13 @@ all:
 	case `uname -m` in \
 	  x86*64) \
 		tools/mksyscall.pl x86-64 ; \
+		echo "export CPU_BITS=64" >>build/config.sh ; \
 		;; \
 	  *) \
 	  	export PTR32="-D_ILP32 -D_LONGLONG_TYPE" ; \
 		export BUILD_i386=1 ; \
 		echo export PTR32=\"$$PTR32\" > build/config.sh ; \
+		echo "export CPU_BITS=32" >>build/config.sh ; \
 		echo 'export BUILD_i386=1' >> build/config.sh ; \
 		tools/mksyscall.pl x86 ; \
 	esac ; \
@@ -106,6 +110,12 @@ clean:
 	do \
 		(cd drivers/$$i ; make clean) ; \
 	done
+
+install: build/dtrace build/config.sh
+	. build/config.sh ; \
+	mkdir -p /usr/lib/dtrace/$$CPU_BITS ; \
+	install -m 4755 -o root build/dtrace /usr/sbin/dtrace ; \
+	install -m 644 -o root build/drti.o /usr/lib/dtrace/$$CPU_BITS/drti.o
 
 newf:
 	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \

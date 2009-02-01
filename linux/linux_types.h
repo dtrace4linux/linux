@@ -5,13 +5,13 @@
 /*   cleaning this mess up.					      */
 /**********************************************************************/
 
-
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
 # define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", __FILE__, __func__, __LINE__);}
 # define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", __FILE__, __func__, __LINE__);}
-# define TODO()	printk("%s:%s:%d: please fill me in\n", __FILE__, __func__, __LINE__)
+# define HERE_WITH_INFO(str)	if (dtrace_here) {printk("%s:%s:%d:%s\n", __FILE__, __func__, __LINE__, str);}
+# define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", __FILE__, __func__, __LINE__)
 # define TODO_END()
 
 # if defined(__i386) && !defined(_LP32)
@@ -47,7 +47,16 @@
 
 struct modctl;
 
+/**********************************************************************/
+/*   The  following include dependencies are horrible, where we take  */
+/*   a  bit  of  Linux and Solaris and try to come up with the right  */
+/*   set  of  definitions.  I suggest making small changes at a time  */
+/*   and validating it will compile before too much surgery. Some of  */
+/*   this is likely to be cleaned up in the future.		      */
+/**********************************************************************/
 # if __KERNEL__
+
+	# define modctl module
 
 	# if defined(zone)
 	#   undef zone

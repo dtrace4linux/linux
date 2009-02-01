@@ -1,0 +1,1 @@
+dtrace -n ':::function-entry {printf("%d\n", arg0);}'

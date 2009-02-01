@@ -132,6 +132,7 @@ typedef struct	sol_proc_t {
 #ifdef __amd64
 	uint64_t	t_dtrace_regv;	/* DTrace saved reg from fasttrap */
 #endif
+	struct pt_regs	*t_regs;
 	} sol_proc_t;
 
 typedef sol_proc_t proc_t;
@@ -184,6 +185,7 @@ void	*vmem_zalloc(vmem_t *, size_t, int);
 void	membar_enter(void);
 void	membar_producer(void);
 void	debug_enter(char *);
+int	dtrace_data_model(proc_t *);
 void	dtrace_vtime_disable(void);
 void	dtrace_vtime_enable(void);
 void	freeenv(char *);
@@ -241,6 +243,7 @@ typedef struct par_module_t {
 	} par_module_t;
 
 void *par_alloc(void *, int, int *);
+proc_t * par_find_thread(struct task_struct *t);
 void par_free(void *ptr);
 int fulword(const void *addr, uintptr_t *valuep);
 int fuword8(const void *addr, unsigned char *valuep);

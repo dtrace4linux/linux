@@ -138,6 +138,6 @@ instr_size(struct regs *rp, caddr_t *addrp, enum seg_rw rw)
 
 	return (dtrace_dis_isize(instr,
 	    rw == S_EXEC ? DIS_ISIZE_INSTR : DIS_ISIZE_OPERAND,
-	    curproc->p_model, NULL));
+	    dtrace_data_model(curproc), NULL));
 }
 # endif

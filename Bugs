@@ -18,11 +18,14 @@ x 20080708 3. dtrace -f syscall::open:entry -- failing probe lookup
 
   20080708 4. wade thru variables lookup
   20080708 5. validate ustack/stack
+
 x  20080708 6. fastrap
             Merged and compiled, but other bug issues to resolve.
 
-  20080708 7. fix dtrace -l being erratic on driver reloads
+x  20080708 7. fix dtrace -l being erratic on driver reloads
+
   20080708 8. implement hashing on par_alloc.
+
   20080708 9. dtrace -s tests/dt010
               hangs system
 
@@ -41,7 +44,7 @@ x 20080708 11. dtrace -s tests/dt011
 x 20080712 12. dtrace -s tests/dt013
              can cause stack tracing on kernel.
 
-  20080723 13. kmem_cache_create in dtrace_attach being called twice
+x 20080723 13. kmem_cache_create in dtrace_attach being called twice
                or not being freed on driver unload?
 
 x 20080723 14. sys_call_table not visible in 2.6.23.1.
@@ -61,3 +64,8 @@ x  20081019 18. fasttrap_attach() call in fasttrap.c takes us into new
   20081026 19. dtrace -P fbt
                Panics the kernel, but likely due to intercepting stuff we 
 	       shouldnt be allowed to.
+
+  20090131 20. Need to GC when real procs exit.
+  20090131 21. Handle fork() syscall to remove or active USDT probes.
+  20090131 22. 32bit dtrace crashes kernel (or GPFs, doesnt crash)
+

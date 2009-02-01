@@ -1,0 +1,5 @@
+dtrace -n ':::function-entry {printf("arg0=%x str='%s' arg1=%x:%s arg2=%s arg3=%d\n", 
+	(int) arg0, copyinstr(arg0),
+	(int) arg1, copyinstr(arg1),
+	copyinstr(arg2), 
+	arg3);}'

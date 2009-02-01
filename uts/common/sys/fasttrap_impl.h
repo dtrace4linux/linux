@@ -163,7 +163,7 @@ typedef struct fasttrap_hash {
 #define	fasttrap_fulword	fulword
 #define	fasttrap_sulword	sulword
 
-extern void fasttrap_sigtrap(proc_t *, kthread_t *, uintptr_t);
+extern void fasttrap_sigtrap(proc_t *, proc_t *, uintptr_t);
 
 extern dtrace_id_t 		fasttrap_probe_id;
 extern fasttrap_hash_t		fasttrap_tpoints;

@@ -35,9 +35,6 @@ MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
 MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 
-# define modctl module
-
-
 #define	FBT_PUSHL_EBP		0x55
 #define	FBT_MOVL_ESP_EBP0_V0	0x8b
 #define	FBT_MOVL_ESP_EBP1_V0	0xec

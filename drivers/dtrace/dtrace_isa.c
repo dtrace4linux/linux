@@ -253,7 +253,7 @@ printk("need to do this dtrace_getustackdepth\n");
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_ENTRY)) {
 		n++;
 
-		if (p->p_model == DATAMODEL_NATIVE)
+		if (dtrace_data_model(p) == DATAMODEL_NATIVE)
 			pc = dtrace_fulword((void *)rp->r_sp);
 		else
 			pc = dtrace_fuword32((void *)rp->r_sp);
@@ -301,7 +301,7 @@ printk("need to do this dtrace_getufpstack\n");
 	sp = rp->r_fp;
 	oldcontext = lwp->lwp_oldcontext;
 
-	if (p->p_model == DATAMODEL_NATIVE) {
+	if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
 		s1 = sizeof (struct frame) + 2 * sizeof (long);
 		s2 = s1 + sizeof (siginfo_t);
 	} else {
@@ -316,7 +316,7 @@ printk("need to do this dtrace_getufpstack\n");
 		if (pcstack_limit <= 0)
 			return;
 
-		if (p->p_model == DATAMODEL_NATIVE)
+		if (dtrace_data_model(p) == DATAMODEL_NATIVE)
 			pc = dtrace_fulword((void *)rp->r_sp);
 		else
 			pc = dtrace_fuword32((void *)rp->r_sp);
@@ -330,7 +330,7 @@ printk("need to do this dtrace_getufpstack\n");
 			break;
 
 		if (oldcontext == sp + s1 || oldcontext == sp + s2) {
-			if (p->p_model == DATAMODEL_NATIVE) {
+			if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
 				ucontext_t *ucp = (ucontext_t *)oldcontext;
 				greg_t *gregs = ucp->uc_mcontext.gregs;
 
@@ -348,7 +348,7 @@ printk("need to do this dtrace_getufpstack\n");
 				oldcontext = dtrace_fuword32(&ucp->uc_link);
 			}
 		} else {
-			if (p->p_model == DATAMODEL_NATIVE) {
+			if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
 				struct frame *fr = (struct frame *)sp;
 
 				pc = dtrace_fulword(&fr->fr_savpc);
@@ -641,7 +641,7 @@ dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 	/***********************************************/
 //	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
 
-HERE();
+printk("copycheck: uaddr=%p kaddr=%p size=%d\n", uaddr, kaddr, size);
 	if (!__addr_ok(uaddr) || !__addr_ok(uaddr + size)) {
 HERE2();
 //printk("uaddr=%p size=%d\n", uaddr, size);
@@ -650,6 +650,7 @@ HERE2();
 		return (0);
 	}
 
+HERE();
 	return (1);
 }
 

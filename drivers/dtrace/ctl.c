@@ -20,7 +20,11 @@
  */
 
 /**********************************************************************/
-/*   This file contains a thin /proc/$pid/ctl interface (procfs).     */
+/*   This  file  contains  a thin /proc/$pid/ctl interface (procfs).  */
+/*   This  interface is 'legacy' at the moment (Feb 2009), since the  */
+/*   experiment  to  make  it  workable  didnt  pan out - its a good  */
+/*   start,  but  not  complete to use as a Solaris compatible /proc  */
+/*   interface for Linux.					      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -111,8 +115,6 @@ struct dentry *(*proc_pident_lookup)(struct inode *dir,
 int (*proc_pident_readdir)(struct file *filp,
                 void *dirent, filldir_t filldir,
                 const struct pid_entry *ents, unsigned int nents);
-int (*fn_profile_event_register)(enum profile_type type, struct notifier_block *n);
-int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block *n);
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -130,11 +132,6 @@ static int proc_pident_readdir2(struct file *filp,
 static void hunt_proc_tgid_base_lookup(void);
 static void hunt_proc_tgid_base_readdir(void);
 
-static int proc_notifier(struct notifier_block *, unsigned long, void *);
-static struct notifier_block n = {
-	.notifier_call = proc_notifier,
-	};
-
 /**********************************************************************/
 /*   Free up and unpatch anything we modified.			      */
 /**********************************************************************/
@@ -150,9 +147,6 @@ hunt_cleanup(void)
 
 	if (ptr_proc_info_file_operations)
 		*ptr_proc_info_file_operations = save_proc_info_file_operations;
-
-	if (fn_profile_event_unregister)
-		fn_profile_event_unregister(PROFILE_TASK_EXIT, &n);
 }
 /**********************************************************************/
 /*   Called  from  dtrace_linux.c after get_proc_addr() is ready for  */
@@ -180,22 +174,6 @@ static int first_time = TRUE;
 		ptr_proc_info_file_operations->write = proc_pid_ctl_write;
 		save_proc_info_file_operations = *ptr_proc_info_file_operations;
 	}
-
-	fn_profile_event_register = 
-		(int (*)(enum profile_type type, struct notifier_block *n))
-			get_proc_addr("profile_event_register");
-	fn_profile_event_unregister = 
-		(int (*)(enum profile_type type, struct notifier_block *n))
-			get_proc_addr("profile_event_unregister");
-
-	/***********************************************/
-	/*   We  need to intercept proc death in case  */
-	/*   we are tracing it.			       */
-	/***********************************************/
-	if (fn_profile_event_register) {
-		fn_profile_event_register(PROFILE_TASK_EXIT, &n);
-	}
-
 }
 /**********************************************************************/
 /*   Routine to find the tgid_base_stuff table in the /proc (base.c)  */
@@ -510,20 +488,6 @@ HERE();
 		tgid_base_stuff_2[nents].op.proc_read = proc_pid_ctl_read; 
 //HERE();
 		}
-}
-/**********************************************************************/
-/*   Call on proc exit, so we can detach ourselves from the proc.     */
-/**********************************************************************/
-static int 
-proc_notifier(struct notifier_block *n, unsigned long code, void *ptr)
-{
-# if 0
-	struct task_struct *task = (struct task_struct *) ptr;
-
-printk("proc_notifier: code=%lu ptr=%p\n", code, ptr);
-//	task->ptrace = 0;
-# endif
-	return 0;
 }
 /**********************************************************************/
 /*   Intercept  calls  to  proc_pident_lookup so we can patch in the  */

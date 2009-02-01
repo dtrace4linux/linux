@@ -85,14 +85,24 @@ DEFINE_MUTEX(pidlock);
 
 timeout_id_t
 timeout(void (*func)(void *), void *arg, unsigned long ticks)
-{
+{	struct timer_list *tp = kzalloc(sizeof *tp, GFP_KERNEL);
+
 	TODO();
-	return 0;
+	init_timer(tp);
+	tp->expires = jiffies + ticks;
+	tp->function = func;
+	tp->data = arg;
+printk("timeout: %p ticks=%ld func=%p arg=%p\n", tp, ticks, func, arg);
+
+	add_timer(tp);
+	return (timeout_id_t) tp;
 }
 void
 untimeout(timeout_id_t id)
-{
-	TODO();
+{	struct timer_list *tp = (struct timer_list *) id;
+
+printk("untimeout: %p\n", tp);
+//	del_timer(tp);
 }
 void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
 void (*dtrace_fasttrap_exec_ptr)(proc_t *);
@@ -322,7 +332,7 @@ fasttrap_hash_str(const char *p)
 }
 
 void
-fasttrap_sigtrap(proc_t *p, kthread_t *t, uintptr_t pc)
+fasttrap_sigtrap(proc_t *p, proc_t *t, uintptr_t pc)
 {
 # if defined(sun)
 	sigqueue_t *sqp = kmem_zalloc(sizeof (sigqueue_t), KM_SLEEP);
@@ -387,6 +397,8 @@ fasttrap_pid_cleanup_cb(void *data)
 	ASSERT(in == 0);
 	in = 1;
 
+HERE();
+return;
 	mutex_enter(&fasttrap_cleanup_mtx);
 	while (fasttrap_cleanup_work) {
 		fasttrap_cleanup_work = 0;
@@ -570,18 +582,23 @@ fasttrap_fork(proc_t *p, proc_t *cp)
 static void
 fasttrap_exec_exit(proc_t *p)
 {
+HERE();
 	ASSERT(p == curproc);
+HERE();
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
 	mutex_exit(&p->p_lock);
+HERE();
 
 	/*
 	 * We clean up the pid provider for this process here; user-land
 	 * static probes are handled by the meta-provider remove entry point.
 	 */
 	fasttrap_provider_retire(p->p_pid, FASTTRAP_PID_NAME, 0);
+HERE();
 
 	mutex_enter(&p->p_lock);
+HERE();
 }
 
 
@@ -1602,10 +1619,13 @@ fasttrap_provider_free(fasttrap_provider_t *provider)
 	 * table. Don't sweat it if we can't find the process.
 	 */
 	mutex_enter(&pidlock);
+HERE();
 	if ((p = prfind(pid)) == NULL) {
+HERE();
 		mutex_exit(&pidlock);
 		return;
 	}
+HERE();
 
 	mutex_enter(&p->p_lock);
 	mutex_exit(&pidlock);
@@ -1621,29 +1641,35 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
 
+printk("retire: pid=%d name=%s\n", pid, name);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
 	mutex_enter(&bucket->ftb_mtx);
 
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
+HERE();
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
 		    !fp->ftp_retired)
 			break;
 	}
 
 	if (fp == NULL) {
+HERE();
 		mutex_exit(&bucket->ftb_mtx);
 		return;
 	}
 
+HERE();
 	mutex_enter(&fp->ftp_mtx);
 	ASSERT(!mprov || fp->ftp_mcount > 0);
 	if (mprov && --fp->ftp_mcount != 0)  {
+HERE();
 		mutex_exit(&fp->ftp_mtx);
 		mutex_exit(&bucket->ftb_mtx);
 		return;
 	}
+HERE();
 
 	/*
 	 * Mark the provider to be removed in our post-processing step, mark it
@@ -1673,7 +1699,9 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	 * since fasttrap_provider_lookup() will ignore provider that have
 	 * been marked as retired.
 	 */
+HERE();
 	dtrace_invalidate(provid);
+HERE();
 
 	mutex_exit(&bucket->ftb_mtx);
 

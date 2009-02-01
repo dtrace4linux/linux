@@ -289,8 +289,7 @@ HERE();
 printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 		if (dtrace_pid_probe_ptr != NULL &&
 		    (*dtrace_pid_probe_ptr)(rp) == 0) {
-HERE();
-printk("Good probe exit!\n");
+HERE_WITH_INFO("Good probe exit!");
 			rw_exit(rwp);
 			return 1;
 		}

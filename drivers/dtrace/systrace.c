@@ -95,7 +95,7 @@ static char *syscallnames[] = {
 	};
 
 struct sysent {
-        asmlinkage int64_t         (*sy_callc)();  /* C-style call hander or wrapper */
+        asmlinkage int64_t         (*sy_callc)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);  /* C-style call hander or wrapper */
 };
 
 #define LOADABLE_SYSCALL(s)     (s->sy_flags & SE_LOADABLE)
@@ -485,7 +485,7 @@ systrace_attach(void)
 {
 
 	systrace_probe = (void (*)(dtrace_id_t, uintptr_t arg0, uintptr_t arg1,
-    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4))dtrace_probe;
+    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)) dtrace_probe;
 	membar_enter();
 
 	if (dtrace_register("syscall", &systrace_attr, DTRACE_PRIV_USER, NULL,

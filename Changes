@@ -1,3 +1,20 @@
+Sun Feb  1 15:28:56 2009  fox
+
+     122* Various: tidy up some kernel compile warnings; remove some
+          unneeded zero length headers. 
+
+	  Arrange for proc_exit notification to wipe out fasttrap
+	  probes.
+
+     121* Various: refactor datamodel computation because we may treat
+          a 64b proc as a 32b one and access the wrong values for 
+	  copyinstr().
+
+	  We still have some USDT issues: dtrace doesnt know the target
+	  proc exited, so leaves the probes behind.
+
+     120* Archive: 1/0052
+
 Sat Jan 31 10:42:32 2009  fox
 
      119* fasttrap_isa.c: Changes to compile on 32bit kernel (tested on

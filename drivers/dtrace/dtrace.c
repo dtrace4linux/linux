@@ -93,11 +93,11 @@
 #include <sys/mutex_impl.h>
 #include <sys/rwlock_impl.h>
 #include <sys/ctf_api.h>
+# if defined(sun)
 #include <sys/panic.h>
 #include <sys/priv_impl.h>
 #include <sys/policy.h>
 #include <sys/cred_impl.h>
-# if defined(sun)
 #include <sys/procfs_isa.h>
 #include <sys/taskq.h>
 #include <sys/mkdev.h>
@@ -12468,10 +12468,10 @@ dtrace_state_deadman(dtrace_state_t *state)
 dtrace_state_t *
 dtrace_state_create(struct file *fp, cred_t *cr)
 {
-# if defined(sun)
+#if defined(sun)
 	minor_t minor;
 	major_t major;
-# endif
+#endif
 	int	m = 0;
 	char c[30];
 	dtrace_state_t *state;
@@ -12481,7 +12481,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(MUTEX_HELD(&cpu_lock));
 
-# if defined(sun)
+#if defined(sun)
 	minor = (minor_t)(uintptr_t)vmem_alloc(dtrace_minor, 1,
 	    VM_BESTFIT | VM_SLEEP);
 
@@ -12492,14 +12492,12 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 
 	state = ddi_get_soft_state(dtrace_softstate, minor);
 	m = minor;
-# else
-	TODO();
-# if defined(TODOxxxx)
+
         if (devp != NULL) {
                 cr = devp->si_cred;
                 m = minor(devp);
                 }
-# endif
+#else
         /* Allocate memory for the state. */
         state = kmem_zalloc(sizeof(dtrace_state_t), KM_SLEEP);
 #endif
@@ -13910,16 +13908,20 @@ dtrace_helper_provider_add(dof_helper_t *dofhp, int gen)
 	 * If we already have dtrace_helper_providers_max helper providers,
 	 * we're refuse to add a new one.
 	 */
-	if (help->dthps_nprovs >= dtrace_helper_providers_max)
+	if (help->dthps_nprovs >= dtrace_helper_providers_max) {
+HERE();
 		return (ENOSPC);
+	}
 
 	/*
 	 * Check to make sure this isn't a duplicate.
 	 */
 	for (i = 0; i < help->dthps_nprovs; i++) {
 		if (dofhp->dofhp_addr ==
-		    help->dthps_provs[i]->dthp_prov.dofhp_addr)
+		    help->dthps_provs[i]->dthp_prov.dofhp_addr) {
+HERE();
 			return (EALREADY);
+		}
 	}
 
 	hprov = kmem_zalloc(sizeof (dtrace_helper_provider_t), KM_SLEEP);
@@ -13957,6 +13959,7 @@ dtrace_helper_provider_add(dof_helper_t *dofhp, int gen)
 	help->dthps_provs[help->dthps_nprovs] = hprov;
 	help->dthps_nprovs++;
 
+HERE();
 	return (0);
 }
 
@@ -15712,7 +15715,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 		caddr_t cached;
 		dtrace_buffer_t *buf;
 
-PRINT_CASE(DTRACEIOC_BUFSNAP);
+//PRINT_CASE(DTRACEIOC_BUFSNAP);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 

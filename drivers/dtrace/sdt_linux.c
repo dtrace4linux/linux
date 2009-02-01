@@ -41,7 +41,9 @@
 #define	SDT_ADDR2NDX(addr)	((((uintptr_t)(addr)) >> 4) & sdt_probetab_mask)
 #define	SDT_PROBETAB_SIZE	0x1000		/* 4k entries -- 16K total */
 
+# if defined(sun)
 static int			sdt_verbose = 0;
+# endif
 static sdt_probe_t		**sdt_probetab;
 static int			sdt_probetab_size;
 static int			sdt_probetab_mask;

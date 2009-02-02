@@ -138,6 +138,7 @@ static void hunt_proc_tgid_base_readdir(void);
 static void
 hunt_cleanup(void)
 {
+return;
 	if (tgid_base_stuff_2)
 		kfree(tgid_base_stuff_2);
 	if (save_proc_tgid_base_lookup.p_addr)
@@ -159,6 +160,8 @@ static int first_time = TRUE;
 
 	if (!first_time)
 		return;
+
+return;
 
 	first_time = FALSE;
 

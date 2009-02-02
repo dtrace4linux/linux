@@ -27,7 +27,7 @@
 # if !defined(SYS_PRIVREGS_H)
 # define SYS_PRIVREGS_H
 
-
+#if defined(sun)
 #if defined(__i386)
 struct regs {
         /*
@@ -127,5 +127,84 @@ struct regs {
 #define r_ps    r_rfl   /* user's RFLAGS */
 
 # endif
+# endif /* sun */
+
+/**********************************************************************/
+/*   Compatibility for pt_regs.					      */
+/**********************************************************************/
+#if linux
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	/***********************************************/
+	/*   They   changed  the  names  of  the  CPU  */
+	/*   registers  to  try and unify i386/x86-64  */
+	/*   kernels. We, alas, get to suffer.	       */
+	/***********************************************/
+	// Linux reference: include/asm-x86/ptrace.h
+#   define orig_ax orig_eax
+#   define ip 	eip
+#   define flags eflags
+#   define sp	esp
+#   define ax	eax
+#   define bx	ebx
+#   define cx	ecx
+#   define dx	edx
+#   define si	esi
+#   define di	edi
+#   define bp	ebp
+#   define cs	xcs
+#   define ss	xss
+#endif
+
+# ifdef __amd64
+
+#   define r_rsp sp
+#   define r_sp sp
+#   define r_pc ip
+#   define r_ds cs   /* cs==ds==es==fs==gs */
+#   define r_es cs
+#   define r_fs cs
+#   define r_gs cs
+#   define r_trapno orig_ax
+
+# else /* __i386 */
+
+#   define r_sp sp
+#   define r_rsp sp
+#   define r_pc ip
+#   define r_ps flags
+#   define r_ecx cx
+#   define r_ebp bp
+#   define r_gs orig_ax
+#   define r_fs fs
+#   define r_trapno orig_ax
+
+# endif
+
+# define r_fp    bp           /* system frame pointer */
+# define r_r0 ax
+# define r_r1 dx
+# define r_ps flags
+
+# define r_rip ip
+# define r_rax ax
+# define r_rfl flags
+# define r_rbp bp
+# define r_rdi di
+# define r_rsi si
+# define r_rbx bx
+# define r_rcx cx
+# define r_rdx dx
+# define r_r8 r8
+# define r_r9 r9
+# define r_r10 r10
+# define r_r11 r11
+# define r_r12 r12
+# define r_r13 r13
+# define r_r14 r14
+# define r_r15 r15
+# define r_cs cs
+# define r_ss ss
+#endif
 
 # endif /* !defined(SYS_PRIVREGS_H) */

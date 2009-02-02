@@ -15,6 +15,7 @@
 #include <dtrace_proto.h>
 #include <sys/fasttrap.h>
 #include <sys/rwlock.h>
+#include <sys/privregs.h>
 
 # if defined(sun)
 #include <sys/x_call.h>

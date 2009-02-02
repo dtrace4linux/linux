@@ -1,3 +1,20 @@
+Mon Feb  2 17:27:39 2009  fox
+
+     127* ctl.c: Disable the hunt_init/hunt_cleanup code for the moment
+          as its crashing the x86 cpu (32b).
+
+     126* dtrace_asm.c: Found an issue with the membar functions which
+          dont work on a real x86(32b) cpu, but do on a VMware
+	  session on a 64b processor, and in 64bit mode. Use SFENCE
+	  instruction.
+
+     125* Archive: 1.0053
+
+     124* Now works on Ubuntu 2.6.24-16 (32bit) kernel
+
+     123* sys/privregs.h: Move the horrors of register and regs/pt_regs
+          into here. Need to cater for older kernels and i386/x86-64 too.
+
 Sun Feb  1 15:28:56 2009  fox
 
      122* Various: tidy up some kernel compile warnings; remove some

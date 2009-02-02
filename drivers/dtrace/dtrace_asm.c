@@ -347,21 +347,41 @@ dtrace_probe_error(dtrace_state_t *state, dtrace_epid_t epid, int which,
 
 void dtrace_membar_consumer(void)
 {
+#if defined(__amd64)
 	/* use 2 byte return instruction when branch target */
         /* AMD Software Optimization Guide - Section 6.2 */
 	__asm(
 		"rep\n"
 		"ret\n"
 		);
+# else
+	/***********************************************/
+	/*   I dont know if this is correct, or slow,  */
+	/*   but  the amd64 sequence above crashes on  */
+	/*   a  real  32-bit  cpu (Pentium-M and Dual  */
+	/*   Core 1.6GHz).			       */
+	/***********************************************/
+	__asm("sfence\n");
+#endif
 }
 void dtrace_membar_producer(void)
 {
+#if defined(__amd64)
 	/* use 2 byte return instruction when branch target */
         /* AMD Software Optimization Guide - Section 6.2 */
 	__asm(
 		"rep\n"
 		"ret\n"
 		);
+# else
+	/***********************************************/
+	/*   I dont know if this is correct, or slow,  */
+	/*   but  the amd64 sequence above crashes on  */
+	/*   a  real  32-bit  cpu (Pentium-M and Dual  */
+	/*   Core 1.6GHz).			       */
+	/***********************************************/
+	__asm("sfence\n");
+#endif
 }
 long
 dtrace_interrupt_disable(void)

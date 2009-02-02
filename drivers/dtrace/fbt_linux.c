@@ -216,7 +216,7 @@ TODO();
 	}
 
 	if (dtrace_here) 
-		printk("%s:modname=%s num_symtab=%lu\n", __func__, modname, mp->num_symtab);
+		printk("%s:modname=%s num_symtab=%u\n", __func__, modname, (unsigned) mp->num_symtab);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
@@ -910,8 +910,8 @@ fbt_open(struct inode *inode, struct file *file)
 {
 	return 0;
 }
-static int
-fbt_read(ctf_file_t *fp, int fd)
+static ssize_t
+fbt_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
 	return -EIO;
 }

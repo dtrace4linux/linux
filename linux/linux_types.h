@@ -93,7 +93,7 @@ struct modctl;
 
 	# define MUTEX_NOT_HELD(x)	mutex_count(x)
 
-	# define PS_VM X86_VM_MASK
+	# define PS_VM 0x00020000 /* CPU in v8086 mode */
 
 # else /* !__KERNEL */
 

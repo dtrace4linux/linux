@@ -37,6 +37,7 @@
 #include "dtrace_proto.h"
 #include <sys/regset.h>
 #include <sys/privregs.h>
+# define regs pt_regs
 #include <sys/segments.h>
 #include <sys/trap.h>
 
@@ -59,54 +60,6 @@
 #include <sys/archsystm.h>
 # endif
 
-#if linux
-# define regs pt_regs
-
-# ifdef __amd64
-#   define r_rsp sp
-#   define r_pc ip
-# else
-#   undef r_sp
-#   define r_sp sp
-#   define r_rsp sp
-
-#   undef r_pc
-#   define r_pc ip
-
-#   undef r_r0
-#   define r_r0 ax
-
-#   undef r_r1
-#   define r_r1 dx
-#   undef r_ps
-#   define r_ps flags
-
-#   define r_ecx cx
-#   define r_ebp bp
-# endif
-
-# define r_rip ip
-# define r_rax ax
-# define r_rfl flags
-# define r_rbp bp
-# define r_rdi di
-# define r_rsi si
-# define r_rbx bx
-# define r_rcx cx
-# define r_rdx dx
-# define r_r8 r8
-# define r_r9 r9
-# define r_r10 r10
-# define r_r11 r11
-# define r_r12 r12
-# define r_r13 r13
-# define r_r14 r14
-# define r_r15 r15
-# define r_gs gs
-# define r_fs fs
-# define r_cs cs
-# define r_ss ss
-#endif
 /*
  * Lossless User-Land Tracing on x86
  * ---------------------------------

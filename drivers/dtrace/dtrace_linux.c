@@ -27,6 +27,7 @@
 #include <asm/current.h>
 #include <linux/kdebug.h>
 #include <sys/rwlock.h>
+#include <sys/privregs.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
@@ -748,16 +749,11 @@ HERE();
 static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-# define PC ip
-#else
-# define PC ip
-#endif
 	printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
-		(void *) args->regs->PC, 
+		(void *) args->regs->ip, 
 		smp_processor_id());
 	if (dtrace_user_probe(3, args->regs, 
-		(caddr_t) args->regs->PC, 
+		(caddr_t) args->regs->ip, 
 		smp_processor_id())) {
 		HERE();
 		return NOTIFY_STOP;

@@ -1,4 +1,5 @@
 ./.git
+./build/config.sh
 ./build/dtrace
 ./build/simple-c
 ./build/simple-cpp

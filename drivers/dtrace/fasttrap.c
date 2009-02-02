@@ -90,8 +90,8 @@ timeout(void (*func)(void *), void *arg, unsigned long ticks)
 	TODO();
 	init_timer(tp);
 	tp->expires = jiffies + ticks;
-	tp->function = func;
-	tp->data = arg;
+	tp->function = (void (*)(unsigned long)) func;
+	tp->data = (unsigned long) arg;
 printk("timeout: %p ticks=%ld func=%p arg=%p\n", tp, ticks, func, arg);
 
 	add_timer(tp);
@@ -102,7 +102,7 @@ untimeout(timeout_id_t id)
 {	struct timer_list *tp = (struct timer_list *) id;
 
 printk("untimeout: %p\n", tp);
-//	del_timer(tp);
+	del_timer(tp);
 }
 void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
 void (*dtrace_fasttrap_exec_ptr)(proc_t *);
@@ -398,11 +398,12 @@ fasttrap_pid_cleanup_cb(void *data)
 	in = 1;
 
 HERE();
-return;
 	mutex_enter(&fasttrap_cleanup_mtx);
 	while (fasttrap_cleanup_work) {
 		fasttrap_cleanup_work = 0;
+HERE();
 		mutex_exit(&fasttrap_cleanup_mtx);
+HERE();
 
 		later = 0;
 
@@ -413,17 +414,25 @@ return;
 		 * we can't.
 		 */
 		for (i = 0; i < fasttrap_provs.fth_nent; i++) {
+HERE();
 			bucket = &fasttrap_provs.fth_table[i];
+HERE();
 			mutex_enter(&bucket->ftb_mtx);
+HERE();
 			fpp = (fasttrap_provider_t **)&bucket->ftb_data;
+HERE();
 
 			while ((fp = *fpp) != NULL) {
+HERE();
 				if (!fp->ftp_marked) {
+HERE();
 					fpp = &fp->ftp_next;
 					continue;
 				}
 
+HERE();
 				mutex_enter(&fp->ftp_mtx);
+HERE();
 
 				/*
 				 * If this provider has consumers actively
@@ -483,6 +492,7 @@ return;
 	 * get a chance to do that work if and when the timeout is reenabled
 	 * (if detach fails).
 	 */
+HERE();
 	if (later > 0 && fasttrap_timeout != (timeout_id_t)1)
 		fasttrap_timeout = timeout(&fasttrap_pid_cleanup_cb, NULL, hz);
 	else if (later > 0)
@@ -555,6 +565,7 @@ fasttrap_fork(proc_t *p, proc_t *cp)
 			if (tp->ftt_pid == ppid &&
 			    tp->ftt_proc->ftpc_acount != 0) {
 				int ret = fasttrap_tracepoint_remove(cp, tp);
+				ret = ret; // avoid compiler warning
 				ASSERT(ret == 0);
 
 				/*
@@ -639,7 +650,7 @@ HERE();
 	fasttrap_mod_barrier(probe->ftp_gen);
 
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
-printk("bucket=%p pid=%d pc=%p\n", bucket, pid, pc);
+printk("bucket=%p pid=%d pc=%lx\n", bucket, pid, pc);
 HERE();
 
 	/*
@@ -977,7 +988,7 @@ fasttrap_enable_callbacks(void)
 	 * function pointer yet.
 	 */
 HERE();
-printk("fasttrap_pid_count=%d\n", fasttrap_pid_count);
+//printk("fasttrap_pid_count=%ld\n", fasttrap_pid_count);
 	mutex_enter(&fasttrap_count_mtx);
 	if (fasttrap_pid_count == 0) {
 		ASSERT(dtrace_pid_probe_ptr == NULL);
@@ -1601,15 +1612,19 @@ fasttrap_provider_free(fasttrap_provider_t *provider)
 	 * If this provider hasn't been retired, we need to explicitly drop the
 	 * count of active providers on the associated process structure.
 	 */
+HERE();
 	if (!provider->ftp_retired) {
 		atomic_add_64(&provider->ftp_proc->ftpc_acount, -1);
 		ASSERT(provider->ftp_proc->ftpc_acount <
 		    provider->ftp_proc->ftpc_rcount);
 	}
 
+HERE();
 	fasttrap_proc_release(provider->ftp_proc);
+HERE();
 
 	kmem_free(provider, sizeof (fasttrap_provider_t));
+HERE();
 
 	/*
 	 * Decrement p_dtrace_probes on the process whose provider we're

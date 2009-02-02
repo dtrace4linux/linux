@@ -33,6 +33,7 @@
 #include <linux/uaccess.h>
 #include <asm/ucontext.h>
 #include <linux/thread_info.h>
+#include <sys/privregs.h>
 # endif
 
 #include <sys/dtrace_impl.h>
@@ -528,7 +529,7 @@ dtrace_getstackdepth(int aframes)
 }
 
 ulong_t
-dtrace_getreg(struct regs *rp, uint_t reg)
+dtrace_getreg(struct pt_regs *rp, uint_t reg)
 {
 #if defined(__amd64)
 	int regmap[] = {
@@ -605,8 +606,10 @@ dtrace_getreg(struct regs *rp, uint_t reg)
 		return (rp->r_gs);
 	case REG_TRAPNO:
 		return (rp->r_trapno);
+# if defined(sun)
 	case REG_ERR:
 		return (rp->r_err);
+# endif
 	case REG_RIP:
 		return (rp->r_rip);
 	case REG_CS:
@@ -628,6 +631,11 @@ dtrace_getreg(struct regs *rp, uint_t reg)
 		return (0);
 	}
 
+	/***********************************************/
+	/*   This is likely to be wrong and we should  */
+	/*   likely have code like above to avoid the  */
+	/*   funnyism of Linux reg layout.	       */
+	/***********************************************/
 	return ((&rp->r_gs)[reg]);
 #endif
 }

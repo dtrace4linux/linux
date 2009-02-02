@@ -27,7 +27,7 @@
 #ifndef _SYS_FRAME_H
 #define	_SYS_FRAME_H
 
-#pragma ident	"@(#)frame.h	1.8	05/06/08 SMI"
+//#pragma ident	"@(#)frame.h	1.8	05/06/08 SMI"
 
 #include <sys/regset.h>
 

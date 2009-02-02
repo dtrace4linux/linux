@@ -7498,13 +7498,14 @@ HERE();
 	dtrace_hash_add(dtrace_bymod, probe);
 	dtrace_hash_add(dtrace_byfunc, probe);
 	dtrace_hash_add(dtrace_byname, probe);
-//HERE();
-//printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
+HERE();
+printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 
 	if (id - 1 >= dtrace_nprobes) {
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
 		size_t nsize = osize << 1;
 
+HERE();
 		if (nsize == 0) {
 			ASSERT(osize == 0);
 			ASSERT(dtrace_probes == NULL);
@@ -7512,6 +7513,8 @@ HERE();
 		}
 
 		probes = kmem_zalloc(nsize, KM_SLEEP);
+HERE();
+printk("probes=%p osize=%d nsize=%d\n", probes, osize, nsize);
 
 		if (dtrace_probes == NULL) {
 			ASSERT(osize == 0);
@@ -7520,9 +7523,15 @@ HERE();
 		} else {
 			dtrace_probe_t **oprobes = dtrace_probes;
 
+HERE();
+printk("oprobes=%p probes=%p osize=%d\n", oprobes, probes, osize);
+
 			bcopy(oprobes, probes, osize);
+HERE();
 			dtrace_membar_producer();
+HERE();
 			dtrace_probes = probes;
+HERE();
 
 			dtrace_sync();
 
@@ -7531,6 +7540,7 @@ HERE();
 			 * safely free the old array.
 			 */
 			kmem_free(oprobes, osize);
+HERE();
 			dtrace_nprobes <<= 1;
 		}
 

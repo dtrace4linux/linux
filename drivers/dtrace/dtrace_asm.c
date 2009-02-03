@@ -10,6 +10,7 @@
 //#pragma ident	"@(#)dtrace_asm.s	1.5	04/11/17 SMI"
 
 #include <linux_types.h>
+//#include <asm/cmpxchg_32.h>
 
 # define	SWAP_REG(a, b) \
 	"push " #a "\n" \
@@ -68,27 +69,41 @@ dtrace_casptr(void *target, void *cmp, void *new)
 }
 
 #elif defined(__i386)
+/**********************************************************************/
+/*   Watch  out - if we are compiled with -mregparm=3, then the args  */
+/*   are in registers. This is dependent on how the kernel is built,  */
+/*   not  on  how  we are built. But we can use what Linux provides,  */
+/*   and avoid the assembler dependency. 			      */
+/**********************************************************************/
 uint32_t
 dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 {
-	__asm(
-		SWAP_REG(%eax, %edx)
+	(void) cmpxchg((void **) target, (void **) cmp, (void **) new);
+
+/*	__asm(
+		" movl 4(%esp), %edx\n"
+		" movl 8(%esp), %eax\n"
+		" movl 12(%esp), %ecx\n"
 		" lock\n"
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
-		);
-	return 0; // notreached
+		);*/
+	return 0;
+
 }
 void *
 dtrace_casptr(void *target, void *cmp, void *new) 
 {
-	__asm(
-		SWAP_REG(%eax, %edx)
+	(void) cmpxchg((void **) target, (void **) cmp, (void **) new);
+/*	__asm(
+		" movl 4(%esp), %edx\n"
+		" movl 8(%esp), %eax\n"
+		" movl 12(%esp), %ecx\n"
 		" lock\n"
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
-		);
-	return 0; // notreached
+		);*/
+	return 0;
 }
 
 #endif	/* __i386 */
@@ -131,7 +146,7 @@ dtrace_copy(uintptr_t src, uintptr_t dest, size_t size)
 		);
 
 #elif defined(__i386)
-	memcpy(dest, src, size);
+	memcpy((void *) dest, (void *) src, size);
 #endif	/* __i386 */
 }
 

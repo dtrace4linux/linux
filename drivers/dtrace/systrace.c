@@ -357,6 +357,67 @@ systrace_destroy(void *arg, dtrace_id_t id, void *parg)
 	}
 }
 
+/**********************************************************************/
+/*   Set  an  address  to be writeable. Need this because kernel may  */
+/*   have  R/O sections. Using linux kernel apis is painful, because  */
+/*   they  keep  changing  or  do  the wrong thing. (Or, I just dont  */
+/*   understand  them  enough,  which  is  more  likely). This 'just  */
+/*   works'.							      */
+/**********************************************************************/
+int
+memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
+{
+	int level;
+	pte_t *pte;
+
+static pte_t *(*lookup_address)(void *, int *);
+static void (*flush_tlb_all)(void);
+
+
+		if (fn_set_memory_rw == NULL) {
+			printk("systrace.c: cannot locate set_memory_rw in this kernel..aborting\n");
+			return 0;
+		}
+	if (lookup_address == NULL)
+		lookup_address = get_proc_addr("lookup_address");
+	if (lookup_address == NULL)
+		return 0;
+
+	pte = lookup_address(addr, &level);
+/*
+printk("pte: level=%d %lx %s %s\n",
+	level, (long) pte_val(*pte), 
+	pte_val(*pte) & _PAGE_RW ? "RW" : "RO",
+	pte_val(*pte) & _PAGE_USER ? "USER" : "KERNEL");
+*/
+	if ((pte_val(*pte) & _PAGE_RW) == 0) {
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+			pte->pte_low |= _PAGE_RW;
+# else
+			pte->pte |= _PAGE_RW;
+# endif
+
+		/***********************************************/
+		/*   If  we  touch  the page mappings, ensure  */
+		/*   cpu  and  cpu  caches  no what happened,  */
+		/*   else we may have random GPFs as we go to  */
+		/*   do   a  write.  If  this  function  isnt  */
+		/*   available,   we   are   pretty  much  in  */
+		/*   trouble.				       */
+		/***********************************************/
+		if (flush_tlb_all == NULL)
+			flush_tlb_all = get_proc_addr("flush_tlb_all");
+		if (flush_tlb_all)
+			flush_tlb_all();
+		}
+
+	return 1;
+}
+
+/**********************************************************************/
+/*   Someone  is trying to trace a syscall. Enable/patch the syscall  */
+/*   table (if not done already).				      */
+/**********************************************************************/
 /*ARGSUSED*/
 static void
 systrace_enable(void *arg, dtrace_id_t id, void *parg)
@@ -384,19 +445,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	/*   it  back  on  when  we are finished, but  */
 	/*   dont care for now.			       */
 	/***********************************************/
-#define kern_to_page(kaddr)     pfn_to_page(((unsigned long) kaddr) >> PAGE_SHIFT)
-
-#	if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-		if (fn_set_memory_rw == NULL) {
-			printk("systrace.c: cannot locate set_memory_rw in this kernel..aborting\n");
-			return;
-		}
-		fn_set_memory_rw(kern_to_page(&sysent[sysnum].sy_callc), 1);
-#	else
-		change_page_attr(kern_to_page(&sysent[sysnum].sy_callc), 1, PAGE_KERNEL);
-		HERE();
-		global_flush_tlb();
-#	endif
+	memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE);
 # else
 	/***********************************************/
 	/*   In  2.6.24.4 and related kernels, x86-64  */
@@ -417,7 +466,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 
 //sysent[sysnum].sy_callc = dtrace_systrace_syscall;
 
-	(void) casptr(&sysent[sysnum].sy_callc,
+	casptr(&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)dtrace_systrace_syscall);
 
@@ -439,7 +488,7 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 	    systrace_sysent[sysnum].stsy_return == DTRACE_IDNONE);
 
 	if (disable) {
-		(void) casptr(&sysent[sysnum].sy_callc,
+		casptr(&sysent[sysnum].sy_callc,
 		    (void *)dtrace_systrace_syscall,
 		    (void *)systrace_sysent[sysnum].stsy_underlying);
 

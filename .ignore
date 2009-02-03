@@ -7,6 +7,8 @@
 ./drivers/dtrace/checksum.lst
 ./drivers/dtrace/syscalls-x86-64.tbl
 ./drivers/dtrace/syscalls-x86.tbl
+./drivers/dtrace/Module.symvers
+./drivers/dtrace/Module.markers
 ./libdtrace/dt_grammar.h
 ./libdtrace/dt_lex.c
 ./usdt/c/shlib.so

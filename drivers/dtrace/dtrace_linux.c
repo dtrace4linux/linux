@@ -721,7 +721,7 @@ proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 	struct task_struct *task = (struct task_struct *) ptr;
 	proc_t *p;
 
-printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
+//printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
 	/***********************************************/
 	/*   See  if  we know this proc - if so, need  */
 	/*   to let fasttrap retire the probes.	       */

@@ -438,6 +438,7 @@ HERE2(); \
 									\
 	*flags |= CPU_DTRACE_NOFAULT;					\
 	/*CSTYLED*/							\
+printk("%s: addr=%x\n", __func__, addr); \
 	rval = *((volatile uint##bits##_t *)addr);			\
 	*flags &= ~CPU_DTRACE_NOFAULT;					\
 									\
@@ -774,14 +775,19 @@ dtrace_vcanload(void *src, dtrace_diftype_t *type, dtrace_mstate_t *mstate,
 	 * If we hold the privilege to read from kernel memory, then
 	 * everything is readable.
 	 */
+HERE();
+printk("dtms_access=%x\n", mstate->dtms_access);
 	if ((mstate->dtms_access & DTRACE_ACCESS_KERNEL) != 0)
 		return (1);
 
+printk("src=%p\n", src);
+HERE();
 	if (type->dtdt_kind == DIF_TYPE_STRING)
 		sz = dtrace_strlen(src,
 		    vstate->dtvs_state->dts_options[DTRACEOPT_STRSIZE]) + 1;
 	else
 		sz = type->dtdt_size;
+HERE();
 
 	return (dtrace_canload((uintptr_t)src, sz, mstate, vstate));
 }
@@ -1321,6 +1327,8 @@ dtrace_dynvar(dtrace_dstate_t *dstate, uint_t nkeys,
 
 	ASSERT(nkeys != 0);
 
+HERE();
+printk("nkeys=%d\n", nkeys);
 	/*
 	 * Hash the key.  As with aggregations, we use Jenkins' "One-at-a-time"
 	 * algorithm.  For the by-value portions, we perform the algorithm in
@@ -1358,9 +1366,11 @@ dtrace_dynvar(dtrace_dstate_t *dstate, uint_t nkeys,
 			 */
 			uint64_t j, size = key[i].dttk_size;
 			uintptr_t base = (uintptr_t)key[i].dttk_value;
+HERE();
 
 			if (!dtrace_canload(base, size, mstate, vstate))
 				break;
+HERE();
 
 			for (j = 0; j < size; j++) {
 				hashval += dtrace_load8(base + j);
@@ -1373,6 +1383,7 @@ dtrace_dynvar(dtrace_dstate_t *dstate, uint_t nkeys,
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_FAULT))
 		return (NULL);
 
+HERE();
 	hashval += (hashval << 3);
 	hashval ^= (hashval >> 11);
 	hashval += (hashval << 15);
@@ -1403,6 +1414,7 @@ dtrace_dynvar(dtrace_dstate_t *dstate, uint_t nkeys,
 			while ((lock = *lockp) & 1)
 				continue;
 
+HERE();
 			if (dtrace_casptr((void *)lockp,
 			    (void *)lock, (void *)(lock + 1)) == (void *)lock)
 				break;
@@ -1422,6 +1434,7 @@ top:
 	    start->dtdv_hashval != DTRACE_DYNHASH_FREE ||
 	    op != DTRACE_DYNVAR_DEALLOC));
 
+HERE();
 	for (dvar = start; dvar != NULL; dvar = dvar->dtdv_next) {
 		dtrace_tuple_t *dtuple = &dvar->dtdv_tuple;
 		dtrace_key_t *dkey = &dtuple->dtt_key[0];
@@ -5085,9 +5098,11 @@ PRINT_CASE(DIF_OP_LDTS);
 			    mstate, vstate);
 
 			if (dvar == NULL) {
+HERE();
 				regs[rd] = 0;
 				break;
 			}
+HERE();
 
 			if (v->dtdv_type.dtdt_flags & DIF_TF_BYREF) {
 				regs[rd] = (uint64_t)(uintptr_t)dvar->dtdv_data;
@@ -5175,20 +5190,24 @@ PRINT_CASE(DIF_OP_PUSHTR);
 				    dtrace_strlen((char *)(uintptr_t)regs[rd],
 				    regs[r2] ? regs[r2] :
 				    dtrace_strsize_default) + 1;
+HERE();
+printk("size=%d\n", tupregs[ttop].dttk_size);
 			} else {
 				tupregs[ttop].dttk_size = regs[r2];
 			}
-
+printk("ttop=%d rd=%d regs[rd]=%x\n", ttop, rd, regs[rd]);
 			tupregs[ttop++].dttk_value = regs[rd];
 			break;
 
 		case DIF_OP_PUSHTV:
 PRINT_CASE(DIF_OP_PUSHTV);
 			if (ttop == DIF_DTR_NREGS) {
+HERE();
 				*flags |= CPU_DTRACE_TUPOFLOW;
 				break;
 			}
 
+printk("ttop=%d rd=%d regs[rd]=%x\n", ttop, rd, regs[rd]);
 			tupregs[ttop].dttk_value = regs[rd];
 			tupregs[ttop++].dttk_size = 0;
 			break;
@@ -6098,6 +6117,7 @@ HERE();
 
 			val = dtrace_dif_emulate(dp, &mstate, vstate, state);
 HERE();
+printk("val=%p\n", val);
 
 			if (*flags & CPU_DTRACE_ERROR)
 				continue;
@@ -6105,6 +6125,7 @@ HERE();
 HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_SPECULATE:
+HERE();
 				ASSERT(buf == &state->dts_buffer[cpuid]);
 				buf = dtrace_speculation_buffer(state,
 				    cpuid, val);
@@ -6132,16 +6153,19 @@ HERE();
 				continue;
 
 			case DTRACEACT_CHILL:
+HERE();
 				if (dtrace_priv_kernel_destructive(state))
 					dtrace_action_chill(&mstate, val);
 				continue;
 
 			case DTRACEACT_RAISE:
+HERE();
 				if (dtrace_priv_proc_destructive(state))
 					dtrace_action_raise(val);
 				continue;
 
 			case DTRACEACT_COMMIT:
+HERE();
 				ASSERT(!committed);
 
 				/*
@@ -6155,6 +6179,7 @@ HERE();
 				continue;
 
 			case DTRACEACT_DISCARD:
+HERE();
 				dtrace_speculation_discard(state, cpuid, val);
 				continue;
 
@@ -6164,10 +6189,12 @@ HERE();
 			case DTRACEACT_PRINTA:
 			case DTRACEACT_SYSTEM:
                         case DTRACEACT_FREOPEN:
+HERE();
 				break;
 
 			case DTRACEACT_SYM:
 			case DTRACEACT_MOD:
+HERE();
 				if (!dtrace_priv_kernel(state))
 					continue;
 				break;
@@ -6207,6 +6234,7 @@ HERE();
 				 * status code.  (We know that we're the only
 				 * thread in COOLDOWN, so there is no race.)
 				 */
+HERE();
 				void *activity = &state->dts_activity;
 				dtrace_activity_t current = state->dts_activity;
 
@@ -6232,27 +6260,35 @@ HERE();
 			if (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF) {
 				uintptr_t end = valoffs + size;
 
+HERE();
 				if (!dtrace_vcanload((void *)(uintptr_t)val,
 				    &dp->dtdo_rtype, &mstate, vstate))
 					continue;
+HERE();
 
 				/*
 				 * If this is a string, we're going to only
 				 * load until we find the zero byte -- after
 				 * which we'll store zero bytes.
 				 */
+printk("val=%x\n", val);
 				if (dp->dtdo_rtype.dtdt_kind ==
 				    DIF_TYPE_STRING) {
 					char c = '\0' + 1;
+HERE();
 					int intuple = act->dta_intuple;
+HERE();
 					size_t s;
 
 					for (s = 0; s < size; s++) {
+HERE();
 						if (c != '\0')
 							c = dtrace_load8(val++);
+HERE();
 
 						DTRACE_STORE(uint8_t, tomax,
 						    valoffs++, c);
+HERE();
 
 						if (c == '\0' && intuple)
 							break;
@@ -6261,6 +6297,7 @@ HERE();
 					continue;
 				}
 
+HERE();
 				while (valoffs < end) {
 					DTRACE_STORE(uint8_t, tomax, valoffs++,
 					    dtrace_load8(val++));
@@ -6268,6 +6305,7 @@ HERE();
 
 				continue;
 			}
+HERE();
 
 			switch (size) {
 			case 0:
@@ -6294,6 +6332,7 @@ HERE();
 				break;
 			}
 		}
+HERE();
 
 		if (*flags & CPU_DTRACE_DROP)
 			continue;
@@ -6333,10 +6372,12 @@ HERE();
 			 * predicate, if it's ecb->dte_action->dta_next it's
 			 * in action #1, and so on.
 			 */
+HERE();
 			for (err = ecb->dte_action, ndx = 0;
 			    err != act; err = err->dta_next, ndx++)
 				continue;
 
+HERE();
 			dtrace_probe_error(state, ecb->dte_epid, ndx,
 			    (mstate.dtms_present & DTRACE_MSTATE_FLTOFFS) ?
 			    mstate.dtms_fltoffs : -1, DTRACE_FLAGS2FLT(*flags),
@@ -6355,7 +6396,7 @@ HERE();
 
 	dtrace_interrupt_enable(cookie);
 }
-EXPORT_SYMBOL(dtrace_probe);
+//EXPORT_SYMBOL(dtrace_probe);
 
 /*
  * DTrace Probe Hashing Functions

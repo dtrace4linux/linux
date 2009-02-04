@@ -82,18 +82,23 @@ struct modctl;
 	# include	<linux/kdev_t.h>
 	# include	<linux/version.h>
 	# include	<zone.h>
-	# include <linux/stacktrace.h>
-	# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
-	#       include <asm/stacktrace.h>
-	# elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 23)
-	#	include <asm-x86_64/stacktrace.h>
+	# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+	#   include	<linux/mutex.h>
 	# else
-	#	include <asm-x86/stacktrace.h>
+	#   include	<linux/stacktrace.h>
+	#   include	<asm/stacktrace.h>
 	# endif
 
 	# define MUTEX_NOT_HELD(x)	mutex_count(x)
 
 	# define PS_VM 0x00020000 /* CPU in v8086 mode */
+
+	/***********************************************/
+	/*   Linux 2.6.9			       */
+	/***********************************************/
+	# if !defined(task_pt_regs)
+	#	define task_pt_regs(task) ((struct pt_regs *) (task)->thread.sp0 - 1)
+	# endif
 
 # else /* !__KERNEL */
 
@@ -272,7 +277,6 @@ typedef struct iovec iovec_t;
 	#define printk printf
 	#define MIN(a, b) ((a) < (b) ? (a) : (b))
 	#define MAX(a, b) ((a) > (b) ? (a) : (b))
-	#define roundup(x, y)   ((((x)+((y)-1))/(y))*(y))
 
 	#define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
 
@@ -306,6 +310,9 @@ typedef struct iovec iovec_t;
 	# endif
 # endif
 
+# if !defined(roundup)
+	#define roundup(x, y)   ((((x)+((y)-1))/(y))*(y))
+# endif
 
 typedef union {
         long double     _q;
@@ -402,10 +409,6 @@ typedef union {
 
 /* zone.h */
 #define GLOBAL_ZONEID   0
-/*
-# include	<sys/procfs.h>
-struct pstatus *Pstatus();
-*/
 
 typedef struct timespec timestruc_t;
 

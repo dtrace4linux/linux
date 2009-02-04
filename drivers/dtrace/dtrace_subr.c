@@ -10,8 +10,8 @@
 //#pragma ident	"@(#)dtrace_subr.c	1.9	04/11/19 SMI"
 
 #include <dtrace_linux.h>
-#include <sys/dtrace.h>
 #include <sys/dtrace_impl.h>
+#include <sys/dtrace.h>
 #include <dtrace_proto.h>
 #include <sys/fasttrap.h>
 #include <sys/rwlock.h>
@@ -195,11 +195,10 @@ dtrace_user_probe(int trapno, struct pt_regs *rp, caddr_t addr, processorid_t cp
 
 	par_setup_thread();
 	p = curproc;
-# define r_pc ip
 
 //	if (USERMODE(rp->r_cs) || (rp->r_ps & PS_VM)) {
 HERE();
-	if (user_mode(rp) || (rp->flags & PS_VM)) {
+	if (user_mode(rp) || (rp->r_rfl & PS_VM)) {
 HERE();
 # if 0
 		if (curthread->t_cred != p->p_cred) {

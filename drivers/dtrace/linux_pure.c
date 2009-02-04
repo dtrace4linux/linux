@@ -11,7 +11,6 @@
 #include <linux/hardirq.h>
 #include <linux/fs.h>
 #include <linux/device.h>
-#include <asm/uaccess.h>
 
 char *
 linux_get_proc_comm(void)

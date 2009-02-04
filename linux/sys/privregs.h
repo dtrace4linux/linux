@@ -134,77 +134,127 @@ struct regs {
 /**********************************************************************/
 #if linux
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	/***********************************************/
-	/*   They   changed  the  names  of  the  CPU  */
-	/*   registers  to  try and unify i386/x86-64  */
-	/*   kernels. We, alas, get to suffer.	       */
-	/***********************************************/
-	// Linux reference: include/asm-x86/ptrace.h
-#   define orig_ax orig_eax
-#   define ip 	eip
-#   define flags eflags
-#   define sp	esp
-#   define ax	eax
-#   define bx	ebx
-#   define cx	ecx
-#   define dx	edx
-#   define si	esi
-#   define di	edi
-#   define bp	ebp
-#   define cs	xcs
-#   define ss	xss
+#if defined(__amd64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+
+#   define esp          rsp
+#   define r_cs         cs
+#   define r_ds         cs   /* cs==ds==es==fs==gs */
+#   define r_es         cs
+#   define r_fs         cs
+#   define r_gs         cs
+#   define r_pc         rip
+#   define r_ps		eflags
+#   define r_r0         rax
+#   define r_r1         rdx
+#   define r_r10        r10
+#   define r_r11        r11
+#   define r_r12        r12
+#   define r_r13        r13
+#   define r_r14        r14
+#   define r_r15        r15
+#   define r_r8         r8
+#   define r_r9         r9
+#   define r_rax        rax
+#   define r_rbp        rbp
+#   define r_rbx        rbx
+#   define r_rcx        rcx
+#   define r_rdi        rdi
+#   define r_rdx        rdx
+#   define r_rfl        eflags
+#   define r_fp         rbp
+#   define r_rip        rip
+#   define r_rsi        rsi
+#   define r_rsp        rsp
+#   define r_sp         rsp
+#   define r_ss         ss
+#   define r_trapno     orig_rax
+
+#elif defined(__amd64) && LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+
+#   define r_cs 	cs
+#   define r_ds		cs   /* cs==ds==es==fs==gs */
+#   define r_es		cs
+#   define r_fp    	bp           /* system frame pointer */
+#   define r_fs		cs
+#   define r_gs		cs
+#   define r_pc		ip
+#   define r_ps 	flags
+#   define r_r0		ax
+#   define r_r1 	dx
+#   define r_r10 	r10
+#   define r_r11 	r11
+#   define r_r12 	r12
+#   define r_r13 	r13
+#   define r_r14 	r14
+#   define r_r15 	r15
+#   define r_r8 	r8
+#   define r_r9 	r9
+#   define r_rax 	ax
+#   define r_rbp 	bp
+#   define r_rbx 	bx
+#   define r_rcx 	cx
+#   define r_rdi 	di
+#   define r_rdx 	dx
+#   define r_rfl 	flags
+#   define r_rip 	ip
+#   define r_rsi 	si
+#   define r_rsp	sp
+#   define r_sp		sp
+#   define r_ss 	ss
+#   define r_trapno	orig_ax
+   
+#elif defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+
+#   define r_cs         xcs
+#   define r_ecx        ecx
+#   define r_fp         esp
+#   define r_fs         fs
+#   define r_gs         orig_eax
+#   define r_pc         eip
+#   define r_ps         eflags
+#   define r_r0		eax
+#   define r_r1		edx
+#   define r_rax        eax
+#   define r_rbp        ebp
+#   define r_rbx        ebx
+#   define r_rcx        ecx
+#   define r_rdi        edi
+#   define r_rdx        edx
+#   define r_rfl        eflags
+#   define r_rip 	eip
+#   define r_rsi 	esi
+#   define r_rsp        esp
+#   define r_sp         esp
+#   define r_ss         xss
+#   define r_trapno     orig_eax
+
+#elif defined(__i386)
+
+#   define r_cs         cs
+#   define r_ecx        cx
+#   define r_fp         sp
+#   define r_fs         fs
+#   define r_gs         orig_ax
+#   define r_pc         ip
+#   define r_ps         flags
+#   define r_r0		ax
+#   define r_r1		dx
+#   define r_rax        ax
+#   define r_rbp        bp
+#   define r_rbx        bx
+#   define r_rcx        cx
+#   define r_rdi        di
+#   define r_rdx        dx
+#   define r_rfl        flags
+#   define r_rip 	ip
+#   define r_rsi 	si
+#   define r_rsp        sp
+#   define r_sp         sp
+#   define r_ss         ss
+#   define r_trapno     orig_ax
+
 #endif
 
-# ifdef __amd64
-
-#   define r_rsp sp
-#   define r_sp sp
-#   define r_pc ip
-#   define r_ds cs   /* cs==ds==es==fs==gs */
-#   define r_es cs
-#   define r_fs cs
-#   define r_gs cs
-#   define r_trapno orig_ax
-
-# else /* __i386 */
-
-#   define r_sp sp
-#   define r_rsp sp
-#   define r_pc ip
-#   define r_ps flags
-#   define r_ecx cx
-#   define r_ebp bp
-#   define r_gs orig_ax
-#   define r_fs fs
-#   define r_trapno orig_ax
-
-# endif
-
-# define r_fp    bp           /* system frame pointer */
-# define r_r0 ax
-# define r_r1 dx
-# define r_ps flags
-
-# define r_rip ip
-# define r_rax ax
-# define r_rfl flags
-# define r_rbp bp
-# define r_rdi di
-# define r_rsi si
-# define r_rbx bx
-# define r_rcx cx
-# define r_rdx dx
-# define r_r8 r8
-# define r_r9 r9
-# define r_r10 r10
-# define r_r11 r11
-# define r_r12 r12
-# define r_r13 r13
-# define r_r14 r14
-# define r_r15 r15
-# define r_cs cs
-# define r_ss ss
 #endif
 
 # endif /* !defined(SYS_PRIVREGS_H) */

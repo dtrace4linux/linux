@@ -19,13 +19,19 @@
 
 #include "dtrace_linux.h"
 #include <sys/cyclic_impl.h>
-#include <linux/hrtimer.h>
 
 # define	CYCLIC_SUN	0
 # define	CYCLIC_LINUX	1
 # define	CYCLIC_DUMMY	2
 
+/**********************************************************************/
+/*   Need to rewrite this for older kernels without hrtimers?	      */
+/**********************************************************************/
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+# define MODE CYCLIC_DUMMY
+#else
 # define MODE CYCLIC_LINUX
+#endif
 
 # if MODE == CYCLIC_SUN
 // needed if we go the Sun route..

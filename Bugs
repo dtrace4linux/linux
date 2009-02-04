@@ -69,3 +69,11 @@ x  20081019 18. fasttrap_attach() call in fasttrap.c takes us into new
   20090131 21. Handle fork() syscall to remove or active USDT probes.
   20090131 22. 32bit dtrace crashes kernel (or GPFs, doesnt crash)
 
+  20090204 Linux 2.6.9 (AS4) issues
+  	task_pt_regs in linux_types.h
+*** Warning: "find_task_by_vpid" [/ms/.global/ln.w/user/p/pfox/src/dtrace-20090204/drivers/dtrace/dtracedrv.ko] undefined!
+XX *** Warning: "strcasecmp" [/ms/.global/ln.w/user/p/pfox/src/dtrace-20090204/drivers/dtrace/dtracedrv.ko] undefined!
+XX *** Warning: "mutex_is_locked" [/ms/.global/ln.w/user/p/pfox/src/dtrace-20090204/drivers/dtrace/dtracedrv.ko] undefined!
+XX *** Warning: "roundup" [/ms/.global/ln.w/user/p/pfox/src/dtrace-20090204/drivers/dtrace/dtracedrv.ko] undefined!
+XX *** Warning: "smp_call_function_single" [/ms/.global/ln.w/user/p/pfox/src/dtrace-20090204/drivers/dtrace/dtracedrv.ko] undefined!
+

@@ -19,6 +19,7 @@ dtracedrv-objs := \
 	fasttrap_linux.o \
 	fbt_linux.o \
 	linux_pure.o \
+	missing.o \
 	profile.o \
 	sdt_linux.o \
 	sdt_subr.o \

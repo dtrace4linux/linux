@@ -34,7 +34,16 @@
 #include <linux/hardirq.h>
 #include <linux/fs.h>
 #include <linux/device.h>
+#include <linux/notifier.h>
 #include <asm/uaccess.h>
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+#  include <asm/kdebug.h>
+#else
+#  include <linux/hrtimer.h>
+#  include <linux/kdebug.h>
+#  include <linux/uaccess.h>
+#endif
 
 # define MUTEX_HELD mutex_is_locked
 

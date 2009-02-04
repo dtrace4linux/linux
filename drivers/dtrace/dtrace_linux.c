@@ -20,12 +20,10 @@
 #include <linux/proc_fs.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
 #include <linux/sys.h>
 #include <linux/thread_info.h>
 #include <linux/smp.h>
 #include <asm/current.h>
-#include <linux/kdebug.h>
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
 
@@ -750,10 +748,10 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 {	struct die_args *args = (struct die_args *) ptr;
 
 	printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
-		(void *) args->regs->ip, 
+		(void *) args->regs->r_pc, 
 		smp_processor_id());
 	if (dtrace_user_probe(3, args->regs, 
-		(caddr_t) args->regs->ip, 
+		(caddr_t) args->regs->r_pc, 
 		smp_processor_id())) {
 		HERE();
 		return NOTIFY_STOP;
@@ -993,10 +991,16 @@ membar_producer(void)
 {
 }
 
+/**********************************************************************/
+/*   TODO:  this  will  enable  dtrace_canload  and friends to let D  */
+/*   programs  peek  around  in  kernel  space.  We probably want to  */
+/*   parameter  or  create an ACL list loaded at run-time to do what  */
+/*   solaris has internally.					      */
+/**********************************************************************/
 int
 priv_policy_only(const cred_t *a, int b, int c)
 {
-        return 0;
+        return 1;
 }
 /**********************************************************************/
 /*   Module   interface   for   /dev/dtrace_helper.  I  really  want  */

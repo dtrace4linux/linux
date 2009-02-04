@@ -30,7 +30,6 @@
 #define _SYSCALL32
 #include "dtrace_linux.h"
 #include <linux/sched.h>
-#include <linux/uaccess.h>
 #include <asm/ucontext.h>
 #include <linux/thread_info.h>
 #include <sys/privregs.h>
@@ -91,12 +90,14 @@ static void print_trace_address(void *data, unsigned long addr)
 		g_pcstack[g_depth++] = addr;
 }
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
 static const struct stacktrace_ops print_trace_ops = {
 	.warning = print_trace_warning,
 	.warning_symbol = print_trace_warning_symbol,
 	.stack = print_trace_stack,
 	.address = print_trace_address,
 };
+# endif
 
 /*ARGSUSED*/
 void
@@ -110,10 +111,12 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	g_depth = 0;
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
+#else
+	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
 #endif
 	depth = g_depth;
 	mutex_exit(&dtrace_stack_mutex);

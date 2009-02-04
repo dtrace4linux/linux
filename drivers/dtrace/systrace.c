@@ -35,7 +35,7 @@
 #include <linux/highmem.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
-#include <asm/asm-offsets.h>
+//#include <asm/asm-offsets.h>
 //#include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -248,7 +248,7 @@ systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed)
 	}
 
 HERE();
-printk("NSYSCALL=%d\n", NSYSCALL);
+printk("NSYSCALL=%d\n", (int) NSYSCALL);
 	for (i = 0; i < NSYSCALL; i++) {
 		struct sysent *a = &actual[i];
 		systrace_sysent_t *s = &sysent[i];
@@ -391,7 +391,7 @@ printk("pte: level=%d %lx %s %s\n",
 	pte_val(*pte) & _PAGE_USER ? "USER" : "KERNEL");
 */
 	if ((pte_val(*pte) & _PAGE_RW) == 0) {
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+# if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
 			pte->pte_low |= _PAGE_RW;
 # else
 			pte->pte |= _PAGE_RW;

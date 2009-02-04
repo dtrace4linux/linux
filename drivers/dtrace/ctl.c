@@ -98,14 +98,24 @@ static struct file_operations save_proc_info_file_operations;
 /**********************************************************************/
 /*   This needs to agree with the kernel source.		      */
 /**********************************************************************/
-struct pid_entry {
-	char	*name;
-	int	len;
-	mode_t	mode;
-	struct inode_operations *iop;
-	struct file_operations *fop;
-	union proc_op op;
-	};
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+      struct pid_entry {
+              int type;
+              int len;
+              char *name;
+              mode_t mode;
+	      };
+# else
+      struct pid_entry {
+              char    *name;
+              int     len;
+              mode_t  mode;
+              struct inode_operations *iop;
+              struct file_operations *fop;
+              union proc_op op;
+              };
+# endif
+
 struct pid_entry *tgid_base_stuff_2;
 
 struct dentry *(*proc_pident_lookup)(struct inode *dir,
@@ -363,18 +373,29 @@ HERE();
 /*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
 /*   tree, then we wouldnt need this hack.			      */
 /**********************************************************************/
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#     define PROC_I(i) proc_task(i)
+#     define file_dentry(f) file->f_dentry
+#     define inode_to_task(inode) proc_task(inode)
+#     define inode_to_pid(inode) PROC_I(inode)->pid
+# else
+#     define file_dentry(f) file->f_path.dentry
+#     define inode_to_task(inode) fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID)
+#     define inode_to_pid(inode) PROC_I(inode)->pid
+# endif
+
 static ssize_t proc_pid_ctl_write(struct file *file, const char __user *buf,
             size_t count, loff_t *offset)
 {
 	int	orig_count = count;
 	long	*ctlp = (long *) buf;
 	long	*ctlend = (long *) (buf + count);
-	struct inode *inode = file->f_path.dentry->d_inode;
+	struct inode *inode = file_dentry(file)->d_inode;
 	struct task_struct *task;
 
-	task = fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID);
+	task = inode_to_task(inode);
 printk("ctl_write: count=%d task=%p pid=%p\n", (int) count,
-task, PROC_I(inode)->pid);
+task, task->pid);
 
 	while (ctlp < ctlend) {
 		int	size = 1;
@@ -486,9 +507,16 @@ HERE();
 		tgid_base_stuff_2[nents].name = "ctl";
 		tgid_base_stuff_2[nents].len = 3;
 		tgid_base_stuff_2[nents].mode = S_IFREG | 0640;
+# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+		/***********************************************/
+		/*   We  want  to  compile  on AS4 - but this  */
+		/*   isnt  there  in the 2.6.9 kernel. Not to  */
+		/*   worry, since ctl.c is deprecated anyhow.  */
+		/***********************************************/
 		tgid_base_stuff_2[nents].iop = NULL;
 		tgid_base_stuff_2[nents].fop = ptr;
 		tgid_base_stuff_2[nents].op.proc_read = proc_pid_ctl_read; 
+# endif
 //HERE();
 		}
 }

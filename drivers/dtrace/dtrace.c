@@ -438,7 +438,6 @@ HERE2(); \
 									\
 	*flags |= CPU_DTRACE_NOFAULT;					\
 	/*CSTYLED*/							\
-printk("%s: addr=%x\n", __func__, addr); \
 	rval = *((volatile uint##bits##_t *)addr);			\
 	*flags &= ~CPU_DTRACE_NOFAULT;					\
 									\
@@ -1366,7 +1365,6 @@ printk("nkeys=%d\n", nkeys);
 			 */
 			uint64_t j, size = key[i].dttk_size;
 			uintptr_t base = (uintptr_t)key[i].dttk_value;
-HERE();
 
 			if (!dtrace_canload(base, size, mstate, vstate))
 				break;
@@ -1439,6 +1437,7 @@ HERE();
 		dtrace_tuple_t *dtuple = &dvar->dtdv_tuple;
 		dtrace_key_t *dkey = &dtuple->dtt_key[0];
 
+HERE();
 		if (dvar->dtdv_hashval != hashval) {
 			if (dvar->dtdv_hashval == DTRACE_DYNHASH_SINK) {
 				/*
@@ -1449,10 +1448,13 @@ HERE();
 				 */
 				ASSERT(dvar->dtdv_next == NULL);
 				ASSERT(dvar == &dtrace_dynhash_sink);
+HERE();
 				break;
 			}
+HERE();
 
 			if (dvar->dtdv_hashval == DTRACE_DYNHASH_FREE) {
+HERE();
 				/*
 				 * We've gone off the rails:  somewhere along
 				 * the line, one of the members of this hash
@@ -1477,12 +1479,14 @@ HERE();
 
 		if (dtuple->dtt_nkeys != nkeys)
 			goto next;
+HERE();
 
 		for (i = 0; i < nkeys; i++, dkey++) {
 			if (dkey->dttk_size != key[i].dttk_size)
 				goto next; /* size or type mismatch */
 
 			if (dkey->dttk_size != 0) {
+HERE();
 				if (dtrace_bcmp(
 				    (void *)(uintptr_t)key[i].dttk_value,
 				    (void *)(uintptr_t)dkey->dttk_value,
@@ -1494,12 +1498,14 @@ HERE();
 			}
 		}
 
+HERE();
 		if (op != DTRACE_DYNVAR_DEALLOC)
 			return (dvar);
 
 		ASSERT(dvar->dtdv_next == NULL ||
 		    dvar->dtdv_next->dtdv_hashval != DTRACE_DYNHASH_FREE);
 
+HERE();
 		if (prev != NULL) {
 			ASSERT(hash[bucket].dtdh_chain != dvar);
 			ASSERT(start != dvar);
@@ -1508,6 +1514,7 @@ HERE();
 		} else {
 			if (dtrace_casptr(&hash[bucket].dtdh_chain,
 			    start, dvar->dtdv_next) != start) {
+HERE();
 				/*
 				 * We have failed to atomically swing the
 				 * hash table head pointer, presumably because
@@ -1518,6 +1525,7 @@ HERE();
 				goto top;
 			}
 		}
+HERE();
 
 		dtrace_membar_producer();
 
@@ -5134,7 +5142,7 @@ PRINT_CASE(DIF_OP_STTS);
 			    v->dtdv_type.dtdt_size : sizeof (uint64_t),
 			    regs[rd] ? DTRACE_DYNVAR_ALLOC :
 			    DTRACE_DYNVAR_DEALLOC, mstate, vstate);
-
+printk("dvar=%p\n", dvar);
 			/*
 			 * Given that we're storing to thread-local data,
 			 * we need to flush our predicate cache.
@@ -5191,11 +5199,11 @@ PRINT_CASE(DIF_OP_PUSHTR);
 				    regs[r2] ? regs[r2] :
 				    dtrace_strsize_default) + 1;
 HERE();
-printk("size=%d\n", tupregs[ttop].dttk_size);
+printk("size=%d\n", (int) tupregs[ttop].dttk_size);
 			} else {
 				tupregs[ttop].dttk_size = regs[r2];
 			}
-printk("ttop=%d rd=%d regs[rd]=%x\n", ttop, rd, regs[rd]);
+printk("ttop=%d rd=%d regs[rd]=%lx\n", ttop, rd, (long) regs[rd]);
 			tupregs[ttop++].dttk_value = regs[rd];
 			break;
 
@@ -5207,7 +5215,7 @@ HERE();
 				break;
 			}
 
-printk("ttop=%d rd=%d regs[rd]=%x\n", ttop, rd, regs[rd]);
+printk("ttop=%d rd=%d regs[rd]=%lx\n", ttop, rd, (long) regs[rd]);
 			tupregs[ttop].dttk_value = regs[rd];
 			tupregs[ttop++].dttk_size = 0;
 			break;
@@ -5767,7 +5775,6 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 
 	if (!onintr && probe->dtpr_predcache != DTRACE_CACHEIDNONE &&
 	    probe->dtpr_predcache == curthread->t_predcache) {
-//HERE();
 		/*
 		 * We have hit in the predicate cache; we know that
 		 * this predicate would evaluate to be false.
@@ -6092,7 +6099,6 @@ HERE();
 					 * has helpers.  Call into a separate
 					 * routine to perform this processing.
 					 */
-HERE();
 					dtrace_action_ustack(&mstate, state,
 					    (uint64_t *)(tomax + valoffs),
 					    rec->dtrd_arg);
@@ -6117,12 +6123,11 @@ HERE();
 
 			val = dtrace_dif_emulate(dp, &mstate, vstate, state);
 HERE();
-printk("val=%p\n", val);
+printk("val=%p\n", (void *) val);
 
 			if (*flags & CPU_DTRACE_ERROR)
 				continue;
 
-HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_SPECULATE:
 HERE();
@@ -6159,13 +6164,13 @@ HERE();
 				continue;
 
 			case DTRACEACT_RAISE:
-HERE();
+PRINT_CASE(DTRACEACT_RAISE);
 				if (dtrace_priv_proc_destructive(state))
 					dtrace_action_raise(val);
 				continue;
 
 			case DTRACEACT_COMMIT:
-HERE();
+PRINT_CASE(DTRACEACT_COMMIT);
 				ASSERT(!committed);
 
 				/*
@@ -6179,7 +6184,7 @@ HERE();
 				continue;
 
 			case DTRACEACT_DISCARD:
-HERE();
+PRINT_CASE(DTRACEACT_DISCARD);
 				dtrace_speculation_discard(state, cpuid, val);
 				continue;
 
@@ -6189,12 +6194,12 @@ HERE();
 			case DTRACEACT_PRINTA:
 			case DTRACEACT_SYSTEM:
                         case DTRACEACT_FREOPEN:
-HERE();
+PRINT_CASE(DTRACEACT_DIFEXPR);
 				break;
 
 			case DTRACEACT_SYM:
 			case DTRACEACT_MOD:
-HERE();
+PRINT_CASE(DTRACEACT_SYM);
 				if (!dtrace_priv_kernel(state))
 					continue;
 				break;
@@ -6234,9 +6239,9 @@ HERE();
 				 * status code.  (We know that we're the only
 				 * thread in COOLDOWN, so there is no race.)
 				 */
-HERE();
 				void *activity = &state->dts_activity;
 				dtrace_activity_t current = state->dts_activity;
+PRINT_CASE(DTRACEACT_EXIT);
 
 				if (current == DTRACE_ACTIVITY_COOLDOWN)
 					break;
@@ -6271,20 +6276,15 @@ HERE();
 				 * load until we find the zero byte -- after
 				 * which we'll store zero bytes.
 				 */
-printk("val=%x\n", val);
 				if (dp->dtdo_rtype.dtdt_kind ==
 				    DIF_TYPE_STRING) {
 					char c = '\0' + 1;
-HERE();
 					int intuple = act->dta_intuple;
-HERE();
 					size_t s;
 
 					for (s = 0; s < size; s++) {
-HERE();
 						if (c != '\0')
 							c = dtrace_load8(val++);
-HERE();
 
 						DTRACE_STORE(uint8_t, tomax,
 						    valoffs++, c);
@@ -7540,7 +7540,7 @@ HERE();
 	dtrace_hash_add(dtrace_byfunc, probe);
 	dtrace_hash_add(dtrace_byname, probe);
 HERE();
-printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
+//printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 
 	if (id - 1 >= dtrace_nprobes) {
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
@@ -7555,7 +7555,6 @@ HERE();
 
 		probes = kmem_zalloc(nsize, KM_SLEEP);
 HERE();
-printk("probes=%p osize=%d nsize=%d\n", probes, osize, nsize);
 
 		if (dtrace_probes == NULL) {
 			ASSERT(osize == 0);
@@ -7564,15 +7563,10 @@ printk("probes=%p osize=%d nsize=%d\n", probes, osize, nsize);
 		} else {
 			dtrace_probe_t **oprobes = dtrace_probes;
 
-HERE();
-printk("oprobes=%p probes=%p osize=%d\n", oprobes, probes, osize);
 
 			bcopy(oprobes, probes, osize);
-HERE();
 			dtrace_membar_producer();
-HERE();
 			dtrace_probes = probes;
-HERE();
 
 			dtrace_sync();
 

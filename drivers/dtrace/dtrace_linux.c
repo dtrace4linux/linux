@@ -728,6 +728,7 @@ proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 	    (p = par_find_thread(task)) != NULL) {
 HERE();
 		dtrace_fasttrap_exit_ptr(p);
+HERE();
 	}
 
 	return 0;

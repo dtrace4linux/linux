@@ -1,3 +1,13 @@
+Thu Feb  5 10:35:22 2009  fox
+
+     133* Archive: 1.055
+
+     132* fasttrap.c: Werent initting the fasttrap_proc_t mutex, so
+          we died if a USDT process exited.
+
+     131* Fix dtrace_casptr for i386 which would cause copyinstr
+          to fail.
+
 Wed Feb  4 21:17:32 2009  fox
 
      130* Various: changes to better manage multikernels. Compiled

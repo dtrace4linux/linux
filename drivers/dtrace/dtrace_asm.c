@@ -77,8 +77,9 @@ dtrace_casptr(void *target, void *cmp, void *new)
 /**********************************************************************/
 uint32_t
 dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
-{
-	(void) cmpxchg((void **) target, (void **) cmp, (void **) new);
+{	uint32_t ret;
+
+	ret = cmpxchg((void **) target, (void **) cmp, (void **) new);
 
 /*	__asm(
 		" movl 4(%esp), %edx\n"
@@ -88,13 +89,14 @@ dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
 		);*/
-	return 0;
+	return ret;
 
 }
 void *
 dtrace_casptr(void *target, void *cmp, void *new) 
-{
-	(void) cmpxchg((void **) target, (void **) cmp, (void **) new);
+{	void *ret;
+
+	ret = cmpxchg((void **) target, (void **) cmp, (void **) new);
 /*	__asm(
 		" movl 4(%esp), %edx\n"
 		" movl 8(%esp), %eax\n"
@@ -103,7 +105,7 @@ dtrace_casptr(void *target, void *cmp, void *new)
 		" cmpxchgl %ecx, (%edx)\n"
 		" ret\n"
 		);*/
-	return 0;
+	return ret;
 }
 
 #endif	/* __i386 */

@@ -116,7 +116,6 @@ void	*fbt_get_sys_call_table(void);
 void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
     uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 void	*par_setup_thread2(void);
-int (*fn_set_memory_rw)(unsigned long addr, int numpages);
 
 # define linux_get_syscall() get_current()->thread.trap_no
 
@@ -239,8 +238,6 @@ systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed)
 {
 	systrace_sysent_t *sysent = *interposed;
 	int i;
-
-	fn_set_memory_rw = get_proc_addr("set_memory_rw");
 
 	if (sysent == NULL) {
 		*interposed = sysent = kmem_zalloc(sizeof (systrace_sysent_t) *
@@ -374,14 +371,12 @@ static pte_t *(*lookup_address)(void *, int *);
 static void (*flush_tlb_all)(void);
 
 
-		if (fn_set_memory_rw == NULL) {
-			printk("systrace.c: cannot locate set_memory_rw in this kernel..aborting\n");
-			return 0;
-		}
 	if (lookup_address == NULL)
 		lookup_address = get_proc_addr("lookup_address");
-	if (lookup_address == NULL)
+	if (lookup_address == NULL) {
+		printk("dtrace:systrace.c: sorry - cannot locate lookup_address()\n");
 		return 0;
+		}
 
 	pte = lookup_address(addr, &level);
 /*
@@ -445,7 +440,8 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	/*   it  back  on  when  we are finished, but  */
 	/*   dont care for now.			       */
 	/***********************************************/
-	memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE);
+	if (memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE) == 0)
+		return;
 # else
 	/***********************************************/
 	/*   In  2.6.24.4 and related kernels, x86-64  */

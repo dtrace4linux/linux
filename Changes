@@ -1,3 +1,14 @@
+Fri Feb  6 11:09:54 2009  fox
+
+     136* Archive: 1.0057
+
+     135* drivers/include -> ./include due to new build structure.
+          build/ is a symlink to build-`uname -r`. 
+	  drivers/dtrace/* -> driver
+
+     134* makefiles: Allow us to label the build dir with the appropriate
+          kernel version, so we can do multiple kernel builds.
+
 Thu Feb  5 10:35:22 2009  fox
 
      133* Archive: 1.055

@@ -571,9 +571,13 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 
 		return;
 	}
+HERE();
 
-	for (; fbt != NULL; fbt = fbt->fbtp_next)
+	for (; fbt != NULL; fbt = fbt->fbtp_next) {
+printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
 		*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
+	}
+HERE();
 }
 
 /*ARGSUSED*/

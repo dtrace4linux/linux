@@ -1,0 +1,14 @@
+This directory contains the kernel code. We have a number
+of drivers here, corresponding to the Solaris dtrace /dev
+area. Major files are Solaris source code, with appropriate (small)
+changes for working under Linux.
+
+Other files, are linux drop-ins to complete the circle of
+bits needed to create a solaris driver.
+
+We no longer build in the source tree, since Linux kernel builder
+deposits lots of build output files here, but we build in the
+build-`uname -r`/ tree instead, so that output files are
+segregated from the input sources.
+
+P Fox  Feb 2009

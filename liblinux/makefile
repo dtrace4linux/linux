@@ -8,7 +8,11 @@ CPPFLAGS += -I../libproc/common \
 	-DCTF_OLD_VERSIONS $(PTR32)
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 
-LIB = ../build/liblinux.a
+BINDIR = ../$(BUILD_DIR)
+LIB = $(BINDIR)/liblinux.a
+
+all: $(LIB)
+	@/bin/true
 
 $(LIB): \
 	$(LIB)(getopt.o) \
@@ -19,7 +23,7 @@ $(LIB): \
 	$(LIB)(proc_names.o) \
 	$(LIB)(proc_util.o) \
 	$(LIB)(rd.o) \
-	$(LIB)(strlcpy.o) \
+	$(LIB)(strlcpy.o)
 
 
 #	$(LIB)(Psymtab.o) \

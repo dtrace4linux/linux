@@ -13,7 +13,8 @@ fi
 #####################################################################
 #   Default to building kernel for current kernel.
 #####################################################################
-build_dir=/lib/modules/`uname -r`/build
+BUILD_KERNEL=${BUILD_KERNEL:-`uname -r`}
+build_dir=/lib/modules/$BUILD_KERNEL/build
 
 finished=no
 while [ $finished = "no" ]

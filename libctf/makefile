@@ -4,7 +4,7 @@ CPPFLAGS += -I../common -I../common/ctf -I../uts/common/ \
 	-I$(COMMON) -I. \
 	-I../linux -DCTF_OLD_VERSIONS $(PTR32)
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64
-BINDIR = ../build
+BINDIR = ../$(BUILD_DIR)
 
 COMMON_OBJS = \
 	ctf_create.o \
@@ -16,6 +16,9 @@ COMMON_OBJS = \
 	ctf_types.o \
 	ctf_uncompress.o \
 	ctf_util.o
+
+all: $(BINDIR)/libctf.a
+	@/bin/true
 
 $(BINDIR)/libctf.a: \
 	$(BINDIR)/libctf.a(ctf_lib.o) \

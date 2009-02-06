@@ -8,21 +8,13 @@ use strict;
 
 use FileHandle;
 
-if ( ! -d "build" ) {
-	mkdir("build", 0755);
-}
-
-unlink("build/libgcc.a");
-
-if ( -f "build/x86-32/libgcc.a" ) {
-	exit(0);
-}
-if ( ! -d "build/x86-32" ) {
-	mkdir("build/x86-32", 0755);
-}
-
 sub main
 {
+	die "\$BUILD_DIR must be defined before running this script" if !$ENV{BUILD_DIR};
+
+	my $target = "$ENV{BUILD_DIR}/libgcc.a";
+	exit(0) if -f $target;
+
 	my $ccode = <<EOF;
 	int main(int argc, char **argv)
 	{
@@ -53,9 +45,9 @@ EOF
 				#   Remove   destination   -   we  may  have  #
 				#   upgraded our OS.			      #
 				###############################################
-				unlink("build/x86-32/libgcc.a");
-				if (!symlink("$wd/libgcc.a", "build/x86-32/libgcc.a")) {
-					print "Error creating symlink build/libgcc.a -- $!\n";
+				unlink($target);
+				if (!symlink("$wd/libgcc.a", $target)) {
+					print "Error creating symlink $target -- $!\n";
 					exit(1);
 				}
 				unlink("x");

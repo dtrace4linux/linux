@@ -32,14 +32,14 @@ fasttrap_open(struct module *mp, int *error)
 {
 	return 0;
 }
-static int
-fasttrap_read(ctf_file_t *fp, int fd)
+static ssize_t
+fasttrap_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
 TODO();
 	return -EIO;
 }
-static int fasttrap_ioctl(struct inode *inode, struct file *file,
-                     unsigned int cmd, unsigned long arg)
+static int 
+fasttrap_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 TODO();
 	return -EIO;

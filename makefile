@@ -6,7 +6,14 @@
 
 rel=`date +%Y%m%d`
 
+NOPWD = --no-print-directory
 MAKEFLAGS += --no-print-directory
+
+ifdef BUILD_KERNEL
+	BUILD_DIR=build-$(BUILD_KERNEL)
+else
+	BUILD_DIR=build-$(shell uname -r)
+endif
 
 # Use sudo if you want ...
 SUDO=setuid root
@@ -44,10 +51,7 @@ release:
 		--exclude=.*.cmd \
 		--exclude=*.so \
 		--exclude=*.mod.c \
-		--exclude=build/config.sh \
-		--exclude=build/dtrace \
-		--exclude=build/simple-c \
-		--exclude=build/simple-cpp \
+		--exclude=build* \
 		--exclude=libdtrace/dt_grammar.h \
 		--exclude=libdtrace/dt_lex.c \
 		--exclude=.tmp_versions \
@@ -64,41 +68,43 @@ release:
 	ls -l /tmp/dtrace-$(rel).tar.bz2
 
 all:
-	tools/libgcc.pl
-	echo >build/config.sh
+	@if [ ! -d $(BUILD_DIR) ] ; then \
+		mkdir $(BUILD_DIR) ; \
+	fi ; \
+	if [ ! -d $(BUILD_DIR)/driver ] ; then \
+		mkdir $(BUILD_DIR)/driver ; \
+	fi ; \
+	if [ ! -d build ] ; then \
+		ln -s $(BUILD_DIR) build ; \
+	fi
+	@echo >$(BUILD_DIR)/config.sh
+	@export BUILD_DIR=$(BUILD_DIR) ; \
+	tools/libgcc.pl || exit 1 ; \
 	case `uname -m` in \
 	  x86*64) \
-		tools/mksyscall.pl x86-64 ; \
-		echo "export CPU_BITS=64" >>build/config.sh ; \
+		tools/mksyscall.pl x86-64 || exit 1 ; \
+		echo "export CPU_BITS=64" >>$(BUILD_DIR)/config.sh ; \
 		;; \
 	  *) \
 	  	export PTR32="-D_ILP32 -D_LONGLONG_TYPE" ; \
 		export BUILD_i386=1 ; \
-		echo export PTR32=\"$$PTR32\" > build/config.sh ; \
-		echo "export CPU_BITS=32" >>build/config.sh ; \
-		echo 'export BUILD_i386=1' >> build/config.sh ; \
-		tools/mksyscall.pl x86 ; \
+		echo export PTR32=\"$$PTR32\" > $(BUILD_DIR)/config.sh ; \
+		echo "export CPU_BITS=32" >>$(BUILD_DIR)/config.sh ; \
+		echo 'export BUILD_i386=1' >> $(BUILD_DIR)/config.sh ; \
+		tools/mksyscall.pl x86 || exit 1 ; \
 	esac ; \
-	if [ ! -d build ] ; then \
-		mkdir build ; \
-	fi ; \
-	$(MAKE) all0
+	$(MAKE) all0 
 all0:
-	cd libctf ; $(MAKE) 
-	cd libdtrace ; $(MAKE)
-	cd liblinux ; $(MAKE)
-	cd libproc/common ; $(MAKE)
-	cd cmd/dtrace ; $(MAKE)
-	cd usdt/c ; $(MAKE)
-	for i in $(DRIVERS) ; \
-	do  \
-		echo "******** drivers/$$i" ; \
-		cd drivers/$$i ; ../make-me ; \
-		cd ../.. ; \
-	done
+	cd libctf ; $(MAKE) $(NOPWD)
+	cd libdtrace ; $(MAKE) $(NOPWD)
+	cd liblinux ; $(MAKE) $(NOPWD)
+	cd libproc/common ; $(MAKE) $(NOPWD)
+	cd cmd/dtrace ; $(MAKE) $(NOPWD)
+	cd usdt/c ; $(MAKE) $(NOPWD)
+	tools/mkdriver.pl all
 
 clean:
-	rm -rf build/*
+	rm -rf build?*
 	rm -f usdt/*/*.o
 	rm -f usdt/*/*.so
 	cd libctf ; $(MAKE) clean
@@ -106,10 +112,7 @@ clean:
 	cd liblinux ; $(MAKE) clean
 	cd libproc/common ; $(MAKE) clean
 	cd cmd/dtrace ; $(MAKE) clean
-	for i in $(DRIVERS) ; \
-	do \
-		(cd drivers/$$i ; make clean) ; \
-	done
+	tools/mkdriver.pl clean
 
 install: build/dtrace build/config.sh
 	. build/config.sh ; \
@@ -133,8 +136,18 @@ test:
 #   driver do it. Otherwise dtrace needs to be setuid-root.	     #
 ######################################################################
 load:
-	cd drivers/dtrace ; ./load
+	tools/load.pl
 	 
 unl unload:
 	-$(SUDO) rmmod dtracedrv
 
+######################################################################
+#   Validate compilation on the kernels on my system(s)		     #
+######################################################################
+kernels:
+	for i in /lib/modules/2* ; \
+	do \
+		dir=`basename $$i` ; \
+		echo "======= Building: $$i ===============================" ; \
+		BUILD_KERNEL=$$dir make all || exit 1 ; \
+	done

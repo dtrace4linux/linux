@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-April 2008
+Feb 2009
 Paul D. Fox
 fox@crisp.demon.co.uk
 
@@ -17,7 +17,10 @@ so please let me know if there are such cases.
 
 The linux kernel was referred to in order to engineer the glue
 for dtrace behavior, and there is no intention of making this
-code fall under anything other than CDDL.
+code fall under anything other than CDDL. (If Sun migrate
+to a GPL friendly license, then this port of dtrace can follow).
+I do not own the license or assert any rights on the licensing
+other than that expected of me as a consumer/supplier.
 
 I have no political affiliation or preference for a licensing scheme,
 simply that Sun has gracefully donated to the community a large body
@@ -33,6 +36,56 @@ ascribe code that does not belong to me.
 If the code is useful to you - great. Spread it around and get
 people to use, debug and enhance it.
 
+
+Installation
+============
+
+Very simple:
+
+	$ make all
+	$ make install
+	$ make load           (need to be root or have sudo access)
+
+More details
+============
+
+Building is done in a build/ directory. The makefiles allow
+you to compile for alternate kernel releases in the same tree,
+which is useful for cross-version checking.
+
+The result is:
+
+	build/dtrace               User land executable
+	build/drti.o               Object file for USDT apps
+	build/driver/dtracedrv.ko  Kernel loadable module
+
+Installing will copy them to Solaris compliant locations:
+
+	/usr/sbin/dtrace
+	/usr/lib/dtrace/64/drti.o
+
+
+You dont need to 'install' to run dtrace, but you will need
+to load the driver.
+
+Kernel versioning
+=================
+dtrace relies on a kernel module and so a binary is needed
+per system you deploy to, or kernel version.
+
+dtrace is sensitive to the kernel - and attempts to cater for that,
+but very old, or very new kernels may not have been validated.
+Please feed back if that is the case.
+
+No Linux Kernel source modifications required
+=============================================
+
+This is important for a number of reasons -- unless dtrace
+is accepted into the kernel, it has to live with changes to header
+files and data structures. Also, from a licensing perspective it
+is not valid for dtrace to touch your sources. It is also much
+easier to not even require kernel sources - so long as 
+a kernel build environment is available.
 
 Miscellaneous
 =============
@@ -95,6 +148,9 @@ make all
 	Packages, for hints on what you need (not much, but libelf, kernel
 	source, flex/yacc -- bison will do).
 
+make install
+	Copy dtrace binary and driver to correct install location.
+
 make load
 	To load the drivers, and then you can play with cmd/dtrace/dtrace.
 
@@ -104,28 +160,3 @@ make unl
 make test
 	To run the userland cmd/dtrace regression test
 
-DRIVERS
-=======
-
-You dont really need to worry about the drivers (its all encapsulated into
-a single driver file -- dtracedrv.ko, assuming all goes well). You
-may find these pop into /dev on 'make load'.
-
-/dev/dtrace
-
-	The main component of the implementation.
-
-/dev/fbt
-	A 'provider' which provides a mechanism for accessing a collection
-	of features via dtrace. This is the function-boundary-tracing module,
-	and it the bit of magic which can plant breakpoints on any
-	kernel function.
-
-/dev/dtrace_profile
-	Used by the profile-NNN and tick-NNN probe provider.
-
-/dev/sdt
-	Static dtrace probe driver.
-
-/dev/systrace
-	System call tracing driver.

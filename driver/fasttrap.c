@@ -1654,21 +1654,19 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
 
-printk("retire: pid=%d name=%s\n", pid, name);
+/*printk("retire: pid=%d name=%s\n", pid, name);*/
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
 	mutex_enter(&bucket->ftb_mtx);
 
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
-HERE();
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
 		    !fp->ftp_retired)
 			break;
 	}
 
 	if (fp == NULL) {
-HERE();
 		mutex_exit(&bucket->ftb_mtx);
 		return;
 	}

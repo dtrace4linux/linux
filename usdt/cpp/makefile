@@ -1,19 +1,20 @@
 CC=g++ -I../../uts/common -fPIC
 #BITS=-m64
 CFLAGS=$(BITS)
-DTRACE=../../build/dtrace
-DTRACE_DRTI_O=../../build/drti.o
+BINDIR=../../$(BUILD_DIR)
+DTRACE=$(BINDIR)/dtrace
+DTRACE_DRTI_O=$(BINDIR)/drti.o
 
-all:	../../build/simple-cpp
+all:	$(BINDIR)/simple-cpp
 
-../../build/simple-cpp: simple_probes.h simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O)
-	$(CC) -Wl,-rpath `pwd` -o ../../build/simple-cpp $(BITS) simple_probes.o simple.o shlib.so -ldl
+$(BINDIR)/simple-cpp: simple_probes.h simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O)
+	$(CC) -Wl,-rpath `pwd` -o $(BINDIR)/simple-cpp $(BITS) simple_probes.o simple.o shlib.so -ldl
 
 simple_probes.h: simple_probes.d
 	$(DTRACE) -h -s simple_probes.d
 
 simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O)
-	. ../../build/config.sh ; \
+	. $(BINDIR)/config.sh ; \
 	if [ "$BUILD_i386" = 1 ]; then \
 		BITS=32 ; \
 	else \

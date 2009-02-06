@@ -39,7 +39,7 @@ ifdef BUILD_i386
 	LDFLAGS += --wrap __udivdi3 
 	LDFLAGS += --wrap __umoddi3 
 	LDFLAGS += --wrap __divdi3 
-	dtracedrv-objs += ../../build/x86-32/libgcc.a
+	dtracedrv-objs += ../libgcc.a
 endif
 
 obj-m := dtracedrv.o
@@ -48,13 +48,13 @@ H	= dtrace_linux.h dtrace_proto.h
 EXTRA_CFLAGS += \
 	-I$(M) \
 	-I$(M)/../.. \
-	-I$(M)/../include \
+	-I$(M)/../../include \
 	-I$(M)/../../linux \
 	-I$(M)/../../common/ctf \
 	-I$(M)/../../uts/common \
 	-D_KERNEL -DCTF_OLD_VERSIONS $(PTR32)
 clean:
-	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.symvers
+	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.* modules.order
 
 unl:
 	setuid root rmmod dtracedrv

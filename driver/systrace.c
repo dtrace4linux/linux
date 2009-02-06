@@ -77,15 +77,6 @@
 /**********************************************************************/
 static char *syscallnames[] = {
 
-# if 0
-# undef _ASM_I386_UNISTD_H_
-# undef _ASM_X86_64_UNISTD_H_
-# undef __SYSCALL
-# define __SYSCALL(nr, func) [nr] = #nr,
-# undef __KERNEL_SYSCALLS_
-# include <asm/unistd.h>
-# endif
-
 # if defined(__i386)
 # include	"syscalls-x86.tbl"
 # else

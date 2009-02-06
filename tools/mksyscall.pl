@@ -3,7 +3,7 @@
 # $Header:$
 
 # Handle syscall names which vary in location and available from
-# one kernel and archicture to the next.
+# one kernel and architecture to the next.
 
 # Author: Paul Fox
 # Date: June 2008
@@ -32,22 +32,23 @@ sub main
 	usage() if ($opts{help});
 	usage() if !$ARGV[0];
 
+	die "\$BUILD_DIR must be defined before running this script" if !$ENV{BUILD_DIR};
+
 	my $ver = `uname -r`;
 	chomp($ver);
 
         my $bits = 0;
         my $machine = `uname -m`;
         if ($machine =~ /x86_64/) {
-          $bits = 64;
+        	$bits = 64;
         } elsif ($machine =~ /i[34567]86/) {
-          $bits = 32;
+        	$bits = 32;
         } else {
-          die "Unexpected machine: $machine";
+        	die "Unexpected machine: $machine";
         }
 
 	my %calls;
-        my @unistd_h_candidates 
-          = (
+        my @unistd_h_candidates = (
              # linux-2.6.15, 2.6.23:
              "/lib/modules/$ver/build/include/asm/unistd.h",
              # linux-2.6.26:
@@ -85,7 +86,7 @@ sub main
 
 	my $name = $ARGV[0];
 	my $dir = dirname($0);
-	my $fname = "$dir/../drivers/dtrace/syscalls-$name.tbl";
+	my $fname = "$ENV{BUILD_DIR}/driver/syscalls-$name.tbl";
 	my $fh = new FileHandle(">$fname");
 	print "Creating: $fname - ", scalar(keys(%calls)), " entries\n";
 	die "Cannot create: $fname -- $!" if !$fh;

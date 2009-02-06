@@ -12,6 +12,7 @@ use FileHandle;
 use Getopt::Long;
 use IO::File;
 use POSIX;
+use Cwd;
 
 my $SUDO = "setuid root";
 
@@ -40,6 +41,25 @@ sub main
 	}
 	print "Syncing...\n";
 	spawn("sync ; sync");
+
+	my $dtrace = "build/dtrace";
+	if (! -f $dtrace) {
+		###############################################
+		#   Find   dtrace   -   we  may  be  in  the  #
+		#   build/driver dir or some other place.     #
+		###############################################
+		my $dtrace_dir = Cwd::cwd();
+		while ($dtrace_dir ne '/') {
+			last if -f "$dtrace_dir/dtrace";
+			$dtrace_dir = dirname($dtrace_dir);
+		}
+		$dtrace = "$dtrace_dir/dtrace";
+		die "Cannot locate dtrace command" if ! -f $dtrace;
+	}
+
+	###############################################
+	#   Safely remove the old driver.	      #
+	###############################################
 	if ( -e "/dev/dtrace" ) {
 		spawn("$SUDO rmmod dtracedrv");
 		spawn("sync ; sync");
@@ -51,8 +71,9 @@ sub main
 	#   present  since we need the /dev entries to appear. Chmod 666 so
 	#   we can avoid being root all the time whilst we debug.
 	#####################################################################
-	print "Loading: dtracedrv.ko\n";
-	spawn("$SUDO insmod dtracedrv.ko dtrace_here=$opts{here}");
+	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
+	print "Loading: $dtracedrv\n";
+	spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}");
         my $sectop = "/sys/module/dtracedrv/sections/";
         if ($opts{v} > 1 && -e $sectop . ".text") {
           # print KGDB module load command
@@ -152,14 +173,15 @@ sub main
 	#   we debug the driver..
 	#####################################################################
 	if (!$opts{fast}) {
+
 		print "Probes available: ";
-		my $pname =strftime("/tmp/probes-%Y%m%d-%H:%M", localtime);
+		my $pname = strftime("/tmp/probes-%Y%m%d-%H:%M", localtime);
 		if ( -f "/tmp/probes.current" && ! -f $pname ) {
 			if (!rename("/tmp/probes.current", "/tmp/probes.prev")) {
 				print "rename error /tmp/probes.current -- $!\n";
 			}
 		}
-		spawn("../../build/dtrace -l | tee $pname | wc -l ");
+		spawn("$dtrace -l | tee $pname | wc -l ");
 		unlink("/tmp/probes.current");
 		if (!symlink($pname, "/tmp/probes.current")) {
 			print "symlink($pname, /tmp/probes.current) error -- $!\n";

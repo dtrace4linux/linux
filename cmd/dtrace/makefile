@@ -1,6 +1,6 @@
 CFLAGS=-g -W $(PTR32)
 LIBELF=/usr/lib/libelf.so.1
-BINDIR=../../build
+BINDIR=../../$(BUILD_DIR)
 LIBS = \
 	$(BINDIR)/libctf.a \
 	$(BINDIR)/libdtrace.a \
@@ -8,10 +8,11 @@ LIBS = \
 	$(BINDIR)/liblinux.a
 
 COMPILE = $(CC) $(CFLAGS) -o $(BINDIR)/dtrace \
-		-L../../build \
+		-L$(BINDIR) \
 		$(BINDIR)/dtrace.o -ldtrace -lctf -lproc -llinux -lz -lrt -lpthread $$libelf -ldl
 
 all:	$(BINDIR)/dtrace
+	@/bin/true
 
 $(BINDIR)/dtrace: $(BINDIR)/dtrace.o $(LIBS)
 	@libelf=$(LIBELF) ; \

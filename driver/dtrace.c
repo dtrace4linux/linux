@@ -10107,9 +10107,7 @@ dtrace_ecb_disable(dtrace_ecb_t *ecb)
 	dtrace_ecb_t *pecb, *prev = NULL;
 	dtrace_probe_t *probe = ecb->dte_probe;
 
-HERE();
 	ASSERT(MUTEX_HELD(&dtrace_lock));
-HERE();
 
 	if (probe == NULL) {
 		/*
@@ -10125,7 +10123,6 @@ HERE();
 		prev = pecb;
 	}
 
-HERE();
 	ASSERT(pecb != NULL);
 
 HERE();
@@ -10156,7 +10153,6 @@ HERE();
 		 * to assure that we'll never hit it again.
 		 */
 		dtrace_provider_t *prov = probe->dtpr_provider;
-HERE();
 
 		ASSERT(ecb->dte_next == NULL);
 		ASSERT(probe->dtpr_ecb_last == NULL);
@@ -10173,7 +10169,6 @@ HERE();
 		ASSERT(probe->dtpr_ecb_last != NULL);
 		ASSERT(probe->dtpr_predcache == DTRACE_CACHEIDNONE);
 
-HERE();
 		if (probe->dtpr_ecb == probe->dtpr_ecb_last) {
 			dtrace_predicate_t *p = probe->dtpr_ecb->dte_predicate;
 
@@ -10224,7 +10219,6 @@ dtrace_ecb_create(dtrace_state_t *state, dtrace_probe_t *probe,
 	ASSERT(state != NULL);
 
 	ecb = dtrace_ecb_add(state, probe);
-HERE();	
 	ecb->dte_uarg = desc->dted_uarg;
 
 	if ((pred = desc->dted_pred.dtpdd_predicate) != NULL) {
@@ -10264,7 +10258,6 @@ HERE();
 			ecb->dte_cond |= DTRACE_COND_USERMODE;
 	}
 
-HERE();	
 	if (dtrace_ecb_create_cache != NULL) {
 		/*
 		 * If we have a cached ecb, we'll use its action list instead
@@ -12197,12 +12190,12 @@ printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 			}
 		}
 
-HERE();
-printk("sec %d: type=%d flags=%d align=%d offset=%d\n", i, sec->dofs_type, sec->dofs_flags, sec->dofs_align, (int) sec->dofs_offset);
+//HERE();
+//printk("sec %d: type=%d flags=%d align=%d offset=%d\n", i, sec->dofs_type, sec->dofs_flags, sec->dofs_align, (int) sec->dofs_offset);
 		if (!(sec->dofs_flags & DOF_SECF_LOAD))
 			continue; /* just ignore non-loadable sections */
 
-HERE();
+//HERE();
 		if (sec->dofs_align & (sec->dofs_align - 1)) {
 			dtrace_dof_error(dof, "bad section alignment");
 			return (-1);
@@ -12247,7 +12240,6 @@ PRINT_CASE(DOF_SECT_URELHDR);
 		}
 	}
 
-HERE();
 	if ((enab = *enabp) == NULL)
 		enab = *enabp = dtrace_enabling_create(vstate);
 
@@ -13253,7 +13245,7 @@ PRINT_CASE(DTRACEOPT_BUFSIZE);
 	}
 
 HERE();
-if (dtrace_here) printk("opt=%d val=%llx\n", option, val);
+//if (dtrace_here) printk("opt=%d val=%llx\n", option, val);
 	state->dts_options[option] = val;
 
 	return (0);
@@ -14279,7 +14271,6 @@ HERE();
 			dof_sec_t *sec = (dof_sec_t *)(uintptr_t)(daddr +
 			    dof->dofh_secoff + i * dof->dofh_secsize);
 
-HERE();
 			if (sec->dofs_type != DOF_SECT_PROVIDER)
 				continue;
 
@@ -14301,7 +14292,7 @@ printk("nprovs=%d\n", nprovs);
 		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
 		dtrace_probedesc_t *desc = &ep->dted_probe;
 
-printk("xxhelper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
+//printk("xxhelper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
 		if (strcmp(desc->dtpd_provider, "dtrace") != 0)
 			continue;
 
@@ -14311,8 +14302,7 @@ printk("xxhelper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc-
 		if (strcmp(desc->dtpd_func, "ustack") != 0)
 			continue;
 
-HERE();
-printk("helper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
+//printk("helper adding: %s:%s:%s\n", desc->dtpd_provider, desc->dtpd_mod, desc->dtpd_func);
 		if ((rv = dtrace_helper_action_add(DTRACE_HELPER_ACTION_USTACK,
 		    ep)) != 0) {
 			/*
@@ -14336,7 +14326,6 @@ HERE();
 	gen = help->dthps_generation++;
 	dtrace_enabling_destroy(enab);
 HERE();
-printk("dhp=%p\n", dhp);
 
 	if (dhp != NULL && nprovs > 0) {
 		dhp->dofhp_dof = (uint64_t)(uintptr_t)dof;

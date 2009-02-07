@@ -31,6 +31,7 @@ int	fasttrap_detach(void);
 proc_t *prfind(int p);
 int	tsignal(proc_t *, int);
 void	trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu);
+int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 

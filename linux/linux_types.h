@@ -100,6 +100,16 @@ struct modctl;
 	#	define task_pt_regs(task) ((struct pt_regs *) (task)->thread.sp0 - 1)
 	# endif
 
+	/***********************************************/
+	/*   Needed     for     trap    handler    in  */
+	/*   dtrace_linux.c			       */
+	/***********************************************/
+	# if defined(__i386)
+	#	define	dotraplinkage
+	# else
+	#	define	dotraplinkage asmlinkage
+	# endif
+
 # else /* !__KERNEL */
 
 	# define	_LARGEFILE_SOURCE	1

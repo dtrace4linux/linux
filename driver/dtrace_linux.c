@@ -107,6 +107,14 @@ static int (*fn_profile_event_register)(enum profile_type type, struct notifier_
 static int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block *n);
 
 /**********************************************************************/
+/*   Notifier for invalid instruction trap.			      */
+/**********************************************************************/
+static int proc_notifier_trap_illop(struct notifier_block *, unsigned long, void *);
+static struct notifier_block n_trap_illop = {
+	.notifier_call = proc_notifier_trap_illop,
+	};
+
+/**********************************************************************/
 /*   Process exiting notifier.					      */
 /**********************************************************************/
 static int proc_exit_notifier(struct notifier_block *, unsigned long, void *);
@@ -262,6 +270,13 @@ dtrace_linux_init(void)
 	/***********************************************/
 	if (fn_profile_event_register) {
 		fn_profile_event_register(PROFILE_TASK_EXIT, &n_exit);
+	}
+	/***********************************************/
+	/*   We  need  to  intercept  invalid  opcode  */
+	/*   exceptions for fbt/sdt.		       */
+	/***********************************************/
+	if (fn_register_die_notifier) {
+		(*fn_register_die_notifier)(&n_trap_illop);
 	}
 }
 /**********************************************************************/
@@ -748,12 +763,80 @@ HERE();
 static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
 
-	printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
-		(void *) args->regs->r_pc, 
-		smp_processor_id());
+	if (dtrace_here) {
+		printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
+			(void *) args->regs->r_pc, 
+			smp_processor_id());
+	}
+
 	if (dtrace_user_probe(3, args->regs, 
 		(caddr_t) args->regs->r_pc, 
 		smp_processor_id())) {
+		HERE();
+		return NOTIFY_STOP;
+	}
+
+	return NOTIFY_OK;
+}
+/**********************************************************************/
+/*   Handle illegal instruction trap for fbt/sdt.		      */
+/**********************************************************************/
+static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code, void *ptr)
+{	struct die_args *args = (struct die_args *) ptr;
+	struct pt_regs *regs = args->regs;
+	int	ret;
+
+	if (dtrace_here) {
+		printk("proc_notifier_trap_illop called! %s err:%ld trap:%d sig:%d PC:%p CPU:%d\n", 
+			args->str, args->err, args->trapnr, args->signr,
+			(void *) args->regs->r_pc, 
+			smp_processor_id());
+	}
+
+# if defined(__amd64)
+	ret = dtrace_invop(args->regs->r_pc - 1, 
+# else
+	ret = dtrace_invop(args->regs->r_pc, 
+# endif
+		(uintptr_t *) args->regs, 
+		args->regs->r_rax);
+HERE();
+	if (dtrace_here) {
+		printk("ret=%d %s\n", ret, ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
+			ret == DTRACE_INVOP_POPL_EBP ? "DTRACE_INVOP_POPL_EBP" :
+			ret == DTRACE_INVOP_LEAVE ? "DTRACE_INVOP_LEAVE" :
+			ret == DTRACE_INVOP_NOP ? "DTRACE_INVOP_NOP" :
+			ret == DTRACE_INVOP_RET ? "DTRACE_INVOP_RET" : "");
+	}
+	if (ret) {
+		/***********************************************/
+		/*   We  patched an instruction so we need to  */
+		/*   emulate  what would have happened had we  */
+		/*   not done so.			       */
+		/***********************************************/
+		switch (ret) {
+		  case DTRACE_INVOP_PUSHL_EBP:
+		  	regs->r_rsp -= sizeof(void *);
+			((void **) regs->r_rsp)[0] = (void *) regs->r_fp;
+		  	break;
+
+		  case DTRACE_INVOP_POPL_EBP:
+			TODO();
+			break;
+
+		  case DTRACE_INVOP_LEAVE:
+			TODO();
+			break;
+
+		  case DTRACE_INVOP_NOP:
+			break;
+
+		  case DTRACE_INVOP_RET:
+			regs->r_pc = (greg_t) ((void **) regs->r_rsp)[0];
+		  	regs->r_rsp += sizeof(void *);
+		  	break;
+		  }
+
 		HERE();
 		return NOTIFY_STOP;
 	}
@@ -900,6 +983,18 @@ syms_write(struct file *file, const char __user *buf,
 	}
 	return orig_count;
 }
+/**********************************************************************/
+/*   Handle invalid instruction exception, needed by FBT/SDT as they  */
+/*   patch  code, with an illegal instruction (i386==F0, amd64==CC),  */
+/*   and we get to call the handler (in dtrace_subr.c).		      */
+/**********************************************************************/
+/*
+dotraplinkage void
+trap_invalid_instr()
+{
+}
+*/
+
 void
 trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu)
 {

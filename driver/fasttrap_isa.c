@@ -1034,7 +1034,6 @@ HERE();
 HERE();
 #ifdef __amd64
 		if (dtrace_data_model(p) == DATAMODEL_LP64) {
-HERE();
 			for (id = tp->ftt_ids; id != NULL; id = id->fti_next) {
 				fasttrap_probe_t *probe = id->fti_probe;
 

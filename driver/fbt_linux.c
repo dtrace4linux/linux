@@ -87,8 +87,13 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
 
+HERE();
+printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
+HERE();
+printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		if ((uintptr_t)fbt->fbtp_patchpoint == addr) {
+HERE();
 			if (fbt->fbtp_roffset == 0) {
 				/*
 				 * When accessing the arguments on the stack,
@@ -97,6 +102,7 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 				 * -- we know that interrupts are already
 				 * disabled.
 				 */
+HERE();
 				DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 				CPU->cpu_dtrace_caller = stack[0];
 				stack0 = stack[1];
@@ -107,8 +113,10 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 				DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 				    CPU_DTRACE_BADADDR);
 
+HERE();
 				dtrace_probe(fbt->fbtp_id, stack0, stack1,
 				    stack2, stack3, stack4);
+HERE();
 
 				CPU->cpu_dtrace_caller = NULL;
 			} else {
@@ -133,6 +141,7 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 			return (fbt->fbtp_rval);
 		}
 	}
+HERE();
 
 	return (0);
 }
@@ -403,6 +412,7 @@ TODO();
 		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
 		fbt->fbtp_symndx = i;
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
+printk("%d:alloc patchpoint: %p rval=%x\n", __LINE__, fbt->fbtp_patchpoint, fbt->fbtp_rval);
 
 		pmp->fbt_nentries++;
 
@@ -481,6 +491,7 @@ HERE();
 		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
 		fbt->fbtp_symndx = i;
 HERE();
+printk("%d:alloc patchpoint: %p rval=%x\n", __LINE__, fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 		pmp->fbt_nentries++;

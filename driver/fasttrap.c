@@ -582,9 +582,7 @@ fasttrap_fork(proc_t *p, proc_t *cp)
 static void
 fasttrap_exec_exit(proc_t *p)
 {
-HERE();
 	ASSERT(p == curproc);
-HERE();
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
 	mutex_exit(&p->p_lock);
@@ -595,7 +593,6 @@ HERE();
 	 * static probes are handled by the meta-provider remove entry point.
 	 */
 	fasttrap_provider_retire(p->p_pid, FASTTRAP_PID_NAME, 0);
-HERE();
 
 	mutex_enter(&p->p_lock);
 HERE();

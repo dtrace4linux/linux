@@ -145,7 +145,7 @@ typedef struct	sol_proc_t {
 	} sol_proc_t;
 
 typedef sol_proc_t proc_t;
-# define task_struct sol_proc_t
+//# define task_struct sol_proc_t
 # define	curthread curproc
 extern sol_proc_t	*curthread;
 

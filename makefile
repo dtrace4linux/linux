@@ -70,6 +70,7 @@ release:
 all:
 	@if [ ! -d $(BUILD_DIR) ] ; then \
 		mkdir $(BUILD_DIR) ; \
+		touch $(BUILD_DIR)/.notags ; \
 	fi ; \
 	if [ ! -d $(BUILD_DIR)/driver ] ; then \
 		mkdir $(BUILD_DIR)/driver ; \

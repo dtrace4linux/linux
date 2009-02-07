@@ -1,3 +1,8 @@
+Sat Feb  7 22:08:31 2009  fox
+
+     137* dtrace_linux.c: Fix FBT so it works for x86-64
+          Not working properly for 32bit kernel yet.
+
 Fri Feb  6 11:09:54 2009  fox
 
      136* Archive: 1.0057

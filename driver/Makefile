@@ -1,4 +1,5 @@
 dtracedrv-objs := \
+	cpu_emulate.o \
 	ctf_subr.o \
 	ctf_types.o \
 	ctf_hash.o \

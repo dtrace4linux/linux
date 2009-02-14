@@ -36,6 +36,12 @@ ascribe code that does not belong to me.
 If the code is useful to you - great. Spread it around and get
 people to use, debug and enhance it.
 
+GIT Repository
+==============
+
+http://github.com/pmccormick/dtrace-for-linux/tree/master
+
+Thanks to Peter McCormick for setting this up.
 
 Installation
 ============

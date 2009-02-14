@@ -1,6 +1,6 @@
 NAME=dtrace
 MAJ_VERSION=1
-MIN_VERSION=0058
+MIN_VERSION=0059
 EXCLUDE="*.ko *.o"
 EXCLUDE_DIRS="build"
-#date Sat Feb  7 22:08:27 GMT 2009
+#date Sun Feb  8 10:04:20 GMT 2009

@@ -1,3 +1,13 @@
+Sun Feb  8 10:02:02 2009  fox
+
+     139* Archive: v1.0059
+
+     138* cpu_emulate.c: The fbt for i386 wont work on Linux since gcc
+          generates lots of differing instructions for a function
+	  (also, potentially inline assembler). We need to do more
+	  of a job for i386. So start to handle the new instructions
+	  we are seeing in the various kernel functions.
+
 Sat Feb  7 22:08:31 2009  fox
 
      137* dtrace_linux.c: Fix FBT so it works for x86-64

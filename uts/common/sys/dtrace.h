@@ -2233,6 +2233,15 @@ extern void dtrace_getfsr(uint64_t *);
 #define	DTRACE_INVOP_NOP		4
 #define	DTRACE_INVOP_RET		5
 
+/**********************************************************************/
+/*   Extras needed for i386.					      */
+/**********************************************************************/
+#define	DTRACE_INVOP_PUSHL_EDI		6
+#define	DTRACE_INVOP_TEST_EAX_EAX       7
+#define	DTRACE_INVOP_SUBL_ESP_nnn	8
+#define	DTRACE_INVOP_PUSHL_ESI		9
+#define	DTRACE_INVOP_PUSHL_EBX		10
+
 #endif
 
 #ifdef	__cplusplus

@@ -17,7 +17,8 @@ int dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int
 int dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd);
 int dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p);
 int dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p);
-void dump_mem(char *cp, int len);
+void dtrace_dump_mem(char *cp, int len);
+void dtrace_dump_mem32(int *cp, int len);
 int	lx_get_curthread_id(void);
 void	par_setup_thread(void);
 void	*par_setup_thread2(void);
@@ -32,6 +33,7 @@ proc_t *prfind(int p);
 int	tsignal(proc_t *, int);
 void	trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu);
 int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax);
+void dtrace_cpu_emulate(int instr, struct pt_regs *regs);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 

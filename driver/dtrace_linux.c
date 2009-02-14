@@ -210,14 +210,31 @@ debug_enter(char *arg)
 	printk("%s(%d): %s\n", __FILE__, __LINE__, __func__);
 }
 void
-dump_mem(char *cp, int len)
+dtrace_dump_mem(char *cp, int len)
 {	char	buf[128];
 	int	i;
 
 	while (len > 0) {
-		sprintf(buf, "%p", cp);
+		sprintf(buf, "%p: ", cp);
 		for (i = 0; i < 16 && len-- > 0; i++) {
 			sprintf(buf + strlen(buf), "%02x ", *cp++ & 0xff);
+			}
+		strcat(buf, "\n");
+		printk("%s", buf);
+		}
+}
+/**********************************************************************/
+/*   Dump memory in 32-bit chunks.				      */
+/**********************************************************************/
+void
+dtrace_dump_mem32(int *cp, int len)
+{	char	buf[128];
+	int	i;
+
+	while (len > 0) {
+		sprintf(buf, "%p: ", cp);
+		for (i = 0; i < 8 && len-- > 0; i++) {
+			sprintf(buf + strlen(buf), "%08x ", *cp++);
 			}
 		strcat(buf, "\n");
 		printk("%s", buf);
@@ -794,12 +811,12 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 	}
 
 # if defined(__amd64)
-	ret = dtrace_invop(args->regs->r_pc - 1, 
+	ret = dtrace_invop(regs->r_pc - 1, 
 # else
-	ret = dtrace_invop(args->regs->r_pc, 
+	ret = dtrace_invop(regs->r_pc, 
 # endif
-		(uintptr_t *) args->regs, 
-		args->regs->r_rax);
+		(uintptr_t *) regs, 
+		regs->r_rax);
 HERE();
 	if (dtrace_here) {
 		printk("ret=%d %s\n", ret, ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
@@ -810,32 +827,14 @@ HERE();
 	}
 	if (ret) {
 		/***********************************************/
-		/*   We  patched an instruction so we need to  */
-		/*   emulate  what would have happened had we  */
-		/*   not done so.			       */
+		/*   Emulate  a  single instruction - the one  */
+		/*   we  patched  over.  Note we patched over  */
+		/*   just  the first byte, so the 'ret' tells  */
+		/*   us  what the missing byte is, but we can  */
+		/*   use  the  rest of the instruction stream  */
+		/*   to emulate the instruction.	       */
 		/***********************************************/
-		switch (ret) {
-		  case DTRACE_INVOP_PUSHL_EBP:
-		  	regs->r_rsp -= sizeof(void *);
-			((void **) regs->r_rsp)[0] = (void *) regs->r_fp;
-		  	break;
-
-		  case DTRACE_INVOP_POPL_EBP:
-			TODO();
-			break;
-
-		  case DTRACE_INVOP_LEAVE:
-			TODO();
-			break;
-
-		  case DTRACE_INVOP_NOP:
-			break;
-
-		  case DTRACE_INVOP_RET:
-			regs->r_pc = (greg_t) ((void **) regs->r_rsp)[0];
-		  	regs->r_rsp += sizeof(void *);
-		  	break;
-		  }
+		dtrace_cpu_emulate(ret, regs);
 
 		HERE();
 		return NOTIFY_STOP;

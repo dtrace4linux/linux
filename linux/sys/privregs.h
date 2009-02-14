@@ -206,9 +206,11 @@ struct regs {
 #elif defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
 
 #   define r_cs         xcs
+#   define r_ds         xds
+#   define r_es         xes
 #   define r_ecx        ecx
-#   define r_fp         esp
-#   define r_fs         fs
+#   define r_fp         ebp
+#   define r_fs         xfs
 #   define r_gs         orig_eax
 #   define r_pc         eip
 #   define r_ps         eflags
@@ -231,8 +233,11 @@ struct regs {
 #elif defined(__i386)
 
 #   define r_cs         cs
+#   define r_ds         ds
+#   define r_es         es
+#   define r_fs         fs
 #   define r_ecx        cx
-#   define r_fp         sp
+#   define r_fp         bp
 #   define r_fs         fs
 #   define r_gs         orig_ax
 #   define r_pc         ip

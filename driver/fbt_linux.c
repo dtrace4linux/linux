@@ -47,6 +47,16 @@ MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 #define	FBT_RET_IMM16		0xc2
 #define	FBT_LEAVE		0xc9
 
+/**********************************************************************/
+/*   Following  are  generated  by  gcc/32bit compiler so we need to  */
+/*   intercept them too.					      */
+/**********************************************************************/
+#define	FBT_PUSHL_EDI		0x57
+#define	FBT_PUSHL_ESI		0x56
+#define	FBT_PUSHL_EBX		0x53
+#define	FBT_TEST_EAX_EAX	0x85 // c0
+#define	FBT_SUBL_ESP_nnn	0x83 // ec NN
+
 #ifdef __amd64
 #define	FBT_PATCHVAL		0xcc
 #else
@@ -229,8 +239,10 @@ TODO();
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
+HERE();
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
+		int	invop = 0;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
 
 		name = str + sym->st_name;
@@ -377,26 +389,36 @@ TODO();
 //printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
 			continue;
 		}
+		invop = DTRACE_INVOP_PUSHL_EBP;
 #else
-//HERE(); printk("instr %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
-# if 0
-	/***********************************************/
-	/*   GCC    generates   lots   of   different  */
-	/*   assembler  functions plus we have inline  */
-	/*   assembler  to  deal with - so we disable  */
-	/*   this for now.			       */
-	/***********************************************/
-		if (instr[0] != FBT_PUSHL_EBP)
-			continue;
+		/***********************************************/
+		/*   GCC    generates   lots   of   different  */
+		/*   assembler  functions plus we have inline  */
+		/*   assembler  to  deal with - so we disable  */
+		/*   this for now.			       */
+		/***********************************************/
+		if (instr[0] == FBT_PUSHL_EBP)
+			invop = DTRACE_INVOP_PUSHL_EBP;
 
-		if (!(instr[1] == FBT_MOVL_ESP_EBP0_V0 &&
-		    instr[2] == FBT_MOVL_ESP_EBP1_V0) &&
-		    !(instr[1] == FBT_MOVL_ESP_EBP0_V1 &&
-		    instr[2] == FBT_MOVL_ESP_EBP1_V1))
+		else if (instr[0] == FBT_PUSHL_EDI)
+			invop = DTRACE_INVOP_PUSHL_EDI;
+		else if (instr[0] == FBT_PUSHL_ESI)
+			invop = DTRACE_INVOP_PUSHL_ESI;
+		else if (instr[0] == FBT_PUSHL_EBX)
+			invop = DTRACE_INVOP_PUSHL_EBX;
+
+		else if (instr[0] == FBT_TEST_EAX_EAX && instr[1] == 0xc0)
+			invop = DTRACE_INVOP_TEST_EAX_EAX;
+
+		else if (instr[0] == FBT_SUBL_ESP_nnn && instr[1] == 0xec)
+			invop = DTRACE_INVOP_SUBL_ESP_nnn;
+		else {
+HERE(); printk("unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
 			continue;
-# endif
+			}
 #endif
 
+HERE();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		
 		fbt->fbtp_name = name;
@@ -405,7 +427,7 @@ TODO();
 		fbt->fbtp_patchpoint = instr;
 		fbt->fbtp_ctl = ctl;
 		fbt->fbtp_loadcnt = get_refcount(mp);
-		fbt->fbtp_rval = DTRACE_INVOP_PUSHL_EBP;
+		fbt->fbtp_rval = invop;
 		fbt->fbtp_savedval = *instr;
 		fbt->fbtp_patchval = FBT_PATCHVAL;
 
@@ -430,6 +452,7 @@ again:
 		if ((size = dtrace_instr_size(instr)) <= 0)
 			continue;
 
+//HERE();
 #ifdef __amd64
 		/*
 		 * We only instrument "ret" on amd64 -- we don't yet instrument
@@ -450,6 +473,7 @@ again:
 		}
 #endif
 
+HERE();
 		/*
 		 * We have a winner!
 		 */

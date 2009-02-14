@@ -15559,7 +15559,7 @@ printk("err=%d rv=%d\n", err, *rv);
 		uid_t uid;
 		zoneid_t zoneid = 0;
 
-PRINT_CASE(DTRACEIOC_PROBES);
+//PRINT_CASE(DTRACEIOC_PROBES);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
 			return (EFAULT);
 

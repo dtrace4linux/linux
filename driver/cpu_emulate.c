@@ -24,7 +24,44 @@
 #	define	SKIP_OVER() regs->r_pc++
 # endif
 
-char dummy[] = "hello wrodl\n";
+/**********************************************************************/
+/*   For i386, we are looking at this structure...		      */
+/**********************************************************************/
+	// struct pt_regs:
+	//         unsigned long bx;  0		    -1  ss     20
+	//         unsigned long cx;  4		    -2  sp     16
+	//         unsigned long dx;  8		    -3  flags  12
+	//         unsigned long si;  12	    -4  cs     8
+	//         unsigned long di;  16	    -5  ip     4
+	//         unsigned long bp;  20	      orig_ax  0
+	//         unsigned long ax;  24	      fs
+	//         unsigned long ds;  28	      es
+	// 					      ds
+	//         unsigned long es;  32	      ax
+	//         unsigned long fs;  36	      bp
+	//         /* int  gs; */		      di
+	//         unsigned long orig_ax; 40	      si
+	//         unsigned long ip;  44	      dx
+	//         unsigned long cs;  48	      cx
+	//         unsigned long flags; 52	      bx
+	//         unsigned long sp;   56
+	//         unsigned long ss;
+/**********************************************************************/
+/*   First part of returning from an interrupt.			      */
+/**********************************************************************/
+# define 	REGISTER_POP \
+                        "mov %0, %%esp\n"	\
+                        "pop %%ebx\n"		\
+                        "pop %%ecx\n"		\
+                        "pop %%edx\n"		\
+                        "pop %%esi\n"		\
+                        "pop %%edi\n"		\
+                        "pop %%ebp\n"		\
+                        "pop %%eax\n"		\
+                        "pop %%ds\n"		\
+                        "pop %%es\n"		\
+			"pop %%fs\n"
+
 /**********************************************************************/
 /*   Called  from  interrupt  context when we hit one of our patched  */
 /*   instructions.  Emulate  the  byte  that  is  missing  so we can  */
@@ -55,25 +92,6 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
 	  	regs->r_rsp -= sizeof(void *);
 		((void **) regs->r_rsp)[0] = (void *) regs->r_fp;
 # else
-		// struct pt_regs:
-		//         unsigned long bx;  0		    -1  ss     20
-		//         unsigned long cx;  4		    -2  sp     16
-		//         unsigned long dx;  8		    -3  flags  12
-		//         unsigned long si;  12	    -4  cs     8
-		//         unsigned long di;  16	    -5  ip     4
-		//         unsigned long bp;  20	      orig_ax  0
-		//         unsigned long ax;  24	      fs
-		//         unsigned long ds;  28	      es
-		// 					      ds
-		//         unsigned long es;  32	      ax
-		//         unsigned long fs;  36	      bp
-		//         /* int  gs; */		      di
-		//         unsigned long orig_ax; 40	      si
-		//         unsigned long ip;  44	      dx
-		//         unsigned long cs;  48	      cx
-		//         unsigned long flags; 52	      bx
-		//         unsigned long sp;   56
-		//         unsigned long ss;
 		/***********************************************/
 		/*   We    are    emulating   a   PUSH   %EBP  */
 		/*   instruction.  We need to effect the push  */
@@ -92,23 +110,11 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
 		/*   return.				       */
 		/***********************************************/
                 __asm(
-                        "mov %0, %%esp\n"
-
-                        "pop %%ebx\n"
-                        "pop %%ecx\n"
-                        "pop %%edx\n"
-                        "pop %%esi\n"
-                        "pop %%edi\n"
-                        "pop %%ebp\n"
-                        "pop %%eax\n"
-                        "pop %%ds\n"
-
-                        "pop %%es\n"
-			"pop %%fs\n"
+			REGISTER_POP
 
 			"push %%eax\n"
 			"mov 8(%%esp), %%eax\n"  // EIP
-			"inc %%eax\n"
+//			"inc %%eax\n" ; Dont need this now we come in as an INT3 trap
 			"mov %%eax,4(%%esp)\n"
 			"mov 12(%%esp),%%eax\n"  // CS
 			"mov %%eax,8(%%esp)\n"
@@ -146,15 +152,52 @@ break;
 
 	  case DTRACE_INVOP_NOP:
 PRINT_CASE(DTRACE_INVOP_NOP);
-break;
 		break;
 
 	  case DTRACE_INVOP_RET:
 PRINT_CASE(DTRACE_INVOP_RET);
-break;
+# if defined(__amd64)
 		regs->r_pc = (greg_t) ((void **) regs->r_rsp)[0];
 	  	regs->r_rsp += sizeof(void *);
+# else
+                __asm(
+			REGISTER_POP
+
+			"add $4, %%esp\n"
+
+			/***********************************************/
+			/*   Stack diagram:			       */
+			//	16  return-addr for RET
+			//	12  Flags
+			//	8   CS
+			//	4   IP
+			//	0   tmp ax
+			/***********************************************/
+
+			"push %%eax\n"
+			"mov 16(%%esp),%%eax\n"  // Execute the POP
+			"mov %%eax,4(%%esp)\n"
+
+			"mov 12(%%esp),%%eax\n" // Shuffle the stack
+			"mov %%eax,16(%%esp)\n"
+
+			"mov 8(%%esp),%%eax\n"
+			"mov %%eax,12(%%esp)\n"
+
+			"mov 4(%%esp),%%eax\n"
+			"mov %%eax,8(%%esp)\n"
+			"pop %%eax\n"
+			"add $4, %%esp\n"
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
+# endif
 	  	break;
+
+	  default:
+	  	printk("Help me!!!!!!!!!!!!\n");
+		break;
 	  }
 }
 

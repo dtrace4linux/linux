@@ -307,6 +307,9 @@ dtrace_linux_fini(void)
 	if (fn_unregister_die_notifier) {
 		(*fn_unregister_die_notifier)(&n_int3);
 	}
+	if (fn_unregister_die_notifier) {
+		(*fn_unregister_die_notifier)(&n_trap_illop);
+	}
 	if (fn_profile_event_unregister) {
 		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
 	}
@@ -781,11 +784,42 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 {	struct die_args *args = (struct die_args *) ptr;
 
 	if (dtrace_here) {
-		printk("proc_notifier_int3 INT3 called! PC:%p CPU:%d\n", 
+		printk("proc_notifier_int3 INT3 called PC:%p CPU:%d\n", 
 			(void *) args->regs->r_pc, 
 			smp_processor_id());
 	}
+////
+	struct pt_regs *regs = args->regs;
+	int ret = dtrace_invop(regs->r_pc - 1, 
+		(uintptr_t *) regs, 
+		regs->r_rax);
+HERE();
+	if (dtrace_here) {
+		printk("ret=%d %s\n", ret, ret == 0 ? "nothing" :
+			ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
+			ret == DTRACE_INVOP_POPL_EBP ? "DTRACE_INVOP_POPL_EBP" :
+			ret == DTRACE_INVOP_LEAVE ? "DTRACE_INVOP_LEAVE" :
+			ret == DTRACE_INVOP_NOP ? "DTRACE_INVOP_NOP" :
+			ret == DTRACE_INVOP_RET ? "DTRACE_INVOP_RET" : "??");
+	}
+	if (ret) {
+		/***********************************************/
+		/*   Emulate  a  single instruction - the one  */
+		/*   we  patched  over.  Note we patched over  */
+		/*   just  the first byte, so the 'ret' tells  */
+		/*   us  what the missing byte is, but we can  */
+		/*   use  the  rest of the instruction stream  */
+		/*   to emulate the instruction.	       */
+		/***********************************************/
+		dtrace_cpu_emulate(ret, regs);
 
+		HERE();
+		return NOTIFY_STOP;
+	}
+////
+	/***********************************************/
+	/*   Not FBT/SDT, so try for USDT...	       */
+	/***********************************************/
 	if (dtrace_user_probe(3, args->regs, 
 		(caddr_t) args->regs->r_pc, 
 		smp_processor_id())) {
@@ -809,37 +843,38 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 			(void *) args->regs->r_pc, 
 			smp_processor_id());
 	}
-
-# if defined(__amd64)
-	ret = dtrace_invop(regs->r_pc - 1, 
-# else
-	ret = dtrace_invop(regs->r_pc, 
-# endif
-		(uintptr_t *) regs, 
-		regs->r_rax);
-HERE();
-	if (dtrace_here) {
-		printk("ret=%d %s\n", ret, ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
-			ret == DTRACE_INVOP_POPL_EBP ? "DTRACE_INVOP_POPL_EBP" :
-			ret == DTRACE_INVOP_LEAVE ? "DTRACE_INVOP_LEAVE" :
-			ret == DTRACE_INVOP_NOP ? "DTRACE_INVOP_NOP" :
-			ret == DTRACE_INVOP_RET ? "DTRACE_INVOP_RET" : "");
-	}
-	if (ret) {
-		/***********************************************/
-		/*   Emulate  a  single instruction - the one  */
-		/*   we  patched  over.  Note we patched over  */
-		/*   just  the first byte, so the 'ret' tells  */
-		/*   us  what the missing byte is, but we can  */
-		/*   use  the  rest of the instruction stream  */
-		/*   to emulate the instruction.	       */
-		/***********************************************/
-		dtrace_cpu_emulate(ret, regs);
-
-		HERE();
-		return NOTIFY_STOP;
-	}
 	return NOTIFY_OK;
+
+//# if defined(__amd64)
+//	ret = dtrace_invop(regs->r_pc - 1, 
+//# else
+//	ret = dtrace_invop(regs->r_pc, 
+//# endif
+//		(uintptr_t *) regs, 
+//		regs->r_rax);
+//HERE();
+//	if (dtrace_here) {
+//		printk("ret=%d %s\n", ret, ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
+//			ret == DTRACE_INVOP_POPL_EBP ? "DTRACE_INVOP_POPL_EBP" :
+//			ret == DTRACE_INVOP_LEAVE ? "DTRACE_INVOP_LEAVE" :
+//			ret == DTRACE_INVOP_NOP ? "DTRACE_INVOP_NOP" :
+//			ret == DTRACE_INVOP_RET ? "DTRACE_INVOP_RET" : "??");
+//	}
+//	if (ret) {
+//		/***********************************************/
+//		/*   Emulate  a  single instruction - the one  */
+//		/*   we  patched  over.  Note we patched over  */
+//		/*   just  the first byte, so the 'ret' tells  */
+//		/*   us  what the missing byte is, but we can  */
+//		/*   use  the  rest of the instruction stream  */
+//		/*   to emulate the instruction.	       */
+//		/***********************************************/
+//		dtrace_cpu_emulate(ret, regs);
+//
+//		HERE();
+//		return NOTIFY_STOP;
+//	}
+//	return NOTIFY_OK;
 }
 /**********************************************************************/
 /*   Lookup process by proc id.					      */

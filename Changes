@@ -1,3 +1,11 @@
+Sun Feb 15 10:47:15 2009  fox
+
+     141* fbt_linux.c, dtrace_linux.c: Use INT3 traps for entry/return
+          Need to handle more than just LEAVE/RET for FBT on i386.
+	  Fix INT3 handler to emulate the blotted-out instruction.
+
+     140* Archive: 1.0060
+
 Sun Feb  8 10:02:02 2009  fox
 
      139* Archive: v1.0059

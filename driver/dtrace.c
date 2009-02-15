@@ -7514,7 +7514,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	dtrace_provider_t *provider = (dtrace_provider_t *)prov;
 	dtrace_id_t id;
 
-HERE();
+//HERE();
 //printk("creating: %s:%s:%s\n", mod, func, name);
 	if (provider == dtrace_provider) {
 		ASSERT(MUTEX_HELD(&dtrace_lock));
@@ -7539,14 +7539,13 @@ HERE();
 	dtrace_hash_add(dtrace_bymod, probe);
 	dtrace_hash_add(dtrace_byfunc, probe);
 	dtrace_hash_add(dtrace_byname, probe);
-HERE();
+//HERE();
 //printk("id=%d nprobes=%d\n", id, dtrace_nprobes);
 
 	if (id - 1 >= dtrace_nprobes) {
 		size_t osize = dtrace_nprobes * sizeof (dtrace_probe_t *);
 		size_t nsize = osize << 1;
 
-HERE();
 		if (nsize == 0) {
 			ASSERT(osize == 0);
 			ASSERT(dtrace_probes == NULL);
@@ -7554,7 +7553,6 @@ HERE();
 		}
 
 		probes = kmem_zalloc(nsize, KM_SLEEP);
-HERE();
 
 		if (dtrace_probes == NULL) {
 			ASSERT(osize == 0);
@@ -7575,7 +7573,6 @@ HERE();
 			 * safely free the old array.
 			 */
 			kmem_free(oprobes, osize);
-HERE();
 			dtrace_nprobes <<= 1;
 		}
 
@@ -13270,7 +13267,6 @@ HERE();
          * First, retract any retained enablings for this state.
          */
         dtrace_enabling_retract(state);
-HERE();
         ASSERT(state->dts_nretained == 0);
 
 	if (state->dts_activity == DTRACE_ACTIVITY_ACTIVE ||
@@ -13287,7 +13283,6 @@ HERE();
 		state->dts_activity = DTRACE_ACTIVITY_KILLED;
 		dtrace_sync();
 	}
-HERE();
 	
 	/*
 	 * Release the credential hold we took in dtrace_state_create().
@@ -13318,7 +13313,6 @@ HERE();
 
 			dtrace_ecb_disable(ecb);
 			dtrace_ecb_destroy(ecb);
-HERE();
 		}
 
 		if (!match)
@@ -13350,7 +13344,6 @@ HERE();
 	kmem_free(state->dts_ecbs, state->dts_necbs * sizeof (dtrace_ecb_t *));
 
 	if (state->dts_aggregations != NULL) {
-HERE();
 #ifdef DEBUG
 		for (i = 0; i < state->dts_naggregations; i++)
 			ASSERT(state->dts_aggregations[i] == NULL);
@@ -13365,13 +13358,10 @@ HERE();
 
 	for (i = 0; i < nspec; i++)
 		kmem_free(spec[i].dtsp_buffer, bufsize);
-HERE();
 
 	kmem_free(spec, nspec * sizeof (dtrace_speculation_t));
-HERE();
 
 	dtrace_format_destroy(state);
-HERE();
 
 	vmem_destroy(state->dts_aggid_arena);
 # if defined(sun)
@@ -15039,7 +15029,6 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	dtrace_probe_provide(NULL, NULL);
 	mutex_exit(&dtrace_provider_lock);
 
-HERE();
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);
 	dtrace_opens++;

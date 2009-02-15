@@ -57,10 +57,23 @@ MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 #define	FBT_TEST_EAX_EAX	0x85 // c0
 #define	FBT_SUBL_ESP_nnn	0x83 // ec NN
 
-#ifdef __amd64
-#define	FBT_PATCHVAL		0xcc
+/**********************************************************************/
+/*   Under  Solaris, they use the LOCK prefix opcode for instruction  */
+/*   traps,  but  this  wont work for Linux, since we have lots more  */
+/*   candidate  patchable instructions, and LOCK needs the next byte  */
+/*   to  decide  if we have an invalid instruction or not. Dont know  */
+/*   why they do this, but lets just use INT3 everywhere. (Consider:  */
+/*   LOCK  for  a  RET; in this case the next byte may be garbage as  */
+/*   GCC aligns to a quad boundary).				      */
+/**********************************************************************/
+#if defined(linux)
+#  define	FBT_PATCHVAL		0xcc
 #else
-#define	FBT_PATCHVAL		0xf0
+#  if defined(__amd64)
+#    define	FBT_PATCHVAL		0xcc
+#  else
+#    define	FBT_PATCHVAL		0xf0
+#  endif
 #endif
 
 #define	FBT_ENTRY	"entry"
@@ -100,7 +113,6 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
 HERE();
 printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
-HERE();
 printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		if ((uintptr_t)fbt->fbtp_patchpoint == addr) {
 HERE();
@@ -112,7 +124,6 @@ HERE();
 				 * -- we know that interrupts are already
 				 * disabled.
 				 */
-HERE();
 				DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 				CPU->cpu_dtrace_caller = stack[0];
 				stack0 = stack[1];
@@ -123,7 +134,6 @@ HERE();
 				DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 				    CPU_DTRACE_BADADDR);
 
-HERE();
 				dtrace_probe(fbt->fbtp_id, stack0, stack1,
 				    stack2, stack3, stack4);
 HERE();
@@ -235,7 +245,7 @@ TODO();
 	}
 
 	if (dtrace_here) 
-		printk("%s:modname=%s num_symtab=%u\n", __func__, modname, (unsigned) mp->num_symtab);
+		printk("%s(%d):modname=%s num_symtab=%u\n", __FILE__, __LINE__, modname, (unsigned) mp->num_symtab);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
@@ -244,6 +254,7 @@ HERE();
 		uint8_t *instr, *limit;
 		int	invop = 0;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
+		int	do_print = FALSE;
 
 		name = str + sym->st_name;
 		if (sym->st_name == NULL || *name == '\0')
@@ -342,12 +353,6 @@ HERE();
 //printk("trying -- %02d %c:%s\n", i, sym->st_info, name);
 //HERE();
 
-# if 0
-	/***********************************************/
-	/*   If  we  enable  this, we end up with mod  */
-	/*   refcounts  and cannot unload the driver.  */
-	/*   Dont think we need this now.	       */
-	/***********************************************/
 		/***********************************************/
 		/*   We  do have syms that appear to point to  */
 		/*   unmapped  pages.  Maybe  these are freed  */
@@ -355,16 +360,6 @@ HERE();
 		/*   -  if /proc/kallsyms says its not there,  */
 		/*   then ignore it. 			       */
 		/***********************************************/
-		{void *p;
-
-		if (x__symbol_get == NULL ||
-		    (p = x__symbol_get(name)) == NULL) {
-		    	printk("Skipping: %s\n", name);
-			continue;
-		}
-		}
-# endif
-
 		if (!validate_ptr(instr))
 			continue;
 #ifdef __amd64
@@ -413,12 +408,18 @@ HERE();
 		else if (instr[0] == FBT_SUBL_ESP_nnn && instr[1] == 0xec)
 			invop = DTRACE_INVOP_SUBL_ESP_nnn;
 		else {
-HERE(); printk("unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
+			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
 			continue;
 			}
 #endif
+		/***********************************************/
+		/*   Allow  us  to  work on a single function  */
+		/*   for  debugging/tracing  else we generate  */
+		/*   too  much  printk() output and swamp the  */
+		/*   log daemon.			       */
+		/***********************************************/
+		do_print = strstr(name, "ext3_mkdir") != NULL;
 
-HERE();
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		
 		fbt->fbtp_name = name;
@@ -434,11 +435,26 @@ HERE();
 		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
 		fbt->fbtp_symndx = i;
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
-printk("%d:alloc patchpoint: %p rval=%x\n", __LINE__, fbt->fbtp_patchpoint, fbt->fbtp_rval);
+
+		if (do_print)
+			printk("%d:alloc entry-patchpoint: %s %p rval=%x\n", __LINE__, name, fbt->fbtp_patchpoint, fbt->fbtp_rval);
 
 		pmp->fbt_nentries++;
 
 		retfbt = NULL;
+
+		/***********************************************/
+		/*   This   point   is   part   of   a   loop  */
+		/*   (implemented  with goto) to find the end  */
+		/*   part  of  a  function.  Original Solaris  */
+		/*   code assumes a single exit, via RET, for  */
+		/*   amd64,  but  is more accepting for i386.  */
+		/*   However,  with  GCC  as a compiler a lot  */
+		/*   more    things   can   happen   -   very  */
+		/*   specifically,  we can have multiple exit  */
+		/*   points in a function. So we need to find  */
+		/*   each of those.			       */
+		/***********************************************/
 again:
 		if (instr >= limit) {
 			continue;
@@ -459,21 +475,33 @@ again:
 		 * ret imm16, largely because the compiler doesn't seem to
 		 * (yet) emit them in the kernel...
 		 */
-		if (*instr != FBT_RET) {
+		if (*instr == FBT_RET) {
+			invop = FBT_LEAVE;
+		} else {
 			instr += size;
 			goto again;
 		}
 #else
-		if (!(size == 1 &&
-		    (*instr == FBT_POPL_EBP || *instr == FBT_LEAVE) &&
-		    (*(instr + 1) == FBT_RET ||
-		    *(instr + 1) == FBT_RET_IMM16))) {
+		switch (*instr) {
+/*		  case FBT_POPL_EBP:
+			invop = DTRACE_INVOP_POPL_EBP;
+			break;
+		  case FBT_LEAVE:
+			invop = DTRACE_INVOP_LEAVE;
+			break;
+*/
+		  case FBT_RET:
+			invop = DTRACE_INVOP_RET;
+			break;
+		  case FBT_RET_IMM16:
+			invop = DTRACE_INVOP_RET_IMM16;
+			break;
+		  default:
 			instr += size;
 			goto again;
-		}
+		  }
 #endif
 
-HERE();
 		/*
 		 * We have a winner!
 		 */
@@ -492,30 +520,30 @@ HERE();
 		fbt->fbtp_ctl = ctl;
 		fbt->fbtp_loadcnt = get_refcount(mp);
 
-HERE();
-#ifndef __amd64
-		if (*instr == FBT_POPL_EBP) {
-			fbt->fbtp_rval = DTRACE_INVOP_POPL_EBP;
-		} else {
-			ASSERT(*instr == FBT_LEAVE);
-			fbt->fbtp_rval = DTRACE_INVOP_LEAVE;
-		}
+		/***********************************************/
+		/*   Swapped  sense  of  the  following ifdef  */
+		/*   around so we are consistent.	       */
+		/***********************************************/
+		fbt->fbtp_rval = invop;
+#ifdef __amd64
+		ASSERT(*instr == FBT_RET);
+		fbt->fbtp_roffset =
+		    (uintptr_t)(instr - (uint8_t *)sym->st_value);
+#else
 		fbt->fbtp_roffset =
 		    (uintptr_t)(instr - (uint8_t *)sym->st_value) + 1;
 
-#else
-		ASSERT(*instr == FBT_RET);
-		fbt->fbtp_rval = DTRACE_INVOP_RET;
-		fbt->fbtp_roffset =
-		    (uintptr_t)(instr - (uint8_t *)sym->st_value);
 #endif
 
 		fbt->fbtp_savedval = *instr;
 		fbt->fbtp_patchval = FBT_PATCHVAL;
 		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
 		fbt->fbtp_symndx = i;
-HERE();
-printk("%d:alloc patchpoint: %p rval=%x\n", __LINE__, fbt->fbtp_patchpoint, fbt->fbtp_rval);
+
+		if (do_print) {
+			printk("%d:alloc return-patchpoint: %s %p: %02x %02x invop=%d\n", __LINE__, name, instr, instr[0], instr[1], invop);
+		}
+
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 		pmp->fbt_nentries++;

@@ -41,6 +41,22 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 int dtrace_here;
 module_param(dtrace_here, int, 0);
 
+static char *invop_msgs[] = {
+	"DTRACE_INVOP_zero",
+	"DTRACE_INVOP_PUSHL_EBP",
+	"DTRACE_INVOP_POPL_EBP",
+	"DTRACE_INVOP_LEAVE",
+	"DTRACE_INVOP_NOP",
+	"DTRACE_INVOP_RET",
+	"DTRACE_INVOP_PUSHL_EDI",
+	"DTRACE_INVOP_TEST_EAX_EAX",
+	"DTRACE_INVOP_SUBL_ESP_nn",
+	"DTRACE_INVOP_PUSHL_ESI",
+	"DTRACE_INVOP_PUSHL_EBX",
+	"DTRACE_INVOP_RET_IMM16",
+	"DTRACE_INVOP_MOVL_nnn_EAX",
+	};
+
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
 /**********************************************************************/
@@ -782,25 +798,21 @@ HERE();
 /**********************************************************************/
 static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
+	struct pt_regs *regs = args->regs;
 
 	if (dtrace_here) {
 		printk("proc_notifier_int3 INT3 called PC:%p CPU:%d\n", 
-			(void *) args->regs->r_pc, 
+			(void *) regs->r_pc, 
 			smp_processor_id());
 	}
 ////
-	struct pt_regs *regs = args->regs;
 	int ret = dtrace_invop(regs->r_pc - 1, 
 		(uintptr_t *) regs, 
 		regs->r_rax);
-HERE();
+
 	if (dtrace_here) {
 		printk("ret=%d %s\n", ret, ret == 0 ? "nothing" :
-			ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
-			ret == DTRACE_INVOP_POPL_EBP ? "DTRACE_INVOP_POPL_EBP" :
-			ret == DTRACE_INVOP_LEAVE ? "DTRACE_INVOP_LEAVE" :
-			ret == DTRACE_INVOP_NOP ? "DTRACE_INVOP_NOP" :
-			ret == DTRACE_INVOP_RET ? "DTRACE_INVOP_RET" : "??");
+			ret < 0 || ret >= sizeof(invop_msgs) / sizeof invop_msgs[0] ? "??" : invop_msgs[ret]);
 	}
 	if (ret) {
 		/***********************************************/
@@ -834,8 +846,6 @@ HERE();
 /**********************************************************************/
 static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
-	struct pt_regs *regs = args->regs;
-	int	ret;
 
 	if (dtrace_here) {
 		printk("proc_notifier_trap_illop called! %s err:%ld trap:%d sig:%d PC:%p CPU:%d\n", 
@@ -1177,7 +1187,7 @@ helper_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned 
 
 	ret = dtrace_ioctl_helper(file, cmd, arg, 0, NULL, &rv);
 //HERE();
-if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
+//if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }
 /**********************************************************************/
@@ -1245,7 +1255,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 
 	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
 //HERE();
-if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
+//if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }
 static const struct file_operations dtracedrv_fops = {

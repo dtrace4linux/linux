@@ -15892,8 +15892,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		int i, j;
 		uint64_t nerrs;
 
-PRINT_CASE(DTRACEIOC_STATUS);
-//printk("state=%d\n", state->dts_activity);
+//PRINT_CASE(DTRACEIOC_STATUS);
 		/*
 		 * See the comment in dtrace_state_deadman() for the reason
 		 * for setting dts_laststatus to INT64_MAX before setting

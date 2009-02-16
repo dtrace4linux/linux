@@ -1,0 +1,2 @@
+# dev_hard_start_xmit
+dtrace -n 'fbt:::entry{ @[probefunc] = count(); }'

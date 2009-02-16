@@ -1,0 +1,22 @@
+#! /bin/sh
+# simple script to work with one fbt function at a time.
+
+func=${1:-ext3_free_inode}
+
+mkupdate
+make all || exit 1
+load -here
+rm -rf /tmp/x
+sync
+dtrace -n ::$func: &
+sleep 2
+case $func in
+  ext3_mkdir)
+	echo about to mkdir /tmp/x
+	mkdir /tmp/x
+	;;
+  ext3_free_inode)
+  	echo creating file
+	touch /tmp/file
+	rm /tmp/file
+esac

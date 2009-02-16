@@ -1,0 +1,16 @@
+# Simple script to try out each probe in turn so we can 
+# know where we may die
+#
+# Dies at ipt_local_out_hook entry in 
+# Linux vmub32 2.6.24-16-generic #1 SMP Thu Apr 10 13:23:42 UTC 2008 i686 GNU/Linux
+# 0x00000030 <ipt_local_out_hook+0>:      sub    $0xc,%esp
+# This frame is too small - so cpu_emulate.c will fail.
+
+grep fbt.*entry /tmp/probes.current | 
+while read id provider module func startstop
+do
+	echo $func $startstop
+	dtrace -n "fbt::$func:entry  { @[probefunc] = count(); }
+		profile:::tick-1sec { exit(0); }
+		"
+done

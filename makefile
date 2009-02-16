@@ -5,6 +5,7 @@
 # the userland binary is in build/
 
 rel=`date +%Y%m%d`
+RELDIR=dtrace
 
 NOPWD = --no-print-directory
 MAKEFLAGS += --no-print-directory
@@ -64,8 +65,14 @@ release:
 		--exclude=dt_lex.c \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace
-	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/dtrace
+	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/$(RELDIR)
 	ls -l /tmp/dtrace-$(rel).tar.bz2
+
+######################################################################
+#   Non-real releases, for my benefit.				     #
+######################################################################
+beta:
+	$(MAKE) RELDIR=beta release
 
 all:
 	@if [ ! -d $(BUILD_DIR) ] ; then \

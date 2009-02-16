@@ -67,6 +67,55 @@
 /*   instructions.  Emulate  the  byte  that  is  missing  so we can  */
 /*   continue (after notifying of the probe match).		      */
 /**********************************************************************/
+# if defined(__amd64)
+void
+dtrace_cpu_emulate(int instr, struct pt_regs *regs)
+{
+	/***********************************************/
+	/*   We  patched an instruction so we need to  */
+	/*   emulate  what would have happened had we  */
+	/*   not done so.			       */
+	/***********************************************/
+	switch (instr) {
+	  case DTRACE_INVOP_PUSHL_EBP:
+PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
+	  	regs->r_rsp -= sizeof(void *);
+		((void **) regs->r_rsp)[0] = (void *) regs->r_fp;
+	  	break;
+	  case DTRACE_INVOP_POPL_EBP:
+PRINT_CASE(DTRACE_INVOP_POPL_EBP);
+break;
+		TODO();
+		break;
+
+	  case DTRACE_INVOP_LEAVE:
+PRINT_CASE(DTRACE_INVOP_LEAVE);
+break;
+		TODO();
+		break;
+
+	  case DTRACE_INVOP_NOP:
+PRINT_CASE(DTRACE_INVOP_NOP);
+		break;
+
+	  case DTRACE_INVOP_RET:
+PRINT_CASE(DTRACE_INVOP_RET);
+		regs->r_pc = (greg_t) ((void **) regs->r_rsp)[0];
+	  	regs->r_rsp += sizeof(void *);
+	  	break;
+
+	  case DTRACE_INVOP_MOVL_nnn_EAX:
+PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
+		regs->r_rax = (greg_t) ((greg_t *) (regs->r_pc + 1))[0];
+	  	regs->r_pc += 1 + sizeof(greg_t);
+	  	break;
+
+	  default:
+	  	printk("Help me!!!!!!!!!!!!\n");
+		break;
+	  }
+}
+# else /* i386 */
 void
 dtrace_cpu_emulate(int instr, struct pt_regs *regs)
 {
@@ -88,10 +137,6 @@ dtrace_dump_mem32(regs, 8 * 8);
 printk("Stack:\n");
 dtrace_dump_mem32(regs->r_sp, 8 * 8);
 */
-# if defined(__amd64)
-	  	regs->r_rsp -= sizeof(void *);
-		((void **) regs->r_rsp)[0] = (void *) regs->r_fp;
-# else
 		/***********************************************/
 		/*   We    are    emulating   a   PUSH   %EBP  */
 		/*   instruction.  We need to effect the push  */
@@ -127,7 +172,6 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
                         : "a" (regs)
                         );
 
-# endif
 
 		SKIP_OVER();
 	  	break;
@@ -156,10 +200,6 @@ PRINT_CASE(DTRACE_INVOP_NOP);
 
 	  case DTRACE_INVOP_RET:
 PRINT_CASE(DTRACE_INVOP_RET);
-# if defined(__amd64)
-		regs->r_pc = (greg_t) ((void **) regs->r_rsp)[0];
-	  	regs->r_rsp += sizeof(void *);
-# else
                 __asm(
 			REGISTER_POP
 
@@ -192,7 +232,62 @@ PRINT_CASE(DTRACE_INVOP_RET);
                         :
                         : "a" (regs)
                         );
-# endif
+	  	break;
+
+	  case DTRACE_INVOP_MOVL_nnn_EAX:
+PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
+		regs->r_rax = (greg_t) ((greg_t *) (regs->r_pc + 1))[0];
+	  	regs->r_pc += 1 + sizeof(greg_t);
+	  	break;
+
+	  case DTRACE_INVOP_SUBL_ESP_nn:
+PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
+                __asm(
+			REGISTER_POP
+			"add $4, %%esp\n"
+
+			/***********************************************/
+			// 83 ec NN sub $nn,%esp
+			//
+			//   Stack diagram:
+			//     24  Flags
+			//     20   CS
+			//     16   IP
+			//     12   tmp ax
+			//	8   tmp bx
+			//	4   tmp cx
+			//	0   tmp dx
+			/***********************************************/
+
+			"push %%eax\n"		// Save scratch regs
+			"push %%ebx\n"
+			"push %%ecx\n"
+			"push %%edx\n"
+
+			"mov 16(%%esp),%%eax\n"  // Get nnnn from mov instr
+			"mov 1(%%eax),%%eax\n"
+			"and $0x000000ff,%%eax\n" // EAX is now the offset
+			
+			"mov 24(%%esp),%%edx\n"	  // Grab Flags/CS/IP
+			"mov 20(%%esp),%%ecx\n"	  // CS
+			"mov 16(%%esp),%%ebx\n"	  // EIP
+			"add $2,%%ebx\n"          // Bump EIP
+
+			"sub %%eax,%%esp\n"	  // Relocate ESP ready for RETI
+			"add $28,%%esp\n"
+			"push %%edx\n"		  // Push Flags/CS/IP
+			"push %%ecx\n"
+			"push %%ebx\n"
+
+			"mov -16(%%esp,%%eax,1), %%edx\n" // Restore our temp regs
+			"mov -12(%%esp,%%eax,1), %%ecx\n"
+			"mov -8(%%esp,%%eax,1), %%ebx\n"
+			"mov -4(%%esp,%%eax,1), %%eax\n"
+
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
 	  	break;
 
 	  default:
@@ -200,4 +295,4 @@ PRINT_CASE(DTRACE_INVOP_RET);
 		break;
 	  }
 }
-
+# endif

@@ -1,3 +1,9 @@
+Mon Feb 16 22:59:10 2009  fox
+
+     143* Archive: 1.0061
+
+     142* cpu_emulate.c: Add support for "SUB $nnn,%ESP"
+
 Sun Feb 15 10:47:15 2009  fox
 
      141* fbt_linux.c, dtrace_linux.c: Use INT3 traps for entry/return

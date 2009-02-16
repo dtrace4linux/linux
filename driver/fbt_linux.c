@@ -55,7 +55,8 @@ MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 #define	FBT_PUSHL_ESI		0x56
 #define	FBT_PUSHL_EBX		0x53
 #define	FBT_TEST_EAX_EAX	0x85 // c0
-#define	FBT_SUBL_ESP_nnn	0x83 // ec NN
+#define	FBT_SUBL_ESP_nn		0x83 // ec NN
+#define	FBT_MOVL_nnn_EAX        0xb8 // b8 nnnnnnnn
 
 /**********************************************************************/
 /*   Under  Solaris, they use the LOCK prefix opcode for instruction  */
@@ -254,7 +255,7 @@ HERE();
 		uint8_t *instr, *limit;
 		int	invop = 0;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
-		int	do_print = FALSE;
+		int	do_print = TRUE;
 
 		name = str + sym->st_name;
 		if (sym->st_name == NULL || *name == '\0')
@@ -405,8 +406,10 @@ HERE();
 		else if (instr[0] == FBT_TEST_EAX_EAX && instr[1] == 0xc0)
 			invop = DTRACE_INVOP_TEST_EAX_EAX;
 
-		else if (instr[0] == FBT_SUBL_ESP_nnn && instr[1] == 0xec)
-			invop = DTRACE_INVOP_SUBL_ESP_nnn;
+		else if (instr[0] == FBT_SUBL_ESP_nn && instr[1] == 0xec)
+			invop = DTRACE_INVOP_SUBL_ESP_nn;
+		else if (instr[0] == FBT_MOVL_nnn_EAX)
+			invop = DTRACE_INVOP_MOVL_nnn_EAX;
 		else {
 			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
 			continue;
@@ -418,7 +421,7 @@ HERE();
 		/*   too  much  printk() output and swamp the  */
 		/*   log daemon.			       */
 		/***********************************************/
-		do_print = strstr(name, "ext3_mkdir") != NULL;
+//		do_print = strstr(name, "ext3_mkdir") != NULL;
 
 		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 		
@@ -437,7 +440,7 @@ HERE();
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 		if (do_print)
-			printk("%d:alloc entry-patchpoint: %s %p rval=%x\n", __LINE__, name, fbt->fbtp_patchpoint, fbt->fbtp_rval);
+			printk("%d:alloc entry-patchpoint: %s %p invop=%x\n", __LINE__, name, fbt->fbtp_patchpoint, fbt->fbtp_rval);
 
 		pmp->fbt_nentries++;
 

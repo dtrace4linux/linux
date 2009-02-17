@@ -101,7 +101,8 @@ all:
 		echo 'export BUILD_i386=1' >> $(BUILD_DIR)/config.sh ; \
 		tools/mksyscall.pl x86 || exit 1 ; \
 	esac ; \
-	$(MAKE) all0 
+	$(MAKE) all0 || tools/bug.sh
+
 all0:
 	cd libctf ; $(MAKE) $(NOPWD)
 	cd libdtrace ; $(MAKE) $(NOPWD)

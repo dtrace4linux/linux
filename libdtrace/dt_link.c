@@ -511,7 +511,22 @@ dump_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	shp = &elf_file.shdr[ESHDR_DOF];
 	shp->sh_name = 11; /* DTRACE_SHSTRTAB32[11] = ".SUNW_dof" */
 	shp->sh_flags = SHF_ALLOC;
+	/***********************************************/
+	/*   Warning:  some older versions of /bin/ld  */
+	/*   dont like us defining/using a high value  */
+	/*   (>100?)  for  the type field. Seem to be  */
+	/*   too severe in validating the input file.  */
+	/*   (objdump/binutils  dont like it either).  */
+	/*   We will cheat here and use SHT_PROGBITS,  */
+	/*   since  the linker doesnt mind. A failing  */
+	/*   linker, e.g. AS4, is		       */
+	/*   GNU ld version 2.15.92.0.2 20040927       */
+	/***********************************************/
+# if 1
+	shp->sh_type = SHT_PROGBITS;
+# else
 	shp->sh_type = SHT_SUNW_dof;
+# endif
 	shp->sh_offset = off;
 	shp->sh_size = dof->dofh_filesz;
 	shp->sh_addralign = 8;

@@ -374,7 +374,7 @@ HERE();
 /*   tree, then we wouldnt need this hack.			      */
 /**********************************************************************/
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
-#     define PROC_I(i) proc_task(i)
+#     define PROC_I(i) proc_task_lookup(i) /* should this be proc_task() ? do we care ? */
 #     define file_dentry(f) file->f_dentry
 #     define inode_to_task(inode) proc_task(inode)
 #     define inode_to_pid(inode) PROC_I(inode)->pid

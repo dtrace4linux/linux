@@ -57,6 +57,22 @@ EOF
 		}
 	}
 	unlink("x");
+
+	###############################################
+	#   Try an alternate tactic - this for AS2.   #
+	###############################################
+	$fh = new FileHandle("find /usr/lib/gcc-lib -name libgcc.a |");
+	while (<$fh>) {
+		chomp;
+		if (!symlink($_, $target)) {
+			print "Error creating symlink $target -- $!\n";
+			exit(1);
+		}
+		exit(0);
+	}
+	###############################################
+	#   Oh dear.				      #
+	###############################################
 	print "Sorry: libgcc.a not found. Please put a symlink to it in the\n";
 	print "build/ directory for the 32-bit compilation to work.\n";
 }

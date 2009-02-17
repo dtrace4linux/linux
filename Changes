@@ -1,3 +1,10 @@
+Tue Feb 17 22:07:40 2009  fox
+
+     144* dt_link.c: When writing the USDT output object file, use
+          a section type of SHT_PROGBITS and not SHT_SUNW_dof, since
+	  some older binutils/ld will not like what we did (too
+	  over zealous validation).
+
 Mon Feb 16 22:59:10 2009  fox
 
      143* Archive: 1.0061

@@ -665,7 +665,22 @@ dump_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	shp = &elf_file.shdr[ESHDR_DOF];
 	shp->sh_name = 11; /* DTRACE_SHSTRTAB64[11] = ".SUNW_dof" */
 	shp->sh_flags = SHF_ALLOC;
+	/***********************************************/
+	/*   Warning:  some older versions of /bin/ld  */
+	/*   dont like us defining/using a high value  */
+	/*   (>100?)  for  the type field. Seem to be  */
+	/*   too severe in validating the input file.  */
+	/*   (objdump/binutils  dont like it either).  */
+	/*   We will cheat here and use SHT_PROGBITS,  */
+	/*   since  the linker doesnt mind. A failing  */
+	/*   linker, e.g. AS4, is		       */
+	/*   GNU ld version 2.15.92.0.2 20040927       */
+	/***********************************************/
+# if 1
+	shp->sh_type = SHT_PROGBITS;
+# else
 	shp->sh_type = SHT_SUNW_dof;
+# endif
 	shp->sh_offset = off;
 	shp->sh_size = dof->dofh_filesz;
 	shp->sh_addralign = 8;
@@ -1697,10 +1712,45 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 # if defined(solaris)
 		const char *fmt = "%s -o %s -r -Blocal -Breduce /dev/fd/%d %s";
 # else
-		const char *fmt = "%s -o %s -r /dev/fd/%d %s";
+		const char *fmt = "%s -o %s -r %s %s";
 # endif
 		char *drtip = drti;
 		struct stat sbuf;
+
+                /***********************************************/
+                /*   Dont use /dev/fd/N, since this wont work  */
+                /*   on  some  systems, and, although clever,  */
+                /*   is pretty ugly.                           */
+                /***********************************************/             
+
+		/***********************************************/
+		/*   Need  to have a temp and private copy of  */
+		/*   the   file,  because  we  are  about  to  */
+		/*   overwrite it.                             */
+		/***********************************************/
+		char temp_name[PATH_MAX];
+		char    *cp;
+		//snprintf(temp_name, sizeof temp_name, "/dev/fd/%d", fd);
+		strncpy(temp_name, file, sizeof temp_name);
+		cp = strrchr(temp_name, '.');
+		if (cp)
+		        strcpy(cp, ".tmp.o");
+		int fd1 = open(file, O_RDONLY);
+		int	fd2;
+		if ((fd2 = open(temp_name, O_WRONLY | O_TRUNC | O_CREAT, 0644)) < 0) {
+			perror(temp_name);
+			close(fd1);
+			ret = dt_link_error(dtp, NULL, -1, NULL,
+			    "Failed to create temporary file");
+			goto done;
+		}
+		char buf[BUFSIZ];
+		int     n;
+		while ((n = read(fd1, buf, sizeof buf)) > 0) {
+		        write(fd2, buf, n);
+		}
+		close(fd1);
+		close(fd2);
 
 		if (getenv("DTRACE_DRTI_O"))
 			(void) snprintf(drti, sizeof (drti), "%s", getenv("DTRACE_DRTI_O"));
@@ -1725,11 +1775,11 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 		}
 
 
-		len = snprintf(&tmp, 1, fmt, dtp->dt_ld_path, file, fd, drti) + 1;
+		len = snprintf(&tmp, 1, fmt, dtp->dt_ld_path, file, temp_name, drti) + 1;
 
 		cmd = alloca(len);
 
-		(void) snprintf(cmd, len, fmt, dtp->dt_ld_path, file, fd, drti);
+		(void) snprintf(cmd, len, fmt, dtp->dt_ld_path, file, temp_name, drti);
 
 		printf("Invoking: %s\n", cmd);
 
@@ -1754,6 +1804,11 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			    "failed to link %s: %s exited with status %d\n",
 			    file, dtp->dt_ld_path, WEXITSTATUS(status));
 			goto done;
+		}
+
+		if (unlink(temp_name) < 0) {
+			fprintf(stderr, "dt_link: unlink(%s) ", temp_name);
+			perror("");
 		}
 # if defined(linux) && 0
 		/***********************************************/

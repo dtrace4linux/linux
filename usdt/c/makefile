@@ -5,14 +5,15 @@ CFLAGS=$(BITS)
 BINDIR=../../$(BUILD_DIR)
 DTRACE=$(BINDIR)/dtrace
 DTRACE_DRTI_O=$(BINDIR)/drti.o
+DTRACE_LIB=$(BINDIR)/libdtrace.a
 
 all:	$(BINDIR)/simple-c
 	@/bin/true
 
-$(BINDIR)/simple-c: simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O)
+$(BINDIR)/simple-c: simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O) $(DTRACE_LIB)
 	$(CC) -Wl,-rpath `pwd` -o $(BINDIR)/simple-c $(BITS) simple_probes.o simple.o shlib.so -ldl
 
-simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O)
+simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O) $(DTRACE_LIB)
 	. $(BINDIR)/config.sh ; \
 	if [ "$$BUILD_i386" = 1 ]; then \
 		BITS=32 ; \

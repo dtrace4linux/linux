@@ -1,22 +1,31 @@
 #! /bin/sh
 # simple script to work with one fbt function at a time.
 
-func=${1:-ext3_free_inode}
+#func=${1:-ext3_free_inode}
+func=${1:-ipt_local_out_hook}
 
 mkupdate
 make all || exit 1
 load -here
 rm -rf /tmp/x
 sync
-dtrace -n ::$func: &
-sleep 2
+echo Testing: $func
 case $func in
   ext3_mkdir)
+	dtrace -n ::$func: & sleep 2
 	echo about to mkdir /tmp/x
 	mkdir /tmp/x
 	;;
   ext3_free_inode)
+	dtrace -n ::$func: & sleep 2
   	echo creating file
 	touch /tmp/file
 	rm /tmp/file
+	;;
+  ipt_local_out_hook)
+  	# SUB $12,ESP -- special case
+	dtrace -n "fbt::$func:entry  { @[probefunc] = count(); }
+		profile:::tick-1sec { exit(0); }
+		"
+  	;;
 esac

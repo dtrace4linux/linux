@@ -1,3 +1,13 @@
+Thu Feb 19 21:55:51 2009  fox
+
+     147* cpu_emulate.c: Add support for "SUB $12,ESP" - where the
+          reti stack frame overlapped our saved regs. Special case.
+	  We can merge this with the generic (>12) case later.
+	  Still need to handle "SUB $8,ESP" and "SUB $4,ESP"...which
+	  should be easier for we have the $12 code.
+
+     146* Few cleanups and fixes for AS4 release.
+
 Wed Feb 18 21:58:50 2009  fox
 
      145* dt_link.c: Fix properly for 32 + 64 bit architectures.

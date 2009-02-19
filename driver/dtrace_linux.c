@@ -799,14 +799,15 @@ HERE();
 static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
 	struct pt_regs *regs = args->regs;
+	int	ret;
 
 	if (dtrace_here) {
 		printk("proc_notifier_int3 INT3 called PC:%p CPU:%d\n", 
 			(void *) regs->r_pc, 
 			smp_processor_id());
 	}
-////
-	int ret = dtrace_invop(regs->r_pc - 1, 
+
+	ret = dtrace_invop(regs->r_pc - 1, 
 		(uintptr_t *) regs, 
 		regs->r_rax);
 
@@ -828,7 +829,7 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 		HERE();
 		return NOTIFY_STOP;
 	}
-////
+
 	/***********************************************/
 	/*   Not FBT/SDT, so try for USDT...	       */
 	/***********************************************/

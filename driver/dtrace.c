@@ -6123,7 +6123,7 @@ HERE();
 
 			val = dtrace_dif_emulate(dp, &mstate, vstate, state);
 HERE();
-printk("val=%p\n", (void *) val);
+printk("val=%lx\n", val);
 
 			if (*flags & CPU_DTRACE_ERROR)
 				continue;

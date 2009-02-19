@@ -97,7 +97,8 @@ struct modctl;
 	/*   Linux 2.6.9			       */
 	/***********************************************/
 	# if !defined(task_pt_regs)
-	#	define task_pt_regs(task) ((struct pt_regs *) (task)->thread.sp0 - 1)
+//	#	define task_pt_regs(task) ((struct pt_regs *) (task)->thread.sp0 - 1)
+	#	define task_pt_regs(task) ((struct pt_regs *) (task)->thread.rsp0 - 1)
 	# endif
 
 	/***********************************************/

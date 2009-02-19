@@ -242,6 +242,38 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 
 	  case DTRACE_INVOP_SUBL_ESP_nn:
 PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
+		int nn = *(unsigned char *) (regs->r_pc + 2);
+		if (nn == 12) {
+	                __asm(
+				REGISTER_POP
+				"add $4, %%esp\n"
+				//   Stack diagram:
+				//     24  Flags
+				//     20   CS
+				//     16   IP
+				//     12   tmp ax
+				//	8   tmp ax
+				//	4   tmp ax
+				//	0   tmp ax
+				"push %%eax\n"		// Save EAX but move out of harms
+				"push %%eax\n"		// way
+				"push %%eax\n"		// 
+				"push %%eax\n"		// 
+				"mov 16(%%esp),%%eax\n"
+				"add $2,%%eax\n"          // Bump EIP
+				"mov %%eax,4(%%esp)\n"
+				"mov 20(%%esp),%%eax\n"
+				"mov %%eax,8(%%esp)\n"
+				"mov 24(%%esp),%%eax\n"
+				"mov %%eax,12(%%esp)\n"
+				"pop %%eax\n" // Restore EAX
+
+				"iret\n"
+	                        :
+	                        : "a" (regs)
+	                        );
+		}
+
                 __asm(
 			REGISTER_POP
 			"add $4, %%esp\n"
@@ -259,6 +291,12 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 			//	0   tmp dx
 			/***********************************************/
 
+		/***********************************************/
+		/*   WARNING!  This  code  wont  work  if the  */
+		/*   first   block   of   PUSH   instructions  */
+		/*   overlaps   the  block-of-3  PUSHes  down  */
+		/*   below, e.g. SUB $n,ESP where $n <= 12.    */
+		/***********************************************/
 			"push %%eax\n"		// Save scratch regs
 			"push %%ebx\n"
 			"push %%ecx\n"

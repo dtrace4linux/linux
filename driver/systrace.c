@@ -236,7 +236,7 @@ systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed)
 	}
 
 HERE();
-printk("NSYSCALL=%d\n", (int) NSYSCALL);
+//printk("NSYSCALL=%d\n", (int) NSYSCALL);
 	for (i = 0; i < NSYSCALL; i++) {
 		struct sysent *a = &actual[i];
 		systrace_sysent_t *s = &sysent[i];

@@ -6123,7 +6123,7 @@ HERE();
 
 			val = dtrace_dif_emulate(dp, &mstate, vstate, state);
 HERE();
-printk("val=%lx\n", val);
+//printk("val=%lx\n", val);
 
 			if (*flags & CPU_DTRACE_ERROR)
 				continue;
@@ -15502,7 +15502,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		mutex_exit(&dtrace_lock);
 		dtrace_dof_destroy(dof);
 
-printk("err=%d rv=%d\n", err, *rv);
+//printk("err=%d rv=%d\n", err, *rv);
 		if (err == 0) {
 			if (copy_to_user((void *) arg, &rv, sizeof rv))
 				err = -EFAULT;

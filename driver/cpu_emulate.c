@@ -118,16 +118,9 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 # else /* i386 */
 void
 dtrace_cpu_emulate(int instr, struct pt_regs *regs)
-{
-	/***********************************************/
-	/*   We  patched an instruction so we need to  */
-	/*   emulate  what would have happened had we  */
-	/*   not done so.			       */
-	/***********************************************/
-	switch (instr) {
-	  case DTRACE_INVOP_PUSHL_EBP:
-PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
-/*
+{	int	nn;
+
+/* some debug in case we need it...
 printk("ip:%x &regs=%p\n", regs->r_pc, &regs);
 printk("eax:%p ebx:%p ecx:%p edx:%p\n", regs->r_rax, regs->r_rbx, regs->r_rcx, regs->r_rdx);
 printk("esi:%p edi:%p ebp:%p esp:%p\n", regs->r_rsi, regs->r_rdi, regs->r_rbp, regs);
@@ -137,6 +130,14 @@ dtrace_dump_mem32(regs, 8 * 8);
 printk("Stack:\n");
 dtrace_dump_mem32(regs->r_sp, 8 * 8);
 */
+	/***********************************************/
+	/*   We  patched an instruction so we need to  */
+	/*   emulate  what would have happened had we  */
+	/*   not done so.			       */
+	/***********************************************/
+	switch (instr) {
+	  case DTRACE_INVOP_PUSHL_EBP: // 55
+PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
 		/***********************************************/
 		/*   We    are    emulating   a   PUSH   %EBP  */
 		/*   instruction.  We need to effect the push  */
@@ -146,20 +147,12 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
 		/*   are  not  modifying  the  kernel, we can  */
 		/*   just inline what would have happened had  */
 		/*   we returned.			       */
-		/*   					       */
-		/*   So,  in  the  code below, we pop all the  */
-		/*   registers,  but before the IRET, we need  */
-		/*   to  execute  the emulation - by adding 1  */
-		/*   to  the  EIP and moving the EBP to where  */
-		/*   the  stack  is  going  to  point when we  */
-		/*   return.				       */
 		/***********************************************/
                 __asm(
 			REGISTER_POP
 
 			"push %%eax\n"
 			"mov 8(%%esp), %%eax\n"  // EIP
-//			"inc %%eax\n" ; Dont need this now we come in as an INT3 trap
 			"mov %%eax,4(%%esp)\n"
 			"mov 12(%%esp),%%eax\n"  // CS
 			"mov %%eax,8(%%esp)\n"
@@ -171,10 +164,38 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
                         :
                         : "a" (regs)
                         );
-
-
-		SKIP_OVER();
 	  	break;
+	  case DTRACE_INVOP_PUSHL_EBX: // 53
+PRINT_CASE(DTRACE_INVOP_PUSHL_EBX);
+		/***********************************************/
+		/*   We    are    emulating   a   PUSH   %EBP  */
+		/*   instruction.  We need to effect the push  */
+		/*   before the invalid opcode trap occurred,  */
+		/*   so we need to get into the inner core of  */
+		/*   the  kernel  trap  return code. Since we  */
+		/*   are  not  modifying  the  kernel, we can  */
+		/*   just inline what would have happened had  */
+		/*   we returned.			       */
+		/***********************************************/
+                __asm(
+			REGISTER_POP
+
+			"push %%eax\n"
+			"mov 8(%%esp), %%eax\n"  // EIP
+			"mov %%eax,4(%%esp)\n"
+			"mov 12(%%esp),%%eax\n"  // CS
+			"mov %%eax,8(%%esp)\n"
+			"mov 16(%%esp),%%eax\n"  // Flags
+			"mov %%eax,12(%%esp)\n"
+			"mov %%ebx,16(%%esp)\n"  // emulated push EBP
+			"pop %%eax\n"
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
+	  	break;
+
+
 	  case DTRACE_INVOP_PUSHL_EDI:
 PRINT_CASE(DTRACE_INVOP_PUSHL_EDI);
 break;
@@ -242,7 +263,7 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 
 	  case DTRACE_INVOP_SUBL_ESP_nn:
 PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
-		int nn = *(unsigned char *) (regs->r_pc + 2);
+		nn = *(unsigned char *) (regs->r_pc + 2);
 		if (nn == 12) {
 	                __asm(
 				REGISTER_POP

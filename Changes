@@ -1,3 +1,13 @@
+Fri Feb 20 20:12:05 2009  fox
+
+     150* cpu_emulate.c: Emulate PUSH EBX
+
+     149* makefile+tools/bug.sh: Add a .release file, so we know
+          what people are building on when reporting a bug.
+
+     148* drivers/missing.c: Fix for 2.6.23.1-42.fc8 missing
+          find_task_by_vpid.
+
 Thu Feb 19 21:55:51 2009  fox
 
      147* cpu_emulate.c: Add support for "SUB $12,ESP" - where the

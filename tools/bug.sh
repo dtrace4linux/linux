@@ -25,6 +25,8 @@ cat <<EOF | tee $file
 EOF
 
 (
+cat .release
+pwd
 date
 uname -a
 gcc -v

@@ -46,6 +46,7 @@ notice:
 	@echo "make test       - run cmd/dtrace regression tests."
 
 release:
+	(date ; echo dtrace-$(rel) ) > .release
 	find . -name checksum.lst | xargs rm -f
 	cd .. ; mv dtrace dtrace-$(rel) ; \
 	tar cvf - --exclude=*.o \

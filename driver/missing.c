@@ -2,6 +2,7 @@
 /*   Functions which are not there in the older kernels.	      */
 /*   Open Source						      */
 /*   Author: P D Fox						      */
+/* $Header: Last edited: 20-Feb-2009 1.1 $                            */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -26,16 +27,25 @@ strcasecmp(char *s1, char *s2)
 		return -1;
 	return 0;
 }
+# endif
+
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 int
 find_task_by_vpid(int n)
 {
 	return find_task_by_pid(n);
 }
+# endif
+
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 int
 mutex_is_locked(struct mutex *mp)
 {
 	return atomic_read(&mp->count) != 1;
 }
+# endif
+
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 void
 smp_call_function_single(int cpuid, int (*func)(void *), void *info, int wait)
 {

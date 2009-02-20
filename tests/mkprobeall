@@ -1,16 +1,47 @@
+#! /bin/sh
+#
 # Simple script to try out each probe in turn so we can 
-# know where we may die
+# know where we may die. Allow me to manually try things out
+# as we update the cpu_emulate.c code
 #
 # Dies at ipt_local_out_hook entry in 
 # Linux vmub32 2.6.24-16-generic #1 SMP Thu Apr 10 13:23:42 UTC 2008 i686 GNU/Linux
 # 0x00000030 <ipt_local_out_hook+0>:      sub    $0xc,%esp
 # This frame is too small - so cpu_emulate.c will fail.
+#
+# /lib/modules/2.6.24-16-generic/kernel/net/ipv4/netfilter/iptable_filter.ko
+# ipt_hook
+# 0xb0 <ipt_hook>:        push   %ebx    // 53
 
-grep fbt.*entry /tmp/probes.current | 
-while read id provider module func startstop
-do
-	echo $func $startstop
-	dtrace -n "fbt::$func:entry  { @[probefunc] = count(); }
+entry=0
+skip=-0
+case "$1" in 
+	[0-9]*)
+		entry=$1
+		shift
+		;;
+	-skip)
+		skip=-$2
+		entry=$2
+		shift ; shift
+		;;
+esac
+
+if [ "$1" != "" ]; then
+	func=$1
+	dtrace -n "fbt::$func  { @[probefunc] = count(); }
 		profile:::tick-1sec { exit(0); }
 		"
+	exit
+fi
+
+grep fbt.*entry /tmp/probes.current | 
+head --lines=$skip |
+while read id provider module func startstop
+do
+	echo "*** Entry $entry: $func $startstop"
+	dtrace -n "fbt::$func:entry  { @[probefunc] = count(); }
+		profile:::tick-250msec { exit(0); }
+		"
+	entry=`expr $entry + 1`
 done

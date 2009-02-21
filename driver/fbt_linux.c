@@ -640,7 +640,7 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 HERE();
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
-printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
+if (dtrace_here) printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
 		*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
 	}
 HERE();

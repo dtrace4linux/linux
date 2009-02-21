@@ -12,6 +12,9 @@
 # /lib/modules/2.6.24-16-generic/kernel/net/ipv4/netfilter/iptable_filter.ko
 # ipt_hook
 # 0xb0 <ipt_hook>:        push   %ebx    // 53
+#
+# *** entry-patchpoint: ata_qc_issue_prot
+# dev_hard_start_init
 
 entry=0
 skip=-0
@@ -24,6 +27,18 @@ case "$1" in
 		skip=-$2
 		entry=$2
 		shift ; shift
+		;;
+	-invop)
+		invop=$2
+		grep invop=$invop /var/log/messages | sed -e 's/^.*:alloc //' |sort |
+		while read type func addr invop
+		do
+			echo "*** $type $func"
+			dtrace -n "fbt::$func:  { @[probefunc] = count(); }
+				profile:::tick-1sec { exit(0); }
+				"
+		done
+		exit
 		;;
 esac
 

@@ -198,9 +198,32 @@ PRINT_CASE(DTRACE_INVOP_PUSHL_EBX);
 
 	  case DTRACE_INVOP_PUSHL_EDI:
 PRINT_CASE(DTRACE_INVOP_PUSHL_EDI);
-break;
-	  	regs->r_rsp -= sizeof(void *);
-		((void **) regs->r_rsp)[0] = (void *) regs->r_rdi;
+		/***********************************************/
+		/*   We    are    emulating   a   PUSH   %EDI  */
+		/*   instruction.  We need to effect the push  */
+		/*   before the invalid opcode trap occurred,  */
+		/*   so we need to get into the inner core of  */
+		/*   the  kernel  trap  return code. Since we  */
+		/*   are  not  modifying  the  kernel, we can  */
+		/*   just inline what would have happened had  */
+		/*   we returned.			       */
+		/***********************************************/
+                __asm(
+			REGISTER_POP
+
+			"push %%eax\n"
+			"mov 8(%%esp), %%eax\n"  // EIP
+			"mov %%eax,4(%%esp)\n"
+			"mov 12(%%esp),%%eax\n"  // CS
+			"mov %%eax,8(%%esp)\n"
+			"mov 16(%%esp),%%eax\n"  // Flags
+			"mov %%eax,12(%%esp)\n"
+			"mov %%edi,16(%%esp)\n"  // emulated push EDI
+			"pop %%eax\n"
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
 	  	break;
 
 	  case DTRACE_INVOP_POPL_EBP:

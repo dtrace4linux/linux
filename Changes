@@ -1,3 +1,10 @@
+Sat Feb 21 10:25:07 2009  fox
+
+     152* dtrace_linux.c: Use vmalloc for large buffer allocations to avoid
+          smacking the kernel badly with our large probe buffer.
+
+     151* cpu_emulate.c: Emulate PUSH EDI
+
 Fri Feb 20 20:12:05 2009  fox
 
      150* cpu_emulate.c: Emulate PUSH EBX

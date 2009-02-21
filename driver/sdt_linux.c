@@ -36,6 +36,7 @@
 #include <sys/sdt.h>
 #include <sys/sdt_impl.h>
 #include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
 
 #define	SDT_PATCHVAL	0xf0
 #define	SDT_ADDR2NDX(addr)	((((uintptr_t)(addr)) >> 4) & sdt_probetab_mask)

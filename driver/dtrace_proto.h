@@ -37,5 +37,11 @@ void dtrace_cpu_emulate(int instr, struct pt_regs *regs);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 
+# if !defined(kmem_alloc)
+void	*kmem_alloc(size_t, int);
+void	*kmem_zalloc(size_t, int);
+void	kmem_free(void *, int size);
+# endif
+
 # endif
 

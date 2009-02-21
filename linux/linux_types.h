@@ -232,9 +232,12 @@ typedef struct mutex mutex_t;
 
 # endif /* __KERNEL__ */
 
-# define kmem_zalloc(size, flags) kzalloc(size, flags)
-# define kmem_alloc(size, flags) kmalloc(size, flags)
-# define kmem_free(ptr, size) kfree(ptr)
+/**********************************************************************/
+/*   Made into functions so we can monitor memallocations.	      */
+/**********************************************************************/
+//# define kmem_zalloc(size, flags) kzalloc(size, flags)
+//# define kmem_alloc(size, flags) kmalloc(size, flags)
+//# define kmem_free(ptr, size) kfree(ptr)
 
 /**********************************************************************/
 /*   Definitions for both kernel and non-kernel code.		      */

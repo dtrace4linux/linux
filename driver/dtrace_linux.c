@@ -23,6 +23,7 @@
 #include <linux/sys.h>
 #include <linux/thread_info.h>
 #include <linux/smp.h>
+#include <linux/vmalloc.h>
 #include <asm/current.h>
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
@@ -538,26 +539,43 @@ suword32(const void *addr, uint32_t value)
 	*(uint32_t *) addr = value;
 	return 0;
 }
-# if 0
+# define	VMALLOC_SIZE	(100 * 1024)
 void *
 kmem_alloc(size_t size, int flags)
-{
-	return kmalloc(size, flags);
+{	void *ptr;
+
+	if (size > VMALLOC_SIZE) {
+		return vmalloc(size);
+//		return NULL;
+	}
+	ptr = kmalloc(size, flags);
+	if (dtrace_here)
+		printk("kmem_alloc(%d) := %p\n", size, ptr);
+	return ptr;
 }
 void *
 kmem_zalloc(size_t size, int flags)
-{	void *ptr = kmalloc(size, flags);
+{	void *ptr;
 
-	if (ptr)
-		memset(ptr, 0, size);
+	if (size > VMALLOC_SIZE) {
+		ptr = vmalloc(size);
+		if (ptr)
+			bzero(ptr, size);
+	} else {
+		ptr = kzalloc(size, flags);
+	}
+	if (dtrace_here)
+		printk("kmem_zalloc(%d) := %p\n", size, ptr);
 	return ptr;
 }
 void
 kmem_free(void *ptr, int size)
 {
-	kfree(ptr);
+	if (size > VMALLOC_SIZE)
+		vfree(ptr);
+	else
+		kfree(ptr);
 }
-# endif
 
 int
 lx_get_curthread_id()

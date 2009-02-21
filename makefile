@@ -64,6 +64,7 @@ release:
 		--exclude=tags \
 		--exclude=lwn \
 		--exclude=dt_lex.c \
+		--exclude=.dtrace.nobug \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace
 	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/$(RELDIR)

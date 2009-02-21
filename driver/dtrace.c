@@ -775,11 +775,11 @@ dtrace_vcanload(void *src, dtrace_diftype_t *type, dtrace_mstate_t *mstate,
 	 * everything is readable.
 	 */
 HERE();
-printk("dtms_access=%x\n", mstate->dtms_access);
+//printk("dtms_access=%x\n", mstate->dtms_access);
 	if ((mstate->dtms_access & DTRACE_ACCESS_KERNEL) != 0)
 		return (1);
 
-printk("src=%p\n", src);
+//printk("src=%p\n", src);
 HERE();
 	if (type->dtdt_kind == DIF_TYPE_STRING)
 		sz = dtrace_strlen(src,
@@ -1327,7 +1327,7 @@ dtrace_dynvar(dtrace_dstate_t *dstate, uint_t nkeys,
 	ASSERT(nkeys != 0);
 
 HERE();
-printk("nkeys=%d\n", nkeys);
+//printk("nkeys=%d\n", nkeys);
 	/*
 	 * Hash the key.  As with aggregations, we use Jenkins' "One-at-a-time"
 	 * algorithm.  For the by-value portions, we perform the algorithm in
@@ -5142,7 +5142,7 @@ PRINT_CASE(DIF_OP_STTS);
 			    v->dtdv_type.dtdt_size : sizeof (uint64_t),
 			    regs[rd] ? DTRACE_DYNVAR_ALLOC :
 			    DTRACE_DYNVAR_DEALLOC, mstate, vstate);
-printk("dvar=%p\n", dvar);
+//printk("dvar=%p\n", dvar);
 			/*
 			 * Given that we're storing to thread-local data,
 			 * we need to flush our predicate cache.
@@ -5199,11 +5199,9 @@ PRINT_CASE(DIF_OP_PUSHTR);
 				    regs[r2] ? regs[r2] :
 				    dtrace_strsize_default) + 1;
 HERE();
-printk("size=%d\n", (int) tupregs[ttop].dttk_size);
 			} else {
 				tupregs[ttop].dttk_size = regs[r2];
 			}
-printk("ttop=%d rd=%d regs[rd]=%lx\n", ttop, rd, (long) regs[rd]);
 			tupregs[ttop++].dttk_value = regs[rd];
 			break;
 
@@ -5215,7 +5213,6 @@ HERE();
 				break;
 			}
 
-printk("ttop=%d rd=%d regs[rd]=%lx\n", ttop, rd, (long) regs[rd]);
 			tupregs[ttop].dttk_value = regs[rd];
 			tupregs[ttop++].dttk_size = 0;
 			break;
@@ -13254,7 +13251,7 @@ dtrace_state_destroy(dtrace_state_t *state)
 	dtrace_ecb_t *ecb;
 	dtrace_vstate_t *vstate = &state->dts_vstate;
 //	minor_t minor = getminor(state->dts_dev);
-	int i;
+        int i, bufsize = NCPU * sizeof (dtrace_buffer_t);
 	dtrace_speculation_t *spec = state->dts_speculations;
 	int nspec = state->dts_nspeculations;
 	uint32_t match;

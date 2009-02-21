@@ -30,6 +30,7 @@
 # define profile_tick linux_profile_tick
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
 #include <linux/miscdevice.h>
 
 # undef profile_tick

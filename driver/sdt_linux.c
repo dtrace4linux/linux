@@ -51,7 +51,7 @@ static int			sdt_probetab_mask;
 
 /*ARGSUSED*/
 static int
-sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax)
+sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, unsigned char *opcode)
 {
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	int i = 0;
@@ -462,7 +462,7 @@ sdt_detach(void)
 
 /*ARGSUSED*/
 static int
-sdt_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
+sdt_open(struct inode *inode, struct file *file)
 {
 	return (0);
 }

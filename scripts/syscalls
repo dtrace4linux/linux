@@ -1,0 +1,3 @@
+#! /bin/sh
+# Syscalls by function/process
+dtrace -n 'syscall:::entry { @num[probefunc, execname] = count(); }'

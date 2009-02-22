@@ -106,17 +106,18 @@ static int			fbt_probetab_mask;
 static int			fbt_verbose = 0;
 
 static int
-fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval)
+fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, unsigned char *opcode)
 {
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
 
 HERE();
-printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
+if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
-printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
+if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		if ((uintptr_t)fbt->fbtp_patchpoint == addr) {
 HERE();
+			*opcode = fbt->fbtp_savedval;
 			if (fbt->fbtp_roffset == 0) {
 				/*
 				 * When accessing the arguments on the stack,
@@ -383,6 +384,7 @@ HERE();
 			 */
 //HERE();
 //printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
+			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
 			continue;
 		}
 		invop = DTRACE_INVOP_PUSHL_EBP;

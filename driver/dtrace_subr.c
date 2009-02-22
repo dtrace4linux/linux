@@ -33,7 +33,7 @@
 //# define ASSERT(x) {if (!(x)) panic("%s(%d): dtrace assertion failed", __FILE__, __LINE__);}
 
 typedef struct dtrace_invop_hdlr {
-	int (*dtih_func)(uintptr_t, uintptr_t *, uintptr_t);
+	int (*dtih_func)(uintptr_t, uintptr_t *, uintptr_t, unsigned char *);
 	struct dtrace_invop_hdlr *dtih_next;
 } dtrace_invop_hdlr_t;
 
@@ -43,10 +43,11 @@ int
 dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax)
 {
 	dtrace_invop_hdlr_t *hdlr;
+	unsigned char opcode;
 	int rval;
 
 	for (hdlr = dtrace_invop_hdlr; hdlr != NULL; hdlr = hdlr->dtih_next) {
-		if ((rval = hdlr->dtih_func(addr, stack, eax)) != 0)
+		if ((rval = hdlr->dtih_func(addr, stack, eax, &opcode)) != 0)
 			return (rval);
 	}
 
@@ -54,7 +55,7 @@ dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax)
 }
 
 void
-dtrace_invop_add(int (*func)(uintptr_t, uintptr_t *, uintptr_t))
+dtrace_invop_add(int (*func)(uintptr_t, uintptr_t *, uintptr_t, unsigned char *))
 {
 	dtrace_invop_hdlr_t *hdlr;
 
@@ -65,7 +66,7 @@ dtrace_invop_add(int (*func)(uintptr_t, uintptr_t *, uintptr_t))
 }
 
 void
-dtrace_invop_remove(int (*func)(uintptr_t, uintptr_t *, uintptr_t))
+dtrace_invop_remove(int (*func)(uintptr_t, uintptr_t *, uintptr_t, unsigned char *))
 {
 	dtrace_invop_hdlr_t *hdlr = dtrace_invop_hdlr, *prev = NULL;
 

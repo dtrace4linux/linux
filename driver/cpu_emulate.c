@@ -69,7 +69,7 @@
 /**********************************************************************/
 # if defined(__amd64)
 void
-dtrace_cpu_emulate(int instr, struct pt_regs *regs)
+dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs)
 {
 	/***********************************************/
 	/*   We  patched an instruction so we need to  */
@@ -117,7 +117,7 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 }
 # else /* i386 */
 void
-dtrace_cpu_emulate(int instr, struct pt_regs *regs)
+dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs)
 {	int	nn;
 
 /* some debug in case we need it...
@@ -226,6 +226,36 @@ PRINT_CASE(DTRACE_INVOP_PUSHL_EDI);
                         );
 	  	break;
 
+	  case DTRACE_INVOP_PUSHL_ESI:
+PRINT_CASE(DTRACE_INVOP_PUSHL_ESI);
+		/***********************************************/
+		/*   We    are    emulating   a   PUSH   %ESI  */
+		/*   instruction.  We need to effect the push  */
+		/*   before the invalid opcode trap occurred,  */
+		/*   so we need to get into the inner core of  */
+		/*   the  kernel  trap  return code. Since we  */
+		/*   are  not  modifying  the  kernel, we can  */
+		/*   just inline what would have happened had  */
+		/*   we returned.			       */
+		/***********************************************/
+                __asm(
+			REGISTER_POP
+
+			"push %%eax\n"
+			"mov 8(%%esp), %%eax\n"  // EIP
+			"mov %%eax,4(%%esp)\n"
+			"mov 12(%%esp),%%eax\n"  // CS
+			"mov %%eax,8(%%esp)\n"
+			"mov 16(%%esp),%%eax\n"  // Flags
+			"mov %%eax,12(%%esp)\n"
+			"mov %%esi,16(%%esp)\n"  // emulated push ESI
+			"pop %%eax\n"
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
+	  	break;
+
 	  case DTRACE_INVOP_POPL_EBP:
 PRINT_CASE(DTRACE_INVOP_POPL_EBP);
 break;
@@ -286,7 +316,32 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 
 	  case DTRACE_INVOP_SUBL_ESP_nn:
 PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
-		nn = *(unsigned char *) (regs->r_pc + 2);
+		nn = *(unsigned char *) (regs->r_pc + 1);
+		if (nn == 8) {
+	                __asm(
+				REGISTER_POP
+				"add $4, %%esp\n"
+				//   Stack diagram:
+				//     16  Flags
+				//     12   CS
+				//      8   IP		-> new flags
+				//	4   tmp ax	-> new cs
+				//	0   tmp ax	-> new ip
+
+				"add $2,(%%esp)\n" // bump ip
+				"push 4(%%esp)\n" // copy cs
+				"push 4(%%esp)\n" // copy ip
+
+				"push %%eax\n"
+				"mov 20(%%esp),%%eax\n" // now move flags
+				"mov %%eax,12(%%esp)\n"
+				"pop %%eax\n"
+
+				"iret\n"
+	                        :
+	                        : "a" (regs)
+	                        );
+		}
 		if (nn == 12) {
 	                __asm(
 				REGISTER_POP

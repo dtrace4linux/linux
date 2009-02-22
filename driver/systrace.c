@@ -198,7 +198,66 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	}
 # endif
 
+	/***********************************************/
+	/*   This  is  the  magic that calls the real  */
+	/*   syscall...we need to be careful, because  */
+	/*   some  syscalls,  such as sigreturn, need  */
+	/*   the  real frame so that registers can be  */
+	/*   modified.				       */
+	/***********************************************/
+#if defined(__i386)
+	{
+	struct pt_regs *pregs = &arg0;
+	__asm(
+		// Move the stack pt_regs to be in the right
+		// place for the underlying syscall.
+		"push 64(%%esi)\n"
+		"push 60(%%esi)\n"
+
+		"push 56(%%esi)\n"
+		"push 52(%%esi)\n"
+		"push 48(%%esi)\n"
+		"push 44(%%esi)\n"
+		"push 40(%%esi)\n"
+		"push 36(%%esi)\n"
+		"push 32(%%esi)\n"
+		"push 28(%%esi)\n"
+		"push 24(%%esi)\n"
+		"push 20(%%esi)\n"
+		"push 16(%%esi)\n"
+		"push 12(%%esi)\n"
+		"push 8(%%esi)\n"
+		"push 4(%%esi)\n"
+		"push 0(%%esi)\n"
+
+		"call *%%edi\n"
+
+		// Copy the output pt_regs back to the home location
+		"pop 0(%%esi)\n"
+		"pop 4(%%esi)\n"
+		"pop 8(%%esi)\n"
+		"pop 12(%%esi)\n"
+		"pop 16(%%esi)\n"
+		"pop 20(%%esi)\n"
+		"pop 24(%%esi)\n"
+		"pop 28(%%esi)\n"
+		"pop 32(%%esi)\n"
+		"pop 36(%%esi)\n"
+		"pop 40(%%esi)\n"
+		"pop 44(%%esi)\n"
+		"pop 48(%%esi)\n"
+		"pop 52(%%esi)\n"
+		"pop 56(%%esi)\n"
+		"pop 60(%%esi)\n"
+		"pop 64(%%esi)\n"
+		
+                : "=a" (rval)
+                : "S" (pregs), "D" (sy->stsy_underlying)
+		);
+	}
+# else
         rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+# endif
 
 //HERE();
 //printk("syscall returns %d\n", rval);

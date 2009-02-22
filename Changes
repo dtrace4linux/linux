@@ -1,4 +1,27 @@
+Sun Feb 22 11:31:20 2009  fox
+
+     158* cpu_emulate.c: Add support for SUB $8,ESP
+
+     157* cpu_emulate.c: Fix problem with SUB $12,ESP instruction
+
+     156* Archive: 1.0064
+
+     155* systrace.c: Fix for sys_clone - now we dont get the core dumps.
+
+     154* systrace.c: Fix for sigreturn needing a proper call frame so
+          it can patch the registers. [i386 only]
+
+	  This appears to work
+
+	  dtrace -n syscall:::
+
 Sat Feb 21 10:25:07 2009  fox
+
+     153* cpu_emulate.c: Emulate PUSH ESI.
+          We need to avoid having a zillion case/defines where we
+	  can use the CPU opcode decoding to get big-bang-for-buck.
+	  We need to pass in the missing opcode so we can decide
+	  which is better to do.
 
      152* dtrace_linux.c: Use vmalloc for large buffer allocations to avoid
           smacking the kernel badly with our large probe buffer.

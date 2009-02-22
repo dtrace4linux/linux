@@ -14,21 +14,36 @@
 # 0xb0 <ipt_hook>:        push   %ebx    // 53
 #
 # *** entry-patchpoint: ata_qc_issue_prot
-# dev_hard_start_init
+# ipt_local_out_hook
+
+# dev_hard_start_xmit
 
 entry=0
 skip=-0
-case "$1" in 
-	[0-9]*)
+type=fbt
+
+while [ "$1" != "" ]
+do
+	case "$1" in 
+	  [0-9]*)
 		entry=$1
 		shift
 		;;
-	-skip)
-		skip=-$2
-		entry=$2
-		shift ; shift
+	  -fbt)
+		type=fbt
+		shift
 		;;
-	-invop)
+	  -find)
+		name=$2
+		find  /lib/modules/`uname -r`/ -name \*.ko | 
+		while read mod
+		do
+			nm $mod | grep $name >/dev/null && 
+			(echo $mod ; nm $mod | grep $name)
+		done
+		exit
+		;;
+	  -invop)
 		invop=$2
 		grep invop=$invop /var/log/messages | sed -e 's/^.*:alloc //' |sort |
 		while read type func addr invop
@@ -40,23 +55,78 @@ case "$1" in
 		done
 		exit
 		;;
-esac
+	  -skip)
+		skip=-$2
+		entry=$2
+		shift ; shift
+		;;
+	  -syscall)
+		type=syscall
+		shift
+		;;
+	  -help)
+		cat <<EOF
+Script to help validate and regression test dtrace for Linux.
+It provides mechanisms to automate trying out each probe individually
+to isolate probes which can panic the kernel.
+
+Switches:
+
+  -fbt                  Iterate through each fbt function.
+  -find name            Find the kernel module containing a function
+  -invop NN             Look at /var/log/messages for functions which match
+                        specific invop cases where we need to emulate the
+			missing instructions.
+  -syscall              Iterate each syscall in turn.
+  -skip NN              When iterating over syscalls/fbt, start from this
+                        sequence, e.g. to continue after aborting the script.
+EOF
+		exit
+		;;
+	esac
+done
 
 if [ "$1" != "" ]; then
 	func=$1
-	dtrace -n "fbt::$func  { @[probefunc] = count(); }
+	dtrace -n "$type::$func  { @[probefunc] = count(); }
 		profile:::tick-1sec { exit(0); }
 		"
 	exit
 fi
 
-grep fbt.*entry /tmp/probes.current | 
+grep $type.*entry /tmp/probes.current | 
 head --lines=$skip |
 while read id provider module func startstop
 do
+	if [ "$type" = "syscall" ]; then
+		startstop=$func
+		func=$module
+	fi
 	echo "*** Entry $entry: $func $startstop"
-	dtrace -n "fbt::$func:entry  { @[probefunc] = count(); }
+	dtrace -n "$type::$func:entry  { @[probefunc] = count(); }
 		profile:::tick-250msec { exit(0); }
 		"
 	entry=`expr $entry + 1`
 done
+
+## New processes with arguments,
+#dtrace -n 'proc:::exec-success { trace(curpsinfo->pr_psargs); }'
+# 
+## Files opened by process,
+#dtrace -n 'syscall::open*:entry { printf("%s %s",execname,copyinstr(arg0)); }'
+# 
+## Syscall count by program,
+#dtrace -n 'syscall:::entry { @num[execname] = count(); }'
+# 
+## Syscall count by syscall,
+#dtrace -n 'syscall:::entry { @num[probefunc] = count(); }'
+# 
+## Syscall count by process,
+#dtrace -n 'syscall:::entry { @num[pid,execname] = count(); }'
+# 
+## Disk size by process,
+#dtrace -n 'io:::start { printf("%d %s %d",pid,execname,args[0]->b_bcount); }'   
+# 
+## Pages paged in by process,
+#dtrace -n 'vminfo:::pgpgin { @pg[execname] = sum(arg0); }'
+

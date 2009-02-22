@@ -842,7 +842,7 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 		/*   use  the  rest of the instruction stream  */
 		/*   to emulate the instruction.	       */
 		/***********************************************/
-		dtrace_cpu_emulate(ret, regs);
+		dtrace_cpu_emulate(ret, 0, regs);
 
 		HERE();
 		return NOTIFY_STOP;

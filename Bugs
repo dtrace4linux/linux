@@ -77,3 +77,6 @@ x 20090204 23. Linux 2.6.9 (AS4) issues
                parent, we need to mimic in the code, else we may have
 	       problems when/if child execs or exits. Code in dtrace
 	       for this, but we havent put the hook for fork.
+
+  20090222 26. syscall:sigreturn wants to do things to the stack and
+               wants a real stack frame. Need to handle that.

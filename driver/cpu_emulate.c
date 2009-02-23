@@ -308,15 +308,46 @@ PRINT_CASE(DTRACE_INVOP_RET);
                         );
 	  	break;
 
-	  case DTRACE_INVOP_MOVL_nnn_EAX:
+	  case DTRACE_INVOP_MOVL_nnn_EAX: // b8 nn nn nn nn
 PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
-		regs->r_rax = (greg_t) ((greg_t *) (regs->r_pc + 1))[0];
-	  	regs->r_pc += 1 + sizeof(greg_t);
+		regs->r_rax = (greg_t) ((greg_t *) (regs->r_pc))[0];
+	  	regs->r_pc += 4;
 	  	break;
 
 	  case DTRACE_INVOP_SUBL_ESP_nn:
 PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		nn = *(unsigned char *) (regs->r_pc + 1);
+		if (nn == 4) {
+	                __asm(
+				REGISTER_POP
+				"add $4, %%esp\n"
+				//   Stack diagram:
+				//     16  Flags
+				//     12   CS
+				//      8   IP		-> new flags
+				//	4   tmp ax	-> new cs
+				//	0   tmp ax	-> new cs
+
+				"add $2,(%%esp)\n" // bump ip
+				"push %%eax\n"
+				"push %%eax\n"
+
+				"mov 8(%%esp),%%eax\n" // copy ip
+				"mov %%eax,4(%%esp)\n"
+
+				"mov 12(%%esp),%%eax\n" // copy cs
+				"mov %%eax,8(%%esp)\n"
+
+				"mov 16(%%esp),%%eax\n" // copy flags
+				"mov %%eax,12(%%esp)\n"
+
+				"pop %%eax\n"
+
+				"iret\n"
+	                        :
+	                        : "a" (regs)
+	                        );
+		}
 		if (nn == 8) {
 	                __asm(
 				REGISTER_POP
@@ -381,45 +412,30 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 			// 83 ec NN sub $nn,%esp
 			//
 			//   Stack diagram:
-			//     24  Flags
-			//     20   CS
-			//     16   IP
-			//     12   tmp ax
-			//	8   tmp bx
-			//	4   tmp cx
-			//	0   tmp dx
+			//     12  Flags
+			//     8   CS
+			//     4   IP
+			//     0   tmp ax
 			/***********************************************/
+			"push %%eax\n"		// Save scratch reg
 
-		/***********************************************/
-		/*   WARNING!  This  code  wont  work  if the  */
-		/*   first   block   of   PUSH   instructions  */
-		/*   overlaps   the  block-of-3  PUSHes  down  */
-		/*   below, e.g. SUB $n,ESP where $n <= 12.    */
-		/***********************************************/
-			"push %%eax\n"		// Save scratch regs
-			"push %%ebx\n"
-			"push %%ecx\n"
-			"push %%edx\n"
-
-			"mov 16(%%esp),%%eax\n"  // Get nnnn from mov instr
+			"mov 4(%%esp),%%eax\n"  // Get nnnn from mov instr
+			"add $2,4(%%esp)\n" 	 // skip over instr
 			"mov 1(%%eax),%%eax\n"
 			"and $0x000000ff,%%eax\n" // EAX is now the offset
-			
-			"mov 24(%%esp),%%edx\n"	  // Grab Flags/CS/IP
-			"mov 20(%%esp),%%ecx\n"	  // CS
-			"mov 16(%%esp),%%ebx\n"	  // EIP
-			"add $2,%%ebx\n"          // Bump EIP
-
 			"sub %%eax,%%esp\n"	  // Relocate ESP ready for RETI
-			"add $28,%%esp\n"
-			"push %%edx\n"		  // Push Flags/CS/IP
-			"push %%ecx\n"
-			"push %%ebx\n"
+			"add $16,%%esp\n"
 
-			"mov -16(%%esp,%%eax,1), %%edx\n" // Restore our temp regs
-			"mov -12(%%esp,%%eax,1), %%ecx\n"
-			"mov -8(%%esp,%%eax,1), %%ebx\n"
-			"mov -4(%%esp,%%eax,1), %%eax\n"
+			/***********************************************/
+			/*   When  we do a PUSH, ESP gets decremented  */
+			/*   before  we  do  the addr calculation, so  */
+			/*   offset  by  this to pick up the original  */
+			/*   location.				       */
+			/***********************************************/
+			"push -4(%%esp,%%eax,1)\n" // copy flags
+			"push -4(%%esp,%%eax,1)\n" // copy CS
+			"push -4(%%esp,%%eax,1)\n" // copy IP
+			"mov -4(%%esp,%%eax,1),%%eax\n" // Restore EAX
 
 			"iret\n"
                         :
@@ -427,8 +443,23 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
                         );
 	  	break;
 
+	  case DTRACE_INVOP_TEST_EAX_EAX: {
+	  	int fl;
+	  	regs->r_pc += 1;
+		__asm__(
+			"test %%eax,%%eax\n"
+			"pushf\n"
+			"pop %%eax\n"
+			: "=a" (fl)
+			: "a" (regs->r_rax)
+			);
+		regs->r_rfl = (regs->r_rfl & ~0xff) | (regs->r_rfl & 0xff);
+	  	break;
+		}
+
 	  default:
-	  	printk("Help me!!!!!!!!!!!!\n");
+	  	printk("Help me!! invop=%d\n", instr);
+		*(int *) 0 = 0;
 		break;
 	  }
 }

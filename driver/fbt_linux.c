@@ -413,7 +413,8 @@ HERE();
 		else if (instr[0] == FBT_MOVL_nnn_EAX)
 			invop = DTRACE_INVOP_MOVL_nnn_EAX;
 		else {
-			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
+			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", 
+				name, instr, instr[0], instr[1], instr[2]);
 			continue;
 			}
 #endif
@@ -442,7 +443,11 @@ HERE();
 		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 		if (do_print)
-			printk("%d:alloc entry-patchpoint: %s %p invop=%x\n", __LINE__, name, fbt->fbtp_patchpoint, fbt->fbtp_rval);
+			printk("%d:alloc entry-patchpoint: %s %p invop=%x %02x %02x %02x\n", 
+				__LINE__, 
+				name, 
+				fbt->fbtp_patchpoint, 
+				fbt->fbtp_rval, instr[0], instr[1], instr[2]);
 
 		pmp->fbt_nentries++;
 

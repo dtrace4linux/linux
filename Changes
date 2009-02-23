@@ -1,3 +1,11 @@
+Mon Feb 23 21:45:13 2009  fox
+
+     161* cpu_emulate.c: Emulate SUB $4,ESP
+
+     160* cpu_emulate.c: Emulate TEST EAX,EAX
+
+     159* cpu_emulate.c: Fix SUB $nn,ESP where nn == 0x18
+
 Sun Feb 22 11:31:20 2009  fox
 
      158* cpu_emulate.c: Add support for SUB $8,ESP

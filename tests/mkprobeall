@@ -4,6 +4,9 @@
 # know where we may die. Allow me to manually try things out
 # as we update the cpu_emulate.c code
 #
+# Following is just a scratch pad of issues I am working on. All
+# of them are fine, except, usually, the last one.
+#
 # Dies at ipt_local_out_hook entry in 
 # Linux vmub32 2.6.24-16-generic #1 SMP Thu Apr 10 13:23:42 UTC 2008 i686 GNU/Linux
 # 0x00000030 <ipt_local_out_hook+0>:      sub    $0xc,%esp
@@ -17,6 +20,7 @@
 # ipt_local_out_hook
 
 # dev_hard_start_xmit
+# dtrace -n fbt::ext3_file_write:
 
 entry=0
 skip=-0

@@ -291,28 +291,36 @@ dtrace_fuword64_nocheck(void *addr)
 	return *(uint64_t *) addr;
 #endif	/* __i386 */
 }
+/**********************************************************************/
+/*   This   routine   restores   interrupts   previously   saved  by  */
+/*   dtrace_interrupt_disable.  This  allows  nested disable/enable,  */
+/*   which  is  what  dtrace_probe()  is assuming, since we can come  */
+/*   from an interrupt context, or not, as the case may be.	      */
+/**********************************************************************/
 void
-dtrace_interrupt_enable(void)
+dtrace_interrupt_enable(int flags)
 {
 #if defined(__amd64)
 	__asm(
 	        "pushq   %rdi\n"
 	        "popfq\n"
-
 	);
+
 #elif defined(__i386)
-	/***********************************************/
-	/*   We  get kernel warnings because we break  */
-	/*   the  rules  if  we  do the equivalent to  */
-	/*   x86-64. This seems to work.	       */
-	/***********************************************/
-	raw_local_irq_enable();
-//	native_irq_enable();
-	return;
+
+//	/***********************************************/
+//	/*   We  get kernel warnings because we break  */
+//	/*   the  rules  if  we  do the equivalent to  */
+//	/*   x86-64. This seems to work.	       */
+//	/***********************************************/
+//	raw_local_irq_enable();
+////	native_irq_enable();
+//	return;
 	__asm(
-		"movl	4(%esp), %eax\n"
-		"push %eax\n"
+		"push %0\n"
 		"popf\n"
+		:
+		: "a" (flags)
 	);
 #endif
 }
@@ -400,6 +408,10 @@ void dtrace_membar_producer(void)
 	__asm("sfence\n");
 #endif
 }
+/**********************************************************************/
+/*   Disable  interrupts (they may be disabled already), but let the  */
+/*   caller nest the interrupt disable.				      */
+/**********************************************************************/
 long
 dtrace_interrupt_disable(void)
 {
@@ -412,19 +424,21 @@ dtrace_interrupt_disable(void)
 	);
 	return 0; // notreached
 #elif defined(__i386)
-	/***********************************************/
-	/*   We  get kernel warnings because we break  */
-	/*   the  rules  if  we  do the equivalent to  */
-	/*   x86-64. This seems to work.	       */
-	/***********************************************/
-	raw_local_irq_disable();
-//	native_irq_disable();
-	return 0;
+
 	__asm(
 		"pushf\n"
 		"pop %eax\n"
 		"cli\n"
 		"ret\n"
 	);
+
+//	/***********************************************/
+//	/*   We  get kernel warnings because we break  */
+//	/*   the  rules  if  we  do the equivalent to  */
+//	/*   x86-64. This seems to work.	       */
+//	/***********************************************/
+//	raw_local_irq_disable();
+////	native_irq_disable();
+//	return 0;
 # endif
 }

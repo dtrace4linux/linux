@@ -46,7 +46,9 @@ notice:
 	@echo "make test       - run cmd/dtrace regression tests."
 
 release:
-	(date ; echo dtrace-$(rel) ) > .release
+	eval `grep build= .release` ; \
+	build=`expr $$build + 1` ; \
+	(echo date=`date` ; echo release=dtrace-$(rel) ; echo build=$$build ) > .release
 	find . -name checksum.lst | xargs rm -f
 	cd .. ; mv dtrace dtrace-$(rel) ; \
 	tar cvf - --exclude=*.o \
@@ -89,6 +91,7 @@ all:
 	fi
 	@echo >$(BUILD_DIR)/config.sh
 	@export BUILD_DIR=$(BUILD_DIR) ; \
+	tools/check_dep.pl ; \
 	tools/libgcc.pl || exit 1 ; \
 	case `uname -m` in \
 	  x86*64) \

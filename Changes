@@ -1,3 +1,25 @@
+Fri Feb 27 20:16:31 2009  fox
+
+     167* fbt_linux.c, cpu_32bit.c: Add support for 
+
+     	XOR reg,reg
+	JMP nnnn
+
+	instructions
+
+     166* driver/cpu_emulate.c: Split into cpu_32bit.c and cpu_64bit.c
+
+     165* Archive: 1.0065
+
+     164* dtrace_asm.c: Fix nesting of interrupt disable for i386.
+
+Wed Feb 25 19:11:10 2009  fox
+
+     163* load.pl: If we have an error, tell them a little more about
+          why the driver load failed.
+
+     162* makefile: Add a dependency checker before people build.
+
 Mon Feb 23 21:45:13 2009  fox
 
      161* cpu_emulate.c: Emulate SUB $4,ESP

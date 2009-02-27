@@ -1082,7 +1082,7 @@ uread(proc_t *p, void *addr, size_t len, uintptr_t dest)
 	int	ret;
 
 	ret = func(p->p_task, (unsigned long) dest, (void *) addr, len, 0);
-printk("uread %p %p %d %p -- func=%p ret=%d\n", p, addr, (int) len, (void *) dest, func, ret);
+//printk("uread %p %p %d %p -- func=%p ret=%d\n", p, addr, (int) len, (void *) dest, func, ret);
 	return ret == len ? 0 : -1;
 }
 int 
@@ -1092,7 +1092,7 @@ uwrite(proc_t *p, void *src, size_t len, uintptr_t addr)
 	int	ret;
 
 	ret = func(p->p_task, (unsigned long) addr, (void *) src, len, 1);
-printk("uwrite %p %p %d src=%p %02x -- func=%p ret=%d\n", p, (void *) addr, (int) len, src, *(unsigned char *) src, func, ret);
+//printk("uwrite %p %p %d src=%p %02x -- func=%p ret=%d\n", p, (void *) addr, (int) len, src, *(unsigned char *) src, func, ret);
 	return ret == len ? 0 : -1;
 }
 /**********************************************************************/

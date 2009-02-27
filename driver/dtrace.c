@@ -7916,7 +7916,7 @@ dtrace_helper_provide_one(dof_helper_t *dhp, dof_sec_t *sec, pid_t pid)
 	 * Create the probes.
 	 */
 HERE();
-printk("nprobes=%d\n", nprobes);
+//printk("nprobes=%d\n", nprobes);
 	for (i = 0; i < nprobes; i++) {
 		probe = (dof_probe_t *)(uintptr_t)(daddr +
 		    prb_sec->dofs_offset + i * prb_sec->dofs_entsize);
@@ -7924,7 +7924,7 @@ printk("nprobes=%d\n", nprobes);
 		dhpb.dthpb_mod = dhp->dofhp_mod;
 		dhpb.dthpb_func = strtab + probe->dofpr_func;
 		dhpb.dthpb_name = strtab + probe->dofpr_name;
-printk("probe %d: func=%s name=%s\n", i, dhpb.dthpb_func, dhpb.dthpb_name);
+//printk("probe %d: func=%s name=%s\n", i, dhpb.dthpb_func, dhpb.dthpb_name);
 		dhpb.dthpb_base = probe->dofpr_addr;
 		dhpb.dthpb_offs = off + probe->dofpr_offidx;
 		dhpb.dthpb_noffs = probe->dofpr_noffs;
@@ -9912,7 +9912,7 @@ PRINT_CASE("DTRACEACT_USTACK");
 HERE();
 				strsize = DTRACE_USTACK_STRSIZE(arg);
 				nframes = opt[DTRACEOPT_USTACKFRAMES];
-printk("strsize=%d nframes=%d\n", (int) strsize, (int) nframes);
+//printk("strsize=%d nframes=%d\n", (int) strsize, (int) nframes);
 				ASSERT(nframes > 0);
 				arg = DTRACE_USTACK_ARG(nframes, strsize);
 			}
@@ -12102,7 +12102,7 @@ HERE();
 	if (dof->dofh_ident[DOF_ID_VERSION] != DOF_VERSION_1 &&
             dof->dofh_ident[DOF_ID_VERSION] != DOF_VERSION_2) {
 HERE();
-printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
+//printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 		dtrace_dof_error(dof, "DOF version mismatch");
 		return (-1);
 	}
@@ -13860,7 +13860,7 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 	mutex_enter(&dtrace_lock);
 
 HERE();
-printk("dtrace_meta_pid=%p dtrace_provider=%p p_pid=%d\n", dtrace_meta_pid, dtrace_provider, p->p_pid);
+//printk("dtrace_meta_pid=%p dtrace_provider=%p p_pid=%d\n", dtrace_meta_pid, dtrace_provider, p->p_pid);
 	if (!dtrace_attached() || dtrace_meta_pid == NULL) {
 HERE();
 		/*
@@ -14274,7 +14274,7 @@ HERE();
 	/*
 	 * Now we need to walk through the ECB descriptions in the enabling.
 	 */
-printk("nprovs=%d\n", nprovs);
+//printk("nprovs=%d\n", nprovs);
 	for (i = 0; i < enab->dten_ndesc; i++) {
 		dtrace_ecbdesc_t *ep = enab->dten_desc[i];
 		dtrace_probedesc_t *desc = &ep->dted_probe;
@@ -14867,7 +14867,6 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	    1, INT_MAX, 0);
 #endif
 
-printk("creating cache\n");
 	dtrace_state_cache = kmem_cache_create("dtrace_state_cache",
 	    sizeof (dtrace_dstate_percpu_t) * NCPU, DTRACE_STATE_ALIGN,
 #if defined(sun)
@@ -15096,7 +15095,7 @@ dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);
 HERE();
-printk("dtrace_opens=%d dtrace_opens state=%p\n", dtrace_opens, state);
+//printk("dtrace_opens=%d dtrace_opens state=%p\n", dtrace_opens, state);
 
 	if (state->dts_anon) {
 		/*

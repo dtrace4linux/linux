@@ -1,7 +1,16 @@
 /**********************************************************************/
-/*   This file contains much of the glue between the Solaris code in  */
-/*   dtrace.c  and  the linux kernel. We emulate much of the missing  */
-/*   functionality, or map into the kernel.			      */
+/*   This file emulates an i386 32-bit processor. Its needed because  */
+/*   when  placing probes in the kernel, we overwrite the first byte  */
+/*   of  the  kernel  with a INT3 (0xcc) which mangles it. We cannot  */
+/*   easily  undo  that to step past the trapping instruction, so we  */
+/*   need to emulate those instructions matched by fbt_linux.c	      */
+/*   								      */
+/*   The  variation  of instructions is based on observation of what  */
+/*   GCC generates for kernels. It is not a complete i386 emulator.   */
+/*   								      */
+/*   The core of this is that we are sitting inside an interrupt, so  */
+/*   we  may  have  to  mangle the return stack, and never exit from  */
+/*   here.							      */
 /*   								      */
 /*   Date: Feb 2009  						      */
 /*   Author: Paul D. Fox					      */
@@ -9,20 +18,12 @@
 /*   License: CDDL						      */
 /**********************************************************************/
 
+# if defined(__i386)
+
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
 #include <sys/privregs.h>
-
-/**********************************************************************/
-/*   On  i386, we need to skip over the faulting instruction. Not so  */
-/*   for amd64.							      */
-/**********************************************************************/
-# if defined(__amd64)
-#	define	SKIP_OVER()
-# else
-#	define	SKIP_OVER() regs->r_pc++
-# endif
 
 /**********************************************************************/
 /*   For i386, we are looking at this structure...		      */
@@ -61,61 +62,14 @@
                         "pop %%ds\n"		\
                         "pop %%es\n"		\
 			"pop %%fs\n"
-
 /**********************************************************************/
-/*   Called  from  interrupt  context when we hit one of our patched  */
-/*   instructions.  Emulate  the  byte  that  is  missing  so we can  */
-/*   continue (after notifying of the probe match).		      */
+/*   Map x86 reg encoding to the pt_reg register offset.	      */
 /**********************************************************************/
-# if defined(__amd64)
-void
-dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs)
-{
-	/***********************************************/
-	/*   We  patched an instruction so we need to  */
-	/*   emulate  what would have happened had we  */
-	/*   not done so.			       */
-	/***********************************************/
-	switch (instr) {
-	  case DTRACE_INVOP_PUSHL_EBP:
-PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
-	  	regs->r_rsp -= sizeof(void *);
-		((void **) regs->r_rsp)[0] = (void *) regs->r_fp;
-	  	break;
-	  case DTRACE_INVOP_POPL_EBP:
-PRINT_CASE(DTRACE_INVOP_POPL_EBP);
-break;
-		TODO();
-		break;
-
-	  case DTRACE_INVOP_LEAVE:
-PRINT_CASE(DTRACE_INVOP_LEAVE);
-break;
-		TODO();
-		break;
-
-	  case DTRACE_INVOP_NOP:
-PRINT_CASE(DTRACE_INVOP_NOP);
-		break;
-
-	  case DTRACE_INVOP_RET:
-PRINT_CASE(DTRACE_INVOP_RET);
-		regs->r_pc = (greg_t) ((void **) regs->r_rsp)[0];
-	  	regs->r_rsp += sizeof(void *);
-	  	break;
-
-	  case DTRACE_INVOP_MOVL_nnn_EAX:
-PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
-		regs->r_rax = (greg_t) ((greg_t *) (regs->r_pc + 1))[0];
-	  	regs->r_pc += 1 + sizeof(greg_t);
-	  	break;
-
-	  default:
-	  	printk("Help me!!!!!!!!!!!!\n");
-		break;
-	  }
-}
-# else /* i386 */
+static int reg_map[] = {
+	// eax ecx edx ebx esp ebp esi edi
+	     6,  1,  2, 0,  14,  5,  3,	 4
+	     };
+	
 void
 dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs)
 {	int	nn;
@@ -168,7 +122,7 @@ PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
 	  case DTRACE_INVOP_PUSHL_EBX: // 53
 PRINT_CASE(DTRACE_INVOP_PUSHL_EBX);
 		/***********************************************/
-		/*   We    are    emulating   a   PUSH   %EBP  */
+		/*   We    are    emulating   a   PUSH   %EBX  */
 		/*   instruction.  We need to effect the push  */
 		/*   before the invalid opcode trap occurred,  */
 		/*   so we need to get into the inner core of  */
@@ -443,6 +397,17 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
                         );
 	  	break;
 
+	  case DTRACE_INVOP_JMP: // e9 nn nn nn nn    Relative jump
+	  	regs->r_pc = *(int *) regs->r_pc + regs->r_pc + 4;
+	  	break;
+
+	  case DTRACE_INVOP_XOR_REG_REG: { // 31 c0..c7
+	  	int r = reg_map[*(unsigned char *) regs->r_pc & 0x7];
+		((int *) regs)[r] = 0;
+		regs->r_pc++;
+	  	break;
+		}
+
 	  case DTRACE_INVOP_TEST_EAX_EAX: {
 	  	int fl;
 	  	regs->r_pc += 1;
@@ -463,4 +428,5 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		break;
 	  }
 }
-# endif
+
+# endif /* defined(__i386) */

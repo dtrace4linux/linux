@@ -395,28 +395,65 @@ HERE();
 		/*   assembler  to  deal with - so we disable  */
 		/*   this for now.			       */
 		/***********************************************/
-		if (instr[0] == FBT_PUSHL_EBP)
+# define UNHANDLED_FBT() printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
+				name, instr, instr[0], instr[1], instr[2], instr[3])
+
+		switch (instr[0]) {
+		  case FBT_PUSHL_EBP:
 			invop = DTRACE_INVOP_PUSHL_EBP;
+			break;
 
-		else if (instr[0] == FBT_PUSHL_EDI)
+		  case FBT_PUSHL_EDI:
 			invop = DTRACE_INVOP_PUSHL_EDI;
-		else if (instr[0] == FBT_PUSHL_ESI)
+			break;
+
+		  case FBT_PUSHL_ESI:
 			invop = DTRACE_INVOP_PUSHL_ESI;
-		else if (instr[0] == FBT_PUSHL_EBX)
+			break;
+
+		  case FBT_PUSHL_EBX:
 			invop = DTRACE_INVOP_PUSHL_EBX;
+			break;
 
-		else if (instr[0] == FBT_TEST_EAX_EAX && instr[1] == 0xc0)
-			invop = DTRACE_INVOP_TEST_EAX_EAX;
-
-		else if (instr[0] == FBT_SUBL_ESP_nn && instr[1] == 0xec)
-			invop = DTRACE_INVOP_SUBL_ESP_nn;
-		else if (instr[0] == FBT_MOVL_nnn_EAX)
-			invop = DTRACE_INVOP_MOVL_nnn_EAX;
-		else {
-			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", 
-				name, instr, instr[0], instr[1], instr[2]);
-			continue;
+		  case FBT_TEST_EAX_EAX:
+		  	if (instr[1] == 0xc0)
+				invop = DTRACE_INVOP_TEST_EAX_EAX;
+			else {
+				UNHANDLED_FBT();
+				continue;
 			}
+			break;
+
+		  case FBT_SUBL_ESP_nn:
+		  	if (instr[1] == 0xec)
+				invop = DTRACE_INVOP_SUBL_ESP_nn;
+			else {
+				UNHANDLED_FBT();
+				continue;
+			}
+			break;
+
+		  case FBT_MOVL_nnn_EAX:
+			invop = DTRACE_INVOP_MOVL_nnn_EAX;
+			break;
+
+		  case 0x31:
+		  	if ((instr[1] & 0xc0) == 0xc0)
+				invop = DTRACE_INVOP_XOR_REG_REG;
+			else {
+				UNHANDLED_FBT();
+				continue;
+			}
+			break;
+
+		  case 0xe9:
+			invop = DTRACE_INVOP_JMP;
+			break;
+
+		  default:
+			UNHANDLED_FBT();
+			continue;
+		  }
 #endif
 		/***********************************************/
 		/*   Allow  us  to  work on a single function  */
@@ -756,7 +793,7 @@ fbt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 	}
 # endif
 
-	TODO();
+	//TODO();
 	if (fp == NULL)
 		goto err;
 # if 0

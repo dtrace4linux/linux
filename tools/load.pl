@@ -73,7 +73,18 @@ sub main
 	#####################################################################
 	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
 	print "Loading: $dtracedrv\n";
-	spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}");
+	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}");
+	if ($ret) {
+		print "\n";
+		print "An error was detected loading the driver. Refer to\n";
+		print "/var/log/messages or 'dmesg' to see what the issue\n";
+		print "might be. For your convenience, here is the last few\n";
+		print "lines from /var/log/messages:\n";
+		print "\n";
+		print "===== tail -10 /var/log/messages\n";
+		system("tail -10 /var/log/messages");
+		exit(1);
+	}
         my $sectop = "/sys/module/dtracedrv/sections/";
         if ($opts{v} > 1 && -e $sectop . ".text") {
           # print KGDB module load command
@@ -210,7 +221,7 @@ sub spawn
 {	my $cmd = shift;
 
 	print $cmd, "\n" if $opts{'v'};
-	system($cmd);
+	return system($cmd);
 }
 
 #######################################################################

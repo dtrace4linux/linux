@@ -84,6 +84,8 @@ static struct map {
 /* 15 */{"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
 				 	  /* find the modules table. 		  */
 /* 16 */{"kernel_text_address",    NULL},
+/* 17 */{"_text",		   NULL}, /* Start of kernel code.	*/
+/* 18 */{"_etext",		   NULL}, /* End of kernel code.	*/
 	{0}
 	};
 static int xkallsyms_num_syms;
@@ -166,6 +168,51 @@ CRED()
 
 	return &c;
 }
+# if 0
+/**********************************************************************/
+/*   Placeholder  code  --  we  need  to  avoid a linear tomax/xamot  */
+/*   buffer...not just yet....					      */
+/**********************************************************************/
+typedef struct page_array_t {
+	int	pa_num;
+	caddr_t pa_array[1];
+	} page_array_t;
+/**********************************************************************/
+/*   Allocate  large  buffer because kmalloc/vmalloc dont like multi  */
+/*   megabyte allocs.						      */
+/**********************************************************************/
+page_array_t *
+array_alloc(int size)
+{	int	n = (size + PAGE_SIZE - 1) / PAGE_SIZE;
+	int	i;
+	page_array_t *pap = kmalloc(sizeof *pap + (n - 1) * sizeof(caddr_t), GFP_KERNEL);
+
+	if (pap == NULL)
+		return NULL;
+
+	pap->pa_num = n;
+	for (i = 0; i < n; i++) {
+		if ((pap->pa_array[i] == vmalloc(PAGE_SIZE)) == NULL) {
+			while (--i >= 0)
+				vfree(pap->pa_array[i]);
+			kfree(pap);
+			return NULL;
+			}
+		}
+	return pap;
+}
+/**********************************************************************/
+/*   Free up the page array.					      */
+/**********************************************************************/
+void
+array_free(page_array_t *pap)
+{	int	i = pap->pa_num;;
+
+	while (--i >= 0)
+		vfree(pap->pa_array[i]);
+	kfree(pap);
+}
+# endif
 void
 atomic_add_64(uint64_t *p, int n)
 {
@@ -342,6 +389,19 @@ dtrace_mach_aframes(void)
 	return 1;
 }
 
+/**********************************************************************/
+/*   Private  implementation  of  memchr() so we can avoid using the  */
+/*   public one, so we could probe it if we want.		      */
+/**********************************************************************/
+char *
+dtrace_memchr(char *buf, int c, int len)
+{
+	while (len-- > 0) {
+		if (*buf++ == c)
+			return buf - 1;
+		}
+	return NULL;
+}
 static void
 dtrace_sync_func(void)
 {
@@ -545,10 +605,10 @@ kmem_alloc(size_t size, int flags)
 {	void *ptr;
 
 	if (size > VMALLOC_SIZE) {
-		return vmalloc(size);
-//		return NULL;
+		ptr = vmalloc(size);
+	} else {
+		ptr = kmalloc(size, flags);
 	}
-	ptr = kmalloc(size, flags);
 	if (dtrace_here)
 		printk("kmem_alloc(%d) := %p\n", size, ptr);
 	return ptr;
@@ -929,6 +989,19 @@ rw_exit(krwlock_t *p)
 	TODO();
 }
 /**********************************************************************/
+/*   Get a static symbol.					      */
+/**********************************************************************/
+void *
+sym_get_static(char *name)
+{
+	if (strcmp(name, "_text") == 0)
+		return (void *) syms[17].m_ptr;
+	if (strcmp(name, "_etext") == 0)
+		return (void *) syms[18].m_ptr;
+	return NULL;
+}
+
+/**********************************************************************/
 /*   Called  from  /dev/fbt  driver  to allow us to populate address  */
 /*   entries.  Shouldnt  be in the /dev/fbt, and will migrate to its  */
 /*   own dtrace_ctl driver at a later date.			      */
@@ -952,14 +1025,14 @@ syms_write(struct file *file, const char __user *buf,
 	/***********************************************/
 	while (buf < bufend) {
 		count = bufend - buf;
-		if ((cp = memchr(buf, ' ', count)) == NULL ||
+		if ((cp = dtrace_memchr(buf, ' ', count)) == NULL ||
 		     cp + 3 >= bufend ||
 		     cp[1] == ' ' ||
 		     cp[2] != ' ') {
 			return -EIO;
 		}
 
-		if ((cp = memchr(buf, '\n', count)) == NULL) {
+		if ((cp = dtrace_memchr(buf, '\n', count)) == NULL) {
 			return -EIO;
 		}
 		symend = cp--;

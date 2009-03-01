@@ -2245,6 +2245,7 @@ extern void dtrace_getfsr(uint64_t *);
 #define	DTRACE_INVOP_MOVL_nnn_EAX	12
 #define	DTRACE_INVOP_XOR_REG_REG	13
 #define	DTRACE_INVOP_JMP		14
+#define	DTRACE_INVOP_MOV_REG_REG	15
 
 #endif
 

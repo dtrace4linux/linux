@@ -1,0 +1,11 @@
+/* Trace everything in fbt, but dont flood our output stream - so we
+can get some output without making system unresponsive.
+*/
+fbt:::entry
+{
+	@[probefunc] = count();
+}
+profile:::tick-1sec
+{
+	printa(@);
+}

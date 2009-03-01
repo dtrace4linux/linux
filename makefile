@@ -86,9 +86,8 @@ all:
 	if [ ! -d $(BUILD_DIR)/driver ] ; then \
 		mkdir $(BUILD_DIR)/driver ; \
 	fi ; \
-	if [ ! -d build ] ; then \
-		ln -s $(BUILD_DIR) build ; \
-	fi
+	rm -f build ; \
+	ln -s $(BUILD_DIR) build
 	@echo >$(BUILD_DIR)/config.sh
 	@export BUILD_DIR=$(BUILD_DIR) ; \
 	tools/check_dep.pl ; \

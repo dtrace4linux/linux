@@ -424,13 +424,16 @@ dtrace_interrupt_disable(void)
 	);
 	return 0; // notreached
 #elif defined(__i386)
+	long	ret;
 
 	__asm(
 		"pushf\n"
-		"pop %eax\n"
+		"pop %%eax\n"
 		"cli\n"
-		"ret\n"
+		: "=a" (ret)
+		:
 	);
+	return ret;
 
 //	/***********************************************/
 //	/*   We  get kernel warnings because we break  */

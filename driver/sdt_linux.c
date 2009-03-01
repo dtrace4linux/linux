@@ -303,7 +303,7 @@ sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 {
 	uintptr_t val;
 	struct frame *fp = (struct frame *)dtrace_getfp();
-	uintptr_t *stack;
+	uintptr_t *stack = NULL;
 	int i;
 #if defined(__amd64)
 	/*

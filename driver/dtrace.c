@@ -7703,6 +7703,12 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
                 all = 1;
                 prv = dtrace_provider;
         }
+
+	/***********************************************/
+	/*   Let  fbt provide all syms in the kernel.  */
+	/*   Code below handles the modules.	       */
+	/***********************************************/
+	fbt_provide_kernel();
 	
 	do {
 		/*

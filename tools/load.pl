@@ -150,6 +150,8 @@ sub main
 		kernel_text_address
 		modules:print_modules
 		sys_call_table:syscall_call
+		_text
+		_etext
 		/) {
 		my $done = 0;
 		foreach my $rawsym (split(":", $s)) {

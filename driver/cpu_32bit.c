@@ -407,6 +407,13 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		regs->r_pc++;
 	  	break;
 		}
+	  case DTRACE_INVOP_MOV_REG_REG: { // 89 c0..c7 mov %eax,reg
+	  	int s = reg_map[(*(unsigned char *) regs->r_pc & 0x38) >> 3];
+	  	int r = reg_map[*(unsigned char *) regs->r_pc & 0x7];
+		((int *) regs)[r] = ((int *) regs)[s];
+		regs->r_pc++;
+	  	break;
+		}
 
 	  case DTRACE_INVOP_TEST_EAX_EAX: {
 	  	int fl;

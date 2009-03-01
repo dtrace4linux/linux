@@ -499,7 +499,7 @@ profile_write(struct file *file, const char __user *buf,
 	/***********************************************/
 	while (buf < bufend) {
 		count = bufend - buf;
-		if ((cp = memchr(buf, '\n', count)) == NULL) {
+		if ((cp = dtrace_memchr(buf, '\n', count)) == NULL) {
 			return -EIO;
 		}
 		if (strncmp(buf, "profile_max=", 12) == 0) {

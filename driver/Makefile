@@ -26,6 +26,7 @@ dtracedrv-objs := \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \
+	toxic.o \
 	instr_size.o \
 	uncompress.o
 ifdef BUILD_i386

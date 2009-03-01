@@ -27,6 +27,7 @@
 #include <linux/proc_fs.h>
 #include <linux/module.h>
 #include <linux/list.h>
+#include <linux/kallsyms.h>
 
 # undef NULL
 # define NULL 0
@@ -105,6 +106,11 @@ static int			fbt_probetab_size;
 static int			fbt_probetab_mask;
 static int			fbt_verbose = 0;
 
+static void fbt_provide_function(struct modctl *mp, 
+    	par_module_t *pmp,
+	char *modname, char *name, uint8_t *st_value, 
+	uint8_t *instr, uint8_t *limit, int);
+
 static int
 fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, unsigned char *opcode)
 {
@@ -172,11 +178,70 @@ get_refcount(struct module *mp)
 {	int	sum = 0;
 	int	i;
 
+	if (mp == NULL)
+		return 0;
+
 	for (i = 0; i < NR_CPUS; i++)
 		sum += local_read(&mp->ref[i].count);
 	return sum;
 }
 
+/**********************************************************************/
+/*   This  code  is called from dtrace.c (dtrace_probe_provide) when  */
+/*   we  are arming the fbt functions. Since the kernel doesnt exist  */
+/*   as a module, we need to handle that as a special case.	      */
+/**********************************************************************/
+void
+fbt_provide_kernel()
+{
+	static struct module kern;
+	int	n;
+	const char *(*kallsyms_lookup)(unsigned long addr,
+                        unsigned long *symbolsize,
+                        unsigned long *offset,
+                        char **modname, char *namebuf);
+	caddr_t ktext = sym_get_static("_text");
+	caddr_t ketext = sym_get_static("_etext");
+	caddr_t a, aend;
+	char	name[KSYM_NAME_LEN];
+
+	if (kern.name[0])
+		return;
+
+	kallsyms_lookup = get_proc_addr("kallsyms_lookup");
+	strcpy(kern.name, "kernel");
+	/***********************************************/
+	/*   Walk   the  code  segment,  finding  the  */
+	/*   symbols,  and  creating a probe for each  */
+	/*   one.				       */
+	/***********************************************/
+	for (n = 0, a = ktext; kallsyms_lookup && a < ketext; ) {
+		const char *cp;
+		unsigned long size;
+		unsigned long offset;
+		char	*modname;
+
+//printk("lookup %p kallsyms_lookup=%p\n", a, kallsyms_lookup);
+		cp = kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
+		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);
+		if (cp == NULL)
+			aend = a + 4;
+		else
+			aend = a + (size - offset);
+
+		/***********************************************/
+		/*   If  this  function  is  toxic, we mustnt  */
+		/*   touch it.				       */
+		/***********************************************/
+		if (cp && *cp && !is_toxic_func(a, cp)) {
+			fbt_provide_function(&kern, &kern,
+				"kernel", name, 
+				a, a, aend, n);
+		}
+		a = aend;
+		n++;
+	}
+}
 /*ARGSUSED*/
 static void
 fbt_provide_module(void *arg, struct modctl *ctl)
@@ -185,8 +250,6 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	char *modname = mp->name;
 	char	*str = mp->strtab;
 	char	*name;
-	int	 size = -1;
-	fbt_probe_t *fbt, *retfbt;
     	par_module_t *pmp;
 
 # if 0
@@ -237,6 +300,11 @@ TODO();
 # endif
 
 	int	init;
+	/***********************************************/
+	/*   Possible  memleak  here...we  allocate a  */
+	/*   parallel  struct, but need to free if we  */
+	/*   are offloaded.			       */
+	/***********************************************/
 	pmp = par_alloc(mp, sizeof *pmp, &init);
 	if (pmp->fbt_nentries) {
 		/*
@@ -254,9 +322,7 @@ TODO();
 HERE();
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
-		int	invop = 0;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
-		int	do_print = TRUE;
 
 		name = str + sym->st_name;
 		if (sym->st_name == NULL || *name == '\0')
@@ -364,242 +430,268 @@ HERE();
 		/***********************************************/
 		if (!validate_ptr(instr))
 			continue;
-#ifdef __amd64
 
-		while (instr < limit) {
-			if (*instr == FBT_PUSHL_EBP)
-				break;
-
-			if ((size = dtrace_instr_size(instr)) <= 0)
-				break;
-
-			instr += size;
+		fbt_provide_function(mp, pmp,
+			modname, name, 
+			(uint8_t *) sym->st_value, 
+			instr, limit, i);
 		}
+}
 
-		if (instr >= limit || *instr != FBT_PUSHL_EBP) {
-			/*
-			 * We either don't save the frame pointer in this
-			 * function, or we ran into some disassembly
-			 * screw-up.  Either way, we bail.
-			 */
+/**********************************************************************/
+/*   Common code to handle module and kernel functions.		      */
+/**********************************************************************/
+static void
+fbt_provide_function(struct modctl *mp, par_module_t *pmp,
+	char *modname, char *name, uint8_t *st_value,
+	uint8_t *instr, uint8_t *limit, int i)
+{
+	int	do_print = TRUE;
+	int	invop = 0;
+	fbt_probe_t *fbt, *retfbt;
+	int	 size = -1;
+
+#ifdef __amd64
+	while (instr < limit) {
+		if (*instr == FBT_PUSHL_EBP)
+			break;
+
+		if ((size = dtrace_instr_size(instr)) <= 0)
+			break;
+
+		instr += size;
+	}
+
+	if (instr >= limit || *instr != FBT_PUSHL_EBP) {
+		/*
+		 * We either don't save the frame pointer in this
+		 * function, or we ran into some disassembly
+		 * screw-up.  Either way, we bail.
+		 */
 //HERE();
 //printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
-			printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
-			continue;
-		}
-		invop = DTRACE_INVOP_PUSHL_EBP;
+		printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
+		return;
+	}
+	invop = DTRACE_INVOP_PUSHL_EBP;
 #else
-		/***********************************************/
-		/*   GCC    generates   lots   of   different  */
-		/*   assembler  functions plus we have inline  */
-		/*   assembler  to  deal with - so we disable  */
-		/*   this for now.			       */
-		/***********************************************/
+	/***********************************************/
+	/*   GCC    generates   lots   of   different  */
+	/*   assembler  functions plus we have inline  */
+	/*   assembler  to  deal with - so we disable  */
+	/*   this for now.			       */
+	/***********************************************/
 # define UNHANDLED_FBT() printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
-				name, instr, instr[0], instr[1], instr[2], instr[3])
+			name, instr, instr[0], instr[1], instr[2], instr[3])
 
-		switch (instr[0]) {
-		  case FBT_PUSHL_EBP:
-			invop = DTRACE_INVOP_PUSHL_EBP;
-			break;
+	switch (instr[0]) {
+	  case FBT_PUSHL_EBP:
+		invop = DTRACE_INVOP_PUSHL_EBP;
+		break;
 
-		  case FBT_PUSHL_EDI:
-			invop = DTRACE_INVOP_PUSHL_EDI;
-			break;
+	  case FBT_PUSHL_EDI:
+		invop = DTRACE_INVOP_PUSHL_EDI;
+		break;
 
-		  case FBT_PUSHL_ESI:
-			invop = DTRACE_INVOP_PUSHL_ESI;
-			break;
+	  case FBT_PUSHL_ESI:
+		invop = DTRACE_INVOP_PUSHL_ESI;
+		break;
 
-		  case FBT_PUSHL_EBX:
-			invop = DTRACE_INVOP_PUSHL_EBX;
-			break;
+	  case FBT_PUSHL_EBX:
+		invop = DTRACE_INVOP_PUSHL_EBX;
+		break;
 
-		  case FBT_TEST_EAX_EAX:
-		  	if (instr[1] == 0xc0)
-				invop = DTRACE_INVOP_TEST_EAX_EAX;
-			else {
-				UNHANDLED_FBT();
-				continue;
-			}
-			break;
-
-		  case FBT_SUBL_ESP_nn:
-		  	if (instr[1] == 0xec)
-				invop = DTRACE_INVOP_SUBL_ESP_nn;
-			else {
-				UNHANDLED_FBT();
-				continue;
-			}
-			break;
-
-		  case FBT_MOVL_nnn_EAX:
-			invop = DTRACE_INVOP_MOVL_nnn_EAX;
-			break;
-
-		  case 0x31:
-		  	if ((instr[1] & 0xc0) == 0xc0)
-				invop = DTRACE_INVOP_XOR_REG_REG;
-			else {
-				UNHANDLED_FBT();
-				continue;
-			}
-			break;
-
-		  case 0xe9:
-			invop = DTRACE_INVOP_JMP;
-			break;
-
-		  default:
+	  case FBT_TEST_EAX_EAX:
+	  	if (instr[1] == 0xc0)
+			invop = DTRACE_INVOP_TEST_EAX_EAX;
+		else {
 			UNHANDLED_FBT();
-			continue;
-		  }
+			return;
+		}
+		break;
+
+	  case FBT_SUBL_ESP_nn:
+	  	if (instr[1] == 0xec)
+			invop = DTRACE_INVOP_SUBL_ESP_nn;
+		else {
+			UNHANDLED_FBT();
+			return;
+		}
+		break;
+
+	  case FBT_MOVL_nnn_EAX:
+		invop = DTRACE_INVOP_MOVL_nnn_EAX;
+		break;
+
+	  case 0x31:
+	  	if ((instr[1] & 0xc0) == 0xc0)
+			invop = DTRACE_INVOP_XOR_REG_REG;
+		else {
+			UNHANDLED_FBT();
+			return;
+		}
+		break;
+
+	  case 0x89:
+	  	if ((instr[1] & 0xc0) == 0xc0)
+			invop = DTRACE_INVOP_MOV_REG_REG;
+		else {
+			UNHANDLED_FBT();
+			return;
+		}
+		break;
+
+	  case 0xe9:
+		invop = DTRACE_INVOP_JMP;
+		break;
+
+	  default:
+		UNHANDLED_FBT();
+		return;
+	  }
 #endif
-		/***********************************************/
-		/*   Allow  us  to  work on a single function  */
-		/*   for  debugging/tracing  else we generate  */
-		/*   too  much  printk() output and swamp the  */
-		/*   log daemon.			       */
-		/***********************************************/
+	/***********************************************/
+	/*   Allow  us  to  work on a single function  */
+	/*   for  debugging/tracing  else we generate  */
+	/*   too  much  printk() output and swamp the  */
+	/*   log daemon.			       */
+	/***********************************************/
 //		do_print = strstr(name, "ext3_mkdir") != NULL;
 
-		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-		
-		fbt->fbtp_name = name;
-		fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
-		    name, FBT_ENTRY, 3, fbt);
-		fbt->fbtp_patchpoint = instr;
-		fbt->fbtp_ctl = ctl;
-		fbt->fbtp_loadcnt = get_refcount(mp);
-		fbt->fbtp_rval = invop;
-		fbt->fbtp_savedval = *instr;
-		fbt->fbtp_patchval = FBT_PATCHVAL;
+	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
+			fbt->fbtp_name = name;
+	fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
+	    name, FBT_ENTRY, 3, fbt);
+	fbt->fbtp_patchpoint = instr;
+	fbt->fbtp_ctl = mp; // ctl;
+	fbt->fbtp_loadcnt = get_refcount(mp);
+	fbt->fbtp_rval = invop;
+	fbt->fbtp_savedval = *instr;
+	fbt->fbtp_patchval = FBT_PATCHVAL;
 
-		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
-		fbt->fbtp_symndx = i;
-		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
+	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
+	fbt->fbtp_symndx = i;
+	fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
-		if (do_print)
-			printk("%d:alloc entry-patchpoint: %s %p invop=%x %02x %02x %02x\n", 
-				__LINE__, 
-				name, 
-				fbt->fbtp_patchpoint, 
-				fbt->fbtp_rval, instr[0], instr[1], instr[2]);
+	if (do_print)
+		printk("%d:alloc entry-patchpoint: %s %p invop=%x %02x %02x %02x\n", 
+			__LINE__, 
+			name, 
+			fbt->fbtp_patchpoint, 
+			fbt->fbtp_rval, instr[0], instr[1], instr[2]);
 
-		pmp->fbt_nentries++;
+	pmp->fbt_nentries++;
 
-		retfbt = NULL;
+	retfbt = NULL;
 
-		/***********************************************/
-		/*   This   point   is   part   of   a   loop  */
-		/*   (implemented  with goto) to find the end  */
-		/*   part  of  a  function.  Original Solaris  */
-		/*   code assumes a single exit, via RET, for  */
-		/*   amd64,  but  is more accepting for i386.  */
-		/*   However,  with  GCC  as a compiler a lot  */
-		/*   more    things   can   happen   -   very  */
-		/*   specifically,  we can have multiple exit  */
-		/*   points in a function. So we need to find  */
-		/*   each of those.			       */
-		/***********************************************/
+	/***********************************************/
+	/*   This   point   is   part   of   a   loop  */
+	/*   (implemented  with goto) to find the end  */
+	/*   part  of  a  function.  Original Solaris  */
+	/*   code assumes a single exit, via RET, for  */
+	/*   amd64,  but  is more accepting for i386.  */
+	/*   However,  with  GCC  as a compiler a lot  */
+	/*   more    things   can   happen   -   very  */
+	/*   specifically,  we can have multiple exit  */
+	/*   points in a function. So we need to find  */
+	/*   each of those.			       */
+	/***********************************************/
 again:
-		if (instr >= limit) {
-			continue;
-		}
+	if (instr >= limit) {
+		return;
+	}
 
-		/*
-		 * If this disassembly fails, then we've likely walked off into
-		 * a jump table or some other unsuitable area.  Bail out of the
-		 * disassembly now.
-		 */
-		if ((size = dtrace_instr_size(instr)) <= 0)
-			continue;
+	/*
+	 * If this disassembly fails, then we've likely walked off into
+	 * a jump table or some other unsuitable area.  Bail out of the
+	 * disassembly now.
+	 */
+	if ((size = dtrace_instr_size(instr)) <= 0)
+		return;
 
 //HERE();
 #ifdef __amd64
-		/*
-		 * We only instrument "ret" on amd64 -- we don't yet instrument
-		 * ret imm16, largely because the compiler doesn't seem to
-		 * (yet) emit them in the kernel...
-		 */
-		if (*instr == FBT_RET) {
-			invop = FBT_LEAVE;
-		} else {
-			instr += size;
-			goto again;
-		}
-#else
-		switch (*instr) {
-/*		  case FBT_POPL_EBP:
-			invop = DTRACE_INVOP_POPL_EBP;
-			break;
-		  case FBT_LEAVE:
-			invop = DTRACE_INVOP_LEAVE;
-			break;
-*/
-		  case FBT_RET:
-			invop = DTRACE_INVOP_RET;
-			break;
-		  case FBT_RET_IMM16:
-			invop = DTRACE_INVOP_RET_IMM16;
-			break;
-		  default:
-			instr += size;
-			goto again;
-		  }
-#endif
-
-		/*
-		 * We have a winner!
-		 */
-		fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-		fbt->fbtp_name = name;
-
-		if (retfbt == NULL) {
-			fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
-			    name, FBT_RETURN, 3, fbt);
-		} else {
-			retfbt->fbtp_next = fbt;
-			fbt->fbtp_id = retfbt->fbtp_id;
-		}
-		retfbt = fbt;
-		fbt->fbtp_patchpoint = instr;
-		fbt->fbtp_ctl = ctl;
-		fbt->fbtp_loadcnt = get_refcount(mp);
-
-		/***********************************************/
-		/*   Swapped  sense  of  the  following ifdef  */
-		/*   around so we are consistent.	       */
-		/***********************************************/
-		fbt->fbtp_rval = invop;
-#ifdef __amd64
-		ASSERT(*instr == FBT_RET);
-		fbt->fbtp_roffset =
-		    (uintptr_t)(instr - (uint8_t *)sym->st_value);
-#else
-		fbt->fbtp_roffset =
-		    (uintptr_t)(instr - (uint8_t *)sym->st_value) + 1;
-
-#endif
-
-		fbt->fbtp_savedval = *instr;
-		fbt->fbtp_patchval = FBT_PATCHVAL;
-		fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
-		fbt->fbtp_symndx = i;
-
-		if (do_print) {
-			printk("%d:alloc return-patchpoint: %s %p: %02x %02x invop=%d\n", __LINE__, name, instr, instr[0], instr[1], invop);
-		}
-
-		fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
-
-		pmp->fbt_nentries++;
-
+	/*
+	 * We only instrument "ret" on amd64 -- we don't yet instrument
+	 * ret imm16, largely because the compiler doesn't seem to
+	 * (yet) emit them in the kernel...
+	 */
+	if (*instr == FBT_RET) {
+		invop = FBT_LEAVE;
+	} else {
 		instr += size;
 		goto again;
 	}
-}
+#else
+	switch (*instr) {
+/*		  case FBT_POPL_EBP:
+		invop = DTRACE_INVOP_POPL_EBP;
+		break;
+	  case FBT_LEAVE:
+		invop = DTRACE_INVOP_LEAVE;
+		break;
+*/
+	  case FBT_RET:
+		invop = DTRACE_INVOP_RET;
+		break;
+	  case FBT_RET_IMM16:
+		invop = DTRACE_INVOP_RET_IMM16;
+		break;
+	  default:
+		instr += size;
+		goto again;
+	  }
+#endif
 
+	/*
+	 * We have a winner!
+	 */
+	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
+	fbt->fbtp_name = name;
+
+	if (retfbt == NULL) {
+		fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
+		    name, FBT_RETURN, 3, fbt);
+	} else {
+		retfbt->fbtp_next = fbt;
+		fbt->fbtp_id = retfbt->fbtp_id;
+	}
+	retfbt = fbt;
+	fbt->fbtp_patchpoint = instr;
+	fbt->fbtp_ctl = mp; //ctl;
+	fbt->fbtp_loadcnt = get_refcount(mp);
+
+	/***********************************************/
+	/*   Swapped  sense  of  the  following ifdef  */
+	/*   around so we are consistent.	       */
+	/***********************************************/
+	fbt->fbtp_rval = invop;
+#ifdef __amd64
+	ASSERT(*instr == FBT_RET);
+	fbt->fbtp_roffset =
+	    (uintptr_t)(instr - (uint8_t *)st_value);
+#else
+	fbt->fbtp_roffset =
+	    (uintptr_t)(instr - (uint8_t *)st_value) + 1;
+
+#endif
+
+	fbt->fbtp_savedval = *instr;
+	fbt->fbtp_patchval = FBT_PATCHVAL;
+	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
+	fbt->fbtp_symndx = i;
+
+	if (do_print) {
+		printk("%d:alloc return-patchpoint: %s %p: %02x %02x invop=%d\n", __LINE__, name, instr, instr[0], instr[1], invop);
+	}
+
+	fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
+
+	pmp->fbt_nentries++;
+
+	instr += size;
+	goto again;
+}
 /*ARGSUSED*/
 static void
 fbt_destroy(void *arg, dtrace_id_t id, void *parg)

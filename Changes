@@ -1,4 +1,36 @@
+Sun Mar  1 00:10:21 2009  fox
+
+     175* Archive: 1.0067
+
+     174* toxic.c: Added to allow filtering of bad probe funcs in the
+          kernel. Not finished yet (for my kernel).
+
+     173* dtrace.c, fbt_linux.c: Add support for fbt:kernel:... so
+          we can start tracing real kernel functions. This is dangerous
+	  at this time (wait for next update?) since you can trace
+	  anything - including the bits of the kernel dtrace depends on.
+	  Next step is to hide those symbols we depend on so you can
+	  do:
+
+	  dtrace -n fbt:kernel::
+
+     172* cpu_32bit.c: Add support for 89 c0..c7 (mov %eax,reg)
+
+     171* Archive: 1.0066
+
+     170* dtrace_asm.c: Fix dtrace_interrupt_disable - we broke
+          the C/asm interface semantics - would crash a real cpu, but
+	  not vmware for some reason.
+
+Sat Feb 28 22:45:59 2009  fox
+
+     169* makefile: recreate build symlink each time in case of kernel
+          upgrade.
+
 Fri Feb 27 20:16:31 2009  fox
+
+     168* makefile: Add a 'build' number when we create a release in case
+          we release multiple times per day.
 
      167* fbt_linux.c, cpu_32bit.c: Add support for 
 

@@ -1,0 +1,14 @@
+#! /bin/sh
+# simple script i use to sync my vmware session
+###########
+xx ()                                                                                                          
+{                                                                                                              
+    cd_func /home/fox/src/dtrace;                                                                              
+    $HOME/bin/xx                                                                                               
+}
+###########
+rdate
+mkupdate
+make all
+#root sh -c "echo 1 >/proc/sys/kernel/panic_on_oops"
+

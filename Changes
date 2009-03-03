@@ -1,3 +1,18 @@
+Tue Mar  3 10:33:15 2009  fox
+
+     178* dtrace_linux.c: dtrace_gethrtime() Fix bug stopping us probe
+          nr_active and friends and other timer related functions, since
+	  we deadlocked inside our probe interrupt. Need to fix dtrace_gethrtime
+	  since we do a read from a multiword item, and this can change
+	  whilst we read it, leading to potentially non-monotonic
+	  clock.
+
+     177* Archive: 1.0068
+
+     176* systrace.c, fbt_linux.c, dtrace_linux.c: For fbt probes,
+          the i386 kernel is write protected; make pages writable,
+	  to avoid paniccing the driver.
+
 Sun Mar  1 00:10:21 2009  fox
 
      175* Archive: 1.0067

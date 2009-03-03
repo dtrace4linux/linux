@@ -27,8 +27,12 @@
 /**********************************************************************/
 char toxic_probe_tbl[] = {
 	"__atomic_notifier_call_chain "
+	"dump_task_regs "
 	"atomic_notifier_call_chain "
 	"__kmalloc "
+	"__show_registers "
+	"show_registers "
+	"show_regs "
 	"__mod_timer "
 	"copy_from_user "
 	"copy_to_user "
@@ -87,7 +91,7 @@ int 	strlen(char *);
 char	*strncmp(char *, char *, int);
 
 int 
-is_toxic_func(unsigned long a, char *name)
+is_toxic_func(unsigned long a, const char *name)
 {	char	*cp;
 	int	len = strlen(name);
 

@@ -475,6 +475,9 @@ load:
 int
 dtrace_getstackdepth(int aframes)
 {
+# if 1
+	return 0;
+# else
 	struct frame *fp = (struct frame *)dtrace_getfp();
 	struct frame *nextfp, *minfp, *stacktop;
 	int depth = 0;
@@ -482,7 +485,6 @@ dtrace_getstackdepth(int aframes)
 	int on_intr;
 	uintptr_t pc;
 
-# if 0
 	if ((on_intr = CPU_ON_INTR(CPU)) != 0)
 		stacktop = (struct frame *)(CPU->cpu_intr_stack + SA(MINFRAME));
 	else
@@ -652,7 +654,9 @@ dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 	/***********************************************/
 //	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
 
-printk("copycheck: uaddr=%p kaddr=%p size=%d\n", uaddr, kaddr, size);
+if (dtrace_here) {
+printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, size);
+}
 	if (!__addr_ok(uaddr) || !__addr_ok(uaddr + size)) {
 HERE2();
 //printk("uaddr=%p size=%d\n", uaddr, size);

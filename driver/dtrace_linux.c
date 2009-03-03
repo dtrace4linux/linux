@@ -9,6 +9,9 @@
 /*   License: CDDL						      */
 /**********************************************************************/
 
+#include <linux/mm.h>
+# undef zone
+# define zone linux_zone
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
@@ -27,6 +30,8 @@
 #include <asm/current.h>
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
+#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE("CDDL");
@@ -35,6 +40,8 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 # if !defined(CONFIG_NR_CPUS)
 #	define	CONFIG_NR_CPUS	1
 # endif
+
+# define	TRACE_ALLOC	1
 
 /**********************************************************************/
 /*   Turn on HERE() macro tracing.				      */
@@ -100,9 +107,6 @@ uintptr_t kernelbase = 0; //_stext;
 cpu_t	*cpu_list;
 cpu_core_t cpu_core[CONFIG_NR_CPUS];
 cpu_t cpu_table[NCPU];
-EXPORT_SYMBOL(cpu_list);
-EXPORT_SYMBOL(cpu_core);
-EXPORT_SYMBOL(cpu_table);
 DEFINE_MUTEX(mod_lock);
 
 static DEFINE_MUTEX(dtrace_provider_lock);	/* provider state lock */
@@ -112,6 +116,12 @@ sol_proc_t	*curthread;
 
 dtrace_vtime_state_t dtrace_vtime_active = 0;
 dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
+
+/**********************************************************************/
+/*   For dtrace_gethrtime.					      */
+/**********************************************************************/
+static int tsc_max_delta;
+static struct timespec *xtime_cache_ptr;
 
 /**********************************************************************/
 /*   Stuff for INT3 interception.				      */
@@ -218,12 +228,41 @@ atomic_add_64(uint64_t *p, int n)
 {
 	*p += n;
 }
+/**********************************************************************/
+/*   We cannot call do_gettimeofday, or ktime_get_ts or any of their  */
+/*   inferiors  because they will attempt to lock on a mutex, and we  */
+/*   end  up  not being able to trace fbt::kernel:nr_active. We have  */
+/*   to emulate a stable clock reading ourselves. 		      */
+/**********************************************************************/
 hrtime_t
 dtrace_gethrtime()
-{	struct timeval tv;
+{
+	struct timespec ts;
 
+	/*
+	void (*ktime_get_ts)() = get_proc_addr("ktime_get_ts");
+	if (ktime_get_ts == NULL) return 0;
+	ktime_get_ts(&ts);
+	*/
+
+	/***********************************************/
+	/*   TODO:  This  needs  to  be fixed: we are  */
+	/*   reading  the  clock  which  needs a lock  */
+	/*   around  the  access,  since  this  is  a  */
+	/*   multiword  item,  and  we  may pick up a  */
+	/*   partial update.			       */
+	/***********************************************/
+//	if (!xtime_cache_ptr)
+//		return 0;
+
+	ts = *xtime_cache_ptr;
+	return (hrtime_t) ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
+
+/*
+	struct timeval tv;
 	do_gettimeofday(&tv);
 	return (hrtime_t) tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
+*/
 }
 uint64_t
 dtrace_gethrestime()
@@ -322,6 +361,8 @@ return DATAMODEL_LP64;
 static void
 dtrace_linux_init(void)
 {
+	hrtime_t	t, t1;
+
 	if (fn_register_die_notifier)
 		return;
 
@@ -359,6 +400,16 @@ dtrace_linux_init(void)
 	if (fn_register_die_notifier) {
 		(*fn_register_die_notifier)(&n_trap_illop);
 	}
+	/***********************************************/
+	/*   Compute     tsc_max_delta     so    that  */
+	/*   dtrace_gethrtime  doesnt hang around for  */
+	/*   too long. Similar to Solaris code.	       */
+	/***********************************************/
+	xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime_cache");
+	rdtscll(t);
+	(void) dtrace_gethrtime();
+	rdtscll(t1);
+	tsc_max_delta = t1 - t;
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -394,11 +445,11 @@ dtrace_mach_aframes(void)
 /*   public one, so we could probe it if we want.		      */
 /**********************************************************************/
 char *
-dtrace_memchr(char *buf, int c, int len)
+dtrace_memchr(const char *buf, int c, int len)
 {
 	while (len-- > 0) {
 		if (*buf++ == c)
-			return buf - 1;
+			return (char *) buf - 1;
 		}
 	return NULL;
 }
@@ -609,8 +660,9 @@ kmem_alloc(size_t size, int flags)
 	} else {
 		ptr = kmalloc(size, flags);
 	}
-	if (dtrace_here)
-		printk("kmem_alloc(%d) := %p\n", size, ptr);
+	if (TRACE_ALLOC || dtrace_here) {
+		printk("kmem_alloc(%d) := %p ret=%p\n", size, ptr, __builtin_return_address(0));
+	}
 	return ptr;
 }
 void *
@@ -624,13 +676,15 @@ kmem_zalloc(size_t size, int flags)
 	} else {
 		ptr = kzalloc(size, flags);
 	}
-	if (dtrace_here)
+	if (TRACE_ALLOC || dtrace_here)
 		printk("kmem_zalloc(%d) := %p\n", size, ptr);
 	return ptr;
 }
 void
 kmem_free(void *ptr, int size)
 {
+	if (TRACE_ALLOC || dtrace_here)
+		printk("kmem_free(%p, size=%d)\n", ptr, size);
 	if (size > VMALLOC_SIZE)
 		vfree(ptr);
 	else
@@ -701,6 +755,67 @@ validate_ptr(const void *ptr)
 //	printk("validate: ptr=%p ret=%d\n", ptr, ret);
 
 	return ret;
+}
+/**********************************************************************/
+/*   i386:							      */
+/*   Set  an  address  to be writeable. Need this because kernel may  */
+/*   have  R/O sections. Using linux kernel apis is painful, because  */
+/*   they  keep  changing  or  do  the wrong thing. (Or, I just dont  */
+/*   understand  them  enough,  which  is  more  likely). This 'just  */
+/*   works'.							      */
+/*   								      */
+/*   __amd64:							      */
+/*   In  2.6.24.4  and  related kernels, x86-64 isnt page protecting  */
+/*   the sys_call_table. Dont know why -- maybe its a bug and we may  */
+/*   have to revisit this later if they turn it back on. 	      */
+/**********************************************************************/
+int
+memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
+{
+#if defined(__i386)
+	int level;
+	pte_t *pte;
+
+static pte_t *(*lookup_address)(void *, int *);
+static void (*flush_tlb_all)(void);
+
+
+	if (lookup_address == NULL)
+		lookup_address = get_proc_addr("lookup_address");
+	if (lookup_address == NULL) {
+		printk("dtrace:systrace.c: sorry - cannot locate lookup_address()\n");
+		return 0;
+		}
+
+	pte = lookup_address(addr, &level);
+/*
+printk("pte: level=%d %lx %s %s\n",
+	level, (long) pte_val(*pte), 
+	pte_val(*pte) & _PAGE_RW ? "RW" : "RO",
+	pte_val(*pte) & _PAGE_USER ? "USER" : "KERNEL");
+*/
+	if ((pte_val(*pte) & _PAGE_RW) == 0) {
+# if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+			pte->pte_low |= _PAGE_RW;
+# else
+			pte->pte |= _PAGE_RW;
+# endif
+
+		/***********************************************/
+		/*   If  we  touch  the page mappings, ensure  */
+		/*   cpu  and  cpu  caches  no what happened,  */
+		/*   else we may have random GPFs as we go to  */
+		/*   do   a  write.  If  this  function  isnt  */
+		/*   available,   we   are   pretty  much  in  */
+		/*   trouble.				       */
+		/***********************************************/
+		if (flush_tlb_all == NULL)
+			flush_tlb_all = get_proc_addr("flush_tlb_all");
+		if (flush_tlb_all)
+			flush_tlb_all();
+		}
+# endif
+	return 1;
 }
 
 /**********************************************************************/
@@ -1114,8 +1229,13 @@ syms_write(struct file *file, const char __user *buf,
 # endif
 
 	if (xkallsyms_lookup_name) {
+
+		/***********************************************/
+		/*   Init any patching code.		       */
+		/***********************************************/
 		hunt_init();
 		dtrace_linux_init();
+
 	}
 	return orig_count;
 }
@@ -1181,6 +1301,9 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {	seq_t *seqp = (seq_t *) hdr;
 	void	*ret;
 
+	if (TRACE_ALLOC || dtrace_here)
+		printk("vmem_alloc(size=%d)\n", s);
+
 	mutex_lock(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
 	mutex_unlock(&seqp->seq_mutex);
@@ -1193,6 +1316,9 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
         size_t qcache_max, int vmflag)
 {	seq_t *seqp = kmalloc(sizeof *seqp, GFP_KERNEL);
 
+	if (TRACE_ALLOC || dtrace_here)
+		printk("vmem_create(size=%d)\n", size);
+
 	mutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
 
@@ -1200,8 +1326,10 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 }
 
 void
-vmem_free(vmem_t *hdr, void *ptr, size_t s)
+vmem_free(vmem_t *hdr, void *ptr, size_t size)
 {
+	if (TRACE_ALLOC || dtrace_here)
+		printk("vmem_free(ptr=%p, size=%d)\n", ptr, size);
 
 }
 void 
@@ -1373,6 +1501,10 @@ static struct miscdevice helper_dev = {
         "dtrace_helper",
         &helper_fops
 };
+
+/**********************************************************************/
+/*   This is where we start after loading the driver.		      */
+/**********************************************************************/
 
 static int __init dtracedrv_init(void)
 {	int	i, ret;

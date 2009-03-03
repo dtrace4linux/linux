@@ -144,7 +144,6 @@ HERE();
 
 				dtrace_probe(fbt->fbtp_id, stack0, stack1,
 				    stack2, stack3, stack4);
-HERE();
 
 				CPU->cpu_dtrace_caller = NULL;
 			} else {
@@ -233,7 +232,7 @@ fbt_provide_kernel()
 		/*   If  this  function  is  toxic, we mustnt  */
 		/*   touch it.				       */
 		/***********************************************/
-		if (cp && *cp && !is_toxic_func(a, cp)) {
+		if (cp && *cp && !is_toxic_func((unsigned long) a, cp)) {
 			fbt_provide_function(&kern, &kern,
 				"kernel", name, 
 				a, a, aend, n);
@@ -748,7 +747,6 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 # if 0
 	ctl->mod_nenabled++;
 # endif
-
 	if (mp->state != MODULE_STATE_LIVE) {
 		if (fbt_verbose) {
 			cmn_err(CE_NOTE, "fbt is failing for probe %s "
@@ -777,7 +775,8 @@ HERE();
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
 if (dtrace_here) printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
-		*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
+		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
+			*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
 	}
 HERE();
 }

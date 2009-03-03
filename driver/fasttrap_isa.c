@@ -1031,7 +1031,6 @@ HERE();
 	if (tp->ftt_ids != NULL) {
 		fasttrap_id_t *id;
 
-HERE();
 #ifdef __amd64
 		if (dtrace_data_model(p) == DATAMODEL_LP64) {
 			for (id = tp->ftt_ids; id != NULL; id = id->fti_next) {
@@ -1206,7 +1205,7 @@ PRINT_CASE(FASTTRAP_T_RET);
 #endif
 
 		if (ret == -1) {
-			fasttrap_sigsegv(p, curthread, rp->r_sp);
+			fasttrap_sigsegv(p, current, rp->r_sp);
 			new_pc = pc;
 			break;
 		}
@@ -1357,7 +1356,7 @@ PRINT_CASE(FASTTRAP_T_PUSHL_EBP);
 #endif
 
 		if (ret == -1) {
-			fasttrap_sigsegv(p, curthread, addr);
+			fasttrap_sigsegv(p, current, addr);
 			new_pc = pc;
 			break;
 		}
@@ -1395,7 +1394,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 				 */
 				if (tp->ftt_segment != FASTTRAP_SEG_NONE &&
 				    fasttrap_do_seg(tp, rp, &addr) != 0) {
-					fasttrap_sigsegv(p, curthread, addr);
+					fasttrap_sigsegv(p, current, addr);
 					new_pc = pc;
 					break;
 				}
@@ -1405,7 +1404,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 #endif
 					if (fasttrap_fulword((void *)addr,
 					    &value) == -1) {
-						fasttrap_sigsegv(p, curthread,
+						fasttrap_sigsegv(p, current,
 						    addr);
 						new_pc = pc;
 						break;
@@ -1417,7 +1416,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 					addr = (uintptr_t)(uint32_t)addr;
 					if (fasttrap_fuword32((void *)addr,
 					    &value32) == -1) {
-						fasttrap_sigsegv(p, curthread,
+						fasttrap_sigsegv(p, current,
 						    addr);
 						new_pc = pc;
 						break;
@@ -1454,7 +1453,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 #endif
 
 			if (ret == -1) {
-				fasttrap_sigsegv(p, curthread, addr);
+				fasttrap_sigsegv(p, current, addr);
 				new_pc = pc;
 				break;
 			}

@@ -41,7 +41,7 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 #	define	CONFIG_NR_CPUS	1
 # endif
 
-# define	TRACE_ALLOC	1
+# define	TRACE_ALLOC	0
 
 /**********************************************************************/
 /*   Turn on HERE() macro tracing.				      */

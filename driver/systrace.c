@@ -207,7 +207,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	/***********************************************/
 #if defined(__i386)
 	{
-	struct pt_regs *pregs = &arg0;
+	struct pt_regs *pregs = (struct pt_regs *) &arg0;
 	__asm(
 		// Move the stack pt_regs to be in the right
 		// place for the underlying syscall.

@@ -1,3 +1,7 @@
+Thu Mar  5 23:31:02 2009  fox
+
+     179* cpu_32bit.c: Fix "TEST %EAX,%EAX" emulation.
+
 Tue Mar  3 10:33:15 2009  fox
 
      178* dtrace_linux.c: dtrace_gethrtime() Fix bug stopping us probe

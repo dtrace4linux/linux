@@ -425,7 +425,7 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 			: "=a" (fl)
 			: "a" (regs->r_rax)
 			);
-		regs->r_rfl = (regs->r_rfl & ~0xff) | (regs->r_rfl & 0xff);
+		regs->r_rfl = (regs->r_rfl & ~0xff) | (fl & 0xff);
 	  	break;
 		}
 

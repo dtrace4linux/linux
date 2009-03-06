@@ -408,10 +408,30 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 	  	break;
 		}
 	  case DTRACE_INVOP_MOV_REG_REG: { // 89 c0..c7 mov %eax,reg
-	  	int s = reg_map[(*(unsigned char *) regs->r_pc & 0x38) >> 3];
-	  	int r = reg_map[*(unsigned char *) regs->r_pc & 0x7];
-		((int *) regs)[r] = ((int *) regs)[s];
+		int op = *(unsigned char *) regs->r_pc;
+	  	int s = reg_map[(op >> 3) & 0x07];
+	  	int r = reg_map[op & 0x7];
+		int v = ((int *) regs)[s];
+		/***********************************************/
+		/*   Handle MOV %ESP,%EAX		       */
+		/***********************************************/
+		if (((op >> 3) & 0x07) == 4) {
+			v = regs + 1;
+		}
+		((int *) regs)[r] = v;
 		regs->r_pc++;
+		/***********************************************/
+		/*   Need  to  avoid re-entrancy issues, e.g.  */
+		/*   with local_bh_disable, if we return from  */
+		/*   here, so inline the interrupt exit.       */
+		/***********************************************/
+		__asm__(
+			REGISTER_POP
+			"add $4, %%esp\n"
+			"iret\n"
+                        :
+                        : "a" (regs)
+			);
 	  	break;
 		}
 

@@ -13314,13 +13314,17 @@ HERE();
 					continue;
 			}
 
+HERE();
 			dtrace_ecb_disable(ecb);
+HERE();
 			dtrace_ecb_destroy(ecb);
+HERE();
 		}
 
 		if (!match)
 			break;
 	}
+HERE();
 
 	/*
 	 * Before we free the buffers, perform one more sync to assure that
@@ -13329,7 +13333,9 @@ HERE();
 	dtrace_sync();
 
 	dtrace_buffer_free(state->dts_buffer);
+HERE();
 	dtrace_buffer_free(state->dts_aggbuffer);
+HERE();
 
 	for (i = 0; i < nspec; i++)
 		dtrace_buffer_free(spec[i].dtsp_buffer);

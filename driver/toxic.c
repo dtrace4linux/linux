@@ -24,6 +24,15 @@
 /*   fbt:kernel:raw_notifier_call_chain:entry {}		      */
 /*   fbt:kernel:raw_notifier_call_chain:return {}		      */
 /*   ...							      */
+/*   								      */
+/*   These  functions  are mostly on the toxic list because they are  */
+/*   called,  or  they  call us, from the int3 interrupt handler. We  */
+/*   can reduce some of these by patching the interrupt vector table  */
+/*   direct,  and  by implementing private copies of functions where  */
+/*   possible.							      */
+/*   								      */
+/*   Some of these can be removed - the initial list was gotten from  */
+/*   looking at dtracedrv.ko's dependencies.			      */
 /**********************************************************************/
 char toxic_probe_tbl[] = {
 	"__atomic_notifier_call_chain "
@@ -31,6 +40,7 @@ char toxic_probe_tbl[] = {
 	"__mod_timer "
 	"__show_registers "
 	"atomic_notifier_call_chain " // [ind] used by us registering INT3 handler
+	"common_interrupt "
 	"copy_from_user "
 	"copy_to_user "
 	"del_timer "
@@ -38,6 +48,7 @@ char toxic_probe_tbl[] = {
 	"do_oops_enter_exit "
 	"dump_task_regs "
 	"dump_trace "
+	"do_int3 " // Used by us for probes
 	"find_task_by_vpid "
 	"get_kprobe "
 	"init_timer "
@@ -48,12 +59,17 @@ char toxic_probe_tbl[] = {
 	"kmem_cache_destroy "
 	"kmem_cache_free "
 	"kprobe_exceptions_notify " // on our shared notifier chain
-	"memcpy "
-	"memset "
 	"mutex_lock "
 	"mutex_unlock "
 	"notify_die "
-	"on_each_cpu "
+	/***********************************************/
+	/*   We  need  to  patch the interrupt vector  */
+	/*   direct  to allow us to avoid this, since  */
+	/*   we  are  called  by the first level trap  */
+	/*   handler from the following functions.     */
+	/***********************************************/
+	"notifier_call_chain "
+	"on_each_cpu " 		// Needed by dtrace_xcall
 	"oops_exit "
 	"oops_may_print "
 	"panic "
@@ -65,21 +81,7 @@ char toxic_probe_tbl[] = {
 	"send_sig_info "
 	"show_registers "
 	"show_regs "
-	"simple_strtoul "
 	"smp_call_function_single "
-	"snprintf "
-	"sort "
-	"sprintf "
-	"strcasecmp "
-	"strcat "
-	"strchr "
-	"strcmp "
-	"strcpy "
-	"strlen "
-	"strncmp "
-	"strncpy "
-	"strpbrk "
-	"strstr "
 	"vfree "
 	"vmalloc "
 	"vprintk "
@@ -94,10 +96,10 @@ char	*strncmp(char *, char *, int);
 int 
 is_toxic_func(unsigned long a, const char *name)
 {	char	*cp;
-	int	len = strlen(name);
+	int	len = strlen((char *) name);
 
 	for (cp = toxic_probe_tbl; *cp; ) {
-		if (strncmp(cp, name, len) == 0 &&
+		if (strncmp(cp, (char *) name, len) == 0 &&
 		    cp[len] == ' ')
 		    	return 1;
 		while (*cp && *cp != ' ')

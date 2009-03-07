@@ -48,6 +48,8 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 /**********************************************************************/
 int dtrace_here;
 module_param(dtrace_here, int, 0);
+int dtrace_mem_alloc;
+module_param(dtrace_mem_alloc, int, 0);
 
 static char *invop_msgs[] = {
 	"DTRACE_INVOP_zero",
@@ -293,7 +295,7 @@ vcmn_err(int ce, const char *fmt, va_list adx)
                 panic("Solaris: unknown severity level");
         }
         if (ce == CE_PANIC)
-                panic(buf);
+                panic("%s", buf);
         if (ce != CE_IGNORE)
                 printk(buf, adx);
 }
@@ -660,9 +662,8 @@ kmem_alloc(size_t size, int flags)
 	} else {
 		ptr = kmalloc(size, flags);
 	}
-	if (TRACE_ALLOC || dtrace_here) {
+	if (TRACE_ALLOC || dtrace_mem_alloc)
 		printk("kmem_alloc(%d) := %p ret=%p\n", size, ptr, __builtin_return_address(0));
-	}
 	return ptr;
 }
 void *
@@ -676,14 +677,14 @@ kmem_zalloc(size_t size, int flags)
 	} else {
 		ptr = kzalloc(size, flags);
 	}
-	if (TRACE_ALLOC || dtrace_here)
+	if (TRACE_ALLOC || dtrace_mem_alloc)
 		printk("kmem_zalloc(%d) := %p\n", size, ptr);
 	return ptr;
 }
 void
 kmem_free(void *ptr, int size)
 {
-	if (TRACE_ALLOC || dtrace_here)
+	if (TRACE_ALLOC || dtrace_mem_alloc)
 		printk("kmem_free(%p, size=%d)\n", ptr, size);
 	if (size > VMALLOC_SIZE)
 		vfree(ptr);
@@ -848,7 +849,8 @@ par_alloc(void *ptr, int size, int *init)
 	if (init)
 		*init = do_init;
 
-	p = kmalloc(size + sizeof(*p), GFP_KERNEL);
+	if ((p = kmalloc(size + sizeof(*p), GFP_KERNEL)) == NULL)
+		return NULL;
 	p->pa_ptr = ptr;
 	p->pa_next = hd_par;
 	memset(p+1, 0, size);
@@ -919,10 +921,21 @@ par_setup_thread()
 }
 void *
 par_setup_thread1(struct task_struct *tp)
-{	int	init;
-	par_alloc_t *p = par_alloc(tp, sizeof *curthread, &init);
-	sol_proc_t	*solp = (sol_proc_t *) (p + 1);
+{	int	init = TRUE;
+//	par_alloc_t *p = par_alloc(tp, sizeof *curthread, &init);
+static par_alloc_t *static_p;
+	par_alloc_t *p;
+	sol_proc_t	*solp;
 
+	if (static_p == NULL) {
+		static_p = par_alloc(tp, sizeof *curthread, &init);
+	}
+	p = static_p;
+
+	if (p == NULL)
+		return NULL;
+
+	solp = (sol_proc_t *) (p + 1);
 	if (init) {
 		mutex_init(&solp->p_lock);
 		mutex_init(&solp->p_crlock);
@@ -1301,7 +1314,7 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 {	seq_t *seqp = (seq_t *) hdr;
 	void	*ret;
 
-	if (TRACE_ALLOC || dtrace_here)
+	if (TRACE_ALLOC || dtrace_mem_alloc)
 		printk("vmem_alloc(size=%d)\n", s);
 
 	mutex_lock(&seqp->seq_mutex);

@@ -271,6 +271,11 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 	  case DTRACE_INVOP_SUBL_ESP_nn:
 PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		nn = *(unsigned char *) (regs->r_pc + 1);
+		if (nn == 0) {
+		  	regs->r_pc += 2;
+			break;
+		}
+
 		if (nn == 4) {
 	                __asm(
 				REGISTER_POP

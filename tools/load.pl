@@ -21,6 +21,7 @@ my $SUDO = "setuid root";
 #######################################################################
 my %opts = (
 	here => 0,
+	mem_alloc => 0,
 	v => 0,
 	);
 
@@ -73,7 +74,7 @@ sub main
 	#####################################################################
 	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
 	print "Loading: $dtracedrv\n";
-	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}");
+	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here} dtrace_mem_alloc=$opts{mem_alloc}");
 	if ($ret) {
 		print "\n";
 		print "An error was detected loading the driver. Refer to\n";
@@ -233,14 +234,15 @@ sub usage
 {
 	print <<EOF;
 load.pl: load dtrace driver and prime the links to the kernel.
-Usage: load.pl [-v] [-here] [-fast]
+Usage: load.pl [-v] [-here] [-fast] [-mem_alloc]
 
 Switches:
 
-   -v      Be more verbose about loading process (repeat for more).
-   -fast   Dont do 'dtrace -l' after load to avoid kernel messages.
-   -here   Enable tracing to /var/log/messages.
-   -unload Unload the dtrace driver.
+   -v         Be more verbose about loading process (repeat for more).
+   -fast      Dont do 'dtrace -l' after load to avoid kernel messages.
+   -here      Enable tracing to /var/log/messages.
+   -mem_alloc Trace memory allocs (kmem_alloc/kmem_zalloc/kmem_free).
+   -unload    Unload the dtrace driver.
 
 EOF
 	exit(1);

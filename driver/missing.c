@@ -27,6 +27,25 @@ strcasecmp(char *s1, char *s2)
 		return -1;
 	return 0;
 }
+size_t
+strlen(const char *str)
+{
+	const char *str1 = str;
+
+	while (*str1)
+		str1++;
+	return str1 - str;
+}
+int
+strncmp(const char *s1, const char *s2, size_t len)
+{
+	while (len-- > 0) {
+		int ch = *s2++ - *s1++;
+		if (ch)
+			return ch;
+	}
+	return 0;
+}
 # endif
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)

@@ -218,10 +218,11 @@ fbt_provide_kernel()
 		const char *cp;
 		unsigned long size;
 		unsigned long offset;
-		char	*modname;
+		char	*modname = NULL;
 
 //printk("lookup %p kallsyms_lookup=%p\n", a, kallsyms_lookup);
 		cp = kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
+
 		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);
 		if (cp == NULL)
 			aend = a + 4;
@@ -233,7 +234,8 @@ fbt_provide_kernel()
 		/*   touch it.				       */
 		/***********************************************/
 		if (cp && *cp && !is_toxic_func((unsigned long) a, cp)) {
-			fbt_provide_function(&kern, &kern,
+			fbt_provide_function(&kern, 
+				(par_module_t *) &kern, //uck on the cast..we dont really need it
 				"kernel", name, 
 				a, a, aend, n);
 		}
@@ -421,6 +423,16 @@ HERE();
 //HERE();
 
 		/***********************************************/
+		/*   Ignore the init function of modules - we  */
+		/*   will  never  execute them now the module  */
+		/*   is loaded, and we dont want to be poking  */
+		/*   potential  pages  which  dont  exist  in  */
+		/*   memory or which are being used for data.  */
+		/***********************************************/
+		if (instr == (uint8_t *) mp->init)
+			continue;
+
+		/***********************************************/
 		/*   We  do have syms that appear to point to  */
 		/*   unmapped  pages.  Maybe  these are freed  */
 		/*   pages after a driver loads. Double check  */
@@ -430,6 +442,36 @@ HERE();
 		if (!validate_ptr(instr))
 			continue;
 
+		/***********************************************/
+		/*   Look  at the section this symbol is in -  */
+		/*   we   dont   want   sections   which  can  */
+		/*   disappear   or   have   disappeared  (eg  */
+		/*   .init).				       */
+		/***********************************************/
+		{
+		struct module_sect_attr
+		{
+		        struct module_attribute mattr;
+		        char *name;
+		        unsigned long address;
+		};
+
+		struct module_sect_attrs
+		{
+		        struct attribute_group grp;
+		        unsigned int nsections;
+		        struct module_sect_attr attrs[0];
+		};
+		struct module_sect_attrs *secp = mp->sect_attrs;
+		char *secname = secp->attrs[sym->st_shndx].name;
+		if (strstr(secname, ".init"))
+			continue;
+//		printk("elf: %s info=%x other=%x shndx=%x sec=%p name=%s\n", name, sym->st_info, sym->st_other, sym->st_shndx, mp->sect_attrs, secname);
+		}
+
+		/***********************************************/
+		/*   We are good to go...		       */
+		/***********************************************/
 		fbt_provide_function(mp, pmp,
 			modname, name, 
 			(uint8_t *) sym->st_value, 
@@ -555,7 +597,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-//		do_print = strstr(name, "ext3_mkdir") != NULL;
+//		do_print = strcmp(name, "init_memory_mapping") != NULL;
 
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 			fbt->fbtp_name = name;
@@ -774,7 +816,8 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 HERE();
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
-if (dtrace_here) printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
+		if (1||dtrace_here) 
+			printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
 		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
 			*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
 	}
@@ -801,8 +844,24 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		return;
 # endif
 
-	for (; fbt != NULL; fbt = fbt->fbtp_next)
-		*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+	for (; fbt != NULL; fbt = fbt->fbtp_next) {
+		if (1||dtrace_here) {
+			printk("%s:%d: Disable %p:%s:%s\n", 
+				__func__, __LINE__, 
+				fbt->fbtp_patchpoint, 
+				fbt->fbtp_ctl->name,
+				fbt->fbtp_name);
+		}
+		/***********************************************/
+		/*   Memory  should  be  writable,  but if we  */
+		/*   failed  in  the  fbt_enable  code,  e.g.  */
+		/*   because  kernel  freed an .init section,  */
+		/*   then  dont  try and unpatch something we  */
+		/*   didnt patch.			       */
+		/***********************************************/
+		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
+			*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+	}
 }
 
 /*ARGSUSED*/

@@ -1,0 +1,15 @@
+#! /bin/sh
+
+if [ "$1" = "-n" ]; then
+	n_flag=1
+	shift;
+fi
+
+grep " $1" /tmp/probes.current | 
+awk '{printf "%s:%s:%s:%s {}\n", $2, $3, $4, $5;}' |
+sort  | 
+grep :kernel: >/tmp/s
+cat /tmp/s
+if [ "$n_flag" = "" ]; then
+	dtrace -s /tmp/s
+fi

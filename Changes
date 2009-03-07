@@ -1,4 +1,39 @@
+Sat Mar  7 09:02:09 2009  fox
+
+     190* missing.c: Add strlen(), and strncmp() for older kernels/gcc's.
+
+     189* fbt_linux.c: When examining module symbols, ignore any in
+          the ".init" sections, else we can be trying to touch reclaimed
+	  pages.
+
+     188* fbt_linux.c: Dont allow us to create probes for module "init"
+          functions which are likely sitting in unmapped pages. This
+	  caused problems in dtrace_close() as we tried to unpatch them,
+	  but they may not be mapped or contain data since the pages would
+	  have been freed.
+
+     187* tools/load.pl, dtrace_linux.c: Add a -mem_alloc option
+          to turn on memory tracing. (Its too voluminous if enabled
+	  with -here).
+
+     186* fbt_linux.c:fbt_disable: Dont unpatch a probe we never
+          enabled in the first place (eg, because kernel unmapped
+	  a .init section).
+
+     185* Archive: 1.0069
+
+     184* toxic.c: Add do_int3, since this is the core of the
+          kernel for invoking us when a probe fires.
+
+     183* dtrace_linux.c: par_setup_thread: Hack for the moment to
+          avoid reentrancy issues in dtrace_probe.
+
 Fri Mar  6 14:09:04 2009  fox
+
+     182* toxic.c: Remove non-toxic functions (not all, but many).
+          Add notifier_call_chain.
+
+     181* cpu_32bit.c: Fix "SUBL $0,%ESP".
 
      180* cpu_32bit.c: Fix "MOV %ESP,%EAX" emulation which was
           causing kernel to die when we trace local_bh_disable.

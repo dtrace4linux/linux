@@ -1,0 +1,6 @@
+#! /bin/sh
+# Syscalls by function/process
+echo "System-calls including processname, ordered by frequency. "
+echo "Press Ctrl-C to terminate and view."
+set +x
+dtrace -n 'syscall:::entry { @num[probefunc, execname] = count(); }'

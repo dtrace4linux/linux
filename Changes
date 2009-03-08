@@ -1,3 +1,30 @@
+Sun Mar  8 00:39:01 2009  fox
+
+     198* fbt_linux.c: Fix 64-bit fbt.
+
+     197* cpu_32bit.c, fbt_linux.c: Emulate PUSH EAX instruction.
+
+     196* cpu_32bit.c, fbt_linux.c: Emulate PUSH $nn instruction.
+
+     195* cpu_32bit.c, fbt_linux.c: Emulate CLI instruction.
+
+     194* Archive: 1.0070
+
+     193* toxic.c: Add __mutex_* functions to the list since we
+          invoke mutex_lock/mutex_unlock and these are part of
+	  the implementation.
+
+	  dtrace -n fbt:::
+
+	  seems to work now - at least under lighter load.
+
+     192* fbt_linux.c: Dont include functions from the .exit section
+          of a module.
+
+     191* fbt_linux.c, dtrace_linux.c: Add on_notifier_list() to 
+          detect if a target probe point is on one of our notifier
+	  chains, and will cause kernel mayhem if we probe it.
+
 Sat Mar  7 09:02:09 2009  fox
 
      190* missing.c: Add strlen(), and strncmp() for older kernels/gcc's.

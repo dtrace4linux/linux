@@ -1,0 +1,10 @@
+#! /bin/sh
+echo "Show page faults for processes"
+echo "Press Ctrl-C to quit"
+set +x
+cat <<EOF | dtrace -s /dev/stdin
+fbt::do_page_fault:entry { @num[probefunc, execname] = count(); }
+tick-5sec { trunc(@num, 20); printa(@num); clear(@num); }
+EOF
+
+

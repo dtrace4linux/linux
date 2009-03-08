@@ -111,6 +111,26 @@ static void fbt_provide_function(struct modctl *mp,
 	char *modname, char *name, uint8_t *st_value, 
 	uint8_t *instr, uint8_t *limit, int);
 
+/**********************************************************************/
+/*   For debugging - make sure we dont add a patch to the same addr.  */
+/**********************************************************************/
+static int
+fbt_is_patched(uint8_t *addr)
+{
+	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
+
+	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
+		if (fbt->fbtp_patchpoint == addr) {
+			printk("Dup patch: %p\n", addr);
+			return 1;
+		}
+	}
+	return 0;
+}
+/**********************************************************************/
+/*   Here  from  INT3 interrupt context to see if the address we hit  */
+/*   is one of ours.						      */
+/**********************************************************************/
 static int
 fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, unsigned char *opcode)
 {
@@ -223,7 +243,7 @@ fbt_provide_kernel()
 //printk("lookup %p kallsyms_lookup=%p\n", a, kallsyms_lookup);
 		cp = kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
 
-		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);
+/*		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);*/
 		if (cp == NULL)
 			aend = a + 4;
 		else
@@ -464,7 +484,7 @@ HERE();
 		};
 		struct module_sect_attrs *secp = mp->sect_attrs;
 		char *secname = secp->attrs[sym->st_shndx].name;
-		if (strstr(secname, ".init"))
+		if (strcmp(secname, ".text") != 0)
 			continue;
 //		printk("elf: %s info=%x other=%x shndx=%x sec=%p name=%s\n", name, sym->st_info, sym->st_other, sym->st_shndx, mp->sect_attrs, secname);
 		}
@@ -491,6 +511,17 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	int	invop = 0;
 	fbt_probe_t *fbt, *retfbt;
 	int	 size = -1;
+
+	/***********************************************/
+	/*   Dont  let  us  register  anything on the  */
+	/*   notifier list(s) we are on, else we will  */
+	/*   have recursion trouble.		       */
+	/***********************************************/
+	if (on_notifier_list(instr)) {
+		printk("fbt_provide_function: Skip %s:%s - on notifier_chain\n",
+			modname, name);
+		return;
+	}
 
 #ifdef __amd64
 	while (instr < limit) {
@@ -573,6 +604,18 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 		}
 		break;
 
+	  case 0x50:
+		invop = DTRACE_INVOP_PUSHL_EAX;
+		break;
+
+	  case 0x68:
+		invop = DTRACE_INVOP_PUSH_NN32;
+		break;
+
+	  case 0x6a:
+		invop = DTRACE_INVOP_PUSH_NN;
+		break;
+
 	  case 0x89:
 	  	if ((instr[1] & 0xc0) == 0xc0)
 			invop = DTRACE_INVOP_MOV_REG_REG;
@@ -584,6 +627,10 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 
 	  case 0xe9:
 		invop = DTRACE_INVOP_JMP;
+		break;
+
+	  case 0xfa:
+	  	invop = DTRACE_INVOP_CLI;
 		break;
 
 	  default:
@@ -599,8 +646,21 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/***********************************************/
 //		do_print = strcmp(name, "init_memory_mapping") != NULL;
 
+	/***********************************************/
+	/*   Make  sure  this  doesnt overlap another  */
+	/*   sym. We are in trouble when this happens  */
+	/*   - eg we will mistaken what the emulation  */
+	/*   is  for,  but  also,  it means something  */
+	/*   strange  happens, like kernel is reusing  */
+	/*   a  page  (eg  for init/exit section of a  */
+	/*   module).				       */
+	/***********************************************/
+	if (fbt_is_patched(instr))
+		return;
+
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 			fbt->fbtp_name = name;
+
 	fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
 	    name, FBT_ENTRY, 3, fbt);
 	fbt->fbtp_patchpoint = instr;
@@ -657,12 +717,14 @@ again:
 	 * ret imm16, largely because the compiler doesn't seem to
 	 * (yet) emit them in the kernel...
 	 */
-	if (*instr == FBT_RET) {
-		invop = FBT_LEAVE;
-	} else {
+	switch (*instr) {
+	  case FBT_RET:
+		invop = DTRACE_INVOP_RET;
+		break;
+	  default:
 		instr += size;
 		goto again;
-	}
+	  }
 #else
 	switch (*instr) {
 /*		  case FBT_POPL_EBP:
@@ -684,6 +746,13 @@ again:
 	  }
 #endif
 
+	/***********************************************/
+	/*   Sanity check for bad things happening.    */
+	/***********************************************/
+	if (fbt_is_patched(instr)) {
+		instr += size;
+		goto again;
+	}
 	/*
 	 * We have a winner!
 	 */
@@ -816,7 +885,7 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 HERE();
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
-		if (1||dtrace_here) 
+		if (dtrace_here) 
 			printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
 		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
 			*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
@@ -845,7 +914,7 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
-		if (1||dtrace_here) {
+		if (dtrace_here) {
 			printk("%s:%d: Disable %p:%s:%s\n", 
 				__func__, __LINE__, 
 				fbt->fbtp_patchpoint, 

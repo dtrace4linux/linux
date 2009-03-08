@@ -1,0 +1,6 @@
+#! /bin/sh
+# Fbt calls
+echo "Function calls, ordered by frequency. Press Ctrl-C to quit"
+set +x
+dtrace -n 'fbt:::entry { @num[probefunc] = count(); }'
+

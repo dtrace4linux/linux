@@ -47,8 +47,8 @@ void	kmem_free(void *, int size);
 
 char	*dtrace_memchr(const char *, int, int);
 int	is_toxic_func(unsigned long a, const char *name);
-int memory_set_rw(void *addr, int num_pages, int is_kernel_addr);
-
+int	memory_set_rw(void *addr, int num_pages, int is_kernel_addr);
+int	on_notifier_list(uint8_t *);
 
 # endif
 

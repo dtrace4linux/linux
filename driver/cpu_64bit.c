@@ -75,7 +75,7 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 	  	break;
 
 	  default:
-	  	printk("Help me!!!!!!!!!!!!\n");
+	  	printk("Help me!!!!!!!!!!!! instr=%d\n", instr);
 		break;
 	  }
 }

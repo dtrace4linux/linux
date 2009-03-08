@@ -663,7 +663,7 @@ kmem_alloc(size_t size, int flags)
 		ptr = kmalloc(size, flags);
 	}
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("kmem_alloc(%d) := %p ret=%p\n", size, ptr, __builtin_return_address(0));
+		printk("kmem_alloc(%d) := %p ret=%p\n", (int) size, ptr, __builtin_return_address(0));
 	return ptr;
 }
 void *
@@ -678,7 +678,7 @@ kmem_zalloc(size_t size, int flags)
 		ptr = kzalloc(size, flags);
 	}
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("kmem_zalloc(%d) := %p\n", size, ptr);
+		printk("kmem_zalloc(%d) := %p\n", (int) size, ptr);
 	return ptr;
 }
 void
@@ -827,6 +827,42 @@ int
 mutex_count(mutex_t *mp)
 {
 	return atomic_read(&mp->count);
+}
+/**********************************************************************/
+/*   Called from fbt_linux.c. Dont let us register a probe point for  */
+/*   something  on the notifier chain because if we trigger, we will  */
+/*   panic/hang/reset the kernel due to reentrancy.		      */
+/*   								      */
+/*   Since  our entry may be towards the end of the list, we need to  */
+/*   scan  from  the front of the list, but we dont have that, so we  */
+/*   need to dig into the kernel to find it.			      */
+/**********************************************************************/
+int cnt;
+int
+on_notifier_list(uint8_t *ptr)
+{	struct notifier_block *np;
+	static struct atomic_notifier_head *die_chain;
+	static struct blocking_notifier_head *task_exit_notifier;
+	int	do_print = die_chain == NULL;
+
+	if (die_chain == NULL)
+		die_chain = (struct atomic_notifier_head *) get_proc_addr("die_chain");
+	if (task_exit_notifier == NULL)
+		task_exit_notifier = (struct blocking_notifier_head *) get_proc_addr("task_exit_notifier");
+
+	for (np = die_chain->head; np; np = np->next) {
+		if (do_print) 
+			printk("illop-chain: %p\n", np->notifier_call);
+		if ((uint8_t *) np->notifier_call == ptr)
+			return 1;
+	}
+	for (np = task_exit_notifier->head; np; np = np->next) {
+		if (do_print)
+			printk("exit-chain: %p\n", np->notifier_call);
+		if ((uint8_t *) np->notifier_call == ptr)
+			return 1;
+	}
+	return 0;
 }
 /**********************************************************************/
 /*   Parallel allocator to avoid touching kernel data structures. We  */
@@ -1315,7 +1351,7 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 	void	*ret;
 
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("vmem_alloc(size=%d)\n", s);
+		printk("vmem_alloc(size=%d)\n", (int) s);
 
 	mutex_lock(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
@@ -1330,7 +1366,7 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 {	seq_t *seqp = kmalloc(sizeof *seqp, GFP_KERNEL);
 
 	if (TRACE_ALLOC || dtrace_here)
-		printk("vmem_create(size=%d)\n", size);
+		printk("vmem_create(size=%d)\n", (int) size);
 
 	mutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
@@ -1342,7 +1378,7 @@ void
 vmem_free(vmem_t *hdr, void *ptr, size_t size)
 {
 	if (TRACE_ALLOC || dtrace_here)
-		printk("vmem_free(ptr=%p, size=%d)\n", ptr, size);
+		printk("vmem_free(ptr=%p, size=%d)\n", ptr, (int) size);
 
 }
 void 

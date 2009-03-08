@@ -90,6 +90,35 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
 	/*   not done so.			       */
 	/***********************************************/
 	switch (instr) {
+	  case DTRACE_INVOP_PUSHL_EAX: // 50
+PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
+		/***********************************************/
+		/*   We    are    emulating   a   PUSH   %EBP  */
+		/*   instruction.  We need to effect the push  */
+		/*   before the invalid opcode trap occurred,  */
+		/*   so we need to get into the inner core of  */
+		/*   the  kernel  trap  return code. Since we  */
+		/*   are  not  modifying  the  kernel, we can  */
+		/*   just inline what would have happened had  */
+		/*   we returned.			       */
+		/***********************************************/
+                __asm(
+			REGISTER_POP
+
+			"push %%eax\n"
+			"mov 8(%%esp), %%eax\n"  // EIP
+			"mov %%eax,4(%%esp)\n"
+			"mov 12(%%esp),%%eax\n"  // CS
+			"mov %%eax,8(%%esp)\n"
+			"mov 16(%%esp),%%eax\n"  // Flags
+			"mov %%eax,12(%%esp)\n"
+			"pop %%eax\n"
+			"mov %%ebp,12(%%esp)\n"  // emulated push EAX
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
+	  	break;
 	  case DTRACE_INVOP_PUSHL_EBP: // 55
 PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
 		/***********************************************/
@@ -268,6 +297,78 @@ PRINT_CASE(DTRACE_INVOP_MOVL_nnn_EAX);
 	  	regs->r_pc += 4;
 	  	break;
 
+	  case DTRACE_INVOP_PUSH_NN:
+                __asm(
+			REGISTER_POP
+			"add $4, %%esp\n"
+			//   Stack diagram:
+			//     16  Flags
+			//     12   CS
+			//      8   IP		-> new flags
+			//	4   tmp ax	-> new cs
+			//	0   tmp ax	-> new cs
+
+			"add $1,(%%esp)\n" // bump ip
+			"push %%eax\n"
+			"push %%eax\n"
+
+			"mov 8(%%esp),%%eax\n" // copy ip
+			"mov %%eax,4(%%esp)\n"
+
+			"mov 12(%%esp),%%eax\n" // copy cs
+			"mov %%eax,8(%%esp)\n"
+
+			"mov 16(%%esp),%%eax\n" // copy flags
+			"mov %%eax,12(%%esp)\n"
+
+			"movb 4(%%esp),%%al\n"
+			"movsbl %%al,%%eax\n"
+			"mov %%eax,16(%%esp)\n"
+
+			"pop %%eax\n"
+
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
+	  	break;
+
+	  case DTRACE_INVOP_PUSH_NN32:
+                __asm(
+			REGISTER_POP
+			"add $4, %%esp\n"
+			//   Stack diagram:
+			//     16  Flags
+			//     12   CS
+			//      8   IP		-> new flags
+			//	4   tmp ax	-> new cs
+			//	0   tmp ax	-> new cs
+
+			"push %%eax\n"
+			"push %%eax\n"
+
+			"mov 8(%%esp),%%eax\n" // copy ip
+			"mov %%eax,4(%%esp)\n"
+
+			"mov 12(%%esp),%%eax\n" // copy cs
+			"mov %%eax,8(%%esp)\n"
+
+			"mov 16(%%esp),%%eax\n" // copy flags
+			"mov %%eax,12(%%esp)\n"
+
+			"mov 4(%%esp),%%eax\n"
+			"mov (%%eax),%%eax\n"
+			"mov %%eax,16(%%esp)\n"
+
+			"add $4,4(%%esp)\n" // bump ip
+			"pop %%eax\n"
+
+			"iret\n"
+                        :
+                        : "a" (regs)
+                        );
+	  	break;
+
 	  case DTRACE_INVOP_SUBL_ESP_nn:
 PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		nn = *(unsigned char *) (regs->r_pc + 1);
@@ -421,7 +522,7 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		/*   Handle MOV %ESP,%EAX		       */
 		/***********************************************/
 		if (((op >> 3) & 0x07) == 4) {
-			v = regs + 1;
+			v = (int) (regs + 1);
 		}
 		((int *) regs)[r] = v;
 		regs->r_pc++;
@@ -453,6 +554,10 @@ PRINT_CASE(DTRACE_INVOP_SUBL_ESP_nn);
 		regs->r_rfl = (regs->r_rfl & ~0xff) | (fl & 0xff);
 	  	break;
 		}
+
+	  case DTRACE_INVOP_CLI:
+	  	regs->r_rfl &= ~0x0200; /* Turn off interrupts */
+	  	break;
 
 	  default:
 	  	printk("Help me!! invop=%d\n", instr);

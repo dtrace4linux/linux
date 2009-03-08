@@ -1,0 +1,10 @@
+#! /bin/sh
+# Fbt calls
+echo "Function calls, including process name, ordered by frequency. "
+echo "Press Ctrl-C to quit"
+set +x
+cat <<EOF | dtrace -s /dev/stdin
+fbt:::entry { @num[probefunc, execname] = count(); }
+tick-5sec { trunc(@num, 20); printa(@num); clear(@num); }
+EOF
+

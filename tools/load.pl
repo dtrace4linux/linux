@@ -32,6 +32,7 @@ sub main
 		'fast',
 		'help',
 		'here',
+		'mem_alloc',
 		'unload',
 		'v+',
 		);
@@ -178,6 +179,22 @@ sub main
 		}
 	}
 	if ( "$err" != 0 ) {
+		print <<EOF;
+ ======================================================
+If your kernel is missing one or more symbols, there may be
+many reasons, such as kernel not compiled with /proc/kallsyms
+support (check that exists, and see if there lots of entries).
+A typical kernel will have upwards of 20,000+ entries.
+
+If /proc/kallsyms does not exist, you will not get anywhere,
+unless this load module is modified to read the uncompressed
+vmlinux file (feel free to report this including the kernel/distro
+information).
+
+Run tools/bug.sh to get some information to forward to the
+driver maintainer(s).
+
+EOF
 		print "Please do not run dtrace - your kernel is not supported.\n";
 		exit(1);
 	}

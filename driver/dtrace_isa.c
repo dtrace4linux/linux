@@ -104,7 +104,7 @@ void
 dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
     uint32_t *ignored)
 {
-	int	dummy;
+/*	int	dummy;*/
 	int	depth;
 
 	mutex_enter(&dtrace_stack_mutex);
@@ -125,7 +125,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 		printk("stack: %d %p\n", dummy, pcstack[dummy]);
 	}*/
 	while (depth < pcstack_limit)
-		pcstack[depth++] = NULL;
+		pcstack[depth++] = (pc_t) NULL;
 }
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
@@ -213,11 +213,11 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   set to -1).			       */
 	/***********************************************/
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-	bos = sp = task_pt_regs(current)->sp;
+	bos = sp = (unsigned long *) task_pt_regs(current)->sp;
 #else
 	bos = sp = task_pt_regs(current)->rsp;
 #endif
-	*pcstack++ = sp;
+	*pcstack++ = (uint64_t) sp;
 //printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.rsp, current->stack);
 //{int i; for (i = 0; i < 64; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
 	while (pcstack < pcstack_end &&
@@ -231,7 +231,7 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	}
 
 	while (pcstack < pcstack_end)
-		*pcstack++ = NULL;
+		*pcstack++ = (pc_t) NULL;
 }
 
 int
@@ -385,7 +385,10 @@ printk("need to do this dtrace_getufpstack\n");
 uint64_t
 dtrace_getarg(int arg, int aframes)
 {
-# if 0
+# if 1
+	TODO();
+	return 0;
+# else
 	uintptr_t val;
 	struct frame *fp = (struct frame *)dtrace_getfp();
 	uintptr_t *stack;
@@ -655,7 +658,7 @@ dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 //	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
 
 if (dtrace_here) {
-printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, size);
+printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, (int) size);
 }
 	if (!__addr_ok(uaddr) || !__addr_ok(uaddr + size)) {
 HERE2();

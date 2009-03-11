@@ -2159,8 +2159,8 @@ extern void dtrace_vtime_disable(void);
 
 struct regs;
 
-extern int (*dtrace_pid_probe_ptr)(struct regs *);
-extern int (*dtrace_return_probe_ptr)(struct regs *);
+extern int (*dtrace_pid_probe_ptr)(struct pt_regs *);
+extern int (*dtrace_return_probe_ptr)(struct pt_regs *);
 extern void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
 extern void (*dtrace_fasttrap_exec_ptr)(proc_t *);
 extern void (*dtrace_fasttrap_exit_ptr)(proc_t *);

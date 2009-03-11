@@ -1,3 +1,19 @@
+Wed Mar 11 23:30:11 2009  fox
+
+     202* tools/load.pl: Add more diagnostics if things go wrong.
+
+     201* tools/load.pl: Add missing -mem_alloc switch.
+
+     200* dtrace_asm.c: Fix the 64-bit assembler to avoid call frame
+          issues with differing compilers. 
+
+	  "dtrace -n fbt:::" works again for 64-bit.
+
+Mon Mar  9 20:44:28 2009  fox
+
+     199* dtrace_linux.c: Support for non ATOM_NOTIFIER_HEAD kernels.
+          (AS4)
+
 Sun Mar  8 00:39:01 2009  fox
 
      198* fbt_linux.c: Fix 64-bit fbt.

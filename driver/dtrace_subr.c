@@ -176,9 +176,9 @@ dtrace_sync(void)
 }
 # endif
 
-int (*dtrace_fasttrap_probe_ptr)(struct regs *);
-int (*dtrace_pid_probe_ptr)(struct regs *);
-int (*dtrace_return_probe_ptr)(struct regs *);
+int (*dtrace_fasttrap_probe_ptr)(struct pt_regs *);
+int (*dtrace_pid_probe_ptr)(struct pt_regs *);
+int (*dtrace_return_probe_ptr)(struct pt_regs *);
 
 /**********************************************************************/
 /*   Slight  change  from  Solaris. The trap handler calls us, so we  */

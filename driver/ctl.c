@@ -394,8 +394,8 @@ static ssize_t proc_pid_ctl_write(struct file *file, const char __user *buf,
 	struct task_struct *task;
 
 	task = inode_to_task(inode);
-printk("ctl_write: count=%d task=%p pid=%p\n", (int) count,
-task, (void *) task->pid);
+printk("ctl_write: count=%d task=%p pid=%d\n", (int) count,
+task, (int) task->pid);
 
 	while (ctlp < ctlend) {
 		int	size = 1;

@@ -841,6 +841,12 @@ int cnt;
 int
 on_notifier_list(uint8_t *ptr)
 {	struct notifier_block *np;
+#if !defined(ATOMIC_NOTIFIER_HEAD)
+#       define atomic_notifier_head notifier_block
+#       define atomic_head(x) x
+# else
+#       define atomic_head(x) (x)->head
+# endif
 	static struct atomic_notifier_head *die_chain;
 	static struct blocking_notifier_head *task_exit_notifier;
 	int	do_print = die_chain == NULL;
@@ -850,13 +856,13 @@ on_notifier_list(uint8_t *ptr)
 	if (task_exit_notifier == NULL)
 		task_exit_notifier = (struct blocking_notifier_head *) get_proc_addr("task_exit_notifier");
 
-	for (np = die_chain->head; np; np = np->next) {
+	for (np = atomic_head(die_chain); np; np = np->next) {
 		if (do_print) 
 			printk("illop-chain: %p\n", np->notifier_call);
 		if ((uint8_t *) np->notifier_call == ptr)
 			return 1;
 	}
-	for (np = task_exit_notifier->head; np; np = np->next) {
+	for (np = atomic_head(task_exit_notifier); np; np = np->next) {
 		if (do_print)
 			printk("exit-chain: %p\n", np->notifier_call);
 		if ((uint8_t *) np->notifier_call == ptr)

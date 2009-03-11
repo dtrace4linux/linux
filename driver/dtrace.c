@@ -7523,6 +7523,10 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	    VM_BESTFIT | VM_SLEEP);
 
 	probe = kmem_zalloc(sizeof (dtrace_probe_t), KM_SLEEP);
+	if (probe == NULL) {
+		printk("dtrace_probe_create: Cannot alloc sizeof(dtrace_probe_t) %d\n", (int) sizeof(dtrace_probe_t));
+		return 0;
+	}
 
 	probe->dtpr_id = id;
 	probe->dtpr_gen = dtrace_probegen++;
@@ -7558,7 +7562,6 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 		} else {
 			dtrace_probe_t **oprobes = dtrace_probes;
 
-
 			bcopy(oprobes, probes, osize);
 			dtrace_membar_producer();
 			dtrace_probes = probes;
@@ -7581,6 +7584,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 
 	if (provider != dtrace_provider)
 		mutex_exit(&dtrace_lock);
+HERE();
 
 	return (id);
 }

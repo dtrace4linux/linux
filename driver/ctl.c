@@ -25,6 +25,8 @@
 /*   experiment  to  make  it  workable  didnt  pan out - its a good  */
 /*   start,  but  not  complete to use as a Solaris compatible /proc  */
 /*   interface for Linux.					      */
+/*   								      */
+/*   $Header: Last edited: 22-Mar-2009 1.1 $			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -98,22 +100,22 @@ static struct file_operations save_proc_info_file_operations;
 /**********************************************************************/
 /*   This needs to agree with the kernel source.		      */
 /**********************************************************************/
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
-      struct pid_entry {
-              int type;
-              int len;
-              char *name;
-              mode_t mode;
-	      };
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+	struct pid_entry {
+		int type;
+		int len;
+		char *name;
+		mode_t mode;
+		};
 # else
-      struct pid_entry {
-              char    *name;
-              int     len;
-              mode_t  mode;
-              struct inode_operations *iop;
-              struct file_operations *fop;
-              union proc_op op;
-              };
+	struct pid_entry {
+		char    *name;
+		int     len;
+		mode_t  mode;
+		struct inode_operations *iop;
+		struct file_operations *fop;
+		union proc_op op;
+		};
 # endif
 
 struct pid_entry *tgid_base_stuff_2;
@@ -507,7 +509,7 @@ HERE();
 		tgid_base_stuff_2[nents].name = "ctl";
 		tgid_base_stuff_2[nents].len = 3;
 		tgid_base_stuff_2[nents].mode = S_IFREG | 0640;
-# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
 		/***********************************************/
 		/*   We  want  to  compile  on AS4 - but this  */
 		/*   isnt  there  in the 2.6.9 kernel. Not to  */

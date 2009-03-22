@@ -90,8 +90,8 @@ typedef struct cpu_core {
         kmutex_t        cpuc_pid_lock;          /* DTrace pid provider lock */
 } cpu_core_t;
 
-extern cpu_core_t cpu_core[NCPU];
-extern cpu_t cpu_table[NCPU];
+extern cpu_core_t *cpu_core;
+extern cpu_t	*cpu_table;
 extern cpu_t	*cpu_list;
 extern kmutex_t	cpu_lock;
 extern kmutex_t	mod_lock;

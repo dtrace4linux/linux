@@ -485,7 +485,7 @@ HERE();
 		struct module_sect_attrs *secp = mp->sect_attrs;
 //printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
 		char *secname = secp->attrs[sym->st_shndx].name;
-if(0)		if (secname == NULL || strcmp(secname, ".text") != 0)
+		if (secname == NULL || strcmp(secname, ".text") != 0)
 			continue;
 //		printk("elf: %s info=%x other=%x shndx=%x sec=%p name=%s\n", name, sym->st_info, sym->st_other, sym->st_shndx, mp->sect_attrs, secname);
 		}
@@ -535,15 +535,17 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 		instr += size;
 	}
 
-	if (instr >= limit || *instr != FBT_PUSHL_EBP) {
-		/*
-		 * We either don't save the frame pointer in this
-		 * function, or we ran into some disassembly
-		 * screw-up.  Either way, we bail.
-		 */
-//HERE();
-//printk("size=%d *instr=%02x %02x %ld\n", size, *instr, FBT_PUSHL_EBP, limit-instr);
-		printk("fbt:unhandled instr %s:%p %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2]);
+	/***********************************************/
+	/*   Careful  in  case  we walked outside the  */
+	/*   function    or    its   an   unsupported  */
+	/*   instruction.			       */
+	/***********************************************/
+	if (instr >= limit) {
+		printk("fbt:unhandled limit %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
+		return;
+	}
+	if (*instr != FBT_PUSHL_EBP) {
+		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
 		return;
 	}
 	invop = DTRACE_INVOP_PUSHL_EBP;

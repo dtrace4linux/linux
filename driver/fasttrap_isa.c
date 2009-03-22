@@ -741,7 +741,7 @@ fasttrap_sigsegv(proc_t *p, struct task_struct *t, uintptr_t addr)
 	info.si_code = SEGV_MAPERR;
 	info.si_addr = (caddr_t)addr;
 
-	send_sig_info(SIGSEGV, &info, p);
+	send_sig_info(SIGSEGV, &info, (struct task_sched *) p);
 # else
 	sigqueue_t *sqp = kmem_zalloc(sizeof (sigqueue_t), KM_SLEEP);
 

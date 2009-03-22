@@ -27,7 +27,7 @@
 /**********************************************************************/
 /*   Need to rewrite this for older kernels without hrtimers?	      */
 /**********************************************************************/
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 19)
 # define MODE CYCLIC_DUMMY
 #else
 # define MODE CYCLIC_LINUX

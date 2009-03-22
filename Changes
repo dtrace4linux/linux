@@ -1,3 +1,26 @@
+Sun Mar 22 09:28:26 2009  fox
+
+     208* Archive: 1.0073
+
+     207* dtrace_linux.c: Undo last change - it wasnt what the problem was.
+          Problem is that an SMP kernel may say we have 64 cpus, when we
+	  only have 1 or 2, so buffer allocation went thru the roof -- 
+	  64 * 4MB of RAM, and we OOM'ed. Now we utilise number of online
+	  cpus at driver load time. (We need to do work if we online
+	  cpus whilst system is up, since the arrays will be too small).
+
+     206* dtrace.c: Do some rough memory calcs when allocating the state 
+          buffers to avoid starvation on 512MB systems.
+
+     205* ctl.c: Fix to compile on 2.6.18.
+
+     204* dtrace_linux.c: Fix PTE modifications for x86-64 which uses
+          a 4-level page table and for which later kernels try hard
+	  to stop us from patching the syscall table.
+
+     203* fbt_linux.c: Re-put-back the sanity check on kernel functions
+          so we dont crash when we hit code in non-standard .text sections.
+
 Wed Mar 11 23:30:11 2009  fox
 
      202* tools/load.pl: Add more diagnostics if things go wrong.

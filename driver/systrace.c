@@ -447,10 +447,11 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 
 //sysent[sysnum].sy_callc = dtrace_systrace_syscall;
 HERE();
+/*
 printk("calling caspt %p %p %p\n", &sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)dtrace_systrace_syscall);
-
+*/
 	casptr(&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)dtrace_systrace_syscall);

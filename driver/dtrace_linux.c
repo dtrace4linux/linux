@@ -107,9 +107,18 @@ static void **xsys_call_table;
 
 uintptr_t	_userlimit = 0x7fffffff;
 uintptr_t kernelbase = 0; //_stext;
+
+/**********************************************************************/
+/*   The  kernel  can be compiled with a lot of potential CPUs, e.g.  */
+/*   64  is  not  untypical,  but  we  only have a dual core cpu. We  */
+/*   allocate  buffers  for each cpu - which can mushroom the memory  */
+/*   needed  (4MB+  per  core), and can OOM for small systems or put  */
+/*   other systems into mortal danger as we eat all the memory.	      */
+/**********************************************************************/
 cpu_t	*cpu_list;
-cpu_core_t cpu_core[CONFIG_NR_CPUS];
-cpu_t cpu_table[NCPU];
+cpu_core_t *cpu_core;
+cpu_t *cpu_table;
+int	nr_cpus = 1;
 DEFINE_MUTEX(mod_lock);
 
 static DEFINE_MUTEX(dtrace_provider_lock);	/* provider state lock */
@@ -759,7 +768,7 @@ validate_ptr(const void *ptr)
 
 	return ret;
 }
-# if __amd64
+# if defined(__amd64)
 typedef struct page_perms_t {
 	int	pp_valid;
 	unsigned long pp_addr;
@@ -880,7 +889,7 @@ memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
 	pte_t *pte;
 
 static pte_t *(*lookup_address)(void *, int *);
-static void (*flush_tlb_all)(void);
+//static void (*flush_tlb_all)(void);
 
 	if (lookup_address == NULL)
 		lookup_address = get_proc_addr("lookup_address");
@@ -911,7 +920,6 @@ static void (*flush_tlb_all)(void);
 	page_perms_t perms;
 
 	mem_set_writable((unsigned long) addr, &perms);
-//	__flush_tlb_all();
 # endif
 	return 1;
 }
@@ -1720,9 +1728,17 @@ static struct proc_dir_entry *dir;
 	/*   Initialise   the   cpu_list   which  the  */
 	/*   dtrace_buffer_alloc  code  wants when we  */
 	/*   go into a GO state.		       */
+	/*   Only  allocate  space  for the number of  */
+	/*   online   cpus.   If   number   of   cpus  */
+	/*   increases, we wont be able to do per-cpu  */
+	/*   for them - we need to realloc this array  */
+	/*   and/or force out the clients.	       */
 	/***********************************************/
-	cpu_list = (cpu_t *) kzalloc(sizeof *cpu_list * NR_CPUS, GFP_KERNEL);
-	for (i = 0; i < NR_CPUS; i++) {
+	nr_cpus = num_online_cpus();
+	cpu_table = (cpu_t *) kzalloc(sizeof *cpu_table * nr_cpus, GFP_KERNEL);
+	cpu_core = (cpu_core_t *) kzalloc(sizeof *cpu_core * nr_cpus, GFP_KERNEL);
+	cpu_list = (cpu_t *) kzalloc(sizeof *cpu_list * nr_cpus, GFP_KERNEL);
+	for (i = 0; i < nr_cpus; i++) {
 		cpu_list[i].cpuid = i;
 		cpu_list[i].cpu_next = &cpu_list[i+1];
 		/***********************************************/
@@ -1732,8 +1748,8 @@ static struct proc_dir_entry *dir;
 		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
 		mutex_init(&cpu_list[i].cpu_ft_lock);
 		}
-	cpu_list[NR_CPUS-1].cpu_next = cpu_list;
-	for (i = 0; i < CONFIG_NR_CPUS; i++) {
+	cpu_list[nr_cpus-1].cpu_next = cpu_list;
+	for (i = 0; i < nr_cpus; i++) {
 		mutex_init(&cpu_core[i].cpuc_pid_lock);
 	}
 

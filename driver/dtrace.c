@@ -69,6 +69,7 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
+#include <linux/swap.h> /* want totalram_pages */
 # undef ASSERT
 # define ASSERT(x) {if (!(x)) {printk("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x);}}
 # define KERNELBASE 0
@@ -3353,7 +3354,7 @@ PRINT_CASE(DIF_SUBR_COPYINSTR);
 PRINT_CASE(DIF_SUBR_PROGENYOF);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 
-		for (p = curthread->t_procp; p != NULL; p = p->p_parent) {
+		for (p = (proc_t *) curthread->t_procp; p != NULL; p = (proc_t *) p->p_parent) {
 # if defined(sun)
 			if (p->p_pidp->pid_id == pid)
 # else
@@ -10450,7 +10451,6 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 		if (cpu != DTRACE_CPUALL && cpu != cp->cpu_id)
 			continue;
 
-//printk("%d: cpu=%d cpu_id=%d\n", __LINE__, cpu, cp->cpu_id);
 		buf = &bufs[cp->cpu_id];
 
 		/*
@@ -10476,6 +10476,7 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 		if (flags & DTRACEBUF_NOSWITCH)
 			continue;
 
+printk(" .. 2 NCPUS=%d online=%d\n", NR_CPUS, num_online_cpus());
 		if ((buf->dtb_xamot = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
 			goto err;
 	} while ((cp = cp->cpu_next) != cpu_list);

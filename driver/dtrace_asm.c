@@ -47,7 +47,6 @@ fred(volatile long *ptr)
 void *
 dtrace_casptr(void *target, void *cmp, void *new)
 {
-printk("casptr %p:%lx %p:%lx %p:%lx\n", target, *(long *) target, cmp, *(long *) cmp, new, *(long *) new);
 	return cmpxchg((void **) target, cmp, new);
 /*
 	if (*(void **) target == cmp) {
@@ -326,7 +325,7 @@ dtrace_probe_error(dtrace_state_t *state, dtrace_epid_t epid, int which,
 void
 asm_placeholder(void)
 {
-#if __amd64
+#if defined(__amd64)
 	__asm(
 		FUNCTION(dtrace_membar_consumer)
         	/* AMD Software Optimization Guide - Section 6.2 */

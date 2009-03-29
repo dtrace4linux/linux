@@ -54,6 +54,8 @@ struct modctl;
 /*   and validating it will compile before too much surgery. Some of  */
 /*   this is likely to be cleaned up in the future.		      */
 /**********************************************************************/
+# include <linux/version.h>
+
 # if __KERNEL__
 
 	# define modctl module
@@ -71,7 +73,7 @@ struct modctl;
 	# include	<sys/processor.h>
 	# include	<sys/systm.h>
 	# include 	<sys/vmem.h>
-	# include 	<sys/cred.h>
+	# include 	<linux/sys/cred.h>
 
 	# define	_LARGEFILE_SOURCE	1
 	# define	_FILE_OFFSET_BITS	64
@@ -132,7 +134,7 @@ struct modctl;
 	# include	<sys/processor.h>
 	# include	<sys/systm.h>
 	# include 	<sys/vmem.h>
-	# include 	<sys/cred.h>
+	# include 	<linux/sys/cred.h>
 
 	/*# include	<sys/ucontext.h>*/
 	/*# include	<sys/reg.h>*/

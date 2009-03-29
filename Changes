@@ -1,3 +1,14 @@
+Sun Mar 29 15:27:08 2009  fox
+
+     212* Archive: 1.0074
+
+     211* fbt_linux.c: Fix for 2.6.29
+
+     210* dtrace.c: Fixes for 2.6.29
+
+     209* linux_types.h: Fix for including <sys/cred.h> on 2.6.29
+          kernel.
+
 Sun Mar 22 09:28:26 2009  fox
 
      208* Archive: 1.0073

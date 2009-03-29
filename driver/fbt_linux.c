@@ -200,8 +200,17 @@ get_refcount(struct module *mp)
 	if (mp == NULL)
 		return 0;
 
+#if defined(CONFIG_MODULE_UNLOAD) && defined(CONFIG_SMP)
+	/***********************************************/
+	/*   Linux   2.6.29   does   something   here  */
+	/*   presumably   to  avoid  bad  cache  line  */
+	/*   behavior. We dont really care about this  */
+	/*   for now.				       */
+	/***********************************************/
+# else
 	for (i = 0; i < NR_CPUS; i++)
 		sum += local_read(&mp->ref[i].count);
+# endif
 	return sum;
 }
 

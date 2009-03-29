@@ -78,9 +78,9 @@
 static char *syscallnames[] = {
 
 # if defined(__i386)
-# include	"syscalls-x86.tbl"
+#	include	"syscalls-x86.tbl"
 # else
-# include	"syscalls-x86-64.tbl"
+#	include	"syscalls-x86-64.tbl"
 # endif
 
 	};
@@ -113,6 +113,60 @@ void	*par_setup_thread2(void);
 DEFINE_MUTEX(slock);
 static int do_slock;
 
+/**********************************************************************/
+/*   Dont  make  this  static else gcc will optimise it all away and  */
+/*   the functions inside it will be undefs.			      */
+/**********************************************************************/
+void
+systrace_assembler_dummy()
+{
+	__asm(
+		FUNCTION(zz)
+/*		"push %rdi\n"
+		"push %rsi\n"
+		"push %rdx\n"
+		"push %rcx\n"
+		"push %rax\n"
+		"push %r8\n"
+		"push %r9\n"
+		"push %r10\n"
+		"push %r11\n"
+		"push %rbx\n"
+		"push %rbp\n"
+		"push %r12\n"
+		"push %r13\n"
+		"push %r14\n"
+		"push %r15\n"
+*/
+		"call dtrace_systrace_syscall\n"
+/*
+		"pop %r15\n"
+		"pop %r14\n"
+		"pop %r13\n"
+		"pop %r12\n"
+		"pop %rbp\n"
+		"pop %rbx\n"
+		"pop %r11\n"
+		"pop %r10\n"
+		"pop %r9\n"
+		"pop %r8\n"
+		"add $8,%rsp\n"
+		"pop %rcx\n"
+		"pop %rdx\n"
+		"pop %rsi\n"
+		"pop %rdi\n"
+*/
+		"ret\n"
+		END_FUNCTION(zz)
+		);
+
+}
+
+/**********************************************************************/
+/*   This  is  the  function which is called when a syscall probe is  */
+/*   hit. We essentially wrap the call with the entry/return probes.  */
+/*   Some assembler mess to hide what we did.			      */
+/**********************************************************************/
 asmlinkage int64_t
 dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -142,7 +196,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	if (0) {
 		int i; 
 		for (i = 0; i < 20; i++) {
-			printk("stack[%d] = %p\n", i, ptr[i]);
+			printk("%p: stack[%d] = %p\n", ptr + i, i, ptr[i]);
 		}
 	}
 
@@ -155,10 +209,24 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 # if defined(__i386)
 	syscall = (int) ptr[6]; // horrid hack
 # else
-	syscall = (int) (long) ptr[12]; // horrid hack
+	/***********************************************/
+	/*   This  is  slightly  nicer than the older  */
+	/*   [12] hack -- the position of the syscall  */
+	/*   can  depend  on the inline assembler and  */
+	/*   function       optimisation.       Using  */
+	/*   __builtin_frame_address()  means  we get  */
+	/*   to  the right value irrespective of what  */
+	/*   happens   inside  this  functions  stack  */
+	/*   layout/optimisation.		       */
+	/***********************************************/
+	{unsigned long *ret_sp = __builtin_frame_address(0);
+	syscall = (int) ret_sp[6];
+//	syscall = (int) (long) ptr[12]; // horrid hack
+	}
 # endif
-	if (syscall < 0 || syscall >= NSYSCALL) {
-		printk("dtrace:help: Got syscall=%d\n", syscall);
+printk("syscall=%d\n", syscall);
+	if ((unsigned) syscall >= NSYSCALL) {
+		printk("dtrace:help: Got syscall=%d - out of range (max=%d)\n", syscall, NSYSCALL);
 		return -EINVAL;
 	}
 
@@ -256,7 +324,119 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		);
 	}
 # else
+# if 0
+///dirty hack land going on here...ignore this mess for now...
+// this is to debug x86-64 sys_clone syscalls.
+	uintptr_t args[] = {arg0, arg1, arg2, arg3, arg4, arg5, sy->stsy_underlying};
+//        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+
+__asm(
+"mov 0x00(%%rax),%%rdi\n"
+"mov 0x08(%%rax),%%rsi\n"
+"mov 0x10(%%rax),%%rdx\n"
+"mov 0x18(%%rax),%%rcx\n"
+"mov 0x20(%%rax),%%r8\n"
+"mov 0x28(%%rax),%%r9\n"
+"mov 0x30(%%rax),%%rax\n"
+"call *%%rax\n"
+"mov %%rbx,-0x28(%%rbp)\n"
+"mov %%r12,-0x20(%%rbp)\n"
+"mov %%r13,-0x18(%%rbp)\n"
+"mov %%r14,-0x10(%%rbp)\n"
+"mov %%r15,-8(%%rbp)\n"
+                : "=a" (rval)
+                : "A" (args)
+		: "rbx", "rsi", "rdi", "rcx", "r8", "r9", "rdx", "r10", "r11", "r12", "r13", "r14", "r15"
+);
+# elif 0
+dtrace_dump_mem64(__builtin_frame_address(0) + 16, 20 + 4);
+	{
+	uintptr_t args[6] = {arg0, arg1, arg2, arg3, arg4, arg5};
+
+printk("syscall %p arg0=%p %p %p %p %p %p\n", &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+printk("calling %p\n", sy->stsy_underlying);
+	__asm(
+		// Move the stack pt_regs to be in the right
+		// place for the underlying syscall.
+
+
+/*		"pushq 0x50(%%rbx)\n"
+		"pushq 0x48(%%rbx)\n"
+		"pushq 0x40(%%rbx)\n"
+		"pushq 0x38(%%rbx)\n"
+		"pushq 0x30(%%rbx)\n"
+		"pushq 0x28(%%rbx)\n"
+		"pushq 0x20(%%rbx)\n"
+		"pushq 0x18(%%rbx)\n"
+		"pushq 0x10(%%rbx)\n"
+		"pushq 8(%%rbx)\n"
+		"pushq 0(%%rbx)\n"
+*/
+		"mov %%rbp,%%rbx\n"
+		"add $16, %%rbx\n"
+		"mov %1,%%rbx\n"
+		"mov %%r8,%%rbx\n"
+//"mov %%rbx,%%rcx\n"
+		"mov 0x70(%%rbx),%%rdi\n"
+		"mov 0x68(%%rbx),%%rsi\n"
+		"mov 0x60(%%rbx),%%rdx\n"
+		"mov 0x58(%%rbx),%%rcx\n"
+		//0x50
+		"mov 0x48(%%rbx),%%r8\n"
+		"mov 0x40(%%rbx),%%r9\n"
+		"mov 0x38(%%rbx),%%r10\n"
+		"mov 0x30(%%rbx),%%r11\n"
+		//rbx
+		//rbp
+		"mov 0x18(%%rbx),%%r12\n"
+		"mov 0x10(%%rbx),%%r13\n"
+		"mov 0x08(%%rbx),%%r14\n"
+		"mov 0x00(%%rbx),%%r15\n"
+		"mov 0x28(%%rbx),%%rbx\n"
+
+		"call *%%rax\n"
+"mov %%rbx,-0x28(%%rbp)\n"
+"mov %%r12,-0x20(%%rbp)\n"
+"mov %%r13,-0x18(%%rbp)\n"
+"mov %%r14,-0x10(%%rbp)\n"
+"mov %%r15,-8(%%rbp)\n"
+
+/*		"mov %%rbp,%%rbx\n"
+		"add $16, %%rbx\n"
+"nop\n" "nop\n" "nop\n"
+        "movq %%rdi,0x70(%%rbx)\n"
+	"movq %%rsi,0x68(%%rbx)\n"
+	"movq %%rdx,0x60(%%rbx)\n"
+	"movq %%rcx,0x58(%%rbx)\n"
+	"movq %%rax,0x50(%%rbx)\n"
+	"movq %%r8,0x48(%%rbx)\n"
+	"movq %%r9,0x40(%%rbx)\n"
+	"movq %%r10,0x38(%%rbx)\n"
+	"movq %%r11,0x30(%%rbx)\n"
+	//rbx
+	"movq %%rbp,0x20(%%rbx)\n"
+	"movq %%r12,0x18(%%rbx)\n"
+	"movq %%r13,0x10(%%rbx)\n"
+	"movq %%r14,0x08(%%rbx)\n"
+	"movq %%r15,0x00(%%rbx)\n"
+	"movq %%rbx,0x28(%%rbx)\n"
+*/
+                : "=a" (rval)
+                : "A" (sy->stsy_underlying), "S" (args)
+		: "rbx", "rdi", "rcx", "r8", "r9", "rdx", "r10", "r11", "r12", "r13", "r14", "r15"
+		);
+
+	}
+//printk("after syscall rval=%d \n", rval);
+//dtrace_dump_mem64(__builtin_frame_address(0) + 16, 20 + 4);
+# else
+printk("syscall arg0=%p %p %p %p %p %p\n", arg0, arg1, arg2, arg3, arg4, arg5);
         rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+//{asmlinkage long (*func)() = sy->stsy_underlying;
+//        rval = func(arg0, arg1, arg2, arg3, arg4);
+//}
+printk("after=%d\n", rval);
+# endif
 # endif
 
 //HERE();
@@ -437,11 +617,14 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	if (memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE) == 0)
 		return;
 
+void	(*syscall_func)() = dtrace_systrace_syscall;
+void zz();
+//syscall_func = zz;
 	if (dtrace_here) {
 		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
 			&sysent[sysnum].sy_callc,
 			    (void *)systrace_sysent[sysnum].stsy_underlying,
-			    (void *)dtrace_systrace_syscall,
+			    (void *)syscall_func,
 				sysent[sysnum].sy_callc);
 	}
 
@@ -450,17 +633,17 @@ HERE();
 /*
 printk("calling caspt %p %p %p\n", &sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)dtrace_systrace_syscall);
+	    (void *)syscall_func);
 */
 	casptr(&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)dtrace_systrace_syscall);
+	    (void *)syscall_func);
 HERE();
 	if (dtrace_here) {
 		printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
 			&sysent[sysnum].sy_callc,
 			    (void *)systrace_sysent[sysnum].stsy_underlying,
-			    (void *)dtrace_systrace_syscall,
+			    (void *)syscall_func,
 				sysent[sysnum].sy_callc);
 	}
 }

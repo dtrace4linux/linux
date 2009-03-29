@@ -1116,7 +1116,7 @@ dtrace_priv_proc_common_zone(dtrace_state_t *state)
 	ASSERT(s_cr != NULL);
 
 	if ((cr = CRED()) != NULL &&
-	    s_cr->cr_zone == cr->cr_zone)
+	    crgetzoneid(s_cr) == crgetzoneid(cr))
 		return (1);
 
 	return (0);
@@ -5930,8 +5930,8 @@ HERE();
 				ASSERT(s_cr != NULL);
 
 				if ((cr = CRED()) == NULL ||
-				    s_cr->cr_zone->zone_id !=
-				    cr->cr_zone->zone_id)
+				    crgetzoneid(s_cr) !=
+				    crgetzoneid(cr))
 					continue;
 			}
 		}
@@ -10476,7 +10476,6 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 		if (flags & DTRACEBUF_NOSWITCH)
 			continue;
 
-printk(" .. 2 NCPUS=%d online=%d\n", NR_CPUS, num_online_cpus());
 		if ((buf->dtb_xamot = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
 			goto err;
 	} while ((cp = cp->cpu_next) != cpu_list);
@@ -15586,7 +15585,9 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 			pkey.dtpk_id = DTRACE_IDNONE;
 		}
 
-# if linux
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+                uid = get_current()->cred->uid;
+# elif linux
                 uid = get_current()->uid;
 # else
                 uid = crgetuid(cr);

@@ -356,6 +356,20 @@ dtrace_dump_mem32(int *cp, int len)
 		printk("%s", buf);
 		}
 }
+void
+dtrace_dump_mem64(unsigned long *cp, int len)
+{	char	buf[128];
+	int	i;
+
+	while (len > 0) {
+		sprintf(buf, "%p: ", cp);
+		for (i = 0; i < 4 && len-- > 0; i++) {
+			sprintf(buf + strlen(buf), "%016lx ", *cp++);
+			}
+		strcat(buf, "\n");
+		printk("%s", buf);
+		}
+}
 /**********************************************************************/
 /*   Return  the  datamodel (64b/32b) mode of the underlying binary.  */
 /*   Linux  doesnt  seem  to mark a proc as 64/32, but relies on the  */
@@ -1635,6 +1649,7 @@ dtracedrv_release(struct inode *inode, struct file *file)
 static ssize_t
 dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
+printk("cpuid=%d\n", cpu_get_id());
 /*
 long *sys_call_table = get_proc_addr("sys_call_table");
 printk("sys_call_table=%p %lx\n", sys_call_table, sys_call_table[0]);

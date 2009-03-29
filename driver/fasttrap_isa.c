@@ -690,7 +690,7 @@ fasttrap_return_common(struct regs *rp, uintptr_t pc, pid_t pid,
 	fasttrap_id_t *id;
 	kmutex_t *pid_mtx;
 
-	pid_mtx = &cpu_core[CPU->cpu_id].cpuc_pid_lock;
+	pid_mtx = &cpu_core[cpu_get_id()].cpuc_pid_lock;
 	mutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
 
@@ -996,7 +996,7 @@ HERE();
 	}
 
 	pid = p->p_pid;
-	pid_mtx = &cpu_core[CPU->cpu_id].cpuc_pid_lock;
+	pid_mtx = &cpu_core[cpu_get_id()].cpuc_pid_lock;
 	mutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
 printk("probe: bucket=%p pid=%d pc=%p\n", bucket, pid, (void *) pc);

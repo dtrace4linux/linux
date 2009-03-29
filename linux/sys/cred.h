@@ -1,7 +1,26 @@
 # if !defined(SYS_CRED_H)
 # define SYS_CRED_H
 
-typedef struct cred {
+/**********************************************************************/
+/*   Linux  2.6.29 introduces 2.6.29, so we need to be careful since  */
+/*   the  struct  isnt compatible with the Solaris one. We need this  */
+/*   as  a container for the identity of a process, so we can simply  */
+/*   map  from ours to theirs where we can, else define our own cred  */
+/*   struct for older kernels.					      */
+/**********************************************************************/
+# define cr_ruid	euid
+# define cr_rgid	egid
+# define cr_uid		uid
+# define cr_gid		gid
+# define cr_sgid	sgid
+# define cr_suid	suid
+
+/**********************************************************************/
+/*   Linux  2.6.29  introduces <linux/cred.h> so we will have a name  */
+/*   clash and struct mem clash.				      */
+/**********************************************************************/
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+struct cred {
 	int	cr_uid;
 	int	cr_ruid;
 	int	cr_suid;
@@ -9,7 +28,10 @@ typedef struct cred {
 	int	cr_rgid;
 	int	cr_sgid;
 	struct zone *cr_zone;
-	} cred_t;
+	};
+# endif
+
+typedef struct cred cred_t;
 
 cred_t *CRED(void);
 #define priv_policy_choice(a, b, c) 1

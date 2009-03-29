@@ -316,11 +316,6 @@ dtrace_probe_error(dtrace_state_t *state, dtrace_epid_t epid, int which,
 /*   that,  especially  as most of the functions here can be done in  */
 /*   plain C.							      */
 /**********************************************************************/
-# define FUNCTION(x) 			\
-        ".text\n" 			\
-	".globl " #x "\n" 		\
-        ".type   " #x ", @function\n"	\
-	#x ":\n"
 
 void
 asm_placeholder(void)

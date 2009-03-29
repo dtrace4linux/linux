@@ -19,6 +19,7 @@ int dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p);
 int dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p);
 void dtrace_dump_mem(char *cp, int len);
 void dtrace_dump_mem32(int *cp, int len);
+void dtrace_dump_mem64(unsigned long *cp, int len);
 int	lx_get_curthread_id(void);
 void	par_setup_thread(void);
 void	*par_setup_thread2(void);

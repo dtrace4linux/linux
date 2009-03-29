@@ -236,6 +236,18 @@ typedef enum {
 } ksema_type_t;
 
 /**********************************************************************/
+/*   Macro to create a function (like ENTRY()) inside an __asm block  */
+/*   in a C function.						      */
+/**********************************************************************/
+# define FUNCTION(x) 			\
+        ".text\n" 			\
+	".globl " #x "\n" 		\
+        ".type   " #x ", @function\n"	\
+	#x ":\n"
+# define END_FUNCTION(x) \
+	".size " #x ", .-" #x "\n"
+
+/**********************************************************************/
 /*   Parallel  alloc  mechanism functions. We dont want to patch the  */
 /*   kernel  but  we need per-structure additions, so we need a hash  */
 /*   table or list so we can go from kernel object to dtrace object.  */

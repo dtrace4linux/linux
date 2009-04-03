@@ -1,3 +1,13 @@
+Sat Apr  4 10:44:41 2009  fox
+
+     216* Archive: 1.0077
+
+     215* systrace.c: Add handlers for fork/vfork/iopl/sigaltstack.
+
+     214* systrace.c: Fix amd64 clone() syscall handler.
+
+     213* Archive: 1.0076
+
 Sun Mar 29 15:27:08 2009  fox
 
      212* Archive: 1.0074

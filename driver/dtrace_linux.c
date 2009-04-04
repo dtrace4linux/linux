@@ -1131,6 +1131,13 @@ par_setup_thread2()
 static void
 print_pte(pte_t *pte, int level)
 {
+	/***********************************************/
+	/*   Workaround for older kernels.	       */
+	/***********************************************/
+# if !defined(_PAGE_PAT)
+# define _PAGE_PAT 0
+# define _PAGE_PAT_LARGE 0
+# endif
 	printk("pte: %p level=%d %p %s%s%s%s%s%s%s%s%s\n",
 		pte,
 		level, (long *) pte_val(*pte), 

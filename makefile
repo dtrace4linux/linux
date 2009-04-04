@@ -91,6 +91,7 @@ all:
 	@echo >$(BUILD_DIR)/config.sh
 	@export BUILD_DIR=$(BUILD_DIR) ; \
 	tools/check_dep.pl ; \
+	tools/mkport.pl ; \
 	tools/libgcc.pl || exit 1 ; \
 	case `uname -m` in \
 	  x86*64) \

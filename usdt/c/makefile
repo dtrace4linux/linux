@@ -10,20 +10,27 @@ DTRACE_LIB=$(BINDIR)/libdtrace.a
 all:	$(BINDIR)/simple-c
 	@/bin/true
 
-$(BINDIR)/simple-c: simple_probes.o simple.o shlib.so $(DTRACE_DRTI_O) $(DTRACE_LIB)
-	$(CC) -Wl,-rpath `pwd` -o $(BINDIR)/simple-c $(BITS) simple_probes.o simple.o shlib.so -ldl
+$(BINDIR)/simple-c: $(BINDIR)/simple_probes.o $(BINDIR)/simple.o \
+	$(BINDIR)/shlib.so $(DTRACE_DRTI_O) $(DTRACE_LIB)
+	$(CC) -Wl,-rpath `pwd` -o $(BINDIR)/simple-c $(BITS) $(BINDIR)/simple_probes.o $(BINDIR)/simple.o $(BINDIR)/shlib.so -ldl
 
-simple_probes.o: simple.o simple_probes.d $(DTRACE_DRTI_O) $(DTRACE_LIB)
+$(BINDIR)/simple_probes.o: $(BINDIR)/simple.o simple_probes.d $(DTRACE_DRTI_O) $(DTRACE_LIB)
 	. $(BINDIR)/config.sh ; \
 	if [ "$$BUILD_i386" = 1 ]; then \
 		BITS=32 ; \
 	else \
 		BITS=64 ; \
 	fi ; \
-	DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -G -$$BITS -s simple_probes.d simple.o
+	DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o
+	mv simple_probes.o $(BINDIR)
 
-shlib.so: shlib.c
+$(BINDIR)/simple.o: simple.c
+	$(CC) -c simple.c
+	mv simple.o $(BINDIR)
+
+$(BINDIR)/shlib.so: shlib.c
 	$(CC) -c shlib.c
-	ld -G -o shlib.so shlib.o
+	mv shlib.o $(BINDIR)
+	ld -G -o $(BINDIR)/shlib.so $(BINDIR)/shlib.o
 clean:
 	-rm -f simple *.o *.so

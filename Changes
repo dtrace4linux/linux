@@ -1,3 +1,10 @@
+Sun Apr  5 18:05:55 2009  fox
+
+     218* systrace.c: Fix fork/vfork/sigaltstack - forgot to put the
+          switch statement into get_interposer.
+
+     217* usdt/c/makefile: Keep the src dir clean - all objects now in the build dir.
+
 Sat Apr  4 10:44:41 2009  fox
 
      216* Archive: 1.0077

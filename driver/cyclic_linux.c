@@ -114,8 +114,9 @@ cyclic_init(cyc_backend_t *be, hrtime_t resolution)
 {
 }
 static void
-be_callback(struct c_timer *cp)
-{	ktime_t kt;
+be_callback(void *ptr)
+{	struct c_timer *cp = ptr;
+	ktime_t kt;
 
 	kt.tv64 = cp->c_time.cyt_interval;
 

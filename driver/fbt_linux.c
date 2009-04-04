@@ -195,7 +195,6 @@ HERE();
 static int
 get_refcount(struct module *mp)
 {	int	sum = 0;
-	int	i;
 
 	if (mp == NULL)
 		return 0;
@@ -208,8 +207,10 @@ get_refcount(struct module *mp)
 	/*   for now.				       */
 	/***********************************************/
 # else
+	{int	i;
 	for (i = 0; i < NR_CPUS; i++)
 		sum += local_read(&mp->ref[i].count);
+	}
 # endif
 	return sum;
 }

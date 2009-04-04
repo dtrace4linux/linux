@@ -134,10 +134,7 @@ struct modctl;
 	# include	<sys/processor.h>
 	# include	<sys/systm.h>
 	# include 	<sys/vmem.h>
-	# include 	<linux/sys/cred.h>
 
-	/*# include	<sys/ucontext.h>*/
-	/*# include	<sys/reg.h>*/
 # endif /* __KERNEL__ */
 
 # include 	<sys/regset.h>

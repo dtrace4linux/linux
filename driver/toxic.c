@@ -98,8 +98,8 @@ char toxic_probe_tbl[] = {
 	"zlib_inflateInit2 "
 	};
 
-int 	strlen(char *);
-char	*strncmp(char *, char *, int);
+int strlen(const char *);
+char	*strncmp(const char *, const char *, int);
 
 int 
 is_toxic_func(unsigned long a, const char *name)

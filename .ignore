@@ -10,8 +10,9 @@ checksum.lst
 ./libdtrace/dt_grammar.h
 ./libdtrace/dt_lex.c
 ./utils/access
+./utils/iopl
 ./utils/mknod
 ./utils/pread
 ./utils/ptrace
-./utils/ptrace
+./utils/ptrace2
 ./utils/thread

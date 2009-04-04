@@ -27,6 +27,7 @@
 //#pragma ident	"@(#)P32ton.c   1.20    06/09/01 SMI"
 
 #include <linux_types.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/mkdev.h>
 #include <sys/regset.h>

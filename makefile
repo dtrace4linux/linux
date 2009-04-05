@@ -7,6 +7,7 @@
 rel=`date +%Y%m%d`
 RELDIR=dtrace
 
+UNAME_M=`uname -m`
 NOPWD = --no-print-directory
 MAKEFLAGS += --no-print-directory
 
@@ -79,34 +80,7 @@ beta:
 	$(MAKE) RELDIR=beta release
 
 all:
-	@if [ ! -d $(BUILD_DIR) ] ; then \
-		mkdir $(BUILD_DIR) ; \
-		touch $(BUILD_DIR)/.notags ; \
-	fi ; \
-	if [ ! -d $(BUILD_DIR)/driver ] ; then \
-		mkdir $(BUILD_DIR)/driver ; \
-	fi ; \
-	rm -f build ; \
-	ln -s $(BUILD_DIR) build
-	@echo >$(BUILD_DIR)/config.sh
-	@export BUILD_DIR=$(BUILD_DIR) ; \
-	tools/check_dep.pl ; \
-	tools/mkport.pl ; \
-	tools/libgcc.pl || exit 1 ; \
-	case `uname -m` in \
-	  x86*64) \
-		tools/mksyscall.pl x86-64 || exit 1 ; \
-		echo "export CPU_BITS=64" >>$(BUILD_DIR)/config.sh ; \
-		;; \
-	  *) \
-	  	export PTR32="-D_ILP32 -D_LONGLONG_TYPE" ; \
-		export BUILD_i386=1 ; \
-		echo export PTR32=\"$$PTR32\" > $(BUILD_DIR)/config.sh ; \
-		echo "export CPU_BITS=32" >>$(BUILD_DIR)/config.sh ; \
-		echo 'export BUILD_i386=1' >> $(BUILD_DIR)/config.sh ; \
-		tools/mksyscall.pl x86 || exit 1 ; \
-	esac ; \
-	$(MAKE) all0 || tools/bug.sh
+	BUILD_DIR=$(BUILD_DIR) tools/build.pl $(BUILD_DIR) $(UNAME_M)
 
 all0:
 	cd libctf ; $(MAKE) $(NOPWD)

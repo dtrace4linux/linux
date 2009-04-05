@@ -36,7 +36,13 @@
 #include <sys/dtrace_impl.h>
 #include <sys/rwlock.h>
 #include "dtrace_proto.h"
-#include <linux/sort.h>
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 16)
+	void sort(void *base, size_t num, size_t size,
+          int (*cmp)(const void *, const void *),
+          void (*swap)(void *, void *, int));
+#else
+#	include <linux/sort.h>
+#endif
 #include <linux/module.h>
 
 // Temporary definitions so we can compile.

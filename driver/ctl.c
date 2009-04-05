@@ -201,7 +201,7 @@ hunt_proc_tgid_base_lookup()
 /*   Intercept the call instruction so we can extend the array.	      */
 /**********************************************************************/
 static unsigned char pattern[] = {
-# ifdef __amd64
+# if defined(__amd64)
 // 0xffffffff802e0a90 <proc_tgid_base_lookup>:     mov    $0x1a,%ecx
 // 0xffffffff802e0a95 <proc_tgid_base_lookup+5>:   mov    $0xffffffff8045c520,%rdx
 // 0xffffffff802e0a9c <proc_tgid_base_lookup+12>: jmpq   0xffffffff802e09b0 <proc_pident_lookup>
@@ -219,7 +219,7 @@ static unsigned char pattern[] = {
 	P_DONTCARE, 0,
 	P_DONTCARE, 0,
 	P_EQ, 0xe9,
-# else
+# elif defined(__i386)
 // 0xc019b402 <proc_tgid_base_lookup+0>:   sub    $0x4,%esp
 // 0xc019b405 <proc_tgid_base_lookup+3>:   mov    $0xc03c3bf4,%ecx
 // 0xc019b40a <proc_tgid_base_lookup+8>:   movl   $0x19,(%esp)
@@ -232,6 +232,8 @@ static unsigned char pattern[] = {
 	P_EQ, 0x00, 
 	P_EQ, 0x00, 
 	P_EQ, 0xe8,
+# else
+# error unsupported cpu
 # endif
 	};
 
@@ -250,7 +252,7 @@ hunt_proc_tgid_base_readdir()
 /*   Intercept the call instruction so we can extend the array.	      */
 /**********************************************************************/
 static unsigned char pattern[] = {
-# ifdef __amd64
+# if defined(__amd64)
 // 0xffffffff802e0060 <proc_tgid_base_readdir+0>:  mov    $0x1a,%r8d
 // 0xffffffff802e0066 <proc_tgid_base_readdir+6>:  mov    $0xffffffff8045c520,%rcx
 // 0xffffffff802e006d <proc_tgid_base_readdir+13>: jmpq   0xffffffff802dfeb0 <proc_pident_readdir>
@@ -270,7 +272,7 @@ static unsigned char pattern[] = {
 	P_DONTCARE, 0,
 	P_DONTCARE, 0,
 	P_EQ, 0xe9,
-# else
+# elif defined(__i386)
 // 0xc019b402 <proc_tgid_base_lookup+0>:   sub    $0x4,%esp
 // 0xc019b405 <proc_tgid_base_lookup+3>:   mov    $0xc03c3bf4,%ecx
 // 0xc019b40a <proc_tgid_base_lookup+8>:   movl   $0x19,(%esp)
@@ -283,6 +285,8 @@ static unsigned char pattern[] = {
 	P_EQ, 0x00, 
 	P_EQ, 0x00, 
 	P_EQ, 0xe8,
+# else
+# error unsupported cpu
 # endif
 	};
 

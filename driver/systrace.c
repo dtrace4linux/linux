@@ -109,6 +109,7 @@ void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
 void	*par_setup_thread2(void);
 asmlinkage int64_t
 dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
+    uintptr_t *arg_ptr,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
@@ -230,7 +231,7 @@ systrace_assembler_dummy(void)
 		"movq   %r11,0xa0(%rsp)\n"
 		"movq	user_cs,%r11\n"
 		"movq   %r11,0x88(%rsp)\n"
-		"movq   $-1,RCX(%rsp)\n"
+		"movq   $-1,0x58(%rsp)\n"
 		"mov    0x30(%rsp),%r11\n"
 		"mov    %r11,0x90(%rsp)\n"
 		"mov    %rsp,%rcx\n"
@@ -347,7 +348,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		return -EINVAL;
 	}
 	return dtrace_systrace_syscall2(syscall, &systrace_sysent[syscall],
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd  part  of  the  clone()  syscall, called from the assembler  */
@@ -365,7 +366,7 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 //	s.stsy_underlying = 0xffffffff80210330;
 	s.stsy_underlying = sys_clone_ptr;
 	return dtrace_systrace_syscall2(__NR_clone, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 asmlinkage int64_t
 dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
@@ -375,7 +376,7 @@ dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_execve];
 	s.stsy_underlying = sys_execve_ptr;
 	return dtrace_systrace_syscall2(__NR_execve, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd  part  of  the  fork()  syscall (but note, this is a legacy  */
@@ -390,7 +391,7 @@ dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_fork];
 	s.stsy_underlying = sys_fork_ptr;
 	return dtrace_systrace_syscall2(__NR_fork, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the iopl() syscall.				      */
@@ -403,7 +404,7 @@ dtrace_systrace_syscall_iopl(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_iopl];
 	s.stsy_underlying = sys_iopl_ptr;
 	return dtrace_systrace_syscall2(__NR_iopl, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the sig_rt_sigreturn() syscall.		      */
@@ -416,7 +417,7 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 	s = systrace_sysent[__NR_rt_sigreturn];
 	s.stsy_underlying = sys_rt_sigreturn_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigreturn, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the sigaltstack() syscall.				      */
@@ -429,7 +430,7 @@ dtrace_systrace_syscall_sigaltstack(uintptr_t arg0, uintptr_t arg1, uintptr_t ar
 	s = systrace_sysent[__NR_sigaltstack];
 	s.stsy_underlying = sys_sigaltstack_ptr;
 	return dtrace_systrace_syscall2(__NR_sigaltstack, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the vfork() syscall.				      */
@@ -442,7 +443,7 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_vfork];
 	s.stsy_underlying = sys_vfork_ptr;
 	return dtrace_systrace_syscall2(__NR_vfork, &s,
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 # endif
 /**********************************************************************/
@@ -452,6 +453,7 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 /**********************************************************************/
 asmlinkage int64_t
 dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
+    uintptr_t *arg0_ptr,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {	dtrace_id_t id;
@@ -507,7 +509,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	/***********************************************/
 #if defined(__i386)
 	{
-	struct pt_regs *pregs = (struct pt_regs *) &arg0;
+	struct pt_regs *pregs = (struct pt_regs *) arg0_ptr;
 	__asm(
 		// Move the stack pt_regs to be in the right
 		// place for the underlying syscall.

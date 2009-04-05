@@ -2,7 +2,7 @@
 /*   Functions which are not there in the older kernels.	      */
 /*   Open Source						      */
 /*   Author: P D Fox						      */
-/* $Header: Last edited: 20-Feb-2009 1.1 $                            */
+/* $Header: Last edited: 06-Apr-2009 1.2 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -63,6 +63,26 @@ mutex_is_locked(struct mutex *mp)
 	return atomic_read(&mp->count) != 1;
 }
 # endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 16)
+/**********************************************************************/
+/*   Simple  bubble  sort  replacement  for  old  kernels. Called by  */
+/*   fasttrap_isa.c						      */
+/**********************************************************************/
+void sort(void *base, size_t num, size_t size,
+          int (*cmp)(const void *, const void *),
+          void (*swap)(void *, void *, int))
+{	int	i, j;
+
+	for (i = 0; i < num; i++) {
+		for (j = i + 1; j < num; j++) {
+			int r = cmp(&base[i * size], &base[j * size]);
+			if (r > 0)
+				swap(&base[i * size], &base[j * size], size);
+		}
+	}
+}
+#endif
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 void

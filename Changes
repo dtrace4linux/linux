@@ -1,3 +1,15 @@
+Mon Apr  6 21:54:17 2009  fox
+
+     222* systrace.c: We broke 32-bit syscalls. Now fixed.
+
+     221* makefile: Move to tools/build.pl, so we can start to extend
+          for other cpu types.
+
+     220* systrace.c: Fix silly assemblerism.
+
+     219* dtrace_linux.c, fasttrap.c, missing.c: Add support for AS4
+          2.6.9+patches kernel.
+
 Sun Apr  5 18:05:55 2009  fox
 
      218* systrace.c: Fix fork/vfork/sigaltstack - forgot to put the

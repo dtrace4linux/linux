@@ -783,6 +783,14 @@ validate_ptr(const void *ptr)
 	return ret;
 }
 # if defined(__amd64)
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 16)
+	/***********************************************/
+	/*   Note  sure  which  version of the kernel  */
+	/*   this  came in on, but we need it for AS4  */
+	/*   - 2.6.9 plus lots of patches. 	       */
+	/***********************************************/
+	typedef struct { unsigned long pud; } pud_t;
+# endif
 typedef struct page_perms_t {
 	int	pp_valid;
 	unsigned long pp_addr;
@@ -802,6 +810,12 @@ typedef struct page_perms_t {
 static int
 mem_set_writable(unsigned long addr, page_perms_t *pp)
 {
+	/***********************************************/
+	/*   Dont   think  we  need  this  for  older  */
+	/*   kernels  where  everything  is writable,  */
+	/*   e.g. sys_call_table.		       */
+	/***********************************************/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
 	pgd_t *pgd = pgd_offset_k(addr);
 	pud_t *pud;
 	pmd_t *pmd;
@@ -849,6 +863,7 @@ mem_set_writable(unsigned long addr, page_perms_t *pp)
 
 	clflush(pmd);
 	clflush(pte);
+# endif
 	return 1;
 }
 /**********************************************************************/

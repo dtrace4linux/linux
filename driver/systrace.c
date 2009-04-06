@@ -24,7 +24,7 @@
  */
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 04-Apr-2009 1.1 $ 			      */
+/* $Header: Last edited: 07-Apr-2009 1.2 $ 			      */
 
 #include <linux/mm.h>
 # undef zone
@@ -177,25 +177,25 @@ systrace_assembler_dummy(void)
 		END_FUNCTION(systrace_part1_sys_clone)
 
 		FUNCTION(systrace_part1_sys_fork)
-		"lea    -0x28(%rsp),%r8\n"
+		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_fork,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_fork)
 
 		FUNCTION(systrace_part1_sys_iopl)
-		"lea    -0x28(%rsp),%r8\n"
+		"lea    -0x28(%rsp),%rsi\n"
 		"mov $dtrace_systrace_syscall_iopl,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_iopl)
 
 		FUNCTION(systrace_part1_sys_sigaltstack)
-		"lea    -0x28(%rsp),%r8\n"
+		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_sigaltstack,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_sigaltstack)
 
 		FUNCTION(systrace_part1_sys_vfork)
-		"lea    -0x28(%rsp),%r8\n"
+		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_vfork,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_vfork)

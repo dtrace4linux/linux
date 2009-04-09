@@ -56,7 +56,8 @@ release:
 		--exclude=.*.cmd \
 		--exclude=*.so \
 		--exclude=*.mod.c \
-		--exclude=build* \
+		--exclude=build \
+		--exclude=build-* \
 		--exclude=libdtrace/dt_grammar.h \
 		--exclude=libdtrace/dt_lex.c \
 		--exclude=.tmp_versions \

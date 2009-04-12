@@ -11,6 +11,7 @@
 /*   Date: April 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
+/*   $Header: Last edited: 13-Apr-2009 1.1 $ 			      */
 /**********************************************************************/
 
 //#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
@@ -493,8 +494,10 @@ HERE();
 		        struct module_sect_attr attrs[0];
 		};
 		struct module_sect_attrs *secp = mp->sect_attrs;
+		char	*secname = NULL;
 //printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
-		char *secname = secp->attrs[sym->st_shndx].name;
+		if (secp->attrs)
+			secname = secp->attrs[sym->st_shndx].name;
 		if (secname == NULL || strcmp(secname, ".text") != 0)
 			continue;
 //		printk("elf: %s info=%x other=%x shndx=%x sec=%p name=%s\n", name, sym->st_info, sym->st_other, sym->st_shndx, mp->sect_attrs, secname);

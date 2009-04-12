@@ -168,3 +168,6 @@ make unl
 make test
 	To run the userland cmd/dtrace regression test
 
+For AS4/Centos
+==============
+	yum install elfutils-libelf-devel

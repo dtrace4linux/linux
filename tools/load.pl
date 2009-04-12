@@ -152,7 +152,7 @@ sub main
 		kernel_text_address
 		modules:print_modules
 		sys_call_table:syscall_call
-		_text
+		_text:_stext
 		_etext
 		/) {
 		my $done = 0;

@@ -85,7 +85,13 @@ typedef struct cpu {
 
 typedef struct cpu_core {
         uint16_t        cpuc_dtrace_flags;      /* DTrace flags */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+	/***********************************************/
+	/*   sizeof(kmutex_t)  can  exceed  64 bytes,  */
+	/*   and gcc doesnt like this.		       */
+	/***********************************************/
         uint8_t         cpuc_pad[CPUC_PADSIZE]; /* padding */
+#endif
         uintptr_t       cpuc_dtrace_illval;     /* DTrace illegal value */
         kmutex_t        cpuc_pid_lock;          /* DTrace pid provider lock */
 } cpu_core_t;

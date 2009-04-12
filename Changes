@@ -1,3 +1,20 @@
+Mon Apr 13 11:03:10 2009  fox
+
+     229* dtrace_linux.c: par_alloc. Allocate memory with GFP_ATOMIC since
+          we may be in interrupt context and AS4 doesnt like us.
+
+     228* cpuvar.h, fasttrap_impl.h: Avoid struct padding for Linux
+          2.6.9 where we end up with a negative array size since
+	  sizeof(mutex_t) is > 64 bytes.
+
+     227* fbt_linux.c: Avoid possible GPF when loading driver and trawling
+          the available modules.
+
+     226* Archive: 1.0079
+
+     225* driver/dtrace_linux.c: Fix re-entrancy problem for fbt:::
+          due to kprobes notifier wanting to be first.
+
 Tue Apr  7 23:55:48 2009  fox
 
      224* systrace.c: Fix calling sequence for fork/vfork/iopl/sigaltstack.

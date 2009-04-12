@@ -7,6 +7,8 @@
 /*   Author: Paul D. Fox					      */
 /*   								      */
 /*   License: CDDL						      */
+/*   								      */
+/*   $Header: Last edited: 13-Apr-2009 1.2 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -29,6 +31,7 @@
 #include <linux/vmalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/current.h>
+#include <asm/desc.h>
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
 //#include <asm/pgtable.h>
@@ -136,11 +139,22 @@ static int tsc_max_delta;
 static struct timespec *xtime_cache_ptr;
 
 /**********************************************************************/
+/*   Ensure we are at the head of the chains. Unfortunately, kprobes  */
+/*   puts  itself  at  the front of the chain and the notifier calls  */
+/*   wont  let  us  go  first  -  which  we  need  in order to avoid  */
+/*   re-entrancy   issues.   We   have   to   work  around  that  in  */
+/*   dtrace_linux_init().					      */
+/**********************************************************************/
+# define NOTIFIER_MAX_PRIO 0x7fffffff
+
+/**********************************************************************/
 /*   Stuff for INT3 interception.				      */
 /**********************************************************************/
+
 static int proc_notifier_int3(struct notifier_block *, unsigned long, void *);
 static struct notifier_block n_int3 = {
 	.notifier_call = proc_notifier_int3,
+	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
 	};
 static	int (*fn_register_die_notifier)(struct notifier_block *);
 
@@ -153,6 +167,7 @@ static int (*fn_profile_event_unregister)(enum profile_type type, struct notifie
 static int proc_notifier_trap_illop(struct notifier_block *, unsigned long, void *);
 static struct notifier_block n_trap_illop = {
 	.notifier_call = proc_notifier_trap_illop,
+	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
 	};
 
 /**********************************************************************/
@@ -161,6 +176,7 @@ static struct notifier_block n_trap_illop = {
 static int proc_exit_notifier(struct notifier_block *, unsigned long, void *);
 static struct notifier_block n_exit = {
 	.notifier_call = proc_exit_notifier,
+	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
 	};
 
 /**********************************************************************/
@@ -400,7 +416,26 @@ dtrace_linux_init(void)
 	if (fn_register_die_notifier == NULL) {
 		printk("dtrace: register_die_notifier is NULL : FIX ME !\n");
 	} else {
-		(*fn_register_die_notifier)(&n_int3);
+		int done = FALSE;
+		/***********************************************/
+		/*   Ensure we always are at the front of the  */
+		/*   chain.  kprobes  uses  0x7fffffff  which  */
+		/*   means we cannot get their first.	       */
+		/*   Older kernels may not have die_chain, so  */
+		/*   default  to the unsafe way, but this may  */
+		/*   not  be  a  problem since they wont have  */
+		/*   kprobes anyway (eg AS4).		       */
+		/***********************************************/
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 19)
+		struct atomic_notifier_head *die_chain = get_proc_addr("die_chain");
+		if (die_chain) {
+			n_int3.next = die_chain->head;
+			die_chain->head = &n_int3;
+			done = TRUE;
+		}
+#endif
+		if (!done)
+			(*fn_register_die_notifier)(&n_int3);
 	}
 
 	/***********************************************/
@@ -437,6 +472,16 @@ dtrace_linux_init(void)
 	(void) dtrace_gethrtime();
 	rdtscll(t1);
 	tsc_max_delta = t1 - t;
+
+///
+//if (0)
+//{extern int zz();
+//gate_desc *idt_table = get_proc_addr("idt_table");
+//gate_desc s;
+//pack_gate(&s, GATE_INTERRUPT, (unsigned long)zz, 3, DEBUG_STACK, __KERNEL_CS);
+//write_idt_entry(idt_table, 3, &s);	
+////_set_gate(3, GATE_INTERRUPT, &zz, 0x3, DEBUG_STACK, __KERNEL_CS);
+//}
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -651,13 +696,18 @@ get_module(int n)
 /**********************************************************************/
 void *
 get_proc_addr(char *name)
-{
+{	void	*ptr;
+
 	if (xkallsyms_lookup_name == NULL) {
 		printk("get_proc_addr: No value for xkallsyms_lookup_name\n");
 		return 0;
 		}
 
-	return (void *) (*xkallsyms_lookup_name)(name);
+	ptr = (void *) (*xkallsyms_lookup_name)(name);
+	if (ptr)
+		return ptr;
+	printk("get_proc_addr: Failed to find '%s'\n", name);
+	return NULL;
 }
 int
 sulword(const void *addr, ulong_t value)
@@ -1025,7 +1075,7 @@ par_alloc(void *ptr, int size, int *init)
 	if (init)
 		*init = do_init;
 
-	if ((p = kmalloc(size + sizeof(*p), GFP_KERNEL)) == NULL)
+	if ((p = kmalloc(size + sizeof(*p), GFP_ATOMIC)) == NULL)
 		return NULL;
 	p->pa_ptr = ptr;
 	p->pa_next = hd_par;

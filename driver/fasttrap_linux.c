@@ -28,7 +28,7 @@ MODULE_DESCRIPTION("DTRACE/FASTTRAP Driver");
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
 static int
-fasttrap_open(struct module *mp, int *error)
+fasttrap_open(struct inode *inode, struct file *file)
 {
 	return 0;
 }
@@ -55,6 +55,9 @@ static struct miscdevice fasttrap_dev = {
         "fasttrap",
         &fasttrap_fops
 };
+
+static int initted;
+
 int fasttrap_init(void)
 {	int	ret;
 # if 0
@@ -89,17 +92,16 @@ static struct proc_dir_entry *dir;
 
 	fasttrap_attach();
 
+	initted = TRUE;
+
 	return 0;
 }
 void fasttrap_exit(void)
 {
-	fasttrap_detach();
-
+	if (initted) {
+		fasttrap_detach();
+		misc_deregister(&fasttrap_dev);
+	}
 	printk(KERN_WARNING "fasttrap driver unloaded.\n");
-/*	remove_proc_entry("dtrace/dtrace", 0);
-	remove_proc_entry("dtrace/helper", 0);
-	remove_proc_entry("dtrace", 0);
-*/
-	misc_deregister(&fasttrap_dev);
 }
 

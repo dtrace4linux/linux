@@ -876,7 +876,6 @@ static dtrace_pops_t systrace_pops = {
 	NULL, // dtps_usermode
 	systrace_destroy
 };
-static int initted;
 
 static int
 systrace_attach(void)
@@ -892,16 +891,11 @@ systrace_attach(void)
 		return DDI_FAILURE;
 		}
 
-	initted = 1;
-
 	return (DDI_SUCCESS);
 }
 static int
 systrace_detach(void)
 {
-	if (!initted)
-		return DDI_SUCCESS;
-
 	if (dtrace_unregister(systrace_id) != 0)
 		return (DDI_FAILURE);
 
@@ -952,14 +946,14 @@ int systrace_init(void)
 	/***********************************************/
 	printk(KERN_WARNING "systrace loaded: /dev/systrace now available\n");
 
-	initted = 1;
-
 	return 0;
 }
 void systrace_exit(void)
 {
-	systrace_detach();
+	if (initted) {
+		systrace_detach();
 
 //	printk(KERN_WARNING "systrace driver unloaded.\n");
-	misc_deregister(&systrace_dev);
+		misc_deregister(&systrace_dev);
+	}
 }

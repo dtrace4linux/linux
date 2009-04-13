@@ -100,7 +100,6 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 # if defined(sun)
 	struct module *mp = ctl->mod_mp;
 	char *modname = ctl->mod_modname;
-# endif
 	sdt_probedesc_t *sdpd;
 	sdt_probe_t *sdp, *old;
 	sdt_provider_t *prov;
@@ -114,7 +113,6 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 			return;
 	}
 
-# if defined(sun)
 	if (mp->sdt_nprobes != 0 || (sdpd = mp->sdt_probes) == NULL)
 		return;
 
@@ -193,10 +191,10 @@ static void
 sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 {
 	sdt_probe_t *sdp = parg, *old, *last, *hash;
-	struct modctl *ctl = sdp->sdp_ctl;
 	int ndx;
 
 # if defined(sun)
+	struct modctl *ctl = sdp->sdp_ctl;
 	if (ctl != NULL && ctl->mod_loadcnt == sdp->sdp_loadcnt) {
 		if ((ctl->mod_loadcnt == sdp->sdp_loadcnt &&
 		    ctl->mod_loaded)) {
@@ -268,6 +266,7 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 		}
 		return;
 	}
+	}
 # endif
 
 	while (sdp != NULL) {
@@ -302,15 +301,15 @@ uint64_t
 sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 {
 	uintptr_t val;
-	struct frame *fp = (struct frame *)dtrace_getfp();
+//	struct frame *fp = (struct frame *)dtrace_getfp();
 	uintptr_t *stack = NULL;
-	int i;
+//	int i;
 #if defined(__amd64)
 	/*
 	 * A total of 6 arguments are passed via registers; any argument with
 	 * index of 5 or lower is therefore in a register.
 	 */
-	int inreg = 5;
+//	int inreg = 5;
 #endif
 
 # if defined(TODOxxx)
@@ -378,9 +377,9 @@ sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 	argno -= (inreg + 1);
 #endif
 	stack = (uintptr_t *)&fp[1];
-#endif /* TODOxxx*/
 
 load:
+#endif /* TODOxxx*/
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	val = stack[argno];
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
@@ -500,9 +499,9 @@ void sdt_exit(void)
 {
 	if (initted) {
 		sdt_detach();
+		misc_deregister(&sdt_dev);
 	}
 
 	printk(KERN_WARNING "sdt driver unloaded.\n");
-	misc_deregister(&sdt_dev);
 }
 

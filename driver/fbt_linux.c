@@ -486,14 +486,13 @@ HERE();
 		        char *name;
 		        unsigned long address;
 		};
-
 		struct module_sect_attrs
 		{
 		        struct attribute_group grp;
 		        unsigned int nsections;
 		        struct module_sect_attr attrs[0];
 		};
-		struct module_sect_attrs *secp = mp->sect_attrs;
+		struct module_sect_attrs *secp = (struct module_sect_attrs *) mp->sect_attrs;
 		char	*secname = NULL;
 //printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
 		if (secp->attrs)
@@ -1334,8 +1333,8 @@ void fbt_exit(void)
 {
 	if (initted) {
 		fbt_cleanup(NULL);
+		misc_deregister(&fbt_dev);
 	}
 
 	printk(KERN_WARNING "fbt driver unloaded.\n");
-	misc_deregister(&fbt_dev);
 }

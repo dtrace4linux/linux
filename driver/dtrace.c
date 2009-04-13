@@ -70,6 +70,8 @@
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
 #include <linux/swap.h> /* want totalram_pages */
+#include <linux/delay.h>
+#include <linux/slab.h>
 # undef ASSERT
 # define ASSERT(x) {if (!(x)) {printk("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x);}}
 # define KERNELBASE 0
@@ -475,6 +477,17 @@ HERE2(); \
 #define	DTRACEACT_ISSTRING(act)						\
 	((act)->dta_kind == DTRACEACT_DIFEXPR &&			\
 	(act)->dta_difo->dtdo_rtype.dtdt_kind == DIF_TYPE_STRING)
+
+void (*dtrace_cpu_init)(processorid_t);
+void (*dtrace_modload)(struct modctl *);
+void (*dtrace_modunload)(struct modctl *);
+void (*dtrace_helpers_cleanup)(void);
+void (*dtrace_helpers_fork)(proc_t *, proc_t *);
+void (*dtrace_cpustart_init)(void);
+void (*dtrace_cpustart_fini)(void);
+
+void (*dtrace_debugger_init)(void);
+void (*dtrace_debugger_fini)(void);
 
 static size_t dtrace_strlen(const char *, size_t);
 static dtrace_probe_t *dtrace_probe_lookup_id(dtrace_id_t id);
@@ -7766,7 +7779,6 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 //HERE();
 }
 
-# if defined(sun)
 /*
  * Iterate over each probe, and call the Framework-to-Provider API function
  * denoted by offs.
@@ -7807,7 +7819,6 @@ dtrace_probe_foreach(uintptr_t offs)
 
 	dtrace_interrupt_enable(cookie);
 }
-# endif
 
 static int
 dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_enabling_t *enab)
@@ -8824,7 +8835,7 @@ dtrace_difo_chunksize(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 		uint_t rd = DIF_INSTR_RD(instr);
 		uint_t r1 = DIF_INSTR_R1(instr);
 		uint_t nkeys = 0;
-		uchar_t scope;
+		uchar_t scope = 0;
 
 		dtrace_key_t *key = tupregs;
 
@@ -14461,7 +14472,6 @@ dtrace_helpers_destroy(void)
 	mutex_exit(&dtrace_lock);
 }
 
-# if defined(sun)
 static void
 dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 {
@@ -14543,21 +14553,23 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 	if (hasprovs)
 		dtrace_helper_provider_register(to, newhelp, NULL);
 }
-# endif
 
-# if defined(sun)
 /*
  * DTrace Hook Functions
  */
 static void
-dtrace_module_loaded(struct modctl *ctl)
-{
+dtrace_module_loaded(struct modctl *modctl)
+{	struct module *ctl = (struct module *) modctl;
 	dtrace_provider_t *prv;
 
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&mod_lock);
 
+# if linux
+	ASSERT(ctl->state == MODULE_STATE_LIVE);
+# else
 	ASSERT(ctl->mod_busy);
+# endif
 
 	/*
 	 * We're going to call each providers per-module provide operation
@@ -14584,8 +14596,12 @@ dtrace_module_loaded(struct modctl *ctl)
 		return;
 	}
 
+# if linux
+	TODO();
+# else
 	(void) taskq_dispatch(dtrace_taskq,
 	    (task_func_t *)dtrace_enabling_matchall, NULL, TQ_SLEEP);
+# endif
 
 	mutex_exit(&dtrace_lock);
 
@@ -14599,16 +14615,24 @@ dtrace_module_loaded(struct modctl *ctl)
 	 * not a serious problem -- it just means that the module that we
 	 * just loaded may not be immediately instrumentable.
 	 */
+# if linux
+	msleep(1);
+# else
 	delay(1);
+# endif
 }
 
 static void
-dtrace_module_unloaded(struct modctl *ctl)
-{
+dtrace_module_unloaded(struct modctl *modctl)
+{	struct module *ctl = (struct modctl *) modctl;
 	dtrace_probe_t template, *probe, *first, *next;
 	dtrace_provider_t *prov;
 
+# if linux
+	template.dtpr_mod = ctl->name;
+# else
 	template.dtpr_mod = ctl->mod_modname;
+# endif
 
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&mod_lock);
@@ -14644,7 +14668,7 @@ dtrace_module_unloaded(struct modctl *ctl)
 			 */
 			if (dtrace_err_verbose) {
 				cmn_err(CE_WARN, "unloaded module '%s' had "
-				    "enabled probes", ctl->mod_modname);
+				    "enabled probes", ctl->name);
 			}
 
 			return;
@@ -14707,7 +14731,6 @@ dtrace_resume(void)
 {
 	dtrace_probe_foreach(offsetof(dtrace_pops_t, dtps_resume));
 }
-# endif
 
 static int
 dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
@@ -14857,7 +14880,13 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 
 	ddi_report_dev(devi);
 	dtrace_devi = devi;
+# endif
 
+	/***********************************************/
+	/*   These  wont  be  called  for  Linux  but  */
+	/*   compile  them  in  as we may enable at a  */
+	/*   future date.			       */
+	/***********************************************/
 	dtrace_modload = dtrace_module_loaded;
 	dtrace_modunload = dtrace_module_unloaded;
 	dtrace_cpu_init = dtrace_cpu_setup_initial;
@@ -14868,6 +14897,7 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_debugger_init = dtrace_suspend;
 	dtrace_debugger_fini = dtrace_resume;
 
+#if defined(sun)
 	register_cpu_setup_func((cpu_setup_func_t *)dtrace_cpu_setup, NULL);
 # endif
 
@@ -16088,6 +16118,7 @@ printk("dtrace_detach: dtrace_opens=%d\n", dtrace_opens);
 	bzero(&dtrace_anon, sizeof (dtrace_anon_t));
 # if defined(sun)
 	unregister_cpu_setup_func((cpu_setup_func_t *)dtrace_cpu_setup, NULL);
+# endif
 	dtrace_cpu_init = NULL;
 	dtrace_helpers_cleanup = NULL;
 	dtrace_helpers_fork = NULL;
@@ -16097,7 +16128,6 @@ printk("dtrace_detach: dtrace_opens=%d\n", dtrace_opens);
 	dtrace_debugger_fini = NULL;
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
-# endif
 
 	mutex_exit(&cpu_lock);
 

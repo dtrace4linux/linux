@@ -741,7 +741,7 @@ fasttrap_sigsegv(proc_t *p, struct task_struct *t, uintptr_t addr)
 	info.si_code = SEGV_MAPERR;
 	info.si_addr = (caddr_t)addr;
 
-	send_sig_info(SIGSEGV, &info, (struct task_sched *) p);
+	send_sig_info(SIGSEGV, &info, (struct task_struct *) p);
 # else
 	sigqueue_t *sqp = kmem_zalloc(sizeof (sigqueue_t), KM_SLEEP);
 
@@ -818,10 +818,13 @@ fasttrap_usdt_args32(fasttrap_probe_t *probe, struct regs *rp, int argc,
 static int
 fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 {
+	uint16_t sel = 0, ndx;
+#if defined(sun)
 	proc_t *p = curproc;
 	user_desc_t *desc;
-	uint16_t sel = 0, ndx, type;
+	uint16_t type;
 	uintptr_t limit;
+#endif
 
 	switch (tp->ftt_segment) {
 	case FASTTRAP_SEG_CS:
@@ -991,8 +994,9 @@ HERE();
 	 * parent. We know that there's only one thread of control in such a
 	 * process: this one.
 	 */
+	TODO();
 	while (p->p_flag & SVFORK) {
-		p = p->p_parent;
+		p = (proc_t *) p->p_parent;
 	}
 
 	pid = p->p_pid;
@@ -1761,8 +1765,14 @@ fasttrap_return_probe(struct regs *rp)
 	 * parent. We know that there's only one thread of control in such a
 	 * process: this one.
 	 */
+	/***********************************************/
+	/*   This  is wrong...mark it as a TODO since  */
+	/*   we  are  walkig  a  struct  which is Sun  */
+	/*   specific.				       */
+	/***********************************************/
+	TODO();
 	while (p->p_flag & SVFORK) {
-		p = p->p_parent;
+		p = (proc_t *) p->p_parent;
 	}
 
 	/*

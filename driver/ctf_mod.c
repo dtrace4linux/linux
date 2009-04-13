@@ -164,6 +164,8 @@ static struct miscdevice ctf_dev = {
         &ctf_fops
 };
 
+static int initted;
+
 int
 ctf_init(void)
 {	int	ret;
@@ -174,11 +176,14 @@ ctf_init(void)
 		return ret;
 		}
 	printk(KERN_WARNING "ctf driver loaded /proc/ctf and /dev/ctf now available\n");
+	initted = TRUE;
 
 	return 0;
 }
 void ctf_exit(void)
 {
 	printk(KERN_WARNING "ctf driver unloaded.\n");
-	misc_deregister(&ctf_dev);
+	if (initted) {
+		misc_deregister(&ctf_dev);
+	}
 }

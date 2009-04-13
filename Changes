@@ -1,3 +1,23 @@
+Tue Apr 14 20:17:10 2009  fox
+
+     233* cyclic_linux.c: Emergency patch to disable cyclic timer
+          til i fix the crashing...
+
+     232* Remove all compiler warnings for the driver (still working on
+          init_mm), so I can see wood-for-trees on 2.6.9;
+	  kernel 2.6.28+ is clean, but 2.6.9 has a few noisy differences.
+
+     231* driver/cyclic_linux.c: Remove warnings and fix way
+          hrtimer callbacks work (based on 2.6.28)
+
+     230* Various: cleanup the exit functions for the drivers, since
+          Linux 2.6.9 doesnt like calls to misc_deregister() if we
+	  never registered the structure.
+
+	  dtrace_linux.c:
+	  Remove redundant calls to remove_proc_entry() which can panic
+	  2.6.9.
+
 Mon Apr 13 11:03:10 2009  fox
 
      229* dtrace_linux.c: par_alloc. Allocate memory with GFP_ATOMIC since

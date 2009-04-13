@@ -83,7 +83,7 @@ static int print_trace_stack(void *data, char *name)
 	return 0;
 }
 
-static void print_trace_address(void *data, unsigned long addr)
+static void print_trace_address(void *data, unsigned long addr, int reliable)
 {
 //printk("in print_trace_address addr=%p\n", addr);
 	if (g_depth < g_pcstack_limit)

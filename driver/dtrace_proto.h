@@ -51,5 +51,9 @@ int	is_toxic_func(unsigned long a, const char *name);
 int	memory_set_rw(void *addr, int num_pages, int is_kernel_addr);
 int	on_notifier_list(uint8_t *);
 
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+int	mutex_is_locked(struct mutex *mp);
+# endif
+
 # endif
 

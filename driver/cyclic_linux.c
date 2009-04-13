@@ -104,7 +104,7 @@ static int (*fn_hrtimer_start)(struct hrtimer *timer, ktime_t tim,
                          const enum hrtimer_mode mode);
 
 struct c_timer {
-	struct hrtimer	c_htp;
+	struct hrtimer	c_htp;	/* Must be first item in structure */
 	cyc_handler_t	c_hdlr;
 	cyc_time_t	c_time;
 	};
@@ -113,15 +113,18 @@ void
 cyclic_init(cyc_backend_t *be, hrtime_t resolution)
 {
 }
-static void
-be_callback(void *ptr)
-{	struct c_timer *cp = ptr;
-	ktime_t kt;
+static enum hrtimer_restart
+be_callback(struct hrtimer *ptr)
+{	struct c_timer *cp = (struct c_timer *) ptr;
+//	ktime_t kt;
 
-	kt.tv64 = cp->c_time.cyt_interval;
-
+//	kt.tv64 = cp->c_time.cyt_interval;
+	/***********************************************/
+	/*   Invoke the callback.		       */
+	/***********************************************/
 	cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
-	fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+//	fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+	return HRTIMER_RESTART;
 }
 cyclic_id_t 
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
@@ -133,6 +136,11 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 	fn_hrtimer_start  = fbt_get_hrtimer_start();
 
 	kt.tv64 = t->cyt_interval;
+/**********************************************************************/
+/*   20090414  -  fixme -- we will crash after the timer fires. need  */
+/*   to clean this...						      */
+/**********************************************************************/
+return 0;
 
 	if (cp == NULL)
 		return 0;
@@ -140,8 +148,8 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 	cp->c_hdlr = *hdrl;
 	cp->c_time = *t;
 
-	fn_hrtimer_init(&cp->c_htp, CLOCK_REALTIME, HRTIMER_MODE_REL);
-
+	fn_hrtimer_init(&cp->c_htp, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	cp->c_htp.cb_mode = HRTIMER_CB_SOFTIRQ;
 	cp->c_htp.function = be_callback;
 
 	fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);

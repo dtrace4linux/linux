@@ -521,6 +521,8 @@ static struct miscdevice profile_dev = {
         &profile_fops
 };
 
+static int initted;
+
 int
 dtrace_profile_init(void)
 {	int	ret;
@@ -530,6 +532,8 @@ dtrace_profile_init(void)
 		printk(KERN_WARNING "dtrace-profile: Unable to register misc device\n");
 		return ret;
 		}
+	initted = TRUE;
+
 	profile_attach();
 	printk("profile loaded: /dev/dtrace-profile available\n");
 	return 0;
@@ -538,7 +542,9 @@ dtrace_profile_init(void)
 int
 dtrace_profile_fini(void)
 {
-	profile_detach();
-	misc_deregister(&profile_dev);
+	if (initted) {
+		profile_detach();
+		misc_deregister(&profile_dev);
+	}
 	return 0;
 }

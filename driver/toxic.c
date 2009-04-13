@@ -10,6 +10,13 @@
 /**********************************************************************/
 
 /**********************************************************************/
+/*   We  avoid  #include  dependencies here..because I want to avoid  */
+/*   inlining  or  calling renamed functions. We need to shut up GCC  */
+/*   because it can see what we are doing.			      */
+/**********************************************************************/
+# include <linux/string.h>
+
+/**********************************************************************/
 /*   We  avoiding  having  issues  with  prototypes  by stringifying  */
 /*   everything.  Also  we avoid issues where the kernel has no such  */
 /*   symbol  --  we  just  avoid fbt_provide_kernel() from trying to  */
@@ -97,9 +104,6 @@ char toxic_probe_tbl[] = {
 	"zlib_inflateEnd "
 	"zlib_inflateInit2 "
 	};
-
-int strlen(const char *);
-char	*strncmp(const char *, const char *, int);
 
 int 
 is_toxic_func(unsigned long a, const char *name)

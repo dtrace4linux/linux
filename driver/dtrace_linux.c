@@ -1904,9 +1904,11 @@ static void __exit dtracedrv_exit(void)
 	fasttrap_exit();
 
 	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
+# if 0
 	remove_proc_entry("dtrace/dtrace", 0);
 	remove_proc_entry("dtrace/helper", 0);
 	remove_proc_entry("dtrace", 0);
+# endif
 	misc_deregister(&dtracedrv_dev);
 }
 module_init(dtracedrv_init);

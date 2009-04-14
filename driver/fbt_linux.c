@@ -1123,7 +1123,8 @@ fbt_cleanup(dev_info_t *devi)
 		dtrace_unregister(fbt_id);
 
 //	ddi_remove_minor_node(devi, NULL);
-	kmem_free(fbt_probetab, fbt_probetab_size * sizeof (fbt_probe_t *));
+	if (fbt_probetab)
+		kmem_free(fbt_probetab, fbt_probetab_size * sizeof (fbt_probe_t *));
 	fbt_probetab = NULL;
 	fbt_probetab_mask = 0;
 }

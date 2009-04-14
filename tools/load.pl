@@ -1,6 +1,8 @@
 #! /usr/bin/perl
 
-# $Header:$
+# $Header: Last edited: 15-Apr-2009 1.1 $ 
+
+# 20090415 PDF Fix for when we are using the optional symbols (AS4)
 
 # Simple script to load the driver and get it ready.
 
@@ -156,20 +158,25 @@ sub main
 		_etext
 		/) {
 		my $done = 0;
+		my $real_name;
 		foreach my $rawsym (split(":", $s)) {
 			if ($rawsym eq 'optional') {
 				$done = 1;
 				last;
 			}
 			next if !defined($syms{$rawsym});
+			$real_name = $rawsym if !$real_name;
+			my $addr = $syms{$rawsym};
+			$addr = join(" ", (split(" ", $syms{$rawsym}))[0..1]) . " $real_name";
+
 			my $fh = new FileHandle(">/dev/fbt");
 			if (!$fh) {
 				print "Cannot open /dev/fbt -- $!\n";
 			}
-                        if (1 < $opts{v}) {
-                          print STDERR "echo \"$syms{$rawsym}\" > /dev/fbt\n";
+                        if ($opts{v}) {
+                        	print STDERR "echo \"$addr\" > /dev/fbt\n";
                         }
-                        print $fh $syms{$rawsym} . "\n" if $fh;
+                        print $fh $addr . "\n" if $fh;
 			$done = 1;
 			last;
 		}

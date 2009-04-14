@@ -1888,10 +1888,6 @@ static struct proc_dir_entry *dir;
 }
 static void __exit dtracedrv_exit(void)
 {
-	if (dtrace_attached()) {
-		dtrace_detach(NULL, 0);
-		}
-
 	misc_deregister(&helper_dev);
 
 	dtrace_linux_fini();
@@ -1900,8 +1896,14 @@ static void __exit dtracedrv_exit(void)
 	dtrace_profile_fini();
 	systrace_exit();
 	fbt_exit();
-	ctf_exit();
 	fasttrap_exit();
+	ctf_exit();
+
+	if (dtrace_attached()) {
+		if (dtrace_detach(NULL, 0) == DDI_FAILURE) {
+			printk("dtrace_detach failure\n");
+		}
+	}
 
 	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
 # if 0

@@ -3,6 +3,8 @@
 # $Header: Last edited: 15-Apr-2009 1.1 $ 
 
 # 20090415 PDF Fix for when we are using the optional symbols (AS4)
+# 20090416 PDF Add /boot/System.map support
+# 20090416 PDF Add -unhandled switch support.
 
 # Simple script to load the driver and get it ready.
 
@@ -24,6 +26,7 @@ my $SUDO = "setuid root";
 my %opts = (
 	here => 0,
 	mem_alloc => 0,
+	unhandled => 0,
 	v => 0,
 	);
 
@@ -35,6 +38,7 @@ sub main
 		'help',
 		'here',
 		'mem_alloc',
+		'unhandled',
 		'unload',
 		'v+',
 		);
@@ -77,7 +81,9 @@ sub main
 	#####################################################################
 	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
 	print "Loading: $dtracedrv\n";
-	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here} dtrace_mem_alloc=$opts{mem_alloc}");
+	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}" .
+		" dtrace_unhandled=$opts{unhandled}" .
+		" dtrace_mem_alloc=$opts{mem_alloc}");
 	if ($ret) {
 		print "\n";
 		print "An error was detected loading the driver. Refer to\n";
@@ -117,11 +123,26 @@ sub main
 	#   hash				      #
 	###############################################
 	my $fh = new FileHandle("/proc/kallsyms");
+	die "Cannot proceed - /proc/kallsyms - $!" if !$fh;
 	my %syms;
 	while (<$fh>) {
 		chomp;
 		my $s = (split(" ", $_))[2];
 		$syms{$s} = $_;
+	}
+	###############################################
+	#   Just in case - read the system map.	      #
+	###############################################
+	my $kernel = `uname -r`;
+	chomp($kernel);
+	my $fname = "/boot/System.map-$kernel";
+	$fh = new FileHandle($fname);
+	if ($fh) {
+		while (<$fh>) {
+			chomp;
+			my $s = (split(" ", $_))[2];
+			$syms{$s} = $_;
+		}
 	}
 	###############################################
 	#   Need  to  'export'  GPL  symbols  to the  #
@@ -142,18 +163,14 @@ sub main
 	# Symbols we used to need, but no longer:
 	# get_symbol_offset
 	foreach my $s (qw/
-		__symbol_get
+		die_chain
 		access_process_vm
-		hrtimer_cancel
-		hrtimer_init
-		hrtimer_start
 		kallsyms_addresses:optional
 		kallsyms_lookup_name
-		kallsyms_num_syms:optional
 		kallsyms_op:optional
-		kernel_text_address
 		modules:print_modules
-		sys_call_table:syscall_call
+		sys_call_table
+		syscall_call:optional
 		_text:_stext
 		_etext
 		/) {
@@ -266,6 +283,8 @@ Switches:
    -fast      Dont do 'dtrace -l' after load to avoid kernel messages.
    -here      Enable tracing to /var/log/messages.
    -mem_alloc Trace memory allocs (kmem_alloc/kmem_zalloc/kmem_free).
+   -unhandled Log FBT functions we couldnt handle because of unsupported/
+              disassembly errors.
    -unload    Unload the dtrace driver.
 
 EOF

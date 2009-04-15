@@ -18,6 +18,8 @@
 /**********************************************************************/
 
 #include "dtrace_linux.h"
+#include <sys/dtrace_impl.h>
+#include "dtrace_proto.h"
 #include <sys/cyclic_impl.h>
 
 # define	CYCLIC_SUN	0
@@ -90,9 +92,6 @@ init_cyclic()
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
-void *fbt_get_hrtimer_cancel(void);
-void *fbt_get_hrtimer_start(void);
-void *fbt_get_hrtimer_init(void);
 
 /**********************************************************************/
 /*   hrtimer_cancel function which is marked as GPL.		      */
@@ -130,10 +129,19 @@ cyclic_id_t
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 {	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
 	ktime_t kt;
+static int first_time = TRUE;
 
-	fn_hrtimer_cancel = fbt_get_hrtimer_cancel();
-	fn_hrtimer_init   = fbt_get_hrtimer_init();
-	fn_hrtimer_start  = fbt_get_hrtimer_start();
+	if (first_time) {
+		first_time = FALSE;
+		fn_hrtimer_cancel = get_proc_addr("hrtimer_cancel");
+		fn_hrtimer_init   = get_proc_addr("hrtimer_init");
+		fn_hrtimer_start  = get_proc_addr("hrtimer_start");
+
+		if (fn_hrtimer_start == NULL) {
+			printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
+			return 0;
+		}
+	}
 
 	kt.tv64 = t->cyt_interval;
 /**********************************************************************/

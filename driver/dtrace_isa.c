@@ -47,8 +47,6 @@ typedef struct ucontext32 ucontext32_t;
 //typedef struct siginfo32 siginfo32_t;
 # define siginfo32_t siginfo_t
 
-void *fbt_get_kernel_text_address(void);
-
 /*
  * This is gross knowledge to have to encode here...
  */

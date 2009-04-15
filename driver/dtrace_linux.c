@@ -54,6 +54,8 @@ int dtrace_here;
 module_param(dtrace_here, int, 0);
 int dtrace_mem_alloc;
 module_param(dtrace_mem_alloc, int, 0);
+int dtrace_unhandled;
+module_param(dtrace_unhandled, int, 0);
 
 static char *invop_msgs[] = {
 	"DTRACE_INVOP_zero",
@@ -74,38 +76,38 @@ static char *invop_msgs[] = {
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
 /**********************************************************************/
+enum {
+	OFFSET_kallsyms_op,
+	OFFSET_kallsyms_lookup_name,
+	OFFSET_modules,
+	OFFSET_sys_call_table,
+	OFFSET_access_process_vm,
+	OFFSET_syscall_call,
+	OFFSET_print_modules,
+	OFFSET__text,
+	OFFSET__etext,
+	OFFSET_die_chain
+	};
 static struct map {
 	char		*m_name;
 	unsigned long	*m_ptr;
 	} syms[] = {
-/* 0 */	{"kallsyms_op",            NULL},
-/* 1 */	{"kallsyms_num_syms",      NULL},
-/* 2 */	{"kallsyms_addresses",     NULL},
-/* 3 */	{"kallsyms_expand_symbol", NULL}, /* No longer needed. */
-/* 4 */	{"get_symbol_offset",      NULL}, /* No longer needed. */
-/* 5 */	{"kallsyms_lookup_name",   NULL},
-/* 6 */	{"modules",                NULL},
-/* 7 */	{"__symbol_get",           NULL},
-/* 8 */	{"sys_call_table",         NULL},
-/* 9 */	{"**  reserved",           NULL},
-/* 10 */{"hrtimer_cancel",         NULL},
-/* 11 */{"hrtimer_start",          NULL},
-/* 12 */{"hrtimer_init",           NULL},
-/* 13 */{"access_process_vm",      NULL},
-/* 14 */{"syscall_call",           NULL}, /* Backup for i386 2.6.23 kernel to help */
-				 	  /* find the sys_call_table.		  */
-/* 15 */{"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
-				 	  /* find the modules table. 		  */
-/* 16 */{"kernel_text_address",    NULL},
-/* 17 */{"_text",		   NULL}, /* Start of kernel code.	*/
-/* 18 */{"_etext",		   NULL}, /* End of kernel code.	*/
+{"kallsyms_op",            NULL},
+{"kallsyms_lookup_name",   NULL},
+{"modules",                NULL},
+{"sys_call_table",         NULL},
+{"access_process_vm",      NULL},
+{"syscall_call",           NULL}, /* Backup for i386 2.6.23 kernel to help */
+			 	  /* find the sys_call_table.		  */
+{"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
+			 	  /* find the modules table. 		  */
+{"_text",		   NULL}, /* Start of kernel code.	*/
+{"_etext",		   NULL}, /* End of kernel code.	*/
+{"die_chain",              NULL}, /* In case no unregister_die_notifier */
 	{0}
 	};
-static int xkallsyms_num_syms;
-static long *xkallsyms_addresses;
 static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
-static void *(*x__symbol_get)(const char *);
 static void **xsys_call_table;
 
 uintptr_t	_userlimit = 0x7fffffff;
@@ -200,6 +202,7 @@ void	sdt_exit(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 static void print_pte(pte_t *pte, int level);
+static int dtrace_unregister_die_notifier(char *name, struct notifier_block *np);
 
 cred_t *
 CRED()
@@ -281,8 +284,8 @@ dtrace_gethrtime()
 	/*   multiword  item,  and  we  may pick up a  */
 	/*   partial update.			       */
 	/***********************************************/
-//	if (!xtime_cache_ptr)
-//		return 0;
+	if (!xtime_cache_ptr)
+		return 0;
 
 	ts = *xtime_cache_ptr;
 	return (hrtime_t) ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
@@ -486,20 +489,24 @@ dtrace_linux_init(void)
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
 /**********************************************************************/
-static void
+static int
 dtrace_linux_fini(void)
-{
-	int (*fn_unregister_die_notifier)(struct notifier_block *) = 
-		get_proc_addr("unregister_die_notifier");
-	if (fn_unregister_die_notifier) {
-		(*fn_unregister_die_notifier)(&n_int3);
-	}
-	if (fn_unregister_die_notifier) {
-		(*fn_unregister_die_notifier)(&n_trap_illop);
-	}
+{	int	ret = 1;
+
+	if (!dtrace_unregister_die_notifier("n_int3", &n_int3))
+		ret = 0;
+
+	if (!dtrace_unregister_die_notifier("n_trap_illop", &n_trap_illop))
+		ret = 0;
+
 	if (fn_profile_event_unregister) {
 		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
+	} else {
+		printk(KERN_WARNING "dtracedrv: Cannot call profile_event_unregister\n");
+		ret = 0;
 	}
+
+	return ret;
 }
 
 /**********************************************************************/
@@ -536,6 +543,54 @@ dtrace_sync(void)
         dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
 }
 
+/**********************************************************************/
+/*   Unregister the die notifiers when we are unloaded. This handles  */
+/*   the    scenario   that   the   system   may   be   issing   the  */
+/*   unregister_die_notifier() function (eg. 2.6.9 kernels). We need  */
+/*   to  be  careful  because  if  there  is  no unregister call, we  */
+/*   cannot/must  not  unload  the  driver  - but the __exit handler  */
+/*   doesnt let us signify this.				      */
+/**********************************************************************/
+static int
+dtrace_unregister_die_notifier(char *name, struct notifier_block *np)
+{	struct notifier_block **die_chain;
+	struct notifier_block *p;
+
+	int (*fn_unregister_die_notifier)(struct notifier_block *) = 
+		get_proc_addr("unregister_die_notifier");
+	if (fn_unregister_die_notifier) {
+		(*fn_unregister_die_notifier)(np);
+		return TRUE;
+	}
+
+	/***********************************************/
+	/*   Try  for  the  die_chain and just remove  */
+	/*   us.				       */
+	/***********************************************/
+	die_chain = (struct notifier_block **) syms[OFFSET_die_chain].m_ptr;
+	if (die_chain == NULL) {
+		printk(KERN_WARNING "dtrace_linux.c: No die_chain in kernel - sorry - cannot rmmod me.\n");
+		return FALSE;
+	}
+	printk(KERN_WARNING "dtrace_linux.c: manual removal in progress (%s)\n", name);
+	if (*die_chain == np) {
+		*die_chain = np->next;
+		return TRUE;
+	}
+
+	for (p = *die_chain ; p; p = p->next) {
+		if (p->next == np) {
+			p->next = np->next;
+			return TRUE;
+		}
+	}
+
+	/***********************************************/
+	/*   Darn it - nothing we can do.	       */
+	/***********************************************/
+	printk(KERN_WARNING "dtrace_linux.c: (%s) cannot locate on chain - sorry - cannot rmmod me.\n", name);
+	return 0;
+}
 void
 dtrace_vtime_enable(void)
 {
@@ -620,33 +675,10 @@ fbt_get_sys_call_table(void)
 {
 	return xsys_call_table;
 }
-/**********************************************************************/
-/*   Needed in cyclic.c						      */
-/**********************************************************************/
-void *
-fbt_get_hrtimer_cancel(void)
-{
-	return (void *) syms[10].m_ptr;
-}
-void *
-fbt_get_hrtimer_init(void)
-{
-	return (void *) syms[12].m_ptr;
-}
-void *
-fbt_get_hrtimer_start(void)
-{
-	return (void *) syms[11].m_ptr;
-}
-void *
-fbt_get_kernel_text_address(void)
-{
-	return (void *) syms[16].m_ptr;
-}
 void *
 fbt_get_access_process_vm(void)
 {
-	return (void *) syms[13].m_ptr;
+	return (void *) syms[OFFSET_access_process_vm].m_ptr;
 }
 int
 fulword(const void *addr, uintptr_t *valuep)
@@ -697,6 +729,7 @@ get_module(int n)
 void *
 get_proc_addr(char *name)
 {	void	*ptr;
+static int count;
 
 	if (xkallsyms_lookup_name == NULL) {
 		printk("get_proc_addr: No value for xkallsyms_lookup_name\n");
@@ -706,7 +739,10 @@ get_proc_addr(char *name)
 	ptr = (void *) (*xkallsyms_lookup_name)(name);
 	if (ptr)
 		return ptr;
-	printk("get_proc_addr: Failed to find '%s'\n", name);
+	if (count < 100) {
+		count++;
+		printk("get_proc_addr: Failed to find '%s' (warn=%d)\n", name, count);
+	}
 	return NULL;
 }
 int
@@ -1021,7 +1057,6 @@ mutex_count(mutex_t *mp)
 /*   scan  from  the front of the list, but we dont have that, so we  */
 /*   need to dig into the kernel to find it.			      */
 /**********************************************************************/
-int cnt;
 int
 on_notifier_list(uint8_t *ptr)
 {	struct notifier_block *np;
@@ -1033,25 +1068,35 @@ on_notifier_list(uint8_t *ptr)
 # endif
 	static struct atomic_notifier_head *die_chain;
 	static struct blocking_notifier_head *task_exit_notifier;
-	int	do_print = die_chain == NULL;
+	int	do_print = 0; // set to 1 for debug
+static int first_time = TRUE;
 
-	if (die_chain == NULL)
-		die_chain = (struct atomic_notifier_head *) get_proc_addr("die_chain");
-	if (task_exit_notifier == NULL)
-		task_exit_notifier = (struct blocking_notifier_head *) get_proc_addr("task_exit_notifier");
+	if (first_time) {
+		first_time = FALSE;
+		if (die_chain == NULL)
+			die_chain = (struct atomic_notifier_head *) get_proc_addr("die_chain");
+		if (task_exit_notifier == NULL)
+			task_exit_notifier = (struct blocking_notifier_head *) get_proc_addr("task_exit_notifier");
+	}
 
-	for (np = atomic_head(die_chain); np; np = np->next) {
-		if (do_print) 
-			printk("illop-chain: %p\n", np->notifier_call);
-		if ((uint8_t *) np->notifier_call == ptr)
-			return 1;
+	if (die_chain) {
+		for (np = atomic_head(die_chain); np; np = np->next) {
+			if (do_print) 
+				printk("illop-chain: %p\n", np->notifier_call);
+			if ((uint8_t *) np->notifier_call == ptr)
+				return 1;
+		}
 	}
-	for (np = atomic_head(task_exit_notifier); np; np = np->next) {
-		if (do_print)
-			printk("exit-chain: %p\n", np->notifier_call);
-		if ((uint8_t *) np->notifier_call == ptr)
-			return 1;
+
+	if (task_exit_notifier) {
+		for (np = atomic_head(task_exit_notifier); np; np = np->next) {
+			if (do_print)
+				printk("exit-chain: %p\n", np->notifier_call);
+			if ((uint8_t *) np->notifier_call == ptr)
+				return 1;
+		}
 	}
+
 	return 0;
 }
 /**********************************************************************/
@@ -1388,9 +1433,9 @@ void *
 sym_get_static(char *name)
 {
 	if (strcmp(name, "_text") == 0)
-		return (void *) syms[17].m_ptr;
+		return (void *) syms[OFFSET__text].m_ptr;
 	if (strcmp(name, "_etext") == 0)
-		return (void *) syms[18].m_ptr;
+		return (void *) syms[OFFSET__etext].m_ptr;
 	return NULL;
 }
 
@@ -1446,13 +1491,10 @@ syms_write(struct file *file, const char __user *buf,
 		buf = symend + 1;
 	}
 
-	if (syms[1].m_ptr)
-		xkallsyms_num_syms = *(int *) syms[1].m_ptr;
-	xkallsyms_addresses 	= (long *) syms[2].m_ptr;
-	xkallsyms_lookup_name 	= (unsigned long (*)(char *)) syms[5].m_ptr;
-	xmodules 		= (void *) syms[6].m_ptr;
-	x__symbol_get		= (void *(*)(const char *)) syms[7].m_ptr;
-	xsys_call_table 	= (void **) syms[8].m_ptr;
+
+	xkallsyms_lookup_name 	= (unsigned long (*)(char *)) syms[OFFSET_kallsyms_lookup_name].m_ptr;
+	xmodules 		= (void *) syms[OFFSET_modules].m_ptr;
+	xsys_call_table 	= (void **) syms[OFFSET_sys_call_table].m_ptr;
 
 	/***********************************************/
 	/*   On 2.6.23.1 kernel I have, in i386 mode,  */
@@ -1465,10 +1507,6 @@ syms_write(struct file *file, const char __user *buf,
 	/*   					       */
 	/*   call *sys_call_table(,%eax,4)	       */
 	/***********************************************/
-# define OFFSET_modules		6
-# define OFFSET_sys_call_table	8
-# define OFFSET_syscall_call	14
-# define OFFSET_print_modules	15
 	{unsigned char *ptr = (unsigned char *) syms[OFFSET_syscall_call].m_ptr;
 	if (ptr &&
 	    syms[OFFSET_sys_call_table].m_ptr == NULL &&
@@ -1798,11 +1836,12 @@ static struct miscdevice helper_dev = {
 
 static int __init dtracedrv_init(void)
 {	int	i, ret;
-static struct proc_dir_entry *dir;
 
 	/***********************************************/
 	/*   Create the parent directory.	       */
 	/***********************************************/
+/*
+static struct proc_dir_entry *dir;
 	if (!dir) {
 		dir = proc_mkdir("dtrace", NULL);
 		if (!dir) {
@@ -1810,6 +1849,7 @@ static struct proc_dir_entry *dir;
 			return -1;
 		}
 	}
+*/
 
 	/***********************************************/
 	/*   Initialise   the   cpu_list   which  the  */
@@ -1849,22 +1889,11 @@ static struct proc_dir_entry *dir;
 	ent = create_proc_entry("helper", S_IFREG | S_IRUGO | S_IWUGO, dir);
 	ent->read_proc = dtracedrv_helper_read_proc;
 # endif
-	ret = misc_register(&dtracedrv_dev);
-	if (ret) {
-		printk(KERN_WARNING "dtracedrv: Unable to register /dev/dtrace\n");
-		return ret;
-		}
-	ret = misc_register(&helper_dev);
-	if (ret) {
-		printk(KERN_WARNING "dtracedrv: Unable to register /dev/dtrace_helper\n");
-		return ret;
-		}
-
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace available, dtrace_here=%d\n",
-		dtrace_here);
+	printk(KERN_WARNING "dtracedrv loaded: /dev/dtrace available, dtrace_here=%d nr_cpus=%d\n",
+		dtrace_here, nr_cpus);
 
 	dtrace_attach(NULL, 0);
 
@@ -1884,13 +1913,29 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	/* dtrace_linux_init(); */
 
+	/***********************************************/
+	/*   Create the /dev entry points.	       */
+	/***********************************************/
+	ret = misc_register(&dtracedrv_dev);
+	if (ret) {
+		printk(KERN_WARNING "dtracedrv: Unable to register /dev/dtrace\n");
+		return ret;
+		}
+	ret = misc_register(&helper_dev);
+	if (ret) {
+		printk(KERN_WARNING "dtracedrv: Unable to register /dev/dtrace_helper\n");
+		return ret;
+		}
+
 	return 0;
 }
 static void __exit dtracedrv_exit(void)
 {
-	misc_deregister(&helper_dev);
+	if (!dtrace_linux_fini()) {
+		printk("dtrace: dtracedrv_exit: Cannot exit - since cannot unhook notifier chains.\n");
+		return;
+	}
 
-	dtrace_linux_fini();
 	ctl_exit();
 	sdt_exit();
 	dtrace_profile_fini();
@@ -1905,12 +1950,17 @@ static void __exit dtracedrv_exit(void)
 		}
 	}
 
+	kfree(cpu_table);
+	kfree(cpu_core);
+	kfree(cpu_list);
+
 	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
 # if 0
 	remove_proc_entry("dtrace/dtrace", 0);
 	remove_proc_entry("dtrace/helper", 0);
 	remove_proc_entry("dtrace", 0);
 # endif
+	misc_deregister(&helper_dev);
 	misc_deregister(&dtracedrv_dev);
 }
 module_init(dtracedrv_init);

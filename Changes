@@ -1,3 +1,17 @@
+Thu Apr 16 20:20:57 2009  fox
+
+     237* dtrace_linux.c: Tidy up the syms[] array which is filled in
+          from userspace to bootstrap us.
+
+     236* Archive: 1.0080
+
+     235* dtrace_linux.c: Fix typo in on_notifier_list, and avoid
+          repeated calls to get_proc_addr when entries dont exist.
+
+     234* tools/load.pl: Try /boot/System.map-`uname -r` for symbols
+          which may be missing (AS4). Remove sys_syscall which isnt
+	  valid at all.
+
 Tue Apr 14 20:17:10 2009  fox
 
      233* cyclic_linux.c: Emergency patch to disable cyclic timer

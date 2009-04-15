@@ -106,6 +106,7 @@ static fbt_probe_t		**fbt_probetab;
 static int			fbt_probetab_size;
 static int			fbt_probetab_mask;
 static int			fbt_verbose = 0;
+extern int dtrace_unhandled;
 
 static void fbt_provide_function(struct modctl *mp, 
     	par_module_t *pmp,
@@ -478,16 +479,20 @@ HERE();
 		/*   we   dont   want   sections   which  can  */
 		/*   disappear   or   have   disappeared  (eg  */
 		/*   .init).				       */
+		/*   I'm  not sure I follow this code for all  */
+		/*   kernel  releases - if we have the field,  */
+		/*   it should have a fixed meaning, but some  */
+		/*   modules  have  bogus  section attributes  */
+		/*   pointers   (maybe   pointers   to  freed  */
+		/*   segments?). Lets be careful out there.    */
 		/***********************************************/
 		{
-		struct module_sect_attr
-		{
+		struct module_sect_attr {
 		        struct module_attribute mattr;
 		        char *name;
 		        unsigned long address;
 		};
-		struct module_sect_attrs
-		{
+		struct module_sect_attrs {
 		        struct attribute_group grp;
 		        unsigned int nsections;
 		        struct module_sect_attr attrs[0];
@@ -497,7 +502,11 @@ HERE();
 //printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
 		if (secp->attrs)
 			secname = secp->attrs[sym->st_shndx].name;
-		if (secname == NULL || strcmp(secname, ".text") != 0)
+		if (secname == NULL)
+			continue;
+		if (!validate_ptr(secname))
+			continue;
+		if (strcmp(secname, ".text") != 0)
 			continue;
 //		printk("elf: %s info=%x other=%x shndx=%x sec=%p name=%s\n", name, sym->st_info, sym->st_other, sym->st_shndx, mp->sect_attrs, secname);
 		}
@@ -520,7 +529,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	char *modname, char *name, uint8_t *st_value,
 	uint8_t *instr, uint8_t *limit, int i)
 {
-	int	do_print = TRUE;
+	int	do_print = FALSE;
 	int	invop = 0;
 	fbt_probe_t *fbt, *retfbt;
 	int	 size = -1;
@@ -553,11 +562,13 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   instruction.			       */
 	/***********************************************/
 	if (instr >= limit) {
-		printk("fbt:unhandled limit %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
+		if (dtrace_unhandled)
+			printk("fbt:unhandled limit %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
 		return;
 	}
 	if (*instr != FBT_PUSHL_EBP) {
-		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
+		if (dtrace_unhandled)
+			printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
 		return;
 	}
 	invop = DTRACE_INVOP_PUSHL_EBP;
@@ -568,8 +579,10 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   assembler  to  deal with - so we disable  */
 	/*   this for now.			       */
 	/***********************************************/
-# define UNHANDLED_FBT() printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
-			name, instr, instr[0], instr[1], instr[2], instr[3])
+# define UNHANDLED_FBT() if (dtrace_unhandled) { \
+		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
+			name, instr, instr[0], instr[1], instr[2], instr[3]); \
+			}
 
 	switch (instr[0]) {
 	  case FBT_PUSHL_EBP:

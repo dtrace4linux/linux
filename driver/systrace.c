@@ -307,6 +307,11 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #endif
 	void **ptr = (void **) &arg0;
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6,9)
+//hack: need this for now else args arent on the stack properly...
+printk(KERN_WARNING "%p arg0=%p %p %p\n", &arg0, arg0, arg1, arg2);
+#endif
+
 	/***********************************************/
 	/*   Following   useful   to  help  find  the  */
 	/*   syscall arg on the stack.		       */
@@ -337,10 +342,17 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	/*   happens   inside  this  functions  stack  */
 	/*   layout/optimisation.		       */
 	/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
 	{unsigned long *ret_sp = __builtin_frame_address(0);
 	syscall = (int) ret_sp[6];
-//	syscall = (int) (long) ptr[12]; // horrid hack
 	}
+#else
+	/***********************************************/
+	/*   This  works  for  now  with the printk()  */
+	/*   hack above...			       */
+	/***********************************************/
+	syscall = (int) (long) ptr[12]; // horrid hack
+#endif
 # endif
 	if ((unsigned) syscall >= NSYSCALL) {
 		printk("dtrace:help: Got syscall=%d - out of range (max=%d)\n", 
@@ -938,6 +950,8 @@ int systrace_init(void)
 		printk(KERN_WARNING "systrace: Unable to register misc device\n");
 		return ret;
 		}
+
+	initted = TRUE;
 
 	systrace_attach();
 

@@ -787,6 +787,11 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer(sysnum);
 
+	/***********************************************/
+	/*   This may happen whilst debugging.	       */
+	/***********************************************/
+	if (syscall_func == NULL)
+		return;
 /*
 	int enabled = (systrace_sysent[sysnum].stsy_entry != DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return != DTRACE_IDNONE);
@@ -848,11 +853,16 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 	int disable = (systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return == DTRACE_IDNONE);
 
+	/***********************************************/
+	/*   This may happen whilst debugging.	       */
+	/***********************************************/
+	if (syscall_func == NULL)
+		return;
+
 	if (disable) {
 		casptr(&sysent[sysnum].sy_callc,
 		    syscall_func,
 		    (void *)systrace_sysent[sysnum].stsy_underlying);
-
 	}
 
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {

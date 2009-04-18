@@ -200,8 +200,8 @@ dtrace_user_probe(int trapno, struct pt_regs *rp, caddr_t addr, processorid_t cp
 //	if (USERMODE(rp->r_cs) || (rp->r_ps & PS_VM)) {
 HERE();
 	if (user_mode(rp) || (rp->r_rfl & PS_VM)) {
-HERE();
 # if 0
+HERE();
 		if (curthread->t_cred != p->p_cred) {
 			cred_t *oldcred = curthread->t_cred;
 			/*

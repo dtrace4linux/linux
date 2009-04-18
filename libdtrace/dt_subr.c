@@ -507,9 +507,13 @@ static	int	ncpu = -1;
 		/***********************************************/
 		switch (name) {
 		  case _SC_CPUID_MAX: {
+		  	/***********************************************/
+		  	/*   Return  cpuid  of  the  max cpu, not the  */
+		  	/*   count of cpus.			       */
+		  	/***********************************************/
 			char	buf[BUFSIZ];
 
-			if (ncpu > 0)
+			if (ncpu >= 0)
 				return ncpu;
 
 		  	fp = fopen("/proc/cpuinfo", "r");

@@ -1,3 +1,18 @@
+Sun Apr 19 00:02:12 2009  fox
+
+     241* dt_subr.c: dt_sysconf: Was returning wrong number of cpus.
+
+     240* Archive: 1.0082
+
+Sat Apr 18 12:45:26 2009  fox
+
+     239* driver/cyclic_linux.c: Handle API/struct changes in 2.6.28 
+          kernels.
+
+     238* driver/cyclic_linux.c: Fix the hrtimer restart issue
+          which was crashing the kernel (not increasing the time
+	  locks the kernel since timer keeps refiring).
+
 Thu Apr 16 20:20:57 2009  fox
 
      237* dtrace_linux.c: Tidy up the syms[] array which is filled in

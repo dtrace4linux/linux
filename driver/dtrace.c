@@ -116,6 +116,8 @@
 # undef current
 # endif
 
+# define RETURN(err) do { printk("%s(%d): RETURN ERROR %s\n", __func__, __LINE__, #err); return err;} while (0)
+
 /*
  * DTrace Tunable Variables
  *
@@ -7131,13 +7133,13 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 	if (name == NULL || pap == NULL || pops == NULL || idp == NULL) {
 		cmn_err(CE_WARN, "failed to register provider '%s': invalid "
 		    "arguments", name ? name : "<NULL>");
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	if (name[0] == '\0' || dtrace_badname(name)) {
 		cmn_err(CE_WARN, "failed to register provider '%s': invalid "
 		    "provider name", name);
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	if ((pops->dtps_provide == NULL && pops->dtps_provide_module == NULL) ||
@@ -7146,7 +7148,7 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 	    ((pops->dtps_resume == NULL) != (pops->dtps_suspend == NULL))) {
 		cmn_err(CE_WARN, "failed to register provider '%s': invalid "
 		    "provider ops", name);
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	if (dtrace_badattr(&pap->dtpa_provider) ||
@@ -7156,13 +7158,13 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 	    dtrace_badattr(&pap->dtpa_args)) {
 		cmn_err(CE_WARN, "failed to register provider '%s': invalid "
 		    "provider attributes", name);
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	if (priv & ~DTRACE_PRIV_ALL) {
 		cmn_err(CE_WARN, "failed to register provider '%s': invalid "
 		    "privilege attributes", name);
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	if ((priv & DTRACE_PRIV_KERNEL) &&
@@ -7170,7 +7172,7 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 	    pops->dtps_usermode == NULL) {
 		cmn_err(CE_WARN, "failed to register provider '%s': need "
 		    "dtps_usermode() op for given privilege attributes", name);
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	provider = kmem_zalloc(sizeof (dtrace_provider_t), KM_SLEEP);
@@ -7278,7 +7280,6 @@ HERE();
 		 * If DTrace itself is the provider, we're called with locks
 		 * already held.
 		 */
-HERE();
 		ASSERT(old == dtrace_provider);
 # if defined(sun)
 		ASSERT(dtrace_devi != NULL);
@@ -7291,7 +7292,7 @@ HERE();
 			/*
 			 * There's another provider here; return failure.
 			 */
-			return (EBUSY);
+			RETURN(EBUSY);
 		}
 	} else {
 		mutex_enter(&dtrace_provider_lock);
@@ -7312,7 +7313,7 @@ HERE();
 			mutex_exit(&mod_lock);
 			mutex_exit(&dtrace_provider_lock);
 		}
-		return (EBUSY);
+		RETURN(EBUSY);
 	}
 
 	/*
@@ -7337,7 +7338,7 @@ HERE();
 			mutex_exit(&dtrace_provider_lock);
 		}
 HERE();
-		return (EBUSY);
+		RETURN(EBUSY);
 	}
 
 	/*
@@ -7598,7 +7599,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 
 	if (provider != dtrace_provider)
 		mutex_exit(&dtrace_lock);
-HERE();
+//HERE();
 
 	return (id);
 }
@@ -8067,7 +8068,7 @@ dtrace_meta_register(const char *name, const dtrace_mops_t *mops, void *arg,
 	if (name == NULL) {
 		cmn_err(CE_WARN, "failed to register meta-provider: "
 		    "invalid name");
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	if (mops == NULL ||
@@ -8076,7 +8077,7 @@ dtrace_meta_register(const char *name, const dtrace_mops_t *mops, void *arg,
 	    mops->dtms_remove_pid == NULL) {
 		cmn_err(CE_WARN, "failed to register meta-register %s: "
 		    "invalid ops", name);
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	meta = kmem_zalloc(sizeof (dtrace_meta_t), KM_SLEEP);
@@ -8095,7 +8096,7 @@ dtrace_meta_register(const char *name, const dtrace_mops_t *mops, void *arg,
 		    "user-land meta-provider exists", name);
 		kmem_free(meta->dtm_name, strlen(meta->dtm_name) + 1);
 		kmem_free(meta, sizeof (dtrace_meta_t));
-		return (EINVAL);
+		RETURN(EINVAL);
 	}
 
 	dtrace_meta_pid = meta;
@@ -8147,7 +8148,7 @@ dtrace_meta_unregister(dtrace_meta_provider_id_t id)
 	if (old->dtm_count != 0) {
 		mutex_exit(&dtrace_lock);
 		mutex_exit(&dtrace_meta_lock);
-		return (EBUSY);
+		RETURN(EBUSY);
 	}
 
 	*pp = NULL;
@@ -9846,10 +9847,10 @@ dtrace_ecb_action_add(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 
 		for (act = ecb->dte_action; act != NULL; act = act->dta_next) {
 			if (act->dta_kind == DTRACEACT_COMMIT)
-				return (EINVAL);
+				RETURN(EINVAL);
 
 			if (act->dta_kind == DTRACEACT_SPECULATE)
-				return (EINVAL);
+				RETURN(EINVAL);
 		}
 
 HERE();	
@@ -9857,7 +9858,7 @@ HERE();
 HERE();	
 
 		if (action == NULL)
-			return (EINVAL);
+			RETURN(EINVAL);
 	} else {
 		if (DTRACEACT_ISDESTRUCTIVE(desc->dtad_kind) ||
 		    (desc->dtad_kind == DTRACEACT_DIFEXPR &&
@@ -9891,14 +9892,14 @@ PRINT_CASE("DTRACEACT_PRINTF/PRINTA/SYSTEM/FREOPEN");
 		case DTRACEACT_DIFEXPR:
 PRINT_CASE("DTRACEACT_LIBACT/DTRACEACT_DIFEXPR");
 			if (dp == NULL)
-				return (EINVAL);
+				RETURN(EINVAL);
 
 			if ((size = dp->dtdo_rtype.dtdt_size) != 0)
 				break;
 
 			if (dp->dtdo_rtype.dtdt_kind == DIF_TYPE_STRING) {
 				if (!(dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
-					return (EINVAL);
+					RETURN(EINVAL);
 
 				size = opt[DTRACEOPT_STRSIZE];
 			}
@@ -9954,7 +9955,7 @@ PRINT_CASE("DTRACEACT_SYM/DTRACEACT_MOD");
 			if (dp == NULL || ((size = dp->dtdo_rtype.dtdt_size) !=
 			    sizeof (uint64_t)) ||
 			    (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
-				return (EINVAL);
+				RETURN(EINVAL);
 			break;
 
 		case DTRACEACT_USYM:
@@ -9964,7 +9965,7 @@ PRINT_CASE("DTRACEACT_USYM/UMOD/UADDR");
 			if (dp == NULL ||
 			    (dp->dtdo_rtype.dtdt_size != sizeof (uint64_t)) ||
 			    (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
-				return (EINVAL);
+				RETURN(EINVAL);
 
 			/*
 			 * We have a slot for the pid, plus a slot for the
@@ -9984,7 +9985,7 @@ PRINT_CASE("DTRACEACT_USYM/UMOD/UADDR");
 		case DTRACEACT_DISCARD:
 		case DTRACEACT_RAISE:
 			if (dp == NULL)
-				return (EINVAL);
+				RETURN(EINVAL);
 			break;
 
 		case DTRACEACT_EXIT:
@@ -9992,16 +9993,16 @@ PRINT_CASE("DTRACEACT_EXIT");
 			if (dp == NULL ||
 			    (size = dp->dtdo_rtype.dtdt_size) != sizeof (int) ||
 			    (dp->dtdo_rtype.dtdt_flags & DIF_TF_BYREF))
-				return (EINVAL);
+				RETURN(EINVAL);
 			break;
 
 		case DTRACEACT_SPECULATE:
 PRINT_CASE("DTRACEACT_SPECULATE");
 			if (ecb->dte_size > sizeof (dtrace_epid_t))
-				return (EINVAL);
+				RETURN(EINVAL);
 
 			if (dp == NULL)
-				return (EINVAL);
+				RETURN(EINVAL);
 
 			state->dts_speculates = 1;
 			break;
@@ -10012,16 +10013,16 @@ PRINT_CASE("DTRACEACT_SPECULATE");
 PRINT_CASE("DTRACEACT_COMMIT");
 			for (; act != NULL; act = act->dta_next) {
 				if (act->dta_kind == DTRACEACT_COMMIT)
-					return (EINVAL);
+					RETURN(EINVAL);
 			}
 
 			if (dp == NULL)
-				return (EINVAL);
+				RETURN(EINVAL);
 			break;
 		}
 
 		default:
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		if (size != 0 || desc->dtad_kind == DTRACEACT_SPECULATE) {
@@ -10034,7 +10035,7 @@ PRINT_CASE("DTRACEACT_COMMIT");
 
 			for (; act != NULL; act = act->dta_next) {
 				if (act->dta_kind == DTRACEACT_COMMIT)
-					return (EINVAL);
+					RETURN(EINVAL);
 			}
 		}
 
@@ -10141,14 +10142,12 @@ HERE();
 
 	ASSERT(pecb != NULL);
 
-HERE();
 	if (prev == NULL) {
 		probe->dtpr_ecb = ecb->dte_next;
 	} else {
 		prev->dte_next = ecb->dte_next;
 	}
 
-HERE();
 	if (ecb == probe->dtpr_ecb_last) {
 		ASSERT(ecb->dte_next == NULL);
 		probe->dtpr_ecb_last = prev;
@@ -10454,7 +10453,7 @@ dtrace_buffer_alloc(dtrace_buffer_t *bufs, size_t size, int flags,
 
 	if (size > dtrace_nonroot_maxsize &&
 	    !PRIV_POLICY_CHOICE(CRED(), PRIV_ALL, B_FALSE))
-		return (EFBIG);
+		RETURN(EFBIG);
 
 	cp = cpu_list;
 
@@ -10518,7 +10517,7 @@ err:
 		buf->dtb_size = 0;
 	} while ((cp = cp->cpu_next) != cpu_list);
 
-	return (ENOMEM);
+	RETURN(ENOMEM);
 }
 
 /*
@@ -11017,7 +11016,7 @@ dtrace_enabling_retain(dtrace_enabling_t *enab)
 	 * We only allow each state to retain dtrace_retain_max enablings.
 	 */
 	if (state->dts_nretained >= dtrace_retain_max)
-		return (ENOSPC);
+		RETURN(ENOSPC);
 
 	state->dts_nretained++;
 
@@ -12303,17 +12302,17 @@ dtrace_dof_options(dof_hdr_t *dof, dtrace_state_t *state)
 		if (sec->dofs_align != sizeof (uint64_t)) {
 			dtrace_dof_error(dof, "bad alignment in "
 			    "option description");
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		if ((entsize = sec->dofs_entsize) == 0) {
 			dtrace_dof_error(dof, "zeroed option entry size");
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		if (entsize < sizeof (dof_optdesc_t)) {
 			dtrace_dof_error(dof, "bad option entry size");
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		for (offs = 0; offs < sec->dofs_size; offs += entsize) {
@@ -12322,12 +12321,12 @@ dtrace_dof_options(dof_hdr_t *dof, dtrace_state_t *state)
 
 			if (desc->dofo_strtab != DOF_SECIDX_NONE) {
 				dtrace_dof_error(dof, "non-zero option string");
-				return (EINVAL);
+				RETURN(EINVAL);
 			}
 
 			if (desc->dofo_value == DTRACEOPT_UNSET) {
 				dtrace_dof_error(dof, "unset option");
-				return (EINVAL);
+				RETURN(EINVAL);
 			}
 
 			if ((rval = dtrace_state_option(state,
@@ -12365,7 +12364,7 @@ dtrace_dstate_init(dtrace_dstate_t *dstate, size_t size)
 		size = min;
 
 	if ((base = kmem_zalloc(size, KM_NOSLEEP)) == NULL)
-		return (ENOMEM);
+		RETURN(ENOMEM);
 
 	dstate->dtds_size = size;
 	dstate->dtds_base = base;
@@ -12797,7 +12796,7 @@ HERE();
 			 * of ENOMEM in this case to allow for user-level
 			 * software to differentiate the cases.
 			 */
-			return (E2BIG);
+			RETURN(E2BIG);
 		}
 
 HERE();
@@ -12815,7 +12814,7 @@ HERE();
 	}
 
 HERE();
-	return (ENOMEM);
+	RETURN(ENOMEM);
 }
 
 static int
@@ -13163,7 +13162,7 @@ dtrace_state_stop(dtrace_state_t *state, processorid_t *cpu)
 
 	if (state->dts_activity != DTRACE_ACTIVITY_ACTIVE &&
 	    state->dts_activity != DTRACE_ACTIVITY_DRAINING)
-		return (EINVAL);
+		RETURN(EINVAL);
 
 	/*
 	 * We'll set the activity to DTRACE_ACTIVITY_DRAINING, and issue a sync
@@ -13213,20 +13212,20 @@ dtrace_state_option(dtrace_state_t *state, dtrace_optid_t option,
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 
 	if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE)
-		return (EBUSY);
+		RETURN(EBUSY);
 
 	if (option >= DTRACEOPT_MAX)
-		return (EINVAL);
+		RETURN(EINVAL);
 
 	if (option != DTRACEOPT_CPU && val < 0)
-		return (EINVAL);
+		RETURN(EINVAL);
 
 HERE();
 	switch (option) {
 	case DTRACEOPT_DESTRUCTIVE:
 PRINT_CASE(DTRACEOPT_DESTRUCTIVE);
 		if (dtrace_destructive_disallow)
-			return (EACCES);
+			RETURN(EACCES);
 
 		state->dts_cred.dcr_destructive = 1;
 		break;
@@ -13238,7 +13237,7 @@ PRINT_CASE(DTRACEOPT_DESTRUCTIVE);
 	case DTRACEOPT_STRSIZE:
 PRINT_CASE(DTRACEOPT_BUFSIZE);
 		if (val < 0)
-			return (EINVAL);
+			RETURN(EINVAL);
 
 		if (val >= LONG_MAX) {
 			/*
@@ -13707,7 +13706,7 @@ dtrace_helper_destroygen(int gen)
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 
 	if (help == NULL || gen > help->dthps_generation)
-		return (EINVAL);
+		RETURN(EINVAL);
 
 	vstate = &help->dthps_vstate;
 
@@ -13811,7 +13810,7 @@ dtrace_helper_action_add(int which, dtrace_ecbdesc_t *ep)
 	int count = 0, nactions = 0, i;
 
 	if (which < 0 || which >= DTRACE_NHELPER_ACTIONS)
-		return (EINVAL);
+		RETURN(EINVAL);
 
 	help = curproc->p_dtrace_helpers;
 	last = help->dthps_actions[which];
@@ -13828,7 +13827,7 @@ dtrace_helper_action_add(int which, dtrace_ecbdesc_t *ep)
 	 * helper action type, we'll refuse to add a new one.
 	 */
 	if (count >= dtrace_helper_actions_max)
-		return (ENOSPC);
+		RETURN(ENOSPC);
 
 	helper = kmem_zalloc(sizeof (dtrace_helper_action_t), KM_SLEEP);
 	helper->dtha_generation = help->dthps_generation;
@@ -13874,7 +13873,7 @@ dtrace_helper_action_add(int which, dtrace_ecbdesc_t *ep)
 	return (0);
 err:
 	dtrace_helper_action_destroy(helper, vstate);
-	return (EINVAL);
+	RETURN(EINVAL);
 }
 
 static void
@@ -13961,7 +13960,7 @@ dtrace_helper_provider_add(dof_helper_t *dofhp, int gen)
 	 */
 	if (help->dthps_nprovs >= dtrace_helper_providers_max) {
 HERE();
-		return (ENOSPC);
+		RETURN(ENOSPC);
 	}
 
 	/*
@@ -13971,7 +13970,7 @@ HERE();
 		if (dofhp->dofhp_addr ==
 		    help->dthps_provs[i]->dthp_prov.dofhp_addr) {
 HERE();
-			return (EALREADY);
+			RETURN(EALREADY);
 		}
 	}
 
@@ -15053,7 +15052,7 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	 * the "dtrace" minor.
 	 */
 	if (getminor(*devp) != DTRACEMNRN_DTRACE)
-		return (ENXIO);
+		RETURN(ENXIO);
 
 	/*
 	 * If no DTRACE_PRIV_* bits are set in the credential, then the
@@ -15061,7 +15060,7 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	 */
 	dtrace_cred2priv(cred_p, &priv, &uid, &zoneid);
 	if (priv == DTRACE_PRIV_NONE)
-		return (EACCES);
+		RETURN(EACCES);
 # endif
 
 	/*
@@ -15086,7 +15085,7 @@ HERE();
 		dtrace_opens--;
 		mutex_exit(&cpu_lock);
 		mutex_exit(&dtrace_lock);
-		return (EBUSY);
+		RETURN(EBUSY);
 	}
 
 	state = dtrace_state_create(devp, cred_p);
@@ -15106,7 +15105,7 @@ HERE();
 		--dtrace_opens;
 # endif
 		mutex_exit(&dtrace_lock);
-		return (EAGAIN);
+		RETURN(EAGAIN);
 	}
 
 	mutex_exit(&dtrace_lock);
@@ -15185,7 +15184,7 @@ HERE();
 PRINT_CASE(DTRACEHIOC_ADDDOF);
 		if (copyin((void *)arg, &help, sizeof (help)) != 0) {
 			dtrace_dof_error(NULL, "failed to copyin DOF helper");
-			return (EFAULT);
+			RETURN(EFAULT);
 		}
 
 		dhp = &help;
@@ -15229,7 +15228,7 @@ PRINT_CASE(DTRACEHIOC_REMOVE);
 		break;
 	}
 
-	return (ENOTTY);
+	RETURN(ENOTTY);
 }
 
 # if defined(sun)
@@ -15272,7 +15271,7 @@ dtrace_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv
 
 PRINT_CASE(DTRACEIOC_PROVIDER);
 		if (copyin((void *)arg, &pvd, sizeof (pvd)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		pvd.dtvd_name[DTRACE_PROVNAMELEN - 1] = '\0';
 		mutex_enter(&dtrace_provider_lock);
@@ -15285,12 +15284,12 @@ PRINT_CASE(DTRACEIOC_PROVIDER);
 		mutex_exit(&dtrace_provider_lock);
 
 		if (pvp == NULL)
-			return (ESRCH);
+			RETURN(ESRCH);
 
 		bcopy(&pvp->dtpv_priv, &pvd.dtvd_priv, sizeof (dtrace_ppriv_t));
 		bcopy(&pvp->dtpv_attr, &pvd.dtvd_attr, sizeof (dtrace_pattr_t));
 		if (copyout(&pvd, (void *)arg, sizeof (pvd)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15306,18 +15305,18 @@ PRINT_CASE(DTRACEIOC_PROVIDER);
 
 PRINT_CASE(DTRACEIOC_EPROBE);
 		if (copyin((void *)arg, &epdesc, sizeof (epdesc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		mutex_enter(&dtrace_lock);
 
 		if ((ecb = dtrace_epid2ecb(state, epdesc.dtepd_epid)) == NULL) {
 			mutex_exit(&dtrace_lock);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		if (ecb->dte_probe == NULL) {
 			mutex_exit(&dtrace_lock);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		epdesc.dtepd_probeid = ecb->dte_probe->dtpr_id;
@@ -15364,7 +15363,7 @@ PRINT_CASE(DTRACEIOC_EPROBE);
 
 		if (copyout(buf, (void *)arg, dest - (uintptr_t)buf) != 0) {
 			kmem_free(buf, size);
-			return (EFAULT);
+			RETURN(EFAULT);
 		}
 
 		kmem_free(buf, size);
@@ -15384,13 +15383,13 @@ PRINT_CASE(DTRACEIOC_EPROBE);
 
 PRINT_CASE(DTRACEIOC_AGGDESC);
 		if (copyin((void *)arg, &aggdesc, sizeof (aggdesc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		mutex_enter(&dtrace_lock);
 
 		if ((agg = dtrace_aggid2agg(state, aggdesc.dtagd_id)) == NULL) {
 			mutex_exit(&dtrace_lock);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		aggdesc.dtagd_epid = agg->dtag_ecb->dte_epid;
@@ -15467,7 +15466,7 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 
 		if (copyout(buf, (void *)arg, dest - (uintptr_t)buf) != 0) {
 			kmem_free(buf, size);
-			return (EFAULT);
+			RETURN(EFAULT);
 		}
 
 		kmem_free(buf, size);
@@ -15516,14 +15515,14 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
-			return (EBUSY);
+			RETURN(EBUSY);
 		}
 
 		if (dtrace_dof_slurp(dof, vstate, cr, &enab, 0, B_TRUE) != 0) {
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		if ((rval = dtrace_dof_options(dof, state)) != 0) {
@@ -15560,7 +15559,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		int err;
 
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		match->dtpd_provider[DTRACE_PROVNAMELEN - 1] = '\0';
 		match->dtpd_mod[DTRACE_MODNAMELEN - 1] = '\0';
@@ -15592,7 +15591,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 
 //PRINT_CASE(DTRACEIOC_PROBES);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		desc.dtpd_provider[DTRACE_PROVNAMELEN - 1] = '\0';
 		desc.dtpd_mod[DTRACE_MODNAMELEN - 1] = '\0';
@@ -15636,7 +15635,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 
 			if (m < 0) {
 				mutex_exit(&dtrace_lock);
-				return (EINVAL);
+				RETURN(EINVAL);
 			}
 
 		} else {
@@ -15650,14 +15649,14 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 
 		if (probe == NULL) {
 			mutex_exit(&dtrace_lock);
-			return (ESRCH);
+			RETURN(ESRCH);
 		}
 
 		dtrace_probe_description(probe, &desc);
 		mutex_exit(&dtrace_lock);
 
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15669,13 +15668,13 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 
 PRINT_CASE(DTRACEIOC_PROBEARG);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		if (desc.dtargd_id == DTRACE_IDNONE)
-			return (EINVAL);
+			RETURN(EINVAL);
 
 		if (desc.dtargd_ndx == DTRACE_ARGNONE)
-			return (EINVAL);
+			RETURN(EINVAL);
 
 		mutex_enter(&dtrace_provider_lock);
 		mutex_enter(&mod_lock);
@@ -15685,14 +15684,14 @@ PRINT_CASE(DTRACEIOC_PROBEARG);
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&mod_lock);
 			mutex_exit(&dtrace_provider_lock);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		if ((probe = dtrace_probes[desc.dtargd_id - 1]) == NULL) {
 			mutex_exit(&dtrace_lock);
 			mutex_exit(&mod_lock);
 			mutex_exit(&dtrace_provider_lock);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		mutex_exit(&dtrace_lock);
@@ -15718,7 +15717,7 @@ PRINT_CASE(DTRACEIOC_PROBEARG);
 		mutex_exit(&dtrace_provider_lock);
 
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15735,7 +15734,7 @@ HERE();
 			return (rval);
 
 		if (copyout(&cpuid, (void *)arg, sizeof (cpuid)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15752,7 +15751,7 @@ PRINT_CASE(DTRACEIOC_STOP);
 			return (rval);
 
 		if (copyout(&cpuid, (void *)arg, sizeof (cpuid)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15763,7 +15762,7 @@ PRINT_CASE(DTRACEIOC_STOP);
 
 PRINT_CASE(DTRACEIOC_DOFGET);
 		if (copyin((void *)arg, &hdr, sizeof (hdr)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		mutex_enter(&dtrace_lock);
 		dof = dtrace_dof_create(state);
@@ -15784,10 +15783,10 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 
 //PRINT_CASE(DTRACEIOC_BUFSNAP);
 		if (copyin((void *)arg, &desc, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		if (desc.dtbd_cpu < 0 || desc.dtbd_cpu >= NCPU)
-			return (EINVAL);
+			RETURN(EINVAL);
 
 		mutex_enter(&dtrace_lock);
 
@@ -15803,7 +15802,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 
 			if (state->dts_activity != DTRACE_ACTIVITY_STOPPED) {
 				mutex_exit(&dtrace_lock);
-				return (EBUSY);
+				RETURN(EBUSY);
 			}
 
 			/*
@@ -15821,7 +15820,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 				sz = sizeof (desc);
 
 				if (copyout(&desc, (void *)arg, sz) != 0)
-					return (EFAULT);
+					RETURN(EFAULT);
 
 				return (0);
 			}
@@ -15837,7 +15836,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 
 			if (copyout(buf->dtb_tomax, desc.dtbd_data, sz) != 0) {
 				mutex_exit(&dtrace_lock);
-				return (EFAULT);
+				RETURN(EFAULT);
 			}
 
 			desc.dtbd_size = sz;
@@ -15848,7 +15847,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 			mutex_exit(&dtrace_lock);
 
 			if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
-				return (EFAULT);
+				RETURN(EFAULT);
 
 			buf->dtb_flags |= DTRACEBUF_CONSUMED;
 
@@ -15859,7 +15858,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 			ASSERT(buf->dtb_xamot == NULL);
 			mutex_exit(&dtrace_lock);
 HERE();
-			return (ENOENT);
+			RETURN(ENOENT);
 		}
 
 		cached = buf->dtb_tomax;
@@ -15879,7 +15878,7 @@ HERE();
 		if (buf->dtb_tomax == cached) {
 			ASSERT(buf->dtb_xamot != cached);
 			mutex_exit(&dtrace_lock);
-			return (ENOENT);
+			RETURN(ENOENT);
 		}
 
 		ASSERT(cached == buf->dtb_xamot);
@@ -15894,7 +15893,7 @@ HERE();
 		if (copyout(buf->dtb_xamot, desc.dtbd_data,
 		    buf->dtb_xamot_offset) != 0) {
 			mutex_exit(&dtrace_lock);
-			return (EFAULT);
+			RETURN(EFAULT);
 		}
 
 		desc.dtbd_size = buf->dtb_xamot_offset;
@@ -15909,7 +15908,7 @@ HERE();
 		 */
 //dump_mem(&desc, sizeof desc);
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15925,7 +15924,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		conf.dtc_ctfmodel = CTF_MODEL_NATIVE;
 
 		if (copyout(&conf, (void *)arg, sizeof (conf)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -15952,7 +15951,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 
 		if (state->dts_activity == DTRACE_ACTIVITY_INACTIVE) {
 			mutex_exit(&dtrace_lock);
-			return (ENOENT);
+			RETURN(ENOENT);
 		}
 
 		if (state->dts_activity == DTRACE_ACTIVITY_DRAINING)
@@ -15994,7 +15993,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		mutex_exit(&dtrace_lock);
 //dump_mem(&stat, sizeof stat);
 		if (copyout(&stat, (void *)arg, sizeof (stat)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		return (0);
 	}
@@ -16006,14 +16005,14 @@ PRINT_CASE(DTRACEIOC_CONF);
 
 PRINT_CASE(DTRACEIOC_FORMAT);
 		if (copyin((void *)arg, &fmt, sizeof (fmt)) != 0)
-			return (EFAULT);
+			RETURN(EFAULT);
 
 		mutex_enter(&dtrace_lock);
 
 		if (fmt.dtfd_format == 0 ||
 		    fmt.dtfd_format > state->dts_nformats) {
 			mutex_exit(&dtrace_lock);
-			return (EINVAL);
+			RETURN(EINVAL);
 		}
 
 		/*
@@ -16033,12 +16032,12 @@ PRINT_CASE(DTRACEIOC_FORMAT);
 
 			if (copyout(&fmt, (void *)arg, sizeof (fmt)) != 0) {
 				mutex_exit(&dtrace_lock);
-				return (EINVAL);
+				RETURN(EINVAL);
 			}
 		} else {
 			if (copyout(str, fmt.dtfd_string, len) != 0) {
 				mutex_exit(&dtrace_lock);
-				return (EINVAL);
+				RETURN(EINVAL);
 			}
 		}
 
@@ -16052,7 +16051,7 @@ PRINT_CASE(DTRACEIOC_FORMAT);
 		break;
 	}
 
-	return (ENOTTY);
+	RETURN(ENOTTY);
 }
 
 /*ARGSUSED*/

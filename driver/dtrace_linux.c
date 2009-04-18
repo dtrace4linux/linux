@@ -84,8 +84,6 @@ enum {
 	OFFSET_access_process_vm,
 	OFFSET_syscall_call,
 	OFFSET_print_modules,
-	OFFSET__text,
-	OFFSET__etext,
 	OFFSET_die_chain
 	};
 static struct map {
@@ -101,8 +99,6 @@ static struct map {
 			 	  /* find the sys_call_table.		  */
 {"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
 			 	  /* find the modules table. 		  */
-{"_text",		   NULL}, /* Start of kernel code.	*/
-{"_etext",		   NULL}, /* End of kernel code.	*/
 {"die_chain",              NULL}, /* In case no unregister_die_notifier */
 	{0}
 	};
@@ -284,17 +280,19 @@ dtrace_gethrtime()
 	/*   multiword  item,  and  we  may pick up a  */
 	/*   partial update.			       */
 	/***********************************************/
-	if (!xtime_cache_ptr)
-		return 0;
+	if (!xtime_cache_ptr) {
+		/***********************************************/
+		/*   Most   likely   an  old  kernel,  so  do  */
+		/*   something reasonable.		       */
+		/***********************************************/
+		struct timeval tv;
+		do_gettimeofday(&tv);
+		return (hrtime_t) tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
+	}
 
 	ts = *xtime_cache_ptr;
 	return (hrtime_t) ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
 
-/*
-	struct timeval tv;
-	do_gettimeofday(&tv);
-	return (hrtime_t) tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
-*/
 }
 uint64_t
 dtrace_gethrestime()
@@ -343,6 +341,18 @@ void
 debug_enter(char *arg)
 {
 	printk("%s(%d): %s\n", __FILE__, __LINE__, __func__);
+}
+/**********************************************************************/
+/*   When  logging  HERE()  calls, dont bloat/slow us down with full  */
+/*   path names, we only want to know which file its in.	      */
+/**********************************************************************/
+char *
+dtrace_basename(char *name)
+{	char	*cp = strrchr(name, '/');
+
+	if (cp)
+		return cp + 1;
+	return name;
 }
 void
 dtrace_dump_mem(char *cp, int len)
@@ -462,9 +472,11 @@ dtrace_linux_init(void)
 	/*   We  need  to  intercept  invalid  opcode  */
 	/*   exceptions for fbt/sdt.		       */
 	/***********************************************/
+# if 0
 	if (fn_register_die_notifier) {
 		(*fn_register_die_notifier)(&n_trap_illop);
 	}
+# endif
 	/***********************************************/
 	/*   Compute     tsc_max_delta     so    that  */
 	/*   dtrace_gethrtime  doesnt hang around for  */
@@ -496,8 +508,10 @@ dtrace_linux_fini(void)
 	if (!dtrace_unregister_die_notifier("n_int3", &n_int3))
 		ret = 0;
 
+# if 0
 	if (!dtrace_unregister_die_notifier("n_trap_illop", &n_trap_illop))
 		ret = 0;
+# endif
 
 	if (fn_profile_event_unregister) {
 		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
@@ -1316,7 +1330,7 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 		(uintptr_t *) regs, 
 		regs->r_rax);
 
-	if (dtrace_here) {
+	if (dtrace_here && ret) {
 		printk("ret=%d %s\n", ret, ret == 0 ? "nothing" :
 			ret < 0 || ret >= sizeof(invop_msgs) / sizeof invop_msgs[0] ? "??" : invop_msgs[ret]);
 	}
@@ -1424,21 +1438,10 @@ void
 set_console_on(int flag)
 {	int	mode = flag ? 7 : 0;
 	int *console_printk = get_proc_addr("console_printk");
-	console_printk[0] = mode;
-}
-/**********************************************************************/
-/*   Get a static symbol.					      */
-/**********************************************************************/
-void *
-sym_get_static(char *name)
-{
-	if (strcmp(name, "_text") == 0)
-		return (void *) syms[OFFSET__text].m_ptr;
-	if (strcmp(name, "_etext") == 0)
-		return (void *) syms[OFFSET__etext].m_ptr;
-	return NULL;
-}
 
+	if (console_printk)
+		console_printk[0] = mode;
+}
 /**********************************************************************/
 /*   Called  from  /dev/fbt  driver  to allow us to populate address  */
 /*   entries.  Shouldnt  be in the /dev/fbt, and will migrate to its  */

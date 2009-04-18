@@ -8,10 +8,10 @@
 # if !defined(LINUX_TYPES_H)
 # define	LINUX_TYPES_H 1
 
-# define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", __FILE__, __func__, __LINE__);}
-# define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", __FILE__, __func__, __LINE__);}
-# define HERE_WITH_INFO(str)	if (dtrace_here) {printk("%s:%s:%d:%s\n", __FILE__, __func__, __LINE__, str);}
-# define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", __FILE__, __func__, __LINE__)
+# define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);}
+# define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", dtrace_basename(__FILE__), __func__, __LINE__);}
+# define HERE_WITH_INFO(str)	if (dtrace_here) {printk("%s:%s:%d:%s\n", dtrace_basename(__FILE__), __func__, __LINE__, str);}
+# define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", dtrace_basename(__FILE__), __func__, __LINE__)
 # define TODO_END()
 
 # if defined(__i386) && !defined(_LP32)
@@ -33,7 +33,7 @@
 /*   xxx;"  into this so we can figure out which line we are failing  */
 /*   on.							      */
 /**********************************************************************/
-# define GOTO(x) do {printf("%s(%d): error\n", __FILE__, __LINE__); goto x; } while(0)
+# define GOTO(x) do {printf("%s(%d): error\n", dtrace_basename(__FILE__), __LINE__); goto x; } while(0)
 
 /**********************************************************************/
 /*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */
@@ -521,7 +521,7 @@ enum seg_rw {
 
 #undef ASSERT
 #define	ASSERT(EX)	((void)((EX) || \
-			dtrace_assfail(#EX, __FILE__, __LINE__)))
+			dtrace_assfail(#EX, dtrace_basename(__FILE__), __LINE__)))
 extern int dtrace_assfail(const char *, const char *, int);
 int	dtrace_mach_aframes(void);
 
@@ -534,5 +534,6 @@ void *dtrace_casptr(void *target, void *cmp, void *new);
 void atomic_add_64(uint64_t *, int n);
 
 int	mutex_count(mutex_t *m);
+char	*dtrace_basename(char *);
 
 # endif /* LINE_TYPES_H */

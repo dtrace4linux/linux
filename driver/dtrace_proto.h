@@ -36,7 +36,6 @@ int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax);
 void dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
-void *sym_get_static(char *name);
 void	fbt_provide_kernel(void);
 
 # if !defined(kmem_alloc)

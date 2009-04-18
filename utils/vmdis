@@ -1,0 +1,13 @@
+#! /bin/ksh
+
+# Script to disassemble a function from the kernel.
+
+if [ ! -f /tmp/vmlinux ] ; then
+	utils/get-vmlinux.pl
+fi
+addr=0x`grep $1 /proc/kallsyms | awk '{print $1}'`
+echo addr=$addr
+gdb /tmp/vmlinux <<EOF
+x/100i $addr
+quit
+EOF

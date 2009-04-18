@@ -15,6 +15,8 @@
 /*   the system.						      */
 /*   								      */
 /*   Paul Fox June 2008						      */
+/*   								      */
+/*   $Header: Last edited: 17-Apr-2009 1.1 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -115,14 +117,29 @@ cyclic_init(cyc_backend_t *be, hrtime_t resolution)
 static enum hrtimer_restart
 be_callback(struct hrtimer *ptr)
 {	struct c_timer *cp = (struct c_timer *) ptr;
-//	ktime_t kt;
+	ktime_t kt;
 
-//	kt.tv64 = cp->c_time.cyt_interval;
+	kt.tv64 = cp->c_time.cyt_interval;
 	/***********************************************/
 	/*   Invoke the callback.		       */
 	/***********************************************/
 	cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
-//	fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+
+	/***********************************************/
+	/*   Bit   annoying   this   --   in  2.6.28,  */
+	/*   "expires" gets renamed to "_expires" and  */
+	/*   "_softexpires".   The  API  we  want  is  */
+	/*   inlined,  but relies on a GPL exportable  */
+	/*   symbol,  so  we  cannot  use  it (or use  */
+	/*   /proc/kallsyms  lookups),  so its easier  */
+	/*   to just inline what they expect.	       */
+	/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
+	ptr->_expires = ktime_add_ns(ptr->_expires, kt.tv64);
+	ptr->_softexpires = ktime_add_ns(ptr->_softexpires, kt.tv64);
+#else
+	ptr->expires = ktime_add_ns(ptr->expires, kt.tv64);
+#endif
 	return HRTIMER_RESTART;
 }
 cyclic_id_t 
@@ -131,10 +148,25 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 	ktime_t kt;
 static int first_time = TRUE;
 
+	if (cp == NULL) {
+		printk("dtracedrv:cyclic_add: Cannot alloc memory\n");
+		return 0;
+	}
+
+	/***********************************************/
+	/*   Get the functions we need - some kernels  */
+	/*   wont export these (maybe I am wrong), so  */
+	/*   we    can    detect   at   runtime.   We  */
+	/*   could/should  do  something else if this  */
+	/*   happens,   but   its   not  a  supported  */
+	/*   scenario  since  we  can  use one of the  */
+	/*   other MODEs.			       */
+	/***********************************************/
 	if (first_time) {
 		first_time = FALSE;
 		fn_hrtimer_cancel = get_proc_addr("hrtimer_cancel");
 		fn_hrtimer_init   = get_proc_addr("hrtimer_init");
+		fn_hrtimer_start  = get_proc_addr("hrtimer_start");
 		fn_hrtimer_start  = get_proc_addr("hrtimer_start");
 
 		if (fn_hrtimer_start == NULL) {
@@ -144,20 +176,11 @@ static int first_time = TRUE;
 	}
 
 	kt.tv64 = t->cyt_interval;
-/**********************************************************************/
-/*   20090414  -  fixme -- we will crash after the timer fires. need  */
-/*   to clean this...						      */
-/**********************************************************************/
-return 0;
-
-	if (cp == NULL)
-		return 0;
-
 	cp->c_hdlr = *hdrl;
 	cp->c_time = *t;
 
 	fn_hrtimer_init(&cp->c_htp, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	cp->c_htp.cb_mode = HRTIMER_CB_SOFTIRQ;
+/*	cp->c_htp.cb_mode = HRTIMER_CB_SOFTIRQ;*/
 	cp->c_htp.function = be_callback;
 
 	fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);

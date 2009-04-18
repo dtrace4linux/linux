@@ -139,7 +139,7 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, unsigned char *opcod
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
 
-HERE();
+//HERE();
 if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
@@ -190,7 +190,7 @@ HERE();
 			return (fbt->fbtp_rval);
 		}
 	}
-HERE();
+//HERE();
 
 	return (0);
 }
@@ -227,19 +227,32 @@ fbt_provide_kernel()
 {
 	static struct module kern;
 	int	n;
-	const char *(*kallsyms_lookup)(unsigned long addr,
+static	const char *(*kallsyms_lookup)(unsigned long addr,
                         unsigned long *symbolsize,
                         unsigned long *offset,
                         char **modname, char *namebuf);
-	caddr_t ktext = sym_get_static("_text");
-	caddr_t ketext = sym_get_static("_etext");
+static	caddr_t ktext;
+static	caddr_t ketext;
+static int first_time = TRUE;
 	caddr_t a, aend;
 	char	name[KSYM_NAME_LEN];
 
+	if (first_time) {
+		first_time = FALSE;
+		ktext = get_proc_addr("_text");
+		if (ktext == NULL)
+			ktext = get_proc_addr("_stext");
+		ketext = get_proc_addr("_etext");
+		kallsyms_lookup = get_proc_addr("kallsyms_lookup");
+		}
+
+	if (ktext == NULL) {
+		printk("dtracedrv:fbt_provide_kernel: Cannot find _text/_stext\n");
+		return;
+	}
 	if (kern.name[0])
 		return;
 
-	kallsyms_lookup = get_proc_addr("kallsyms_lookup");
 	strcpy(kern.name, "kernel");
 	/***********************************************/
 	/*   Walk   the  code  segment,  finding  the  */

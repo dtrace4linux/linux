@@ -47,7 +47,8 @@ sub main
 	if (! -f "$ENV{HOME}/bin/setuid" ) {
 		$SUDO = "sudo";
 	}
-	print "Syncing...\n";
+	my $tstart = time();
+	print time_string() . "Syncing...\n";
 	spawn("sync ; sync");
 
 	my $dtrace = "build/dtrace";
@@ -80,7 +81,7 @@ sub main
 	#   we can avoid being root all the time whilst we debug.
 	#####################################################################
 	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
-	print "Loading: $dtracedrv\n";
+	print time_string() . "Loading: $dtracedrv\n";
 	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}" .
 		" dtrace_unhandled=$opts{unhandled}" .
 		" dtrace_mem_alloc=$opts{mem_alloc}");
@@ -158,7 +159,7 @@ sub main
 	#   to  an  alternate mechanism to find what  #
 	#   we are after (see fbt_linux.c)	      #
 	###############################################
-	print "Preparing symbols...\n";
+	print time_string() . "Preparing symbols...\n";
 	my $err = 0;
 	# Symbols we used to need, but no longer:
 	# get_symbol_offset
@@ -171,8 +172,6 @@ sub main
 		modules:print_modules
 		sys_call_table
 		syscall_call:optional
-		_text:_stext
-		_etext
 		/) {
 		my $done = 0;
 		my $real_name;
@@ -229,7 +228,7 @@ EOF
 	#####################################################################
 	if (!$opts{fast}) {
 
-		print "Probes available: ";
+		print time_string() . "Probes available: ";
 		my $pname = strftime("/tmp/probes-%Y%m%d-%H:%M", localtime);
 		if ( -f "/tmp/probes.current" && ! -f $pname ) {
 			if (!rename("/tmp/probes.current", "/tmp/probes.prev")) {
@@ -242,6 +241,7 @@ EOF
 			print "symlink($pname, /tmp/probes.current) error -- $!\n";
 		}
 	}
+	print time_string() . "Time: ", time() - $tstart, "s\n";
 }
 #####################################################################
 #   If  the  /dev entries are not there then maybe we are on an old
@@ -264,10 +264,13 @@ sub mkdev
 sub spawn
 {	my $cmd = shift;
 
-	print $cmd, "\n" if $opts{'v'};
+	print time_string() . $cmd, "\n" if $opts{'v'};
 	return system($cmd);
 }
-
+sub time_string
+{
+	return strftime("%H:%m:%d ", localtime);
+}
 #######################################################################
 #   Print out command line usage.				      #
 #######################################################################

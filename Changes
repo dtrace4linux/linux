@@ -1,3 +1,25 @@
+Tue Apr 21 08:13:00 2009  fox
+
+     246* dtrace_linux.c: Allow us to read/write from /dev/dtracedrv for
+          debugging.
+
+     245* Archive: 1.0083
+
+     244* driver/systrace.c: More surgery to ensure we pick up
+          the right syscall for all syscalls, and avoid dependency
+	  on GCC local variable allocations for finding the syscall.
+	  Also get rid of a few magic numbers in dtrace_systrace_syscall
+	  which were causing some of the troubles.
+
+     243* driver/systrace.c: Put in the handler for 2.6.9 special
+          case for execve requiring pt_regs passing by value.
+
+Mon Apr 20 23:41:08 2009  fox
+
+     242* driver/systrace.c: Replace the assembler sequence for
+          execve() and rt_sigreturn() with a patch sequence to
+	  allow for more generic kernel version handling.
+
 Sun Apr 19 00:02:12 2009  fox
 
      241* dt_subr.c: dt_sysconf: Was returning wrong number of cpus.

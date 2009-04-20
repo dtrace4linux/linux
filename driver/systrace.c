@@ -109,7 +109,7 @@ void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
 void	*par_setup_thread2(void);
 asmlinkage int64_t
 dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
-    uintptr_t *arg_ptr,
+    int copy_frame, uintptr_t *arg_ptr,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
@@ -119,14 +119,78 @@ DEFINE_MUTEX(slock);
 static int do_slock;
 
 /**********************************************************************/
+/*   Structure  for  describing a patchpoint -- something we need to  */
+/*   patch  in the kernel, to intercept an action. Used because some  */
+/*   of the kernel is in assembler and theres no API to hook certain  */
+/*   activity, such as syscalls, before the C engine gets going.      */
+/*   								      */
+/*   The  basic  principal  is that there is a sequence of assembler  */
+/*   instructions  somewhere in the kernel (name is p_name). We find  */
+/*   the  address  and  then  we  are  provided  with  an  array  of  */
+/*   (instruction-lengths,  1st  bytes),  we  expect  to see at that  */
+/*   address.  Assuming  we have a match, at the end will be the jmp  */
+/*   or call instruction. 					      */
+/*   								      */
+/*   We  dont carry the full body of the assembler code, because the  */
+/*   instruction   operands  may  vary  from  kernel  to  kernel  or  */
+/*   depending  on addresses of key areas or pt_regs struct offsets,  */
+/*   etc,  but  this  way  we  are  reasonably  portable. We are NOT  */
+/*   portable to all kernel releases so for some patches, we need to  */
+/*   carry a family of try-this scenarios. 			      */
+/*   								      */
+/*   We  save  away  the  target (so we can put it back when probing  */
+/*   turned off), and put in our new jump location.		      */
+/*   								      */
+/*   This  is  all  32-bit  addresses (even 64-bit kernel uses short  */
+/*   form addresses.						      */
+/*   								      */
+/*   Heres  an example of a piece of code from a kernel (this is the  */
+/*   stub_execve taken from a 2.6.27-7 Ubuntu kernel).		      */
+/*   								      */
+/*	(gdb) x/20i 0xffffffff80212d30				      */
+/*	0xffffffff80212d30:     pop    %r11			      */
+/*	0xffffffff80212d32:     sub    $0x30,%rsp		      */
+/*	0xffffffff80212d36:     mov    %rbx,0x28(%rsp)		      */
+/*	0xffffffff80212d3b:     mov    %rbp,0x20(%rsp)		      */
+/*	0xffffffff80212d40:     mov    %r12,0x18(%rsp)		      */
+/*	0xffffffff80212d45:     mov    %r13,0x10(%rsp)		      */
+/*	0xffffffff80212d4a:     mov    %r14,0x8(%rsp)		      */
+/*	0xffffffff80212d4f:     mov    %r15,(%rsp)		      */
+/*	0xffffffff80212d53:     mov    %gs:0x18,%r11		      */
+/*	0xffffffff80212d5c:     mov    %r11,0x98(%rsp)		      */
+/*	0xffffffff80212d64:     movq   $0x2b,0xa0(%rsp)		      */
+/*	0xffffffff80212d70:     movq   $0x33,0x88(%rsp)		      */
+/*	0xffffffff80212d7c:     movq   $0xffffffffffffffff,0x58(%rsp) */
+/*	0xffffffff80212d85:     mov    0x30(%rsp),%r11		      */
+/*	0xffffffff80212d8a:     mov    %r11,0x90(%rsp)		      */
+/*	0xffffffff80212d92:     mov    %rsp,%rcx		      */
+/*	0xffffffff80212d95:     callq  0xffffffff80210390	      */
+/*   								      */
+/*   We  can  dump  the  "map" we find as we run (more useful to the  */
+/*   person who needs to seed new instructions sequences).	      */
+/*   								      */
+/**********************************************************************/
+typedef struct patch_t {
+	char		*p_name;	/* Symbol where we start searching. */
+	void		*p_baddr;	/* base addr of p_name */
+	void		*p_taddr;	/* target addr we patched */
+	char		*p_code;	/* Our function which intercepts.	*/
+	int		p_offset;	/* On last instruction, offset to p_taddr */
+	unsigned long	p_val;
+	unsigned long	p_newval;
+	unsigned char	p_array[64];
+	} patch_t;
+
+#if defined(__amd64)
+/**********************************************************************/
 /*   Function pointers.						      */
 /**********************************************************************/
-#if defined(__amd64)
 static int64_t (*sys_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_fork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_iopl_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_rt_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+static int64_t (*sys_rt_sigsuspend_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_sigaltstack_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
@@ -138,20 +202,116 @@ static char *ptregscall_common_ptr;
 /*   see the forward references.				      */
 /**********************************************************************/
 void systrace_part1_sys_clone(void);
-void systrace_part1_sys_execve(void);
 void systrace_part1_sys_fork(void);
 void systrace_part1_sys_iopl(void);
-void systrace_part1_sys_rt_sigreturn(void);
 void systrace_part1_sys_sigaltstack(void);
+void systrace_part1_sys_rt_sigsuspend(void);
 void systrace_part1_sys_vfork(void);
 
-/**********************************************************************/
-/*   Dont  make  this  static else gcc will optimise it all away and  */
-/*   the functions inside it will be undefs.			      */
-/**********************************************************************/
-long user_ds = __USER_DS;
-long user_cs = __USER_CS;
+void patch_enable(patch_t *, int);
 
+/**********************************************************************/
+/*   Following patches execve.					      */
+/**********************************************************************/
+asmlinkage int64_t
+dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
+asmlinkage int64_t
+dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
+
+	static patch_t patch_execve = {
+		.p_name = "stub_execve",
+		.p_offset = 1,
+		.p_code = (char *) dtrace_systrace_syscall_execve,
+		.p_array = {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
+			2,  0x41,
+			4,  0x48, 
+			5,  0x48, 
+			5,  0x48,
+			5,  0x4c,
+		        5,  0x4c, 
+			5,  0x4c, 
+			4,  0x4c, 
+			9,  0x65, 
+			8,  0x4c,
+			12, 0x48,
+			12, 0x48, 
+			9,  0x48,
+			5,  0x4c,
+			8,  0x4c,
+			3,  0x48,
+			5,  0xe8, /* call .... */
+#endif
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,9)
+			2,  0x41,
+			4,  0x48, 
+			5,  0x48, 
+			5,  0x48,
+			5,  0x4c,
+		        5,  0x4c, 
+			5,  0x4c, 
+			4,  0x4c, 
+			3,  0x4d, 
+			9,  0x65,
+			8,  0x4c,
+			12, 0x48, 
+			12, 0x48, 
+			9,  0x48,
+			5,  0x4c,
+			8,  0x4c,
+			5,  0xe8, /* call .... */
+#endif
+			},
+		};
+
+
+	static patch_t patch_rt_sigreturn = {
+		.p_name = "stub_rt_sigreturn",
+		.p_offset = 1,
+		.p_code = (char *) dtrace_systrace_syscall_rt_sigreturn,
+		.p_array = {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
+			4,  0x48,
+			4,  0x48, 
+			5,  0x48, 
+			5,  0x48,
+			5,  0x4c,
+		        5,  0x4c, 
+			5,  0x4c, 
+			4,  0x4c, 
+			3,  0x48, 
+			9,  0x65,
+			8,  0x4c,
+			12, 0x48, 
+			12, 0x48, 
+			9,  0x48,
+			5,  0x4c,
+			8,  0x4c,
+			5,  0xe8, /* call .... */
+#endif
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,9)
+			4,  0x48,
+			4,  0x48, 
+			5,  0x48, 
+			5,  0x48,
+			5,  0x4c,
+		        5,  0x4c, 
+			5,  0x4c, 
+			4,  0x4c, 
+			3,  0x48, 
+			9,  0x65,
+			8,  0x4c,
+			12, 0x48, 
+			12, 0x48, 
+			9,  0x48,
+			5,  0x4c,
+			8,  0x4c,
+			5,  0xe8, /* call .... */
+#endif
+			},
+		};
 void
 systrace_assembler_dummy(void)
 {
@@ -194,6 +354,12 @@ systrace_assembler_dummy(void)
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_sigaltstack)
 
+		FUNCTION(systrace_part1_sys_rt_sigsuspend)
+		"lea    -0x28(%rsp),%rdx\n"
+		"mov $dtrace_systrace_syscall_sigsuspend,%rax\n"
+		"jmp *ptregscall_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_rt_sigsuspend)
+
 		FUNCTION(systrace_part1_sys_vfork)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_vfork,%rax\n"
@@ -201,91 +367,18 @@ systrace_assembler_dummy(void)
 		END_FUNCTION(systrace_part1_sys_vfork)
 
 		/***********************************************/
-		/*   execve()   is   very   similar   to  the  */
-		/*   functions  above,  but  there are slight  */
-		/*   assembler     differences,     and    no  */
-		/*   indirection,  so  we cannot use the same  */
-		/*   ptregscall_common  handler,  but instead  */
-		/*   just  inline  the  sys_execve()  wrapper  */
-		/*   from  the  kernel.  Its trying to ensure  */
-		/*   the   pt_regs  is  ok,  and  the  kernel  */
-		/*   segment registers are as they should be.  */
+		/*   execve() relies on stub_execve() calling  */
+		/*   into  sys_execve()  to do the real work.  */
+		/*   We  use the patch enabler code to handle  */
+		/*   the varying assembler sequences.	       */
 		/***********************************************/
-	/*   There  are  lots of horrid magic numbers  */
-	/*   below   (for  pt_regs  struct  offsets),  */
-	/*   which  we  need to clean up or move to a  */
-	/*   *.S  file so we can use the preprocessor  */
-	/*   to substitute them.		       */
-		FUNCTION(systrace_part1_sys_execve)
-		"pop    %r11\n"
-		"sub    $0x30,%rsp\n"
-		"mov    %rbx,0x28(%rsp)\n"
-		"mov    %rbp,0x20(%rsp)\n"
-		"mov    %r12,0x18(%rsp)\n"
-		"mov    %r13,0x10(%rsp)\n"
-		"mov    %r14,0x8(%rsp)\n"
-		"mov    %r15,(%rsp)\n"
-		"mov    %gs:0x18,%r11\n"
-		"mov    %r11,0x98(%rsp)\n"
-		"movq	user_ds,%r11\n"
-		"movq   %r11,0xa0(%rsp)\n"
-		"movq	user_cs,%r11\n"
-		"movq   %r11,0x88(%rsp)\n"
-		"movq   $-1,0x58(%rsp)\n"
-		"mov    0x30(%rsp),%r11\n"
-		"mov    %r11,0x90(%rsp)\n"
-		"mov    %rsp,%rcx\n"
-		"callq  dtrace_systrace_syscall_execve\n"
-		"mov    0x98(%rsp),%r11\n"
-		"mov    %r11,%gs:0x18\n"
-		"mov    0x90(%rsp),%r11\n"
-		"mov    %r11,0x30(%rsp)\n"
-		"mov    %rax,0x50(%rsp)\n"
-		"mov    (%rsp),%r15\n"
-		"mov    0x8(%rsp),%r14\n"
-		"mov    0x10(%rsp),%r13\n"
-		"mov    0x18(%rsp),%r12\n"
-		"mov    0x20(%rsp),%rbp\n"
-		"mov    0x28(%rsp),%rbx\n"
-		"add    $0x30,%rsp\n"
-		"jmpq   *int_ret_from_sys_call_ptr\n"
-		END_FUNCTION(systrace_part1_sys_execve)
 
 		/***********************************************/
-		/*   rt_sigreturn  syscall, similar to execve  */
-		/*   above -- special case.		       */
+		/*   rt_sigreturn()         relies         on  */
+		/*   stub_rt_sigreturn()     calling     into  */
+		/*   sys_rt_sigreturn to do the real work.     */
 		/***********************************************/
-		FUNCTION(systrace_part1_sys_rt_sigreturn)
-		"add    $0x8,%rsp\n"
-		"sub    $0x30,%rsp\n"
-		"mov    %rbx,0x28(%rsp)\n"
-		"mov    %rbp,0x20(%rsp)\n"
-		"mov    %r12,0x18(%rsp)\n"
-		"mov    %r13,0x10(%rsp)\n"
-		"mov    %r14,0x8(%rsp)\n"
-		"mov    %r15,(%rsp)\n"
-		"mov    %rsp,%rdi\n"
-		"mov    %gs:0x18,%r11\n"
-		"mov    %r11,0x98(%rsp)\n"
-		"movq	user_ds,%r11\n"
-		"movq   %r11,0xa0(%rsp)\n"
-		"movq	user_cs,%r11\n"
-		"movq   %r11,0x88(%rsp)\n"
-		"movq   $-1,0x58(%rsp)\n"
-		"mov    0x30(%rsp),%r11\n"
-		"mov    %r11,0x90(%rsp)\n"
-		"callq  dtrace_systrace_syscall_rt_sigreturn\n"
-		"mov    %rax,0x50(%rsp)\n"
-		"mov    (%rsp),%r15\n"
-		"mov    0x8(%rsp),%r14\n"
-		"mov    0x10(%rsp),%r13\n"
-		"mov    0x18(%rsp),%r12\n"
-		"mov    0x20(%rsp),%rbp\n"
-		"mov    0x28(%rsp),%rbx\n"
-		"add    $0x30,%rsp\n"
-		"jmpq   *int_ret_from_sys_call_ptr\n"
 
-		END_FUNCTION(systrace_part1_sys_rt_sigreturn)
 		);
 
 }
@@ -299,68 +392,30 @@ systrace_assembler_dummy(void)
 asmlinkage int64_t
 dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{
-#if defined(sun)
-	int syscall = curthread->t_sysnum;
-#else
-	int syscall; // = linux_get_syscall();
-#endif
-	void **ptr = (void **) &arg0;
-
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6,9)
-//hack: need this for now else args arent on the stack properly...
-printk(KERN_WARNING "%p arg0=%p %p %p\n", &arg0, arg0, arg1, arg2);
-#endif
+{	int syscall;
 
 	/***********************************************/
-	/*   Following   useful   to  help  find  the  */
-	/*   syscall arg on the stack.		       */
+	/*   We  need  the  syscall  -  which  is  in  */
+	/*   rax/eax.  Dont  put any code before this  */
+	/*   point    else   we   may   destroy   it.  */
+	/*   Unfortunately,  different  syscalls have  */
+	/*   differing  frame regs on the stack as we  */
+	/*   are  called  and  theres  no  consistent  */
+	/*   access to pt_regs once we are here.       */
 	/***********************************************/
-	if (0) {
-		int i; 
-		for (i = 0; i < 20; i++) {
-			printk("%p: stack[%d] = %p\n", ptr + i, i, ptr[i]);
-		}
-	}
+	__asm(
+		"mov %%eax,%0\n"
+		: "=a" (syscall)
+		);
 
-	/***********************************************/
-	/*   We  need to use the appropriate framereg  */
-	/*   struct,  but  I  havent been bothered to  */
-	/*   dig  it out. These magic offsets seem to  */
-	/*   work.				       */
-	/***********************************************/
-# if defined(__i386)
-	syscall = (int) ptr[6]; // horrid hack
-# else
-	/***********************************************/
-	/*   This  is  slightly  nicer than the older  */
-	/*   [12] hack -- the position of the syscall  */
-	/*   can  depend  on the inline assembler and  */
-	/*   function       optimisation.       Using  */
-	/*   __builtin_frame_address()  means  we get  */
-	/*   to  the right value irrespective of what  */
-	/*   happens   inside  this  functions  stack  */
-	/*   layout/optimisation.		       */
-	/***********************************************/
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
-	{unsigned long *ret_sp = __builtin_frame_address(0);
-	syscall = (int) ret_sp[6];
-	}
-#else
-	/***********************************************/
-	/*   This  works  for  now  with the printk()  */
-	/*   hack above...			       */
-	/***********************************************/
-	syscall = (int) (long) ptr[12]; // horrid hack
-#endif
-# endif
 	if ((unsigned) syscall >= NSYSCALL) {
 		printk("dtrace:help: Got syscall=%d - out of range (max=%d)\n", 
 			(int) syscall, (int) NSYSCALL);
 		return -EINVAL;
 	}
+
 	return dtrace_systrace_syscall2(syscall, &systrace_sysent[syscall],
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd  part  of  the  clone()  syscall, called from the assembler  */
@@ -369,6 +424,20 @@ printk(KERN_WARNING "%p arg0=%p %p %p\n", &arg0, arg0, arg1, arg2);
 /*   child since it is scheduled independently.			      */
 /**********************************************************************/
 # if defined(__amd64)
+
+	/***********************************************/
+	/*   2.6.9 kernel passes a copy of pt_regs on  */
+	/*   stack  vs  later  kenels  which  pass  a  */
+	/*   pointer to pt_regs.		       */
+	/***********************************************/
+# if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
+#   define ARG0_PTR		&arg0 
+#   define EXECVE_COPY_FRAME	FALSE
+# else /* 2.6.9 */
+#   define ARG0_PTR		(char *) (&s + 1) + 8 + 8
+#   define EXECVE_COPY_FRAME	TRUE
+# endif
+
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -378,7 +447,8 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 //	s.stsy_underlying = 0xffffffff80210330;
 	s.stsy_underlying = sys_clone_ptr;
 	return dtrace_systrace_syscall2(__NR_clone, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 asmlinkage int64_t
 dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
@@ -388,7 +458,8 @@ dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_execve];
 	s.stsy_underlying = sys_execve_ptr;
 	return dtrace_systrace_syscall2(__NR_execve, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		EXECVE_COPY_FRAME, ARG0_PTR,
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd  part  of  the  fork()  syscall (but note, this is a legacy  */
@@ -403,7 +474,8 @@ dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_fork];
 	s.stsy_underlying = sys_fork_ptr;
 	return dtrace_systrace_syscall2(__NR_fork, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the iopl() syscall.				      */
@@ -416,7 +488,8 @@ dtrace_systrace_syscall_iopl(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_iopl];
 	s.stsy_underlying = sys_iopl_ptr;
 	return dtrace_systrace_syscall2(__NR_iopl, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the sig_rt_sigreturn() syscall.		      */
@@ -429,7 +502,22 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 	s = systrace_sysent[__NR_rt_sigreturn];
 	s.stsy_underlying = sys_rt_sigreturn_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigreturn, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
+}
+/**********************************************************************/
+/*   2nd part of the sig_rt_sigsuspend() syscall.		      */
+/**********************************************************************/
+asmlinkage int64_t
+dtrace_systrace_syscall_rt_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+{	systrace_sysent_t s;
+
+	s = systrace_sysent[__NR_rt_sigsuspend];
+	s.stsy_underlying = sys_rt_sigsuspend_ptr;
+	return dtrace_systrace_syscall2(__NR_rt_sigsuspend, &s,
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the sigaltstack() syscall.				      */
@@ -442,7 +530,22 @@ dtrace_systrace_syscall_sigaltstack(uintptr_t arg0, uintptr_t arg1, uintptr_t ar
 	s = systrace_sysent[__NR_sigaltstack];
 	s.stsy_underlying = sys_sigaltstack_ptr;
 	return dtrace_systrace_syscall2(__NR_sigaltstack, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
+}
+/**********************************************************************/
+/*   2nd part of the sigaltstack() syscall.				      */
+/**********************************************************************/
+asmlinkage int64_t
+dtrace_systrace_syscall_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+{	systrace_sysent_t s;
+
+	s = systrace_sysent[__NR_rt_sigsuspend];
+	s.stsy_underlying = sys_rt_sigsuspend_ptr;
+	return dtrace_systrace_syscall2(__NR_rt_sigsuspend, &s,
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd part of the vfork() syscall.				      */
@@ -455,7 +558,8 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_vfork];
 	s.stsy_underlying = sys_vfork_ptr;
 	return dtrace_systrace_syscall2(__NR_vfork, &s,
-		&arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ARG0_PTR, 
+		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 # endif
 /**********************************************************************/
@@ -465,11 +569,12 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 /**********************************************************************/
 asmlinkage int64_t
 dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
-    uintptr_t *arg0_ptr,
+    int copy_frame, uintptr_t *arg0_ptr,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {	dtrace_id_t id;
 	intptr_t	rval;
+	struct pt_regs *pregs = (struct pt_regs *) arg0_ptr;
 
 	/***********************************************/
 	/*   May  want  to single thread this code if  */
@@ -520,8 +625,6 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	/*   modified.				       */
 	/***********************************************/
 #if defined(__i386)
-	{
-	struct pt_regs *pregs = (struct pt_regs *) arg0_ptr;
 	__asm(
 		// Move the stack pt_regs to be in the right
 		// place for the underlying syscall.
@@ -568,14 +671,91 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
                 : "=a" (rval)
                 : "S" (pregs), "D" (sy->stsy_underlying)
 		);
-	}
 # else
 
 	/***********************************************/
-	/*   x86-64 handler here.		       */
+	/*   x86-64  handler  here. Some kernels will  */
+	/*   call  by  value,  the  args for pt_regs,  */
+	/*   e.g.  exexcve()  on  2.6.9. Others wont.  */
+	/*   When  we  call  by value, the stack must  */
+	/*   contain  the pt_regs where the underlyer  */
+	/*   expects,  else  it  will  panic  us.  We  */
+	/*   arrange  to  memcpy()  the original call  */
+	/*   frame  to  here,  and  then  put it back  */
+	/*   afterwards,  since  the  underlyer maybe  */
+	/*   setting  up  the user space register set  */
+	/*   on clone/exec/fork/etc.		       */
+	/*   					       */
+	/*   In  theory,  always  copying  the  frame  */
+	/*   should  be safe (assuming we do not walk  */
+	/*   off  the  end  of the valid kernel stack  */
+	/*   area).  For now we will pass in from the  */
+	/*   caller what we expected.		       */
 	/***********************************************/
 //printk("syscall arg0=%p %p %p %p %p %p\n", arg0, arg1, arg2, arg3, arg4, arg5);
-        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+	if (copy_frame) {
+		__asm(
+			// Move the stack pt_regs to be in the right
+			// place for the underlying syscall.
+			"mov %%rcx,%%r15\n"
+			"push 0xa0(%%r15)\n"
+			"push 0x98(%%r15)\n"
+			"push 0x90(%%r15)\n"
+			"push 0x88(%%r15)\n"
+			"push 0x80(%%r15)\n"
+			"push 0x78(%%r15)\n"
+			"push 0x70(%%r15)\n"
+			"push 0x68(%%r15)\n"
+			"push 0x60(%%r15)\n"
+			"push 0x58(%%r15)\n"
+			"push 0x50(%%r15)\n"
+			"push 0x48(%%r15)\n"
+			"push 0x40(%%r15)\n"
+			"push 0x38(%%r15)\n"
+			"push 0x30(%%r15)\n"
+			"push 0x28(%%r15)\n"
+			"push 0x20(%%r15)\n"
+			"push 0x18(%%r15)\n"
+			"push 0x10(%%r15)\n"
+			"push 0x08(%%r15)\n"
+			"push 0x00(%%r15)\n"
+
+			"mov 0x68(%%r15),%%rsi\n"
+			"mov 0x70(%%r15),%%rdi\n"
+			"mov 0x60(%%r15),%%rdx\n"
+			"mov %%rsp,%%rcx\n"
+
+			"call *%%rax\n"
+
+			// Copy the output pt_regs back to the home location
+			"pop 0(%%r15)\n"
+			"pop 0x08(%%r15)\n"
+			"pop 0x10(%%r15)\n"
+			"pop 0x18(%%r15)\n"
+			"pop 0x20(%%r15)\n"
+			"pop 0x28(%%r15)\n"
+			"pop 0x30(%%r15)\n"
+			"pop 0x38(%%r15)\n"
+			"pop 0x40(%%r15)\n"
+			"pop 0x48(%%r15)\n"
+			"pop 0x50(%%r15)\n"
+			"pop 0x58(%%r15)\n"
+			"pop 0x60(%%r15)\n"
+			"pop 0x68(%%r15)\n"
+			"pop 0x70(%%r15)\n"
+			"pop 0x78(%%r15)\n"
+			"pop 0x80(%%r15)\n"
+			"pop 0x88(%%r15)\n"
+			"pop 0x90(%%r15)\n"
+			"pop 0x98(%%r15)\n"
+			"pop 0xa0(%%r15)\n"
+		
+	                : "=a" (rval)
+	                : "c" (pregs), "a" (sy->stsy_underlying)
+			);
+		}
+	else
+	        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
 # endif
 
 //HERE();
@@ -607,14 +787,15 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 /*   stack on syscall entry.					      */
 /**********************************************************************/
 static void *
-get_interposer(int sysnum)
+get_interposer(int sysnum, int enable)
 {
 # if defined(__amd64)
 	switch (sysnum) {
 	  case __NR_clone:
 		return (void *) systrace_part1_sys_clone;
 	  case __NR_execve:
-		return (void *) systrace_part1_sys_execve;
+	  	patch_enable(&patch_execve, enable);
+		return NULL;
 	  case __NR_fork:
 		return (void *) systrace_part1_sys_fork;
 	  case __NR_iopl:
@@ -622,7 +803,10 @@ get_interposer(int sysnum)
 	  case __NR_sigaltstack:
 		return (void *) systrace_part1_sys_sigaltstack;
 	  case __NR_rt_sigreturn:
-		return (void *) systrace_part1_sys_rt_sigreturn;
+	  	patch_enable(&patch_rt_sigreturn, enable);
+		return NULL;
+	  case __NR_rt_sigsuspend:
+		return (void *) systrace_part1_sys_rt_sigsuspend;
 	  case __NR_vfork:
 		return (void *) systrace_part1_sys_vfork;
 	  }
@@ -665,12 +849,108 @@ HERE();
 	}
 }
 
+/**********************************************************************/
+/*   Code to enable or disable a patch structure.		      */
+/**********************************************************************/
+void
+patch_enable(patch_t *pp, int enable)
+{	unsigned char *codep;
+	int     i;
+	char	buf[128];
+	int	last_s = 0;
+	int	failed = FALSE;
+static int dtrace_show_patches = TRUE;
+static int do_patch = TRUE; // Set to FALSE whilst browsing for a patch
+
+	/***********************************************/
+	/*   If  we  are  disabling the patch, put it  */
+	/*   back.				       */
+	/***********************************************/
+	if (!enable) {
+		if (pp->p_taddr)
+			*(int32_t *) pp->p_taddr = pp->p_val;
+		return;
+	}
+
+	/***********************************************/
+	/*   Initting  the  patch. Do first time hunt  */
+	/*   if necessary.			       */
+	/***********************************************/
+	if (pp->p_taddr) {
+		if (do_patch && pp->p_taddr)
+			*(int32_t *) pp->p_taddr = pp->p_newval;
+		return;
+	}
+
+	if (pp->p_baddr == NULL)
+		pp->p_baddr = get_proc_addr(pp->p_name);
+
+	codep = pp->p_baddr;
+	if (dtrace_show_patches)
+		printk("dtrace:patch_enable: %s\n", pp->p_name);
+        for (i = 0; pp->p_array[i] && i < sizeof pp->p_array; i++) {
+                int s = dtrace_instr_size(codep);
+                if (s < 0)
+                        break;
+                sprintf(buf, "%02d:%p: sz=%02d", i, codep, s);
+		last_s = s;
+		while (s-- > 0)
+			sprintf(buf + strlen(buf), " %02x", *codep++);
+		strcat(buf, "\n");
+		if (dtrace_show_patches)
+			printk("%s", buf);
+
+		/***********************************************/
+		/*   If just browsing, let us see the dump.    */
+		/***********************************************/
+		if (!do_patch)
+			continue;
+
+		if (last_s != pp->p_array[i]) {
+			if (dtrace_show_patches)
+				printk("dtrace:patch: FAILED (size %d vs %d)\n",
+					last_s, pp->p_array[i]);
+			failed = TRUE;
+			if (do_patch)
+				return;
+		}
+		if (codep[-last_s] != pp->p_array[++i]) {
+			if (dtrace_show_patches) {
+				printk("dtrace:patch: FAILED (byte %02x vs %02x)\n",
+					codep[-last_s], pp->p_array[i]);
+			}
+			failed = TRUE;
+			if (do_patch)
+				return;
+		}
+        }
+	if (failed)
+		return;
+	codep = codep - last_s + pp->p_offset;
+	if (dtrace_show_patches)
+		printk("dtrace:patch: success @%p\n", codep);
+	pp->p_taddr = codep;
+	/***********************************************/
+	/*   Save the old value.		       */
+	/***********************************************/
+	pp->p_val = *(int32_t *) pp->p_taddr;
+	/***********************************************/
+	/*   Compute relative jump target.	       */
+	/***********************************************/
+	pp->p_newval = ((unsigned char *) pp->p_code - (codep + 4));
+	if (do_patch)
+		*(int32_t *) pp->p_taddr = pp->p_newval;
+}
+/**********************************************************************/
+/*   This  gets  called when someone is trying to launch a probe and  */
+/*   we need to intercept the syscall entries.			      */
+/**********************************************************************/
 /*ARGSUSED*/
 static void
 systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 {
 	int i;
-HERE();
+//HERE();
 //printk("descr=%p\n", desc);
 	if (desc != NULL)
 		return;
@@ -687,6 +967,10 @@ HERE();
 	/*   Handle specials for the amd64 syscalls.   */
 	/***********************************************/
 #if defined(__amd64)
+	/***********************************************/
+	/*   Special handling for the syscalls - find  */
+	/*   the bits of code we want to patch.	       */
+	/***********************************************/
 	if (sys_clone_ptr == NULL)
 		sys_clone_ptr = get_proc_addr("sys_clone");
 	if (sys_execve_ptr == NULL)
@@ -697,6 +981,8 @@ HERE();
 		sys_iopl_ptr = get_proc_addr("sys_iopl");
 	if (sys_rt_sigreturn_ptr == NULL)
 		sys_rt_sigreturn_ptr = get_proc_addr("sys_rt_sigreturn");
+	if (sys_rt_sigsuspend_ptr == NULL)
+		sys_rt_sigsuspend_ptr = get_proc_addr("sys_rt_sigsuspend");
 	if (sys_sigaltstack_ptr == NULL)
 		sys_sigaltstack_ptr = get_proc_addr("sys_sigaltstack");
 	if (sys_vfork_ptr == NULL)
@@ -785,13 +1071,8 @@ static void
 systrace_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
-	void	*syscall_func = get_interposer(sysnum);
+	void	*syscall_func = get_interposer(sysnum, TRUE);
 
-	/***********************************************/
-	/*   This may happen whilst debugging.	       */
-	/***********************************************/
-	if (syscall_func == NULL)
-		return;
 /*
 	int enabled = (systrace_sysent[sysnum].stsy_entry != DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return != DTRACE_IDNONE);
@@ -804,6 +1085,12 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	} else {
 		systrace_sysent[sysnum].stsy_return = id;
 	}
+	/***********************************************/
+	/*   This  may  because the patch_enable code  */
+	/*   got invoked.			       */
+	/***********************************************/
+	if (syscall_func == NULL)
+		return;
 
 	/***********************************************/
 	/*   The  x86  kernel  will  page protect the  */
@@ -849,12 +1136,14 @@ static void
 systrace_disable(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
-	void	*syscall_func = get_interposer(sysnum);
+	void	*syscall_func = get_interposer(sysnum, FALSE);
+
 	int disable = (systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return == DTRACE_IDNONE);
 
 	/***********************************************/
-	/*   This may happen whilst debugging.	       */
+	/*   This  may  because the patch_enable code  */
+	/*   got invoked.			       */
 	/***********************************************/
 	if (syscall_func == NULL)
 		return;

@@ -755,7 +755,7 @@ static int count;
 		return ptr;
 	if (count < 100) {
 		count++;
-		printk("get_proc_addr: Failed to find '%s' (warn=%d)\n", name, count);
+		printk("dtrace_linux.c:get_proc_addr: Failed to find '%s' (warn=%d)\n", name, count);
 	}
 	return NULL;
 }
@@ -1759,23 +1759,35 @@ dtracedrv_release(struct inode *inode, struct file *file)
 	dtrace_close(file, 0, 0, NULL);
 	return 0;
 }
+/**********************************************************************/
+/*   Read some vars/debug from the driver.			      */
+/**********************************************************************/
 static ssize_t
 dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
+{	int	n;
+
+	if (*off)
+		return 0;
+
+	n = snprintf(buf, len, 
+		"here=%d\n"
+		"cpuid=%d\n", 
+		dtrace_here,
+		cpu_get_id());
+	return n;
+}
+/**********************************************************************/
+/*   Allow us to change driver parms.				      */
+/**********************************************************************/
+static ssize_t 
+dtracedrv_write(struct file *file, const char __user *buf,
+			      size_t count, loff_t *pos)
 {
-printk("cpuid=%d\n", cpu_get_id());
-/*
-long *sys_call_table = get_proc_addr("sys_call_table");
-printk("sys_call_table=%p %lx\n", sys_call_table, sys_call_table[0]);
-long x = *sys_call_table;
-page_perms_t perms;
-
-mem_set_writable((unsigned long) sys_call_table, &perms);
-sys_call_table[0] = x;
-mem_unset_writable(&perms);
-printk("Line %d\n", __LINE__);
-*/
-return -EIO;
-
+	if (count >= 6 &&
+	    strncmp(buf, "here=", 5) == 0) {
+	    	dtrace_here = simple_strtoul(buf + 5, NULL, 0);
+		}
+	return count;
 }
 # if 0
 static int proc_calc_metrics(char *page, char **start, off_t off,
@@ -1811,6 +1823,7 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 }
 static const struct file_operations dtracedrv_fops = {
         .read = dtracedrv_read,
+        .write = dtracedrv_write,
         .ioctl = dtracedrv_ioctl,
         .open = dtracedrv_open,
         .release = dtracedrv_release,

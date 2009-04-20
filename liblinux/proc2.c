@@ -12,6 +12,19 @@
 #include "Pcontrol.h"
 #include "libproc.h"
 
+/**********************************************************************/
+/*   When  logging  HERE()  calls, dont bloat/slow us down with full  */
+/*   path names, we only want to know which file its in.	      */
+/**********************************************************************/
+char *
+dtrace_basename(char *name)
+{	char	*cp = strrchr(name, '/');
+
+	if (cp)
+		return cp + 1;
+	return name;
+}
+
 _mutex_held(pthread_mutex_t *mp)
 {
 	if (pthread_mutex_trylock(mp)) {

@@ -685,7 +685,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-//		do_print = strcmp(name, "init_memory_mapping") != NULL;
+//		do_print = strcmp(name, "init_memory_mapping") == NULL;
 
 	/***********************************************/
 	/*   Make  sure  this  doesnt overlap another  */

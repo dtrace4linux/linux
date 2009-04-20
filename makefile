@@ -4,7 +4,8 @@
 # (well, nearly). Kernel litters the source directory, but dtrace
 # the userland binary is in build/
 
-rel=`date +%Y%m%d`
+# Allow me to create tmp releases.
+rel=`if [ -z $$REL ] ; then date +%Y%m%d ; else echo $$REL ; fi`
 RELDIR=dtrace
 
 UNAME_M=`uname -m`

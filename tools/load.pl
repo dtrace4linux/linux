@@ -269,7 +269,7 @@ sub spawn
 }
 sub time_string
 {
-	return strftime("%H:%m:%d ", localtime);
+	return strftime("%H:%M:%S ", localtime);
 }
 #######################################################################
 #   Print out command line usage.				      #

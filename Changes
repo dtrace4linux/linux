@@ -1,3 +1,8 @@
+Wed Apr 22 21:00:26 2009  fox
+
+     247* driver/cyclic_linux.c: Use old timers for non-hrtimer
+          aware kernels.
+
 Tue Apr 21 08:13:00 2009  fox
 
      246* dtrace_linux.c: Allow us to read/write from /dev/dtracedrv for

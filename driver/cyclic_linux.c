@@ -16,7 +16,7 @@
 /*   								      */
 /*   Paul Fox June 2008						      */
 /*   								      */
-/*   $Header: Last edited: 17-Apr-2009 1.1 $ 			      */
+/*   $Header: Last edited: 22-Apr-2009 1.2 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -24,15 +24,15 @@
 #include "dtrace_proto.h"
 #include <sys/cyclic_impl.h>
 
-# define	CYCLIC_SUN	0
-# define	CYCLIC_LINUX	1
-# define	CYCLIC_DUMMY	2
+# define	CYCLIC_SUN		0
+# define	CYCLIC_LINUX		1
+# define	CYCLIC_OLD_TIMER	2
 
 /**********************************************************************/
 /*   Need to rewrite this for older kernels without hrtimers?	      */
 /**********************************************************************/
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 19)
-# define MODE CYCLIC_DUMMY
+#if !defined(HRTIMER_STATE_INACTIVE)
+# define MODE CYCLIC_OLD_TIMER
 #else
 # define MODE CYCLIC_LINUX
 #endif
@@ -206,30 +206,74 @@ cyclic_remove(cyclic_id_t id)
 
 # endif
 
-# if MODE == CYCLIC_DUMMY
-// Here to create our own stubs.
+# if MODE == CYCLIC_OLD_TIMER
+/**********************************************************************/
+/*   This is for non-hrtimer aware kernels.			      */
+/**********************************************************************/
+struct c_timer {
+        struct timer_list c_timer;      /* Must be first item in structure */
+        cyc_handler_t   c_hdlr;
+        cyc_time_t      c_time;
+        };
+
+static void
+be_callback(struct timer_list *ptr)
+{	struct c_timer *cp = (struct c_timer *) ptr;
+	struct timespec ts;
+	unsigned long j;
+
+	/***********************************************/
+	/*   Invoke the callback.                      */
+	/***********************************************/
+	cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
+
+	/***********************************************/
+	/*   Refire the timer.                         */
+	/***********************************************/
+	ts.tv_sec = cp->c_time.cyt_interval / (1000 * 1000 * 1000);
+	ts.tv_nsec = cp->c_time.cyt_interval % (1000 * 1000 * 1000);
+	j = timespec_to_jiffies(&ts);
+	cp->c_timer.expires = jiffies + j;
+	add_timer(&cp->c_timer);
+}
 
 void
 cyclic_init(cyc_backend_t *be, hrtime_t resolution)
 {
 }
-cyclic_id_t 
+cyclic_id_t
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
-{
-	TODO();
-	return 0;
+{	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
+	struct timespec ts;
+	unsigned long j;
+
+	ts.tv_sec = t->cyt_interval / (1000 * 1000 * 1000);
+	ts.tv_nsec = t->cyt_interval % (1000 * 1000 * 1000);
+	j = timespec_to_jiffies(&ts);
+
+	init_timer(&cp->c_timer);
+	cp->c_timer.function = be_callback;
+	cp->c_timer.data = (void *) cp;
+	cp->c_timer.expires = jiffies + j;
+	cp->c_hdlr = *hdrl;
+	cp->c_time = *t;
+	add_timer(&cp->c_timer);
+	return (cyclic_id_t) cp;
 }
 cyclic_id_t
 cyclic_add_omni(cyc_omni_handler_t *omni)
 {
-	TODO();
-	return 0;
+        TODO();
+        return 0;
 }
-void 
+void
 cyclic_remove(cyclic_id_t id)
-{
-	TODO();
-}
+{       struct c_timer *cp = (struct c_timer *) id;
 
+	if (id) {
+		del_timer(&cp->c_timer);
+		kfree(cp);
+	}
+}
 # endif
 

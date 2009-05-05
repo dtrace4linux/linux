@@ -15,6 +15,7 @@
 /*   because it can see what we are doing.			      */
 /**********************************************************************/
 # include <linux/string.h>
+# include <linux/version.h>
 
 /**********************************************************************/
 /*   We  avoiding  having  issues  with  prototypes  by stringifying  */
@@ -40,6 +41,10 @@
 /*   								      */
 /*   Some of these can be removed - the initial list was gotten from  */
 /*   looking at dtracedrv.ko's dependencies.			      */
+/*   								      */
+/*   I've  also found earlier kernels dont have re-entrant INT3/INT1  */
+/*   trap  handlers,  so  we have to blacklist a few extra functions  */
+/*   for them.							      */
 /**********************************************************************/
 char toxic_probe_tbl[] = {
 	"__atomic_notifier_call_chain "
@@ -52,17 +57,28 @@ char toxic_probe_tbl[] = {
 	"__mutex_lock_slowpath "
 	"__mutex_trylock_slowpath "
 	"__mutex_unlock_slowpath "
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+	"__tasklet_hi_schedule "
+	"__tasklet_schedule "
+        "kprobe_fault_handler kprobe_handler kprobe_flush_task post_kprobe_handler "
+	"page_fault "
+	"scheduler_tick "
+#endif
 	"atomic_notifier_call_chain " // [ind] used by us registering INT3 handler
 	"common_interrupt "
 	"copy_from_user "
 	"copy_to_user "
 	"del_timer "
+	"do_debug "
 	"do_gettimeofday "
 	"do_oops_enter_exit "
+	"do_timer "
+	"do_trap "
 	"dump_task_regs "
 	"dump_trace "
 	"do_int3 " // Used by us for probes
 	"find_task_by_vpid "
+	"get_debugreg "
 	"get_kprobe "
 	"init_timer "
 	"int3 "
@@ -75,6 +91,7 @@ char toxic_probe_tbl[] = {
 	"kmem_cache_free "
 	"mutex_lock "
 	"mutex_unlock "
+	"native_get_debugreg "
 	"notify_die "
 	/***********************************************/
 	/*   We  need  to  patch the interrupt vector  */
@@ -83,14 +100,17 @@ char toxic_probe_tbl[] = {
 	/*   handler from the following functions.     */
 	/***********************************************/
 	"notifier_call_chain "
+	"notify_die "
 	"on_each_cpu " 		// Needed by dtrace_xcall
 	"oops_exit "
 	"oops_may_print "
 	"panic "
+	"paranoid_exit "
 	"per_cpu__cpu_number "
 	"per_cpu__current_task "
 	"printk "
 	"read_tsc "
+	"save_paranoid "
 	"send_sig "
 	"send_sig_info "
 	"show_registers "

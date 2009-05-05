@@ -18,6 +18,7 @@ my %calls = (
 	chdir 	=> "chdir",
 	connect => "connect accept listen bind",
 	exec 	=> "exec*",
+	fbt     => "",
 	file 	=> "chdir chmod chown mkdir open* rmdir remove symlink unlink",
 	fork 	=> "fork* vfork* clone*",
 	mkdir 	=> "mkdir",
@@ -53,37 +54,44 @@ sub main
 	my $d = "#pragma D option quiet\n";
 
 	my $comma = "";
-	foreach my $call (split(" ", $calls{$cmd})) {
-		$d .= "${comma}syscall::$call:entry";
-		$comma = ",\n";
+	my $width = 16;
+	if ($cmd eq 'fbt') {
+		$d .= "fbt:::entry";
+		$width = 25;
+	} else {
+		foreach my $call (split(" ", $calls{$cmd})) {
+			$d .= "${comma}syscall::$call:entry";
+			$comma = ",\n";
+		}
 	}
+
 	$d .= " {\n";
 	if (!$mode) {
-		print "DTrace $call $count: list probes as they occur. Ctrl-C to exit.\n";
-		$d .= "\tprinta(\"%5d %-16s %-32s %d\\n\", pid, probefunc, execname, count());\n";
+		print "DTrace $cmd $mode: list probes as they occur. Ctrl-C to exit.\n";
+		$d .= "\tprinta(\"%5d %-${width}s %-32s %d\\n\", pid, probefunc, execname, count());\n";
 	} elsif ($mode eq 'count') {
-		print "DTrace $call $count: collect probes until Ctrl-C.\n";
+		print "DTrace $cmd $mode: collect probes until Ctrl-C.\n";
 		$d .= "\t\@num[probefunc] = count();\n";
 	} elsif ($mode eq 'count1') {
-		print "DTrace $call $count: collect probes until Ctrl-C.\n";
+		print "DTrace $cmd $mode: collect probes until Ctrl-C.\n";
 		$d .= "\t\@num[probefunc, execname] = count();\n";
 		$d .= "}\n";
 		$d .= "END {\n";
 		$d .= "\tprintf(\"Grand summary:\\n\");\n";
-		$d .= "\tprinta(\"%-16s %-32s %\@d\\n\", \@num);\n";
+		$d .= "\tprinta(\"%-${width}s %-32s %\@d\\n\", \@num);\n";
 	} elsif ($mode eq 'count2') {
-		print "DTrace $call $count: list probes every $opts{secs}s.\n";
+		print "DTrace $cmd $mode: list probes every $opts{secs}s.\n";
 		print "Ctrl-C to exit.\n";
 		$d .= "\t\@num[probefunc] = count();\n";
 		$d .= "\t\@tot[probefunc] = count();\n";
 		$d .= "}\n";
 		$d .= "tick-$opts{secs}sec {\n";
-		$d .= "\tprinta(\"%-16s %-32s %\@d\\n\", \@num);\n";
+		$d .= "\tprinta(\"%-${width}s %-32s %\@d\\n\", \@num);\n";
 		$d .= "\tclear(\@num);\n";
 		$d .= "}\n";
 		$d .= "END {\n";
 		$d .= "\tprintf(\"Grand summary:\\n\");\n";
-		$d .= "\tprinta(\"%-16s %-32s %\@d\\n\", \@num);\n";
+		$d .= "\tprinta(\"%\@-${width}s %\@-32s %\@d\\n\", \@num);\n";
 	}
 	$d .= "}\n";
 
@@ -117,6 +125,7 @@ Commands:
   chdir   => chdir
   connect => connect accept listen bind
   exec    => exec*
+  fbt     =>  not-applicable
   file    => chdir chmod chown mkdir open* rmdir remove symlink unlink
   fork    => fork* vfork* clone*
   mkdir   => mkdir

@@ -32,6 +32,9 @@
 #include <asm/tlbflush.h>
 #include <asm/current.h>
 #include <asm/desc.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
+#include <asm/desc_defs.h>
+#endif
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
 //#include <asm/pgtable.h>
@@ -46,6 +49,9 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 # endif
 
 # define	TRACE_ALLOC	0
+
+#define TF_MASK         0x00000100
+#define IF_MASK         0x00000200
 
 /**********************************************************************/
 /*   Turn on HERE() macro tracing.				      */
@@ -71,6 +77,16 @@ static char *invop_msgs[] = {
 	"DTRACE_INVOP_PUSHL_EBX",
 	"DTRACE_INVOP_RET_IMM16",
 	"DTRACE_INVOP_MOVL_nnn_EAX",
+	"DTRACE_INVOP_XOR_REG_REG",
+	"DTRACE_INVOP_JMP",
+	"DTRACE_INVOP_MOV_REG_REG",
+	"DTRACE_INVOP_CLI",
+	"DTRACE_INVOP_PUSH_NN",
+	"DTRACE_INVOP_PUSHL_EAX",
+	"DTRACE_INVOP_PUSH_NN32",
+	"DTRACE_INVOP_PUSHL_RCX",
+	"DTRACE_INVOP_PUSHL_REG",
+	"DTRACE_INVOP_PUSHL_REG2",
 	};
 
 /**********************************************************************/
@@ -84,7 +100,12 @@ enum {
 	OFFSET_access_process_vm,
 	OFFSET_syscall_call,
 	OFFSET_print_modules,
-	OFFSET_die_chain
+	OFFSET_die_chain,
+	OFFSET_idt_descr,
+	OFFSET_idt_table,
+	OFFSET_task_exit_notifier,
+	OFFSET_xtime,
+	OFFSET_END_SYMS,
 	};
 static struct map {
 	char		*m_name;
@@ -100,6 +121,11 @@ static struct map {
 {"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
 			 	  /* find the modules table. 		  */
 {"die_chain",              NULL}, /* In case no unregister_die_notifier */
+{"idt_descr",              NULL}, /* For int3 vector patching (maybe).	*/
+{"idt_table",              NULL}, /* For int3 vector patching.		*/
+{"task_exit_notifier",     NULL},
+{"xtime",     		   NULL}, /* Needed for dtrace_gethrtime, if 2.6.9 */
+{"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
 	};
 static unsigned long (*xkallsyms_lookup_name)(char *);
@@ -107,7 +133,6 @@ static void *xmodules;
 static void **xsys_call_table;
 
 uintptr_t	_userlimit = 0x7fffffff;
-uintptr_t kernelbase = 0; //_stext;
 
 /**********************************************************************/
 /*   The  kernel  can be compiled with a lot of potential CPUs, e.g.  */
@@ -154,7 +179,9 @@ static struct notifier_block n_int3 = {
 	.notifier_call = proc_notifier_int3,
 	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
 	};
+# if 0
 static	int (*fn_register_die_notifier)(struct notifier_block *);
+# endif
 
 static int (*fn_profile_event_register)(enum profile_type type, struct notifier_block *n);
 static int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block *n);
@@ -162,11 +189,13 @@ static int (*fn_profile_event_unregister)(enum profile_type type, struct notifie
 /**********************************************************************/
 /*   Notifier for invalid instruction trap.			      */
 /**********************************************************************/
+# if 0
 static int proc_notifier_trap_illop(struct notifier_block *, unsigned long, void *);
 static struct notifier_block n_trap_illop = {
 	.notifier_call = proc_notifier_trap_illop,
 	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
 	};
+# endif
 
 /**********************************************************************/
 /*   Process exiting notifier.					      */
@@ -180,6 +209,9 @@ static struct notifier_block n_exit = {
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+int dtrace_double_fault(void);
+int dtrace_int1(void);
+int dtrace_int3(void);
 static void * par_lookup(void *ptr);
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
@@ -283,11 +315,21 @@ dtrace_gethrtime()
 	if (!xtime_cache_ptr) {
 		/***********************************************/
 		/*   Most   likely   an  old  kernel,  so  do  */
-		/*   something reasonable.		       */
+		/*   something  reasonable.  We  cannot  call  */
+		/*   do_gettimeofday()  which  we would like,  */
+		/*   since  we may be in an interrupt and may  */
+		/*   deadlock  whilst  it  waits for xtime to  */
+		/*   settle down. We dont need hires accuracy  */
+		/*   (or  do  we?), but we must not block the  */
+		/*   kernel.				       */
 		/***********************************************/
+#if 0
 		struct timeval tv;
 		do_gettimeofday(&tv);
 		return (hrtime_t) tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
+#else
+		return 0;
+#endif
 	}
 
 	ts = *xtime_cache_ptr;
@@ -337,6 +379,45 @@ cmn_err(int type, const char *fmt, ...)
         vcmn_err(type, fmt, ap);
         va_end(ap);
 }
+/**********************************************************************/
+/*   After  a single step trap, we need to readjust the PC and maybe  */
+/*   other things, so handle the exceptions here.		      */
+/**********************************************************************/
+static void
+cpu_adjust(struct pt_regs *regs, cpu_core_t *this_cpu)
+{
+/*printk("opcode return %x len=%d fl=%p/%p\n", 
+this_cpu->cpuc_tinfo.t_opcode, this_cpu->cpuc_tinfo.t_inslen,
+this_cpu->cpuc_eflags, regs->r_rfl);*/
+	/***********************************************/
+	/*   Need to ensure we reflect the IF_MASK at  */
+	/*   the time the initial INT3 was taken.      */
+	/***********************************************/
+	regs->r_rfl = (regs->r_rfl & ~(TF_MASK|IF_MASK)) | 
+		(this_cpu->cpuc_eflags & (IF_MASK));
+	switch (this_cpu->cpuc_tinfo.t_opcode) {
+	  case 0xc2: //ret imm16
+	  case 0xc3: //ret
+	  	break;
+
+	  case 0xe9: // 0xe9 nn32 jmp relative
+		regs->r_pc = (greg_t) this_cpu->cpuc_orig_pc +
+			*(int32_t *) (this_cpu->cpuc_instr_buf + 1);
+	  	break;
+
+	  case 0xfa: // CLI
+	  	regs->r_rfl &= ~IF_MASK;
+		regs->r_pc = (greg_t) this_cpu->cpuc_orig_pc;
+	  	break;
+
+	  default:
+		regs->r_pc = (greg_t) this_cpu->cpuc_orig_pc;
+		break;
+	  }
+}
+/**********************************************************************/
+/*   We dont really call this, but Solaris would.		      */
+/**********************************************************************/
 void
 debug_enter(char *arg)
 {
@@ -393,7 +474,7 @@ dtrace_dump_mem64(unsigned long *cp, int len)
 	while (len > 0) {
 		sprintf(buf, "%p: ", cp);
 		for (i = 0; i < 4 && len-- > 0; i++) {
-			sprintf(buf + strlen(buf), "%016lx ", *cp++);
+			sprintf(buf + strlen(buf), "%p ", (void *) *cp++);
 			}
 		strcat(buf, "\n");
 		printk("%s", buf);
@@ -412,19 +493,64 @@ return DATAMODEL_LP64;
 	return p->p_model;
 }
 /**********************************************************************/
+/*   Set  an entry in the idt_table (IDT) so we can have first grabs  */
+/*   at interrupts (INT1 + INT3).				      */
+/**********************************************************************/
+void *kernel_int1_handler;
+void *kernel_int3_handler;
+void *kernel_double_fault_handler;
+void
+set_idt_entry(int intr, unsigned long func)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+	gate_desc *idt_table = get_proc_addr("idt_table");
+	gate_desc s;
+//printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
+	pack_gate(&s, GATE_INTERRUPT, func, 3, DEBUG_STACK, __KERNEL_CS);
+
+	memory_set_rw(idt_table, 1, TRUE);
+	write_idt_entry(idt_table, intr, &s);
+#else
+# define	gate_desc struct gate_struct
+	gate_desc *idt_table = get_proc_addr("idt_table");
+printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
+	_set_gate(&idt_table[intr], GATE_INTERRUPT, func, 3, __KERNEL_CS);
+#endif
+}
+
+/**********************************************************************/
+/*   Saved copies of idt_table[n] for when we get unloaded.	      */
+/**********************************************************************/
+gate_desc saved_double_fault;
+gate_desc saved_int1;
+gate_desc saved_int3;
+
+
+/**********************************************************************/
 /*   Register notifications for ourselves here.			      */
 /**********************************************************************/
 static void
 dtrace_linux_init(void)
 {
 	hrtime_t	t, t1;
+	gate_desc *idt_table;
+static int first_time = TRUE;
 
-	if (fn_register_die_notifier)
+	if (!first_time)
 		return;
+	first_time = FALSE;
+
+	/***********************************************/
+	/*   Needed by assembler trap handler.	       */
+	/***********************************************/
+	kernel_int1_handler = get_proc_addr("debug");
+	kernel_int3_handler = get_proc_addr("int3");
+	kernel_double_fault_handler = get_proc_addr("double_fault");
 
 	/***********************************************/
 	/*   Register 0xcc INT3 breakpoint trap.       */
 	/***********************************************/
+# if 0
 	fn_register_die_notifier = get_proc_addr("register_die_notifier");
 	if (fn_register_die_notifier == NULL) {
 		printk("dtrace: register_die_notifier is NULL : FIX ME !\n");
@@ -446,10 +572,24 @@ dtrace_linux_init(void)
 			die_chain->head = &n_int3;
 			done = TRUE;
 		}
+#else
+		/***********************************************/
+		/*   Note   the  type  of  the  die_chain  is  */
+		/*   different  here. Need to really validate  */
+		/*   the type agrees with the kernel...	       */
+		/***********************************************/
+		struct notifier_block **die_chain = get_proc_addr("die_chain");
+//printk("die_chain IS %p\n", die_chain);
+		if (die_chain) {
+			n_int3.next = *die_chain;
+			*die_chain = &n_int3;
+			done = TRUE;
+		}
 #endif
 		if (!done)
 			(*fn_register_die_notifier)(&n_int3);
 	}
+# endif
 
 	/***********************************************/
 	/*   Register proc exit hook.		       */
@@ -483,20 +623,33 @@ dtrace_linux_init(void)
 	/*   too long. Similar to Solaris code.	       */
 	/***********************************************/
 	xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime_cache");
+	if (xtime_cache_ptr == NULL)
+		xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime");
 	rdtscll(t);
 	(void) dtrace_gethrtime();
 	rdtscll(t1);
 	tsc_max_delta = t1 - t;
 
-///
-//if (0)
-//{extern int zz();
-//gate_desc *idt_table = get_proc_addr("idt_table");
-//gate_desc s;
-//pack_gate(&s, GATE_INTERRUPT, (unsigned long)zz, 3, DEBUG_STACK, __KERNEL_CS);
-//write_idt_entry(idt_table, 3, &s);	
-////_set_gate(3, GATE_INTERRUPT, &zz, 0x3, DEBUG_STACK, __KERNEL_CS);
-//}
+	/***********************************************/
+	/*   Following gives us a direct patch to the  */
+	/*   INT3  interrupt  vector, so we can avoid  */
+	/*   recursive  issues  in  kprobes and other  */
+	/*   parts  of  the  kernel  which get called  */
+	/*   before the notifier callback is invoked.  */
+	/***********************************************/
+	idt_table = get_proc_addr("idt_table");
+	if (idt_table == NULL) {
+		printk("dtrace: idt_table: not found - cannot patch INT3 handler\n");
+	} else {
+//		saved_double_fault = idt_table[8];
+		saved_int1 = idt_table[1];
+		saved_int3 = idt_table[3];
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+		set_idt_entry(8, (unsigned long) dtrace_double_fault);
+#endif
+		set_idt_entry(1, (unsigned long) dtrace_int1);
+		set_idt_entry(3, (unsigned long) dtrace_int3);
+	}
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -504,6 +657,7 @@ dtrace_linux_init(void)
 static int
 dtrace_linux_fini(void)
 {	int	ret = 1;
+	gate_desc *idt_table;
 
 	if (!dtrace_unregister_die_notifier("n_int3", &n_int3))
 		ret = 0;
@@ -518,6 +672,19 @@ dtrace_linux_fini(void)
 	} else {
 		printk(KERN_WARNING "dtracedrv: Cannot call profile_event_unregister\n");
 		ret = 0;
+	}
+
+	/***********************************************/
+	/*   Lose  the  grab  on the interrupt vector  */
+	/*   table.				       */
+	/***********************************************/
+	idt_table = get_proc_addr("idt_table");
+	if (idt_table) {
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+//		idt_table[8] = saved_double_fault;
+#endif
+		idt_table[1] = saved_int1;
+		idt_table[3] = saved_int3;
 	}
 
 	return ret;
@@ -546,6 +713,53 @@ dtrace_memchr(const char *buf, int c, int len)
 		}
 	return NULL;
 }
+# if 0
+/**********************************************************************/
+/*   Debug code for printing a gate.				      */
+/**********************************************************************/
+static void 
+dtrace_print_gate(struct gate_struct *g)
+{
+	dtrace_dump_mem64(g, 2);
+	printk("offset_low=%x seg=%x ist=%d type=%d dpl=%d p=%d\n",
+		g->offset_low, g->segment, g->ist, g->type, g->dpl, g->p);
+	printk("offset_mid=%x offset_hi=%x\n", g->offset_middle, g->offset_high);
+}
+/**********************************************************************/
+/*   For debugging only.					      */
+/**********************************************************************/
+void
+dtrace_print_regs(struct pt_regs *regs)
+{
+	printk("Regs @ %p\n", regs);
+        printk("r15:%p r14:%p r13:%p r12:%p\n",
+		regs->r15,
+	        regs->r14,
+	        regs->r13,
+	        regs->r12);
+        printk("rbp:%p rbx:%p r11:%p r10:%p\n",
+	        regs->r_rbp,
+	        regs->r_rbx,
+	        regs->r11,
+	        regs->r10);
+        printk("r9:%p r8:%p rax:%p rcx:%p\n",
+	        regs->r9,
+	        regs->r8,
+	        regs->r_rax,
+	        regs->r_rcx);
+        printk("rdx:%p rsi:%p rdi:%p orig_rax:%p\n",
+	        regs->r_rdx,
+	        regs->r_rsi,
+	        regs->r_rdi,
+	        regs->r_trapno);
+        printk("rip:%p cs:%p eflags:%p rsp:%p\n",
+	        regs->r_pc,
+	        regs->cs,
+	        regs->r_rfl,
+	        regs->r_sp);
+
+}
+# endif
 static void
 dtrace_sync_func(void)
 {
@@ -567,7 +781,15 @@ dtrace_sync(void)
 /**********************************************************************/
 static int
 dtrace_unregister_die_notifier(char *name, struct notifier_block *np)
-{	struct notifier_block **die_chain;
+{
+# if 1
+	/***********************************************/
+	/*   No longer needed since we bind direct to  */
+	/*   the interrupt vectors.		       */
+	/***********************************************/
+	return TRUE;
+# else
+	struct notifier_block **die_chain;
 	struct notifier_block *p;
 
 	int (*fn_unregister_die_notifier)(struct notifier_block *) = 
@@ -584,7 +806,12 @@ dtrace_unregister_die_notifier(char *name, struct notifier_block *np)
 	die_chain = (struct notifier_block **) syms[OFFSET_die_chain].m_ptr;
 	if (die_chain == NULL) {
 		printk(KERN_WARNING "dtrace_linux.c: No die_chain in kernel - sorry - cannot rmmod me.\n");
-		return FALSE;
+		/***********************************************/
+		/*   Look,  we  cant unregister, but then, we  */
+		/*   could  register  in  the first place, so  */
+		/*   this should be safe.		       */
+		/***********************************************/
+		return TRUE;
 	}
 	printk(KERN_WARNING "dtrace_linux.c: manual removal in progress (%s)\n", name);
 	if (*die_chain == np) {
@@ -604,6 +831,7 @@ dtrace_unregister_die_notifier(char *name, struct notifier_block *np)
 	/***********************************************/
 	printk(KERN_WARNING "dtrace_linux.c: (%s) cannot locate on chain - sorry - cannot rmmod me.\n", name);
 	return 0;
+# endif
 }
 void
 dtrace_vtime_enable(void)
@@ -743,6 +971,7 @@ get_module(int n)
 void *
 get_proc_addr(char *name)
 {	void	*ptr;
+	struct map *mp;
 static int count;
 
 	if (xkallsyms_lookup_name == NULL) {
@@ -751,8 +980,20 @@ static int count;
 		}
 
 	ptr = (void *) (*xkallsyms_lookup_name)(name);
-	if (ptr)
+	if (ptr) {
+		printk("get_proc_addr(%s) := %p\n", name, ptr);
 		return ptr;
+	}
+	/***********************************************/
+	/*   Some    symbols   may   originate   from  */
+	/*   /boot/System.map, so try these out.       */
+	/***********************************************/
+	for (mp = syms; mp->m_name; mp++) {
+		if (strcmp(name, mp->m_name) == 0) {
+			printk("get_proc_addr(%s, internal) := %p\n", name, mp->m_ptr);
+			return mp->m_ptr;
+		}
+	}
 	if (count < 100) {
 		count++;
 		printk("dtrace_linux.c:get_proc_addr: Failed to find '%s' (warn=%d)\n", name, count);
@@ -1303,6 +1544,44 @@ HERE();
 
 	return 0;
 }
+int 
+dtrace_double_fault_handler(int type, struct pt_regs *regs)
+{	struct notifier_block n;
+	struct die_args die;
+
+	die.regs = regs;
+	die.str = "hello";
+	return proc_notifier_int3(&n, DIE_DEBUG, &die);
+}
+int 
+dtrace_int1_handler(int type, struct pt_regs *regs)
+{	struct notifier_block n;
+	struct die_args die;
+
+	die.regs = regs;
+	die.str = "hello";
+	return proc_notifier_int3(&n, DIE_DEBUG, &die);
+}
+/**********************************************************************/
+/*   Called  from  intr_<cpu>.S -- see if this is a probe for us. If  */
+/*   not,  let  kernel  use  the normal notifier chain so kprobes or  */
+/*   user land debuggers can have a go.				      */
+/**********************************************************************/
+int 
+dtrace_int3_handler(int type, struct pt_regs *regs)
+{	struct notifier_block n;
+	struct die_args die;
+
+/*long fl;
+__asm__("pushf\npop %0\n" : "=a" (fl));
+printk("CS:%p IP:%p FL:%p %p\n", regs->r_cs, regs->r_pc, regs->r_rfl, fl);
+dtrace_dump_mem64(regs, 50);
+*/
+//int i; for (i = 0; i < 10000000; i++);
+	die.regs = regs;
+	die.str = "hello";
+	return proc_notifier_int3(&n, DIE_INT3, &die);
+}
 /**********************************************************************/
 /*   Handle  an  INT3 (0xCC) single step trap, for USDT and let rest  */
 /*   of  the  engine  know  something  fired. This happens for *all*  */
@@ -1315,25 +1594,183 @@ HERE();
 /*   being  a  little silly I think, unless of course you are single  */
 /*   stepping (stepi) through foreign code.			      */
 /**********************************************************************/
-static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
+static int 
+proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
 	struct pt_regs *regs = args->regs;
 	int	ret;
+static greg_t pc_reentrancy; /* First bogus trap we hit - so we can print it */
+static int cnt_reentrancy;	/* Tell us how bad things got.		*/
+static int cnt_reentrancy_msgcnt; /* Avoid flood of reentrancy messages. */
+static cpu_core_t c[128]; //hack..kalloc is not executable, so this will do for now
+static int noisy;
+//	cpu_core_t *this_cpu = &cpu_core[cpu_get_id()];
+	cpu_core_t *this_cpu = &c[cpu_get_id()];
 
-	if (dtrace_here) {
-		printk("proc_notifier_int3 INT3 called PC:%p CPU:%d\n", 
-			(void *) regs->r_pc, 
-			smp_processor_id());
+/*	if (code == DIE_PAGE_FAULT) {
+		return NOTIFY_DONE;
+	}
+*/
+
+	/***********************************************/
+	/*   If  we  arent  expecting  this  PC, then  */
+	/*   disable   the  probe  so  we  can  debug  */
+	/*   re-entrancy issues.		       */
+	/*   This   seems   to   help   -   we  found  */
+	/*   native_get_debugreg    is    called   by  */
+	/*   do_trap()  function,  and  we killed the  */
+	/*   kernel.  Now,  this means, if toxic.c is  */
+	/*   wrong  -  tough  -  we just wont see any  */
+	/*   probes from that function.		       */
+	/*   					       */
+	/*   This  stops  an  arms  race and means we  */
+	/*   just   adapt.   We   could  emulate  the  */
+	/*   dependent function if we really care (or  */
+	/*   single  step  with  our own private trap  */
+	/*   handler  to  get  through  the difficult  */
+	/*   times).				       */
+	/***********************************************/
+	if (code == DIE_INT3 &&
+	    this_cpu->cpuc_expected_pc != (unsigned char *) regs->r_pc &&
+	    this_cpu->cpuc_stepping) {
+		trap_instr_t tmp_info;
+		ret = dtrace_invop(regs->r_pc - 1, 
+			(uintptr_t *) regs, 
+			regs->r_rax,
+			&tmp_info);
+		if (ret) {
+			if (cnt_reentrancy++ == 0)
+				pc_reentrancy = regs->r_pc - 1;
+			((unsigned char *) regs->r_pc)[-1] = tmp_info.t_opcode;
+			regs->r_pc--;
+			return NOTIFY_STOP;
+		}
+	}
+	/***********************************************/
+	/*   Something  happened bad, above, its safe  */
+	/*   now  to  report what happened. Typically  */
+	/*   we  can grep /proc/kallsyms to find what  */
+	/*   we forgot to do.			       */
+	/***********************************************/
+	if (cnt_reentrancy && cnt_reentrancy_msgcnt < 5) {
+		cnt_reentrancy_msgcnt++;
+		printk("dtrace:cnt_reentrancy=%d PC:%p\n", cnt_reentrancy, (void *) pc_reentrancy);
 	}
 
+	if (dtrace_here) {
+		printk("proc_notifier_int3 %s PC:%p CPU:%d %s err:%ld tr:%d\n", 
+			code == DIE_INT3 ? "INT3" :
+			code == DIE_GPF ? "GPF" :
+# if defined(DIE_PAGE_FAULT)
+			code == DIE_PAGE_FAULT ? "PgFlt" :
+# endif
+			code == DIE_DEBUG ? "DEBUG" : "??",
+			(void *) regs->r_pc, 
+			smp_processor_id(),
+			args->str, args->err, args->trapnr);
+//if (xx>100) printk("trouble?\n");
+	}
+	/***********************************************/
+	/*   We want to handle INT3 breakpoint traps.  */
+	/*   Might  want  to  handle  the others some  */
+	/*   day.				       */
+	/***********************************************/
+	switch (code) {
+	  case DIE_INT3:
+	  	break;
+	  case DIE_DEBUG:
+	  	/***********************************************/
+	  	/*   Single  step trap - might be ours, might  */
+	  	/*   not be...				       */
+	  	/***********************************************/
+		if (this_cpu->cpuc_stepping) {
+			//if (noisy++ < 100) printk("restoring trap...\n");
+			cpu_adjust(regs, this_cpu);
+			regs->r_rfl &= ~TF_MASK;
+			this_cpu->cpuc_stepping = FALSE;
+			this_cpu->cpuc_expected_pc = 0;
+			return NOTIFY_STOP;
+		}
+		return NOTIFY_DONE;
+	  case DIE_GPF:
+		return NOTIFY_DONE;
+# if defined(DIE_PAGE_FAULT)
+		/***********************************************/
+		/*   Not defined in virgin 2.6.9 kernel.       */
+		/***********************************************/
+	  case DIE_PAGE_FAULT:
+		return NOTIFY_DONE;
+# endif
+	  default:
+		return NOTIFY_DONE;
+	  }
+
+	/***********************************************/
+	/*   Check  with  fbt/sdt  and anyone else if  */
+	/*   this is one of our INT3 type traps.       */
+	/***********************************************/
 	ret = dtrace_invop(regs->r_pc - 1, 
 		(uintptr_t *) regs, 
-		regs->r_rax);
+		regs->r_rax,
+		&this_cpu->cpuc_tinfo);
 
-	if (dtrace_here && ret) {
+	if (dtrace_here && ret && noisy < 100) {
 		printk("ret=%d %s\n", ret, ret == 0 ? "nothing" :
 			ret < 0 || ret >= sizeof(invop_msgs) / sizeof invop_msgs[0] ? "??" : invop_msgs[ret]);
 	}
+
+	/***********************************************/
+	/*   If  we  match  a  probe, then we need to  */
+	/*   step over it.			       */
+	/***********************************************/
+	if (ret) {
+//		if (noisy++ < 100) printk("setting trap...\n");
+		/***********************************************/
+		/*   Copy  instruction  in its entirety so we  */
+		/*   can step over it.			       */
+		/***********************************************/
+		this_cpu->cpuc_instr_buf[0] = this_cpu->cpuc_tinfo.t_opcode;
+		memcpy(&this_cpu->cpuc_instr_buf[1], (void *) regs->r_pc, this_cpu->cpuc_tinfo.t_inslen - 1);
+//printk("step..len=%d %2x %2x\n", this_cpu->cpuc_tinfo.t_inslen, this_cpu->cpuc_instr_buf[0], this_cpu->cpuc_instr_buf[1]);
+
+		/***********************************************/
+		/*   Set  where  the next instruction is. The  */
+		/*   instruction we hit could be a jump/call,  */
+		/*   so  we  will  need to detect that on the  */
+		/*   other  side of the single-step to ensure  */
+		/*   we dont 'undo' the instruction.	       */
+		/***********************************************/
+		this_cpu->cpuc_orig_pc = (unsigned char *) regs->r_pc + 
+			this_cpu->cpuc_tinfo.t_inslen - 1;
+
+		/***********************************************/
+		/*   Set prediction of expected PC. If we get  */
+		/*   another  trap and its not what we expect  */
+		/*   -  we  may be recursing - hitting a func  */
+		/*   which  should  be toxic. This is to help  */
+		/*   debugging only. Not normally expected if  */
+		/*   all is well.			       */
+		/***********************************************/
+		this_cpu->cpuc_expected_pc = this_cpu->cpuc_instr_buf + this_cpu->cpuc_tinfo.t_inslen;
+
+		/***********************************************/
+		/*   Go  into  single  step mode, and we will  */
+		/*   return to our fake buffer.		       */
+		/***********************************************/
+		this_cpu->cpuc_eflags = regs->r_rfl;
+//printk("origpc=%p instpc=%p rfl=%p\n", regs->r_pc, this_cpu->cpuc_instr_buf, regs->r_rfl);
+		regs->r_rfl |= TF_MASK;
+		regs->r_rfl &= ~IF_MASK;
+		regs->r_pc = (greg_t) this_cpu->cpuc_instr_buf;
+
+		/***********************************************/
+		/*   Let  us  know  on  return  we are single  */
+		/*   stepping.				       */
+		/***********************************************/
+		this_cpu->cpuc_stepping = TRUE;
+		return NOTIFY_STOP;
+	}
+# if 0
 	if (ret) {
 		/***********************************************/
 		/*   Emulate  a  single instruction - the one  */
@@ -1343,11 +1780,11 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 		/*   use  the  rest of the instruction stream  */
 		/*   to emulate the instruction.	       */
 		/***********************************************/
-		dtrace_cpu_emulate(ret, 0, regs);
-
+		dtrace_cpu_emulate(ret, this_cpu->cpuc_tinfo.t_opcode, regs);
 		HERE();
 		return NOTIFY_STOP;
 	}
+# endif
 
 	/***********************************************/
 	/*   Not FBT/SDT, so try for USDT...	       */
@@ -1364,6 +1801,7 @@ static int proc_notifier_int3(struct notifier_block *n, unsigned long code, void
 /**********************************************************************/
 /*   Handle illegal instruction trap for fbt/sdt.		      */
 /**********************************************************************/
+# if 0
 static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code, void *ptr)
 {	struct die_args *args = (struct die_args *) ptr;
 
@@ -1374,38 +1812,8 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 			smp_processor_id());
 	}
 	return NOTIFY_OK;
-
-//# if defined(__amd64)
-//	ret = dtrace_invop(regs->r_pc - 1, 
-//# else
-//	ret = dtrace_invop(regs->r_pc, 
-//# endif
-//		(uintptr_t *) regs, 
-//		regs->r_rax);
-//HERE();
-//	if (dtrace_here) {
-//		printk("ret=%d %s\n", ret, ret == DTRACE_INVOP_PUSHL_EBP ? "DTRACE_INVOP_PUSHL_EBP" : 
-//			ret == DTRACE_INVOP_POPL_EBP ? "DTRACE_INVOP_POPL_EBP" :
-//			ret == DTRACE_INVOP_LEAVE ? "DTRACE_INVOP_LEAVE" :
-//			ret == DTRACE_INVOP_NOP ? "DTRACE_INVOP_NOP" :
-//			ret == DTRACE_INVOP_RET ? "DTRACE_INVOP_RET" : "??");
-//	}
-//	if (ret) {
-//		/***********************************************/
-//		/*   Emulate  a  single instruction - the one  */
-//		/*   we  patched  over.  Note we patched over  */
-//		/*   just  the first byte, so the 'ret' tells  */
-//		/*   us  what the missing byte is, but we can  */
-//		/*   use  the  rest of the instruction stream  */
-//		/*   to emulate the instruction.	       */
-//		/***********************************************/
-//		dtrace_cpu_emulate(ret, regs);
-//
-//		HERE();
-//		return NOTIFY_STOP;
-//	}
-//	return NOTIFY_OK;
 }
+# endif
 /**********************************************************************/
 /*   Lookup process by proc id.					      */
 /**********************************************************************/
@@ -1441,6 +1849,28 @@ set_console_on(int flag)
 
 	if (console_printk)
 		console_printk[0] = mode;
+}
+/**********************************************************************/
+/*   Allow us to see stuff from /dev/fbt.			      */
+/**********************************************************************/
+ssize_t
+syms_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
+{	int	n;
+	int	ncopied = 0;
+	struct map *mp;
+	char __user *bp = buf;
+
+	if (*off)
+		return 0;
+
+	for (mp = syms; len > 0 && mp->m_name; mp++) {
+		n = snprintf(bp, len, "%s=%p\n", mp->m_name, mp->m_ptr);
+		bp += n;
+		len -= n;
+	}
+	ncopied = bp - buf;
+	*off += ncopied;
+	return ncopied;
 }
 /**********************************************************************/
 /*   Called  from  /dev/fbt  driver  to allow us to populate address  */
@@ -1547,8 +1977,7 @@ syms_write(struct file *file, const char __user *buf,
 	}
 # endif
 
-	if (xkallsyms_lookup_name) {
-
+	if (syms[OFFSET_END_SYMS].m_ptr) {
 		/***********************************************/
 		/*   Init any patching code.		       */
 		/***********************************************/
@@ -1765,15 +2194,18 @@ dtracedrv_release(struct inode *inode, struct file *file)
 static ssize_t
 dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {	int	n;
+	extern unsigned long dcnt;
 
 	if (*off)
 		return 0;
 
 	n = snprintf(buf, len, 
 		"here=%d\n"
-		"cpuid=%d\n", 
+		"cpuid=%d\n"
+		"dcnt=%lu\n", 
 		dtrace_here,
-		cpu_get_id());
+		cpu_get_id(),
+		dcnt);
 	return n;
 }
 /**********************************************************************/

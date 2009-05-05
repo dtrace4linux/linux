@@ -2202,8 +2202,8 @@ extern int dtrace_mach_aframes(void);
 #if defined(__i386) || defined(__amd64)
 extern int dtrace_instr_size(uchar_t *instr);
 extern int dtrace_instr_size_isa(uchar_t *, model_t, int *);
-extern void dtrace_invop_add(int (*)(uintptr_t, uintptr_t *, uintptr_t, unsigned char *));
-extern void dtrace_invop_remove(int (*)(uintptr_t, uintptr_t *, uintptr_t, unsigned char *));
+extern void dtrace_invop_add(int (*)(uintptr_t, uintptr_t *, uintptr_t, trap_instr_t *));
+extern void dtrace_invop_remove(int (*)(uintptr_t, uintptr_t *, uintptr_t, trap_instr_t *));
 extern void dtrace_invop_callsite(void);
 #endif
 
@@ -2250,6 +2250,9 @@ extern void dtrace_getfsr(uint64_t *);
 #define	DTRACE_INVOP_PUSH_NN    	17
 #define	DTRACE_INVOP_PUSHL_EAX		18
 #define	DTRACE_INVOP_PUSH_NN32		19
+#define	DTRACE_INVOP_PUSHL_RCX		20
+#define	DTRACE_INVOP_PUSHL_REG		21
+#define	DTRACE_INVOP_PUSHL_REG2 	22
 
 #endif
 

@@ -51,7 +51,7 @@ static int			sdt_probetab_mask;
 
 /*ARGSUSED*/
 static int
-sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, unsigned char *opcode)
+sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 {
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	int i = 0;

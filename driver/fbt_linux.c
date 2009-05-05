@@ -90,6 +90,7 @@ typedef struct fbt_probe {
 	int8_t		fbtp_rval;
 	uint8_t		fbtp_patchval;
 	uint8_t		fbtp_savedval;
+	uint8_t		fbtp_inslen;	/* Length of instr we are patching */
 	uintptr_t	fbtp_roffset;
 	dtrace_id_t	fbtp_id;
 	char		*fbtp_name;
@@ -114,6 +115,81 @@ static void fbt_provide_function(struct modctl *mp,
 	uint8_t *instr, uint8_t *limit, int);
 
 /**********************************************************************/
+/*   Given  a symbol we got from a module, is the symbol pointing to  */
+/*   a  valid  address? We might have jettisoned the .init sections,  */
+/*   so avoid GPF if symbol is not in the .text section.	      */
+/*   								      */
+/*   Complexity  here  for older pre-2.6.19 kernels since the module  */
+/*   private area changed.					      */
+/**********************************************************************/
+static int
+fbt_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
+{
+	char	*secname = NULL;
+
+# if defined(MODULE_SECT_NAME_LEN)
+	/***********************************************/
+	/*   Kernel  <=  2.6.18  ..  we dont know how  */
+	/*   many  sections  there  are so we need to  */
+	/*   validate  the  attrs[]  array in the for  */
+	/*   loop below.			       */
+	/***********************************************/
+	{
+	int j;
+	struct module_sections *secp = (struct module_sections *) 
+		mp->sect_attrs;
+HERE();
+	for (j = 0; ; j++) {
+		/***********************************************/
+		/*   We  dont know how many entries there are  */
+		/*   - so need to validate the ptr.	       */
+		/***********************************************/
+		if (!validate_ptr(secp->attrs[j].address))
+			break;
+		if (sym->st_value < secp->attrs[j+1].address) {
+			secname = secp->attrs[j].name;
+			break;
+		}
+	}
+	}
+# else
+	/***********************************************/
+	/*   Kernel   >=  2.6.19,  hides  the  struct  */
+	/*   definitions, so we have to do this - its  */
+	/*   ugly  and  we  may  break  when/if  they  */
+	/*   change the struct.			       */
+	/***********************************************/
+	{
+	struct module_sect_attr {
+	        struct module_attribute mattr;
+	        char *name;
+	        unsigned long address;
+	};
+	struct module_sect_attrs {
+	        struct attribute_group grp;
+	        unsigned int nsections;
+	        struct module_sect_attr attrs[0];
+	};
+	struct module_sect_attrs *secp = (struct module_sect_attrs *) 
+		mp->sect_attrs;
+//printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
+	if (secp->attrs)
+		secname = secp->attrs[sym->st_shndx].name;
+	}
+# endif
+
+	if (secname == NULL)
+		return FALSE;
+HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
+	if (!validate_ptr(secname))
+		return FALSE;
+HERE();
+	if (strcmp(secname, ".text") != 0)
+		return FALSE;
+HERE();
+	return TRUE;
+}
+/**********************************************************************/
 /*   For debugging - make sure we dont add a patch to the same addr.  */
 /**********************************************************************/
 static int
@@ -123,7 +199,7 @@ fbt_is_patched(uint8_t *addr)
 
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 		if (fbt->fbtp_patchpoint == addr) {
-			printk("Dup patch: %p\n", addr);
+			printk("fbt:dup patch: %p\n", addr);
 			return 1;
 		}
 	}
@@ -134,7 +210,7 @@ fbt_is_patched(uint8_t *addr)
 /*   is one of ours.						      */
 /**********************************************************************/
 static int
-fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, unsigned char *opcode)
+fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinfo)
 {
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
@@ -145,7 +221,8 @@ if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (l
 if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		if ((uintptr_t)fbt->fbtp_patchpoint == addr) {
 HERE();
-			*opcode = fbt->fbtp_savedval;
+			tinfo->t_opcode = fbt->fbtp_savedval;
+			tinfo->t_inslen = fbt->fbtp_inslen;
 			if (fbt->fbtp_roffset == 0) {
 				/*
 				 * When accessing the arguments on the stack,
@@ -267,7 +344,8 @@ static int first_time = TRUE;
 
 //printk("lookup %p kallsyms_lookup=%p\n", a, kallsyms_lookup);
 		cp = kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
-
+if (size == 0)
+printk("size=0 %p %s\n", a, cp ? cp : "??");
 /*		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);*/
 		if (cp == NULL)
 			aend = a + 4;
@@ -365,10 +443,11 @@ TODO();
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
-HERE();
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
+int dtrace_here = 0;
+if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 
 		name = str + sym->st_name;
 		if (sym->st_name == NULL || *name == '\0')
@@ -492,37 +571,26 @@ HERE();
 		/*   we   dont   want   sections   which  can  */
 		/*   disappear   or   have   disappeared  (eg  */
 		/*   .init).				       */
+		/*   					       */
 		/*   I'm  not sure I follow this code for all  */
 		/*   kernel  releases - if we have the field,  */
 		/*   it should have a fixed meaning, but some  */
 		/*   modules  have  bogus  section attributes  */
 		/*   pointers   (maybe   pointers   to  freed  */
 		/*   segments?). Lets be careful out there.    */
+		/*   					       */
+		/*   20090425  Ok  - heres the deal. In 2.6.9  */
+		/*   (at   least)   the   section   table  is  */
+		/*   allocated  but  only  for sections which  */
+		/*   are  SHF_ALLOC.  This means the array of  */
+		/*   sections    cannot    be    indexed   by  */
+		/*   sym->st_shndx since the mappings are now  */
+		/*   bogus  (kernel  doesnt adjust the symbol  */
+		/*   section  indexes). What we need to do is  */
+		/*   attempt to find the section by address.   */
 		/***********************************************/
-		{
-		struct module_sect_attr {
-		        struct module_attribute mattr;
-		        char *name;
-		        unsigned long address;
-		};
-		struct module_sect_attrs {
-		        struct attribute_group grp;
-		        unsigned int nsections;
-		        struct module_sect_attr attrs[0];
-		};
-		struct module_sect_attrs *secp = (struct module_sect_attrs *) mp->sect_attrs;
-		char	*secname = NULL;
-//printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
-		if (secp->attrs)
-			secname = secp->attrs[sym->st_shndx].name;
-		if (secname == NULL)
+		if (!fbt_in_text_seg(mp, name, sym))
 			continue;
-		if (!validate_ptr(secname))
-			continue;
-		if (strcmp(secname, ".text") != 0)
-			continue;
-//		printk("elf: %s info=%x other=%x shndx=%x sec=%p name=%s\n", name, sym->st_info, sym->st_other, sym->st_shndx, mp->sect_attrs, secname);
-		}
 
 		/***********************************************/
 		/*   We are good to go...		       */
@@ -540,12 +608,12 @@ HERE();
 static void
 fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	char *modname, char *name, uint8_t *st_value,
-	uint8_t *instr, uint8_t *limit, int i)
+	uint8_t *instr, uint8_t *limit, int symndx)
 {
 	int	do_print = FALSE;
 	int	invop = 0;
 	fbt_probe_t *fbt, *retfbt;
-	int	 size = -1;
+	int	 size = 1;
 
 	/***********************************************/
 	/*   Dont  let  us  register  anything on the  */
@@ -558,22 +626,60 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 		return;
 	}
 
+# define UNHANDLED_FBT() if (do_print || dtrace_unhandled) { \
+		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
+			name, instr, instr[0], instr[1], instr[2], instr[3]); \
+			}
+
+	/***********************************************/
+	/*   Allow  us  to  work on a single function  */
+	/*   for  debugging/tracing  else we generate  */
+	/*   too  much  printk() output and swamp the  */
+	/*   log daemon.			       */
+	/***********************************************/
+	do_print = strncmp(name, "update_process", 9) == NULL;
+
 #ifdef __amd64
-	while (instr < limit) {
-		if (*instr == FBT_PUSHL_EBP)
-			break;
+	switch (instr[0]) {
+	  case 0x31:
+		invop = DTRACE_INVOP_XOR_REG_REG;
+		break;
 
-		if ((size = dtrace_instr_size(instr)) <= 0)
-			break;
+	  case 0x41:
+	  	if (instr[1] >= 0x50 && instr[1] <= 0x57)
+			invop = DTRACE_INVOP_PUSHL_REG2;
+		break;
 
-		instr += size;
+	  case 0x50:  /* PUSH rXX */
+	  case 0x51:
+	  case 0x52:
+	  case 0x53:
+	  case 0x54:
+	  case 0x55:
+	  case 0x56:
+	  case 0x57:
+		invop = DTRACE_INVOP_PUSHL_REG;
+		break;
+
+	  default:
+	  	break;
+	  }
+	if (invop == 0) {
+		UNHANDLED_FBT();
+		return;
 	}
 
+# if 0
 	/***********************************************/
 	/*   Careful  in  case  we walked outside the  */
 	/*   function    or    its   an   unsupported  */
 	/*   instruction.			       */
 	/***********************************************/
+	if (size <= 0) {
+		if (dtrace_unhandled)
+			printk("fbt:unhandled disasm %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
+		return;
+	}
 	if (instr >= limit) {
 		if (dtrace_unhandled)
 			printk("fbt:unhandled limit %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
@@ -585,6 +691,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 		return;
 	}
 	invop = DTRACE_INVOP_PUSHL_EBP;
+# endif
 #else
 	/***********************************************/
 	/*   GCC    generates   lots   of   different  */
@@ -592,11 +699,6 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   assembler  to  deal with - so we disable  */
 	/*   this for now.			       */
 	/***********************************************/
-# define UNHANDLED_FBT() if (dtrace_unhandled) { \
-		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
-			name, instr, instr[0], instr[1], instr[2], instr[3]); \
-			}
-
 	switch (instr[0]) {
 	  case FBT_PUSHL_EBP:
 		invop = DTRACE_INVOP_PUSHL_EBP;
@@ -680,14 +782,6 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	  }
 #endif
 	/***********************************************/
-	/*   Allow  us  to  work on a single function  */
-	/*   for  debugging/tracing  else we generate  */
-	/*   too  much  printk() output and swamp the  */
-	/*   log daemon.			       */
-	/***********************************************/
-//		do_print = strcmp(name, "init_memory_mapping") == NULL;
-
-	/***********************************************/
 	/*   Make  sure  this  doesnt overlap another  */
 	/*   sym. We are in trouble when this happens  */
 	/*   - eg we will mistaken what the emulation  */
@@ -708,19 +802,28 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	fbt->fbtp_ctl = mp; // ctl;
 	fbt->fbtp_loadcnt = get_refcount(mp);
 	fbt->fbtp_rval = invop;
+	/***********************************************/
+	/*   Save  potential overwrite of instruction  */
+	/*   and  length,  because  we  will need the  */
+	/*   entire  instruction  when we single step  */
+	/*   over it.				       */
+	/***********************************************/
 	fbt->fbtp_savedval = *instr;
+	fbt->fbtp_inslen = dtrace_instr_size(instr);
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
-	fbt->fbtp_symndx = i;
+	fbt->fbtp_symndx = symndx;
 	fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
 	if (do_print)
-		printk("%d:alloc entry-patchpoint: %s %p invop=%x %02x %02x %02x\n", 
+		printk("%d:alloc entry-patchpoint: %s %p invop=%x sz=%d %02x %02x %02x\n", 
 			__LINE__, 
 			name, 
 			fbt->fbtp_patchpoint, 
-			fbt->fbtp_rval, instr[0], instr[1], instr[2]);
+			fbt->fbtp_rval, 
+			fbt->fbtp_inslen,
+			instr[0], instr[1], instr[2]);
 
 	pmp->fbt_nentries++;
 
@@ -827,10 +930,17 @@ again:
 
 #endif
 
+	/***********************************************/
+	/*   Save  potential overwrite of instruction  */
+	/*   and  length,  because  we  will need the  */
+	/*   entire  instruction  when we single step  */
+	/*   over it.				       */
+	/***********************************************/
 	fbt->fbtp_savedval = *instr;
+	fbt->fbtp_inslen = size;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
-	fbt->fbtp_symndx = i;
+	fbt->fbtp_symndx = symndx;
 
 	if (do_print) {
 		printk("%d:alloc return-patchpoint: %s %p: %02x %02x invop=%d\n", __LINE__, name, instr, instr[0], instr[1], invop);
@@ -969,8 +1079,10 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		/*   then  dont  try and unpatch something we  */
 		/*   didnt patch.			       */
 		/***********************************************/
-		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
-			*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+		if (*fbt->fbtp_patchpoint == fbt->fbtp_patchval) {
+			if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
+				*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+		}
 	}
 }
 
@@ -1288,7 +1400,7 @@ fbt_open(struct inode *inode, struct file *file)
 static ssize_t
 fbt_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
-	return -EIO;
+	return syms_read(fp, buf, len, off);
 }
 /**********************************************************************/
 /*   User  is  writing to us to tell us where the kprobes symtab is.  */

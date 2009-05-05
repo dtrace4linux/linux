@@ -71,9 +71,10 @@ release:
 		--exclude=dt_lex.c \
 		--exclude=.dtrace.nobug \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
-	mv dtrace-$(rel) dtrace
-	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/$(RELDIR)
-	ls -l /tmp/dtrace-$(rel).tar.bz2
+	mv dtrace-$(rel) dtrace ; \
+	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/$(RELDIR) ; \
+	ls -l /tmp/dtrace-$(rel).tar.bz2 ; \
+	mv /tmp/dtrace-$(rel).tar.bz2 $$HOME/release/dtrace
 
 ######################################################################
 #   Non-real releases, for my benefit.				     #

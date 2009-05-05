@@ -6,6 +6,7 @@
 /**********************************************************************/
 ssize_t syms_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos);
+ssize_t syms_read(struct file *fp, char __user *buf, size_t len, loff_t *off);
 void *get_proc_addr(char *name);
 void	hunt_init(void);
 
@@ -32,8 +33,9 @@ int	fasttrap_detach(void);
 proc_t *prfind(int p);
 int	tsignal(proc_t *, int);
 void	trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu);
-int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax);
+int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *);
 void dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs);
+void	dtrace_print_regs(struct pt_regs *);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 void	fbt_provide_kernel(void);

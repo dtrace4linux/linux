@@ -1,3 +1,46 @@
+Wed May  6 20:29:31 2009  fox
+
+     256* dtrace_linux.c: dtrace_gethrtime: Never call do_gettimeofday, since
+          we will block if that is interrupted.
+
+	  dtrace_linux.c: Comment out the register_die_notifier code since
+	  we no longer need it. We are directly attached.
+
+	  Allow /dev/dtrace to be read to print out some debug stats.
+	  Nothing useful.
+
+Sat May  2 14:22:15 2009  fox
+
+     255* Archive: 1.0085
+
+     254* dtrace_linux.c: Use direct INT3 vector attachments to avoid
+          long toxic lists.
+
+	  intr_x86-64.S: New file for the INT3 interrupt handler.
+
+Mon Apr 27 20:07:36 2009  fox
+
+     253* Archive: 1.0084
+
+Sun Apr 26 11:22:44 2009  fox
+
+     252* cpu_64bit.c, fbt_linux.c: Add support for XOR REG,REG
+
+Sat Apr 25 23:00:24 2009  fox
+
+     251* fbt_linux.c: Fix handling of module sections for pre-2.6.19
+          kernels. We couldnt properly validate if symbols in .text section.
+
+	  Add support for PUSH %RCX entry point; change amd64 
+	  entry point so we only accept first instruction in function,
+	  like we do for i386.
+
+Fri Apr 24 21:45:05 2009  fox
+
+     250* fbt_linux.c: Fix issue with 64-bit entry probe searching.
+          Should never have worked for funcs which start PUSH %RBP, but
+	  did.
+
 Thu Apr 23 21:15:58 2009  fox
 
      249* scripts/dt.pl -- make it more usable. This is to replace

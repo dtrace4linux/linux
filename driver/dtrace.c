@@ -807,6 +807,23 @@ HERE();
 	return (dtrace_canload((uintptr_t)src, sz, mstate, vstate));
 }
 
+/**********************************************************************/
+/*   Called  by dtrace_match_string: inline to avoid probe whilst we  */
+/*   are setting up.						      */
+/**********************************************************************/
+int
+dtrace_strcmp(const char *p1, const char *p2)
+{
+	while (1) {
+		int	ch1 = *p1++;
+		int	ch2 = *p2++;
+		int	ret = ch2 - ch1;
+		if (ret == 0 && ch1 == 0)
+			return 0;
+		if (ret)
+			return ret;
+	}
+}
 /*
  * Compare two strings using safe loads.
  */
@@ -5747,6 +5764,7 @@ out:
  * is the function called by the provider to fire a probe -- from which all
  * subsequent probe-context DTrace activity emanates.
  */
+unsigned long dcnt;
 void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
@@ -5763,6 +5781,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	volatile uint16_t *flags;
 	hrtime_t now;
 
+dcnt++;
 # if linux
 	/***********************************************/
 	/*   We  arent modifying the kernel but we do  */
@@ -6945,7 +6964,7 @@ top:
 static int
 dtrace_match_string(const char *s, const char *p, int depth)
 {
-	return (s != NULL && strcmp(s, p) == 0);
+	return (s != NULL && dtrace_strcmp(s, p) == 0);
 }
 
 /*ARGSUSED*/
@@ -12493,6 +12512,7 @@ static void
 dtrace_state_deadman(dtrace_state_t *state)
 {
 	hrtime_t now;
+HERE();
 
 	dtrace_sync();
 

@@ -46,6 +46,13 @@ sub main
 		mkdir("$build_dir/driver", 0755) || die "Cannot mkdir $build_dir/driver -- $!";
 	}
 
+	if (! -f "/usr/include/gelf.h") {
+		print "Error: you dont appear to have /usr/include/elf.h, which means\n";
+		print "compilation will fail. You should add the libelf-dev package to\n";
+		print "your system and retry the 'make all'.\n";
+		exit(1);
+	}
+
 	###############################################
 	#   Ensure build is a symlink to the current  #
 	#   build  area  (normally  a  native kernel  #

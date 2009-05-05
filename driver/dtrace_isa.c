@@ -675,7 +675,7 @@ dtrace_copyin(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
 # if 1
-	copy_from_user(uaddr, kaddr, size);
+	copy_from_user((void *) uaddr, (void *) kaddr, size);
 # else
 	if (dtrace_copycheck(uaddr, kaddr, size))
 		dtrace_copy(uaddr, kaddr, size);

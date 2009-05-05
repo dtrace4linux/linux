@@ -1,6 +1,8 @@
+
+# no longer needed.
+#	cpu_32bit.o
+#	cpu_64bit.o
 dtracedrv-objs := \
-	cpu_32bit.o \
-	cpu_64bit.o \
 	ctf_subr.o \
 	ctf_types.o \
 	ctf_hash.o \
@@ -20,6 +22,8 @@ dtracedrv-objs := \
 	fasttrap_isa.o \
 	fasttrap_linux.o \
 	fbt_linux.o \
+	intr_x86-32.o \
+	intr_x86-64.o \
 	linux_pure.o \
 	missing.o \
 	profile.o \

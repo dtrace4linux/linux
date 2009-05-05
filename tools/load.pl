@@ -172,6 +172,9 @@ sub main
 		modules:print_modules
 		sys_call_table
 		syscall_call:optional
+		idt_table
+		idt_descr
+		xtime:optional
 		/) {
 		my $done = 0;
 		my $real_name;
@@ -188,6 +191,8 @@ sub main
 			my $fh = new FileHandle(">/dev/fbt");
 			if (!$fh) {
 				print "Cannot open /dev/fbt -- $!\n";
+				$err++;
+				last;
 			}
                         if ($opts{v}) {
                         	print STDERR "echo \"$addr\" > /dev/fbt\n";
@@ -201,6 +206,7 @@ sub main
 			$err++;
 		}
 	}
+
 	if ( "$err" != 0 ) {
 		print <<EOF;
  ======================================================
@@ -222,10 +228,18 @@ EOF
 		exit(1);
 	}
 
-	#####################################################################
-	#   Keep  a  copy of probes to avoid polluting /var/log/messages as
-	#   we debug the driver..
-	#####################################################################
+	###############################################
+	#   Tell driver we have done the init.	      #
+	###############################################
+	$fh = new FileHandle(">/dev/fbt");
+	print "echo \"1 T END_SYMS\" >/dev/fbt\n" if $opts{v};
+	print $fh "1 T END_SYMS\n"; # sentinel
+
+	###############################################
+	#   Keep a copy of probes to avoid polluting  #
+	#   /var/log/messages   as   we   debug  the  #
+	#   driver..				      #
+	###############################################
 	if (!$opts{fast}) {
 
 		print time_string() . "Probes available: ";

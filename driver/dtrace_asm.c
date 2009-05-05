@@ -38,12 +38,6 @@ dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 */
 	return 0;
 }
-void
-fred(volatile long *ptr)
-{
-	(*ptr)++;
-	(*ptr)--;
-}
 void *
 dtrace_casptr(void *target, void *cmp, void *new)
 {

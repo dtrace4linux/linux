@@ -66,6 +66,15 @@ typedef enum {
                                 sizeof (kmutex_t))
 #define CPUC_PADSIZE            CPU_CACHE_COHERENCE_SIZE - CPUC_SIZE
 
+/**********************************************************************/
+/*   Structure  used  when  hitting  a trap instruction, to describe  */
+/*   what the instruction looks like (dtrace_invop)		      */
+/**********************************************************************/
+typedef struct trap_instr_t {
+	unsigned char	t_opcode;
+	unsigned char	t_inslen;
+	} trap_instr_t;
+
 typedef struct cpu {
         int             cpuid;
         struct cyc_cpu *cpu_cyclic;
@@ -94,6 +103,16 @@ typedef struct cpu_core {
 #endif
         uintptr_t       cpuc_dtrace_illval;     /* DTrace illegal value */
         kmutex_t        cpuc_pid_lock;          /* DTrace pid provider lock */
+	/***********************************************/
+	/*   Here for single stepping.                 */
+	/***********************************************/
+# define MAX_INSTR_LEN  16
+	unsigned char cpuc_instr_buf[MAX_INSTR_LEN];
+	unsigned char *cpuc_orig_pc;
+	unsigned char *cpuc_expected_pc;
+	int             cpuc_stepping;
+	trap_instr_t	cpuc_tinfo;
+	unsigned long	cpuc_eflags;
 } cpu_core_t;
 
 extern cpu_core_t *cpu_core;

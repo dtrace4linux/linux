@@ -91,7 +91,7 @@ dtrace_dump_mem32(regs->r_sp, 8 * 8);
 	/***********************************************/
 	switch (instr) {
 	  case DTRACE_INVOP_PUSHL_EAX: // 50
-PRINT_CASE(DTRACE_INVOP_PUSHL_EBP);
+PRINT_CASE(DTRACE_INVOP_PUSHL_EAX);
 		/***********************************************/
 		/*   We    are    emulating   a   PUSH   %EBP  */
 		/*   instruction.  We need to effect the push  */

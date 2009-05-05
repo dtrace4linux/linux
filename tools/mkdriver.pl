@@ -45,7 +45,7 @@ sub main
 	###############################################
 	#   Symlink the files to build/dtrace/ dir.   #
 	###############################################
-	foreach my $f (qw/Makefile *.c *.h/) {
+	foreach my $f (qw/Makefile *.c *.h *.S/) {
 		foreach my $f1 (glob("driver/$f")) {
 			my $target = "$ENV{BUILD_DIR}/driver/" . basename($f1);
 			my $lnk = readlink("$target");

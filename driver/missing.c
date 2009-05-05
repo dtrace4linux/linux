@@ -2,12 +2,12 @@
 /*   Functions which are not there in the older kernels.	      */
 /*   Open Source						      */
 /*   Author: P D Fox						      */
-/* $Header: Last edited: 06-Apr-2009 1.2 $ 			      */
+/* $Header: Last edited: 05-May-2009 1.3 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 # define toupper(x) ((x) >= 'a' && (x) <= 'z' ? (x) - 0x20 : (x))
 # define tolower(x) ((x) >= 'A' && (x) <= 'Z' ? (x) + 0x20 : (x))
 
@@ -56,7 +56,7 @@ find_task_by_vpid(int n)
 }
 # endif
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
 int
 mutex_is_locked(struct mutex *mp)
 {
@@ -84,7 +84,7 @@ void sort(void *base, size_t num, size_t size,
 }
 #endif
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
 void
 smp_call_function_single(int cpuid, int (*func)(void *), void *info, int wait)
 {

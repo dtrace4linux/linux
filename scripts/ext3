@@ -1,0 +1,1 @@
+build/dtrace -n 'fbt::ext3_*:entry { printf("%s", execname);}'

@@ -37,13 +37,17 @@
 #include <linux/notifier.h>
 #include <asm/uaccess.h>
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+#if defined(HAVE_INCLUDE_ASM_KDEBUG_H)
 #  include <asm/kdebug.h>
-#else
-#  include <linux/hrtimer.h>
-#  include <linux/kdebug.h>
-#  include <linux/uaccess.h>
 #endif
+#if defined(HAVE_INCLUDE_LINUX_KDEBUG_H)
+#  include <linux/kdebug.h>
+#endif
+#if defined(HAVE_INCLUDE_LINUX_HRTIMER_H)
+#  include <linux/hrtimer.h>
+#endif
+
+//# include <linux/uaccess.h>
 
 # define MUTEX_HELD mutex_is_locked
 

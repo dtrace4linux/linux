@@ -35,6 +35,7 @@ sub main
 	my $build_dir = shift @ARGV;
 	my $uname_m = shift @ARGV;
 	usage() if !$uname_m;
+	$uname_m = $ENV{BUILD_ARCH} if defined($ENV{BUILD_ARCH});
 
 	$ENV{BUILD_DIR} = $build_dir;
 	die "\$BUILD_DIR not set. Please use 'make all'\n" if !$build_dir;
@@ -91,7 +92,7 @@ sub main
 	$fh->close();
 	my $ret = spawn("make all0", 0);
 	if ($ret) {
-		spawn("tools/bug.sh");
+		spawn("tools/bug.sh") if !$ENV{MAKE_KERNELS};
 		exit(1);
 	}
 }

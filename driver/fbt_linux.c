@@ -344,8 +344,8 @@ static int first_time = TRUE;
 
 //printk("lookup %p kallsyms_lookup=%p\n", a, kallsyms_lookup);
 		cp = kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
-if (size == 0)
-printk("size=0 %p %s\n", a, cp ? cp : "??");
+if (cp && size == 0)
+printk("fbt_linux: size=0 %p %s\n", a, cp ? cp : "??");
 /*		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);*/
 		if (cp == NULL)
 			aend = a + 4;

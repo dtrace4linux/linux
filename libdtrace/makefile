@@ -91,11 +91,12 @@ dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H)
 
 #dt_grammar.h: $(LIB)(dt_grammar.o)
 
-$(LIB)(dt_lex.o): dt_grammar.h dt_lex.l $(H)
-	lex -t -v dt_lex.l > dt_lex.c
-	$(CC) $(CPPFLAGS) -c dt_lex.c
+$(LIB)(dt_lex.o): dt_grammar.h $(BINDIR)/dt_lex.c $(H)
+	$(CC) $(CPPFLAGS) -c $(BINDIR)/dt_lex.c
 	ar rv $(LIB) dt_lex.o
 	-rm -f dt_lex.o
+$(BINDIR)/dt_lex.c: dt_lex.l
+	lex -t -v dt_lex.l > $(BINDIR)/dt_lex.c
 
 $(BINDIR)/drti.o: drti.c $(H)
 	$(CC) $(CPPFLAGS) -c drti.c

@@ -134,11 +134,10 @@ unl unload:
 
 ######################################################################
 #   Validate compilation on the kernels on my system(s)		     #
+#   'warn'  is a simple tool to color code errors/warnings and give  #
+#   grand  totals.  If  anyone wants a copy, let me know and I will  #
+#   put  out  the  source,  but I need to de-crispify it, before it  #
+#   will run. Its a single C program.				     #
 ######################################################################
 kernels:
-	for i in /lib/modules/2* ; \
-	do \
-		dir=`basename $$i` ; \
-		echo "======= Building: $$i ===============================" ; \
-		BUILD_KERNEL=$$dir make all || exit 1 ; \
-	done
+	tools/make_kernels.pl

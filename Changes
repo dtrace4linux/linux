@@ -1,3 +1,23 @@
+Sat May  9 09:57:35 2009  fox
+
+     262* libdtrace/makefile: Put dt_lex.c in the build dir since it 
+          depends on the version of flex we are using.
+
+     261* Archive: 1.0086
+
+     260* dtrace_linux.c: Some portability cleanups - so we can handle
+          the differing kernels.
+
+     259* utils/make_kernel.pl, Makefile: Allow us to cross build/validate
+          i386 kernels on a 64 bit machine. (For my benefit only).
+
+     258* dtrace_linux.c: Fixes for 2.6.22/i386 set_idt_entry.
+
+Thu May  7 22:29:11 2009  fox
+
+     257* dtrace_linux.c: Fix compile issue for 2.6.22/i386 on desc_defs.h
+          include.
+
 Wed May  6 20:29:31 2009  fox
 
      256* dtrace_linux.c: dtrace_gethrtime: Never call do_gettimeofday, since

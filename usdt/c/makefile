@@ -15,12 +15,13 @@ $(BINDIR)/simple-c: $(BINDIR)/simple_probes.o $(BINDIR)/simple.o \
 	$(CC) -Wl,-rpath `pwd` -o $(BINDIR)/simple-c $(BITS) $(BINDIR)/simple_probes.o $(BINDIR)/simple.o $(BINDIR)/shlib.so -ldl
 
 $(BINDIR)/simple_probes.o: $(BINDIR)/simple.o simple_probes.d $(DTRACE_DRTI_O) $(DTRACE_LIB)
-	. $(BINDIR)/config.sh ; \
+	@. $(BINDIR)/config.sh ; \
 	if [ "$$BUILD_i386" = 1 ]; then \
 		BITS=32 ; \
 	else \
 		BITS=64 ; \
 	fi ; \
+	echo DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o ; \
 	DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o
 	mv simple_probes.o $(BINDIR)
 

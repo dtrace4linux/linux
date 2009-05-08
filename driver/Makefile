@@ -60,6 +60,11 @@ EXTRA_CFLAGS += \
 	-I$(M)/../../common/ctf \
 	-I$(M)/../../uts/common \
 	-D_KERNEL -DCTF_OLD_VERSIONS $(PTR32)
+
+EXTRA_CFLAGS += $(shell test -f include/asm/kdebug.h && echo -DHAVE_INCLUDE_ASM_KDEBUG_H)
+EXTRA_CFLAGS += $(shell test -f include/linux/kdebug.h && echo -DHAVE_INCLUDE_LINUX_KDEBUG_H)
+EXTRA_CFLAGS += $(shell test -f include/linux/hrtimer.h && echo -DHAVE_INCLUDE_LINUX_HRTIMER_H)
+
 clean:
 	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.* modules.order
 

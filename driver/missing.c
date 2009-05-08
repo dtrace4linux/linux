@@ -7,6 +7,14 @@
 
 #include "dtrace_linux.h"
 
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+void
+clflush(void *ptr)
+{
+        __asm__("clflush %0\n" : "+m" (*(char *)ptr));
+}
+# endif
+
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 # define toupper(x) ((x) >= 'a' && (x) <= 'z' ? (x) - 0x20 : (x))
 # define tolower(x) ((x) >= 'A' && (x) <= 'Z' ? (x) + 0x20 : (x))
@@ -49,10 +57,14 @@ strncmp(const char *s1, const char *s2, size_t len)
 # endif
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-int
+struct task_struct *
 find_task_by_vpid(int n)
 {
+# if defined(PIDTYPE_PID)
+	return find_task_by_pid_type(PIDTYPE_PID, n);
+# else
 	return find_task_by_pid(n);
+# endif
 }
 # endif
 

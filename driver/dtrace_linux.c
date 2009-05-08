@@ -32,7 +32,7 @@
 #include <asm/tlbflush.h>
 #include <asm/current.h>
 #include <asm/desc.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19) && defined(__amd64)
 #include <asm/desc_defs.h>
 #endif
 #include <sys/rwlock.h>
@@ -499,31 +499,106 @@ return DATAMODEL_LP64;
 void *kernel_int1_handler;
 void *kernel_int3_handler;
 void *kernel_double_fault_handler;
+
+/**********************************************************************/
+/*   Kernel independent gate definitions.			      */
+/**********************************************************************/
+# define CPU_GATE_INTERRUPT 	0xE
+# define GATE_DEBUG_STACK	0
+
+/**********************************************************************/
+/*   x86-64 gate structure.					      */
+/**********************************************************************/
+struct gate64 {
+        u16 offset_low;
+        u16 segment;
+        unsigned ist : 3, zero0 : 5, type : 5, dpl : 2, p : 1;
+        u16 offset_middle;
+        u32 offset_high;
+        u32 zero1;
+} __attribute__((packed));
+
+struct gate32 {
+        u16		base0;
+        u16		segment;
+
+	unsigned char	zero;
+	unsigned char	flags;
+	u16		base1;
+} __attribute__((packed));
+
+# if defined(__amd64)
+typedef struct gate64 gate_t;
+
+# elif defined(__i386)
+typedef struct gate32 gate_t;
+
+# else
+#   error "Dont know how to handle GATEs on this cpu"
+# endif
+
+/*
+void
+xset_idt_entry(int intr, unsigned long func)
+{
+gate_desc *idt_table = get_proc_addr("idt_table");
+gate_desc s;
+//printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
+pack_gate(&s, GATE_INTERRUPT, func, 3, DEBUG_STACK, __KERNEL_CS);
+
+memory_set_rw(idt_table, 1, TRUE);
+write_idt_entry(idt_table, intr, &s);
+return;
+}
+*/
 void
 set_idt_entry(int intr, unsigned long func)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-	gate_desc *idt_table = get_proc_addr("idt_table");
-	gate_desc s;
-//printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
-	pack_gate(&s, GATE_INTERRUPT, func, 3, DEBUG_STACK, __KERNEL_CS);
+	gate_t *idt_table = get_proc_addr("idt_table");
+	gate_t s;
+	int	type = CPU_GATE_INTERRUPT;
+	int	dpl = 3;
+	int	ist = GATE_DEBUG_STACK;
+	int	seg = __KERNEL_CS;
 
-	memory_set_rw(idt_table, 1, TRUE);
-	write_idt_entry(idt_table, intr, &s);
-#else
-# define	gate_desc struct gate_struct
-	gate_desc *idt_table = get_proc_addr("idt_table");
 printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
-	_set_gate(&idt_table[intr], GATE_INTERRUPT, func, 3, __KERNEL_CS);
+
+	memset(&s, 0, sizeof s);
+
+#if defined(__amd64)
+	s.offset_low = PTR_LOW(func);
+	s.segment = seg;
+        s.ist = ist;
+        s.p = 1;
+        s.dpl = dpl;
+        s.zero0 = 0;
+        s.zero1 = 0;
+        s.type = type;
+        s.offset_middle = PTR_MIDDLE(func);
+        s.offset_high = PTR_HIGH(func);
+
+#elif defined(__i386)
+	s.segment = seg;
+	s.base0 = (u16) (func & 0xffff);
+	s.base1 = (u16) ((func & 0xffff0000) >> 16);
+	s.flags =	0x80 |		// present
+			(dpl << 5) |
+			type;		// CPU_GATE_INTERRUPT
+
+#else
+#  error "set_idt_entry: please help me"
 #endif
+
+	idt_table[intr] = s;
+
 }
 
 /**********************************************************************/
 /*   Saved copies of idt_table[n] for when we get unloaded.	      */
 /**********************************************************************/
-gate_desc saved_double_fault;
-gate_desc saved_int1;
-gate_desc saved_int3;
+gate_t saved_double_fault;
+gate_t saved_int1;
+gate_t saved_int3;
 
 
 /**********************************************************************/
@@ -533,7 +608,7 @@ static void
 dtrace_linux_init(void)
 {
 	hrtime_t	t, t1;
-	gate_desc *idt_table;
+	gate_t *idt_table;
 static int first_time = TRUE;
 
 	if (!first_time)
@@ -657,7 +732,7 @@ static int first_time = TRUE;
 static int
 dtrace_linux_fini(void)
 {	int	ret = 1;
-	gate_desc *idt_table;
+	gate_t *idt_table;
 
 	if (!dtrace_unregister_die_notifier("n_int3", &n_int3))
 		ret = 0;

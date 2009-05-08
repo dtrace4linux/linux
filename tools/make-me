@@ -38,12 +38,18 @@ do
 done
 
 #####################################################################
-#   Nastiness for 32-bit builds.
+#   Nastiness for 32-bit builds. Allow cross-cpu compiler compilation
+#   validation (see 'make kernels')
 #####################################################################
-if [ `uname -m` != x86_64 ]; then
-
+arch=${BUILD_ARCH:-`uname -m`}
+if [ $arch != x86_64 ]; then
   	export PTR32=-D_ILP32
 	export BUILD_i386=1
+fi
+if [ "$BUILD_ARCH" != "" ]; then
+#	export KBUILD_CONFIG=.config-i386
+	build_dir=`echo $build_dir | sed -e 's/-i386//'`
+	arch_flag="ARCH=i386 CROSS_COMPILE=`pwd`/../../tools/cross-build/i386/"
 fi
 
 if [ ! -d $build_dir ]; then
@@ -54,4 +60,4 @@ fi
 #   Let Linux have the floor...
 #####################################################################
 echo $warn make $flags -C $build_dir M=`pwd` $@
-exec $warn make $flags -C $build_dir M=`pwd` $@
+exec $warn make $flags -C $build_dir $arch_flag M=`pwd` $@

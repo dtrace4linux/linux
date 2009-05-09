@@ -145,10 +145,10 @@ cpu_t	*cpu_list;
 cpu_core_t *cpu_core;
 cpu_t *cpu_table;
 int	nr_cpus = 1;
-DEFINE_MUTEX(mod_lock);
+MUTEX_DEFINE(mod_lock);
 
-static DEFINE_MUTEX(dtrace_provider_lock);	/* provider state lock */
-DEFINE_MUTEX(cpu_lock);
+static MUTEX_DEFINE(dtrace_provider_lock);	/* provider state lock */
+MUTEX_DEFINE(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
 
@@ -537,9 +537,9 @@ typedef struct gate32 gate_t;
 #   error "Dont know how to handle GATEs on this cpu"
 # endif
 
-/*
+# if 0
 void
-xset_idt_entry(int intr, unsigned long func)
+set_idt_entry(int intr, unsigned long func)
 {
 gate_desc *idt_table = get_proc_addr("idt_table");
 gate_desc s;
@@ -550,7 +550,7 @@ memory_set_rw(idt_table, 1, TRUE);
 write_idt_entry(idt_table, intr, &s);
 return;
 }
-*/
+# else
 void
 set_idt_entry(int intr, unsigned long func)
 {
@@ -561,7 +561,7 @@ set_idt_entry(int intr, unsigned long func)
 	int	ist = GATE_DEBUG_STACK;
 	int	seg = __KERNEL_CS;
 
-printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
+printk("patch idt %p vec %d func %lx\n", idt_table, intr, func);
 
 	memset(&s, 0, sizeof s);
 
@@ -592,6 +592,7 @@ printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
 	idt_table[intr] = s;
 
 }
+#endif
 
 /**********************************************************************/
 /*   Saved copies of idt_table[n] for when we get unloaded.	      */
@@ -1376,7 +1377,8 @@ static pte_t *(*lookup_address)(void *, int *);
 int
 mutex_count(mutex_t *mp)
 {
-	return atomic_read(&mp->count);
+//	return atomic_read(&mp->count);
+	return mp->count;
 }
 /**********************************************************************/
 /*   Called from fbt_linux.c. Dont let us register a probe point for  */
@@ -1625,7 +1627,7 @@ dtrace_double_fault_handler(int type, struct pt_regs *regs)
 	struct die_args die;
 
 	die.regs = regs;
-	die.str = "hello";
+	die.str = "double-fault";
 	return proc_notifier_int3(&n, DIE_DEBUG, &die);
 }
 int 
@@ -1634,7 +1636,7 @@ dtrace_int1_handler(int type, struct pt_regs *regs)
 	struct die_args die;
 
 	die.regs = regs;
-	die.str = "hello";
+	die.str = "single-step";
 	return proc_notifier_int3(&n, DIE_DEBUG, &die);
 }
 /**********************************************************************/
@@ -1654,7 +1656,7 @@ dtrace_dump_mem64(regs, 50);
 */
 //int i; for (i = 0; i < 10000000; i++);
 	die.regs = regs;
-	die.str = "hello";
+	die.str = "bkpt";
 	return proc_notifier_int3(&n, DIE_INT3, &die);
 }
 /**********************************************************************/
@@ -1727,7 +1729,7 @@ static int noisy;
 	/*   we  can grep /proc/kallsyms to find what  */
 	/*   we forgot to do.			       */
 	/***********************************************/
-	if (cnt_reentrancy && cnt_reentrancy_msgcnt < 5) {
+	if (cnt_reentrancy && cnt_reentrancy_msgcnt < 20) {
 		cnt_reentrancy_msgcnt++;
 		printk("dtrace:cnt_reentrancy=%d PC:%p\n", cnt_reentrancy, (void *) pc_reentrancy);
 	}
@@ -1782,12 +1784,19 @@ static int noisy;
 
 	/***********************************************/
 	/*   Check  with  fbt/sdt  and anyone else if  */
-	/*   this is one of our INT3 type traps.       */
+	/*   this  is  one of our INT3 type traps. In  */
+	/*   case   we   are   calling   printk()  in  */
+	/*   dtrace_probe,  we  need  to flag that we  */
+	/*   dont  want  any  more  INT3's  until  we  */
+	/*   finish,   so   temporarily   enable  the  */
+	/*   auto-remove code above.		       */
 	/***********************************************/
+	this_cpu->cpuc_stepping++;
 	ret = dtrace_invop(regs->r_pc - 1, 
 		(uintptr_t *) regs, 
 		regs->r_rax,
 		&this_cpu->cpuc_tinfo);
+	this_cpu->cpuc_stepping--;
 
 	if (dtrace_here && ret && noisy < 100) {
 		printk("ret=%d %s\n", ret, ret == 0 ? "nothing" :
@@ -2127,9 +2136,9 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 	if (TRACE_ALLOC || dtrace_mem_alloc)
 		printk("vmem_alloc(size=%d)\n", (int) s);
 
-	mutex_lock(&seqp->seq_mutex);
+	mutex_enter(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
-	mutex_unlock(&seqp->seq_mutex);
+	mutex_exit(&seqp->seq_mutex);
 	return ret;
 }
 
@@ -2281,6 +2290,7 @@ dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 		dtrace_here,
 		cpu_get_id(),
 		dcnt);
+	*off += n;
 	return n;
 }
 /**********************************************************************/

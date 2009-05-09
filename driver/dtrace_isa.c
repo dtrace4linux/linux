@@ -62,7 +62,7 @@ extern size_t _allsyscalls_size;
 /*   We  use  the  kernels  stack  dumper  to  avoid issues with cpu  */
 /*   architecture and frame pointer.				      */
 /**********************************************************************/
-DEFINE_MUTEX(dtrace_stack_mutex);
+MUTEX_DEFINE(dtrace_stack_mutex);
 static pc_t	*g_pcstack;
 static int	g_pcstack_limit;
 static int	g_depth;

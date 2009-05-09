@@ -115,7 +115,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 
 # define linux_get_syscall() get_current()->thread.trap_no
 
-DEFINE_MUTEX(slock);
+MUTEX_DEFINE(slock);
 static int do_slock;
 
 /**********************************************************************/

@@ -47,8 +47,6 @@
 #  include <linux/hrtimer.h>
 #endif
 
-//# include <linux/uaccess.h>
-
 # define MUTEX_HELD mutex_is_locked
 
 #define PRIV_EFFECTIVE          (1 << 0)
@@ -64,9 +62,6 @@
 #define ttoproc(x)      ((x))
 #define	uprintf		printk
 #define	vuprintf	vprintk
-
-#define	mutex_enter(x)	mutex_lock(x)
-#define	mutex_exit(x)	mutex_unlock(x)
 
 # define PRINT_CASE(x) do { if (dtrace_here) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x); } while (0)
 

@@ -6,34 +6,34 @@
 /**********************************************************************/
 
 # if !defined(LINUX_TYPES_H)
-# define	LINUX_TYPES_H 1
+#define	LINUX_TYPES_H 1
 
-# define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);}
-# define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", dtrace_basename(__FILE__), __func__, __LINE__);}
-# define HERE_WITH_INFO(str)	if (dtrace_here) {printk("%s:%s:%d:%s\n", dtrace_basename(__FILE__), __func__, __LINE__, str);}
-# define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", dtrace_basename(__FILE__), __func__, __LINE__)
-# define TODO_END()
+#define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);}
+#define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", dtrace_basename(__FILE__), __func__, __LINE__);}
+#define HERE_WITH_INFO(str)	if (dtrace_here) {printk("%s:%s:%d:%s\n", dtrace_basename(__FILE__), __func__, __LINE__, str);}
+#define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", dtrace_basename(__FILE__), __func__, __LINE__)
+#define TODO_END()
 
 # if defined(__i386) && !defined(_LP32)
 #	define _LP32
 # endif
 
-# define	_INT64_TYPE
-# define	_LITTLE_ENDIAN 1
+#define	_INT64_TYPE
+#define	_LITTLE_ENDIAN 1
 
 /**********************************************************************/
 /*   GCC  doesnt  use  pragmas but uses function attributes. Do this  */
 /*   here.							      */
 /**********************************************************************/
-# define pragma_init	__attribute__((__constructor__))
-# define pragma_fini	__attribute__((__destructor__))
+#define pragma_init	__attribute__((__constructor__))
+#define pragma_fini	__attribute__((__destructor__))
 
 /**********************************************************************/
 /*   When  trying  to  debug  where we are failing, we convert "goto  */
 /*   xxx;"  into this so we can figure out which line we are failing  */
 /*   on.							      */
 /**********************************************************************/
-# define GOTO(x) do {printf("%s(%d): error\n", dtrace_basename(__FILE__), __LINE__); goto x; } while(0)
+#define GOTO(x) do {printf("%s(%d): error\n", dtrace_basename(__FILE__), __LINE__); goto x; } while(0)
 
 /**********************************************************************/
 /*   In   x86   mode,  kernel  compiled  with  arguments  passed  in  */
@@ -58,12 +58,12 @@ struct modctl;
 
 # if __KERNEL__
 
-	# define modctl module
+	#define modctl module
 
 	# if defined(zone)
 	#   undef zone
 	# endif
-	# define zone Xzone /* mmzone.h conflicts with solaris zone struct */
+	#define zone Xzone /* mmzone.h conflicts with solaris zone struct */
 	# include	<linux/time.h>
 	# include	<linux/module.h>
 	# undef zone
@@ -75,9 +75,9 @@ struct modctl;
 	# include 	<sys/vmem.h>
 	# include 	<linux/sys/cred.h>
 
-	# define	_LARGEFILE_SOURCE	1
-	# define	_FILE_OFFSET_BITS	64
-	# define 	__USE_LARGEFILE64 1
+	#define	_LARGEFILE_SOURCE	1
+	#define	_FILE_OFFSET_BITS	64
+	#define 	__USE_LARGEFILE64 1
 
 	# include	<linux/types.h>
 	# include	<linux/wait.h>
@@ -91,9 +91,9 @@ struct modctl;
 	#   include	<asm/stacktrace.h>
 	# endif
 
-	# define MUTEX_NOT_HELD(x)	mutex_count(x)
+	#define MUTEX_NOT_HELD(x)	mutex_count(x)
 
-	# define PS_VM 0x00020000 /* CPU in v8086 mode */
+	#define PS_VM 0x00020000 /* CPU in v8086 mode */
 
 	/***********************************************/
 	/*   Linux 2.6.9			       */
@@ -115,10 +115,10 @@ struct modctl;
 
 # else /* !__KERNEL */
 
-	# define	_LARGEFILE_SOURCE	1
-	# define	_LARGEFILE64_SOURCE	1
-	# define	_FILE_OFFSET_BITS	64
-	# define 	__USE_LARGEFILE64 1
+	#define	_LARGEFILE_SOURCE	1
+	#define	_LARGEFILE64_SOURCE	1
+	#define	_FILE_OFFSET_BITS	64
+	#define 	__USE_LARGEFILE64 1
 
 	# include "/usr/include/sys/types.h"
 	# include	<linux/kdev_t.h>
@@ -126,7 +126,7 @@ struct modctl;
 	# include	<features.h>
 	# include	<time.h>
 
-	# define __USE_GNU 1 /* Need Lmid_t type */
+	#define __USE_GNU 1 /* Need Lmid_t type */
 	# include	<dlfcn.h>
 	# undef __USE_GNU
 	
@@ -139,44 +139,44 @@ struct modctl;
 
 # include 	<sys/regset.h>
 
-# define 	DEFAULTMUTEX PTHREAD_MUTEX_INITIALIZER
+#define 	DEFAULTMUTEX PTHREAD_MUTEX_INITIALIZER
 
 // fixme : objfs.h
-# define	OBJFS_ROOT	"/system/object"
+#define	OBJFS_ROOT	"/system/object"
 
-# define	NPRGREG32 NGREG
+#define	NPRGREG32 NGREG
 
 #define P2ROUNDUP(x, align)             (-(-(x) & -(align)))
 
 /* fix this */
 extern int pread(int, void *, int, unsigned long long);
 extern int pwrite(int, void *, int, unsigned long long);
-# define	pread64	pread
-# define	pwrite64 pwrite
+#define	pread64	pread
+#define	pwrite64 pwrite
 
 #define FPS_TOP 0x00003800      /* top of stack pointer                 */
 
 
 typedef unsigned long long hrtime_t;
 
-# define	ABS(x) ((x) < 0 ? -(x) : (x))
+#define	ABS(x) ((x) < 0 ? -(x) : (x))
 
 /**********************************************************************/
 /*   Typedefs for kernel driver building.			      */
 /**********************************************************************/
-typedef struct mutex mutex_t;
 # if __KERNEL__
+
 	# include <asm/signal.h>
 	# include <linux/sched.h>
-	# define	SNOCD	0
+	#define	SNOCD	0
 
-	# define aston(x) 
-	# define krwlock_t mutex_t
+	#define aston(x) 
+	#define krwlock_t mutex_t
 
-	# define	t_did pid
-	# define	p_parent parent
-	# define klwp_t struct thread_struct
-	# define ttolwp(p) (p)->p_task->thread
+	#define	t_did pid
+	#define	p_parent parent
+	#define klwp_t struct thread_struct
+	#define ttolwp(p) (p)->p_task->thread
 
 
 	#define        MIN(a,b) (((a)<(b))?(a):(b))
@@ -192,10 +192,9 @@ typedef struct mutex mutex_t;
 	typedef long	intptr_t;
 	typedef unsigned long long off64_t;
 	typedef void *taskq_t;
-	# define uintptr_t unsigned long
-	# define kmem_cache_t struct kmem_cache
+	#define uintptr_t unsigned long
+	#define kmem_cache_t struct kmem_cache
 	typedef void *kthread_t;
-	# define kmutex_t struct mutex
 
 	#define	NBBY	8
 	#define	bcmp(a, b, c) memcmp(a, b, c)
@@ -213,11 +212,6 @@ typedef struct mutex mutex_t;
 	#define PAGESIZE        PAGE_SIZE
 	#define PAGEOFFSET      (PAGESIZE - 1)
 
-	# define kmutex_t struct mutex
-
-	# include	<sys/cpuvar_defs.h>
-	# include	<sys/cpuvar.h>
-	
 	typedef void    *timeout_id_t;
 
 	/**********************************************************************/
@@ -226,17 +220,48 @@ typedef struct mutex mutex_t;
 	void cmn_err(int ce, const char *fmt, ...);
 	void	*kmem_alloc(size_t, int);
 
-	# define	bcopy(a, b, c) memcpy(b, a, c)
-	# define	bzero(a, b) memset(a, 0, b)
+	#define	bcopy(a, b, c) memcpy(b, a, c)
+	#define	bzero(a, b) memset(a, 0, b)
 
+	/***********************************************/
+	/*   Dtrace  mutexes are semaphores on Linux,  */
+	/*   since  linux mutexes can sleep but we do  */
+	/*   this in interrupt context, which mutexes  */
+	/*   do not allow.			       */
+	/***********************************************/
+# if 0
+	typedef struct mutex mutex_t;
+	int	mutex_count(mutex_t *m);
+	#define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
+	#define	mutex_enter(x)	mutex_lock(x)
+	#define	mutex_exit(x)	mutex_unlock(x)
+	#define kmutex_t struct mutex
+# else
+	#define mutex semaphore
+	typedef struct semaphore mutex_t;
+	int	mutex_count(mutex_t *m);
+	#define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
+	#undef mutex_init
+	#define mutex_is_locked(x) ((x)->count == 0)
+	#define	mutex_init(x)	init_MUTEX(x)
+	#define	mutex_enter(x)	down(x)
+	#define	mutex_exit(x)	up(x)
+	#define kmutex_t mutex_t
+
+# endif
+
+	# include	<linux/semaphore.h>
+	# include	<sys/cpuvar_defs.h>
+	# include	<sys/cpuvar.h>
+	
 # endif /* __KERNEL__ */
 
 /**********************************************************************/
 /*   Made into functions so we can monitor memallocations.	      */
 /**********************************************************************/
-//# define kmem_zalloc(size, flags) kzalloc(size, flags)
-//# define kmem_alloc(size, flags) kmalloc(size, flags)
-//# define kmem_free(ptr, size) kfree(ptr)
+//#define kmem_zalloc(size, flags) kzalloc(size, flags)
+//#define kmem_alloc(size, flags) kmalloc(size, flags)
+//#define kmem_free(ptr, size) kfree(ptr)
 
 /**********************************************************************/
 /*   Definitions for both kernel and non-kernel code.		      */
@@ -262,13 +287,13 @@ typedef unsigned long   psaddr_t;
 typedef int	ctid_t;                 /* contract ID type     */
 typedef int	prgreg32_t;
 typedef struct iovec iovec_t;
-# define	ino64_t	ino_t
-# define	blkcnt64_t blkcnt_t
+#define	ino64_t	ino_t
+#define	blkcnt64_t blkcnt_t
 
 # if !defined(ENOTSUP)
-# define ENOTSUP EOPNOTSUPP
+#define ENOTSUP EOPNOTSUPP
 # endif
-# define MAXPATHLEN 1024
+#define MAXPATHLEN 1024
 
 /**********************************************************************/
 /*   Userland - non-kernel definitions.				      */
@@ -293,24 +318,21 @@ typedef struct iovec iovec_t;
 
 	#define PAGESIZE        (sysconf(_SC_PAGESIZE)) /* All the above, for logical */
 
-	# define mutex_t pthread_mutex_t
+	#define mutex_t pthread_mutex_t
 
 	struct mutex {
 		long xxx;
 		};
-//	typedef unsigned long long loff_t;
-	# define kmutex_t struct mutex
-	# define	NCPU 8 // arbitrary number we should use the real value
+	#define kmutex_t struct mutex
+	#define	NCPU 8 // arbitrary number we should use the real value
 	# include	<sys/types.h>
 	# include	<stdint.h>
 	# include	<unistd.h>
 	# include	<sys/stat.h>
 	# include	<sys/wait.h>
 	# include	<zone.h>
-//	# include	<sys/elf_amd64.h>
 
-	# define SHT_SUNW_dof            0x6ffffff4
-//	#define EM_AMD64        EM_X86_64
+	#define SHT_SUNW_dof            0x6ffffff4
 	#define SHT_PROGBITS    1               /* Program specific (private) data */
 	#define STT_OBJECT      1               /* Symbol is a data object */
 
@@ -334,8 +356,8 @@ typedef union {
 
 #define SIG2STR_MAX     32
 
-# define	B_TRUE	1
-# define	B_FALSE	0
+#define	B_TRUE	1
+#define	B_FALSE	0
 # if !defined(TRUE)
 #	define	TRUE	1
 #	define	FALSE	0
@@ -528,12 +550,11 @@ int	dtrace_mach_aframes(void);
 extern int dtrace_here;
 extern unsigned long long gethrtime(void);
 void *dtrace_casptr(void *target, void *cmp, void *new);
-# define	casptr(a, b, c) dtrace_casptr(a, b, c)
+#define	casptr(a, b, c) dtrace_casptr(a, b, c)
 
-# define atomic_add_32(a, b) atomic_add(b, (atomic_t *) (a))
+#define atomic_add_32(a, b) atomic_add(b, (atomic_t *) (a))
 void atomic_add_64(uint64_t *, int n);
 
-int	mutex_count(mutex_t *m);
 char	*dtrace_basename(char *);
 
 # endif /* LINE_TYPES_H */

@@ -153,6 +153,9 @@ Usage:
 
 Switches:
 
+  -no32     Dont build i386 kernels
+  -no64     Dont build x86-64 kernels.
+
 EOF
 
 	exit(1);

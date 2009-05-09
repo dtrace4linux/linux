@@ -248,9 +248,9 @@ static dtrace_dynvar_t  dtrace_dynhash_sink;    /* end of dynamic hash chains */
  * mod_lock is similar with respect to dtrace_provider_lock in that it must be
  * acquired _between_ dtrace_provider_lock and dtrace_lock.
  */
-DEFINE_MUTEX(dtrace_lock);			/* probe state lock */
-DEFINE_MUTEX(dtrace_provider_lock);		/* provider state lock */
-DEFINE_MUTEX(dtrace_meta_lock);			/* meta-provider state lock */
+MUTEX_DEFINE(dtrace_lock);			/* probe state lock */
+MUTEX_DEFINE(dtrace_provider_lock);		/* provider state lock */
+MUTEX_DEFINE(dtrace_meta_lock);			/* meta-provider state lock */
 
 /*
  * DTrace Provider Variables
@@ -314,7 +314,7 @@ int	dtrace_helptrace_enabled = 0;
 static dtrace_errhash_t	dtrace_errhash[DTRACE_ERRHASHSZ];
 static const char *dtrace_errlast;
 static kthread_t *dtrace_errthread;
-static DEFINE_MUTEX(dtrace_errlock);
+static MUTEX_DEFINE(dtrace_errlock);
 #endif
 
 /*
@@ -5822,7 +5822,6 @@ dcnt++;
 		dtrace_interrupt_enable(cookie);
 		return;
 	}
-
 	now = dtrace_gethrtime();
 	vtime = dtrace_vtime_references != 0;
 
@@ -5843,6 +5842,9 @@ dcnt++;
 	mstate.dtms_arg[4] = (intptr_t) arg4;
 
 	flags = (volatile uint16_t *)&cpu_core[cpuid].cpuc_dtrace_flags;
+
+//dtrace_interrupt_enable(cookie);
+//return;
 
 	for (ecb = probe->dtpr_ecb; ecb != NULL; ecb = ecb->dte_next) {
 		dtrace_predicate_t *pred = ecb->dte_predicate;
@@ -12594,7 +12596,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 # else
         /*state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);*/
 
-        state->dts_dev = (dev_t) (long long) fp;
+        state->dts_dev = (dev_t) (uintptr_t *) fp;
 # endif
 
 	/*

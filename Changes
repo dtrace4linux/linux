@@ -1,3 +1,8 @@
+Sun May 10 21:47:15 2009  fox
+
+     263* linux_types.h, driver/*: Use semaphores instead of mutexes
+          since mutexes arent available in interrupt context.
+
 Sat May  9 09:57:35 2009  fox
 
      262* libdtrace/makefile: Put dt_lex.c in the build dir since it 

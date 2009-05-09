@@ -87,7 +87,7 @@ static void swap_func(void *p1, void *p2, int size)
 }
 # define qsort(base, num, size, cmp) sort(base, num, size, cmp, swap_func)
 
-DEFINE_MUTEX(pidlock);
+MUTEX_DEFINE(pidlock);
 
 timeout_id_t
 timeout(void (*func)(void *), void *arg, unsigned long ticks)
@@ -235,7 +235,7 @@ static dev_info_t *fasttrap_devi;
 static dtrace_meta_provider_id_t fasttrap_meta_id;
 
 static timeout_id_t fasttrap_timeout;
-static DEFINE_MUTEX(fasttrap_cleanup_mtx);
+static MUTEX_DEFINE(fasttrap_cleanup_mtx);
 static uint_t fasttrap_cleanup_work;
 
 /*
@@ -271,7 +271,7 @@ static fasttrap_hash_t		fasttrap_provs;
 static fasttrap_hash_t		fasttrap_procs;
 
 static uint64_t			fasttrap_pid_count;	/* pid ref count */
-static DEFINE_MUTEX(fasttrap_count_mtx);		/* lock on ref count */
+static MUTEX_DEFINE(fasttrap_count_mtx);		/* lock on ref count */
 
 #define	FASTTRAP_ENABLE_FAIL	1
 #define	FASTTRAP_ENABLE_PARTIAL	2

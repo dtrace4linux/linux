@@ -1,3 +1,29 @@
+Mon May 11 20:42:02 2009  fox
+
+     266* Archive: 1.0087
+
+     265* dtrace_linux.c: par_alloc: We had some static initialisation
+          in here which was breaking predicates for processes.
+	  The process shadowing was broken - we kept cleaning out
+	  the predicate hints. Now, when doing
+
+	  dd if=/dev/zero of=/dev/null
+
+	  dtrace -n 'syscall::read: /pid == 7331/ {printf("pid=%d", pid);}'
+
+	  we get consistent read:entry + read:return pairs, and we
+	  dont just stop probe collecting.
+
+	  Thanks to <mauritz.sundell@viem.se> for pointing out this
+	  obvious silliness on my behalf.
+
+     264* dtrace_linux.c, fbt_linux.c, sdt_linux.c: If we have a recursive
+          probe, then when we disable the probe, dont let it fire !
+	  Else we get multiple recursions leading to a cpu triple fault.
+
+	  This seems to fix the 32-bit instability issue, and let me see
+	  where the recursion issue has happened.
+
 Sun May 10 21:47:15 2009  fox
 
      263* linux_types.h, driver/*: Use semaphores instead of mutexes

@@ -262,6 +262,13 @@ typedef struct par_module_t {
 	int	fbt_nentries;
 	} par_module_t;
 
+/**********************************************************************/
+/*   Stats   counters   -  for  seeing  where  we  got  to:  ad  hoc  */
+/*   debugging/performance monitoring.				      */
+/**********************************************************************/
+# define MAX_DCNT	32
+extern unsigned long dcnt[MAX_DCNT];
+
 void *par_alloc(void *, int, int *);
 proc_t * par_find_thread(struct task_struct *t);
 void par_free(void *ptr);

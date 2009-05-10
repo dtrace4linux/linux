@@ -223,6 +223,8 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 HERE();
 			tinfo->t_opcode = fbt->fbtp_savedval;
 			tinfo->t_inslen = fbt->fbtp_inslen;
+			if (!tinfo->t_doprobe)
+				return fbt->fbtp_rval;
 			if (fbt->fbtp_roffset == 0) {
 				/*
 				 * When accessing the arguments on the stack,

@@ -5764,7 +5764,6 @@ out:
  * is the function called by the provider to fire a probe -- from which all
  * subsequent probe-context DTrace activity emanates.
  */
-unsigned long dcnt;
 void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
@@ -5781,7 +5780,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	volatile uint16_t *flags;
 	hrtime_t now;
 
-dcnt++;
+dcnt[0]++;
 # if linux
 	/***********************************************/
 	/*   We  arent modifying the kernel but we do  */
@@ -5803,6 +5802,7 @@ dcnt++;
 	probe = dtrace_probes[id - 1];
 	cpuid = cpu_get_id();
 	onintr = CPU_ON_INTR(CPU);
+if (onintr) dcnt[10]++; else dcnt[11]++;
 //printk("dtrace_probe: cpuid=%d onintr=%d\n", cpuid, onintr);
 
 	if (!onintr && probe->dtpr_predcache != DTRACE_CACHEIDNONE &&
@@ -5811,6 +5811,7 @@ dcnt++;
 		 * We have hit in the predicate cache; we know that
 		 * this predicate would evaluate to be false.
 		 */
+dcnt[1]++;
 		dtrace_interrupt_enable(cookie);
 		return;
 	}
@@ -5819,6 +5820,7 @@ dcnt++;
 		/*
 		 * We don't trace anything if we're panicking.
 		 */
+dcnt[2]++;
 		dtrace_interrupt_enable(cookie);
 		return;
 	}
@@ -5828,6 +5830,7 @@ dcnt++;
 	if (vtime && curthread->t_dtrace_start)
 		curthread->t_dtrace_vtime += now - curthread->t_dtrace_start;
 
+dcnt[3]++;
 	mstate.dtms_difo = NULL;
 	mstate.dtms_probe = probe;
 	mstate.dtms_strtok = NULL;
@@ -5902,6 +5905,7 @@ dcnt++;
 			 * has invoked the exit() action, we don't want to
 			 * evaluate subsequent BEGIN enablings.
 			 */
+dcnt[4]++;
 			if (probe->dtpr_id == dtrace_probeid_begin &&
 			    state->dts_activity != DTRACE_ACTIVITY_WARMUP) {
 				ASSERT(state->dts_activity ==
@@ -5909,6 +5913,7 @@ dcnt++;
 				continue;
 			}
 		}
+dcnt[5]++;
 HERE();
 
 		if (ecb->dte_cond) {

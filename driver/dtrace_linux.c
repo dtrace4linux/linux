@@ -135,6 +135,11 @@ static void **xsys_call_table;
 uintptr_t	_userlimit = 0x7fffffff;
 
 /**********************************************************************/
+/*   Stats counters for ad hoc debugging; exposed via /dev/dtrace.    */
+/**********************************************************************/
+unsigned long dcnt[MAX_DCNT];
+
+/**********************************************************************/
 /*   The  kernel  can be compiled with a lot of potential CPUs, e.g.  */
 /*   64  is  not  untypical,  but  we  only have a dual core cpu. We  */
 /*   allocate  buffers  for each cpu - which can mushroom the memory  */
@@ -1441,16 +1446,17 @@ static struct par_alloc_t *hd_par;
 void *
 par_alloc(void *ptr, int size, int *init)
 {	par_alloc_t *p;
-	int do_init = FALSE;
 	
 	for (p = hd_par; p; p = p->pa_next) {
-		if (p->pa_ptr == ptr)
+		if (p->pa_ptr == ptr) {
+			if (init)
+				*init = FALSE;
 			return p;
 		}
+	}
 
-	do_init = TRUE;
 	if (init)
-		*init = do_init;
+		*init = TRUE;
 
 	if ((p = kmalloc(size + sizeof(*p), GFP_ATOMIC)) == NULL)
 		return NULL;
@@ -1525,15 +1531,17 @@ par_setup_thread()
 void *
 par_setup_thread1(struct task_struct *tp)
 {	int	init = TRUE;
-//	par_alloc_t *p = par_alloc(tp, sizeof *curthread, &init);
 static par_alloc_t *static_p;
-	par_alloc_t *p;
+	par_alloc_t *p = NULL;
 	sol_proc_t	*solp;
 
-	if (static_p == NULL) {
-		static_p = par_alloc(tp, sizeof *curthread, &init);
+	p = par_alloc(tp, sizeof *curthread, &init);
+	if (p == NULL) {
+		if (static_p == NULL) {
+			static_p = par_alloc(tp, sizeof *curthread, &init);
+		}
+		p = static_p;
 	}
-	p = static_p;
 
 	if (p == NULL)
 		return NULL;
@@ -1707,6 +1715,7 @@ static int noisy;
 	/*   handler  to  get  through  the difficult  */
 	/*   times).				       */
 	/***********************************************/
+	this_cpu->cpuc_tinfo.t_doprobe = FALSE;
 	if (code == DIE_INT3 &&
 	    this_cpu->cpuc_expected_pc != (unsigned char *) regs->r_pc &&
 	    this_cpu->cpuc_stepping) {
@@ -1792,6 +1801,7 @@ static int noisy;
 	/*   auto-remove code above.		       */
 	/***********************************************/
 	this_cpu->cpuc_stepping++;
+	this_cpu->cpuc_tinfo.t_doprobe = TRUE;
 	ret = dtrace_invop(regs->r_pc - 1, 
 		(uintptr_t *) regs, 
 		regs->r_rax,
@@ -2278,18 +2288,26 @@ dtracedrv_release(struct inode *inode, struct file *file)
 static ssize_t
 dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {	int	n;
-	extern unsigned long dcnt;
+	int	i;
 
 	if (*off)
 		return 0;
 
 	n = snprintf(buf, len, 
 		"here=%d\n"
-		"cpuid=%d\n"
-		"dcnt=%lu\n", 
+		"cpuid=%d\n",
 		dtrace_here,
-		cpu_get_id(),
-		dcnt);
+		cpu_get_id());
+	len -= n;
+	for (i = 0; i < MAX_DCNT && len > 0; i++) {
+		int	size;
+		if (dcnt[i] == 0)
+			continue;
+		size = snprintf(buf + strlen(buf), len,
+			"dcnt%d=%lu\n", i, dcnt[i]);
+		len -= size;
+		n += size;
+		}
 	*off += n;
 	return n;
 }

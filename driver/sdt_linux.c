@@ -68,6 +68,11 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 
 	for (; sdt != NULL; sdt = sdt->sdp_hashnext) {
 		if ((uintptr_t)sdt->sdp_patchpoint == addr) {
+			/***********************************************/
+			/*   Dont fire probe if this is unsafe.	       */
+			/***********************************************/
+			if (!tinfo->t_doprobe)
+				return (DTRACE_INVOP_NOP);
 			/*
 			 * When accessing the arguments on the stack, we must
 			 * protect against accessing beyond the stack.  We can

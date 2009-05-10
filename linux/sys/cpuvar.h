@@ -71,6 +71,7 @@ typedef enum {
 /*   what the instruction looks like (dtrace_invop)		      */
 /**********************************************************************/
 typedef struct trap_instr_t {
+	int		t_doprobe;
 	unsigned char	t_opcode;
 	unsigned char	t_inslen;
 	} trap_instr_t;

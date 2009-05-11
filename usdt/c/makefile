@@ -1,7 +1,7 @@
 #	$(DTRACE) -h -s simple_probes.d 
 CC=gcc -I../../uts/common -fPIC
 #BITS=-m64
-CFLAGS=$(BITS)
+CFLAGS=$(BITS) $(BUILD_BITS)
 BINDIR=../../$(BUILD_DIR)
 DTRACE=$(BINDIR)/dtrace
 DTRACE_DRTI_O=$(BINDIR)/drti.o

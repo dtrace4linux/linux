@@ -114,6 +114,8 @@ sub build_i386
 
 	$ENV{BUILD_KERNEL} = "$dir-i386";
 	$ENV{BUILD_ARCH} = "i386";
+	$ENV{BUILD_i386} = "1";
+	$ENV{BUILD_BITS} = "-m32";
 	my $ret = system("$warn_app make " . ($opts{v} ? "V=1" : "") . " all");
 
 	restore_asmlnk($f);
@@ -122,6 +124,9 @@ sub build_i386
 
 	$modpost = "";
 	delete($ENV{BUILD_ARCH});
+	delete($ENV{BUILD_BITS});
+	delete($ENV{BUILD_i386});
+	delete($ENV{BUILD_KERNEL});
 }
 sub restore_asmlnk
 {	my $f = shift;

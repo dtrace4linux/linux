@@ -26,9 +26,9 @@
 # include <asm/segment.h>
 # include <asm/calling.h>
 # include <linux/version.h>
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
+# if defined(HAVE_INCLUDE_ASM_MSR_INDEX_H)
 #   include <asm/msr-index.h>
-#   include <asm/asm-offsets.h>
+//#   include <asm/asm-offsets.h>
 # else
 #   define MSR_GS_BASE	0xc0000101
 # endif

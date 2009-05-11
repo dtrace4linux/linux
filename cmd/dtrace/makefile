@@ -1,4 +1,4 @@
-CFLAGS=-g -W $(PTR32)
+CFLAGS=-g -W $(PTR32) $(BUILD_BITS)
 LIBELF=/usr/lib/libelf.so.1
 BINDIR=../../$(BUILD_DIR)
 LIBS = \
@@ -8,7 +8,7 @@ LIBS = \
 	$(BINDIR)/liblinux.a
 
 COMPILE = $(CC) $(CFLAGS) -o $(BINDIR)/dtrace \
-		-L$(BINDIR) \
+		-L$(BINDIR) $$LIB32 \
 		$(BINDIR)/dtrace.o -ldtrace -lctf -lproc -llinux -lz -lrt -lpthread $$libelf -ldl
 
 all:	$(BINDIR)/dtrace
@@ -16,6 +16,9 @@ all:	$(BINDIR)/dtrace
 
 $(BINDIR)/dtrace: $(BINDIR)/dtrace.o $(LIBS)
 	@libelf=$(LIBELF) ; \
+	if [ "x$(BUILD_BITS)" = "x-m32" ]; then \
+		LIB32=-L/usr/lib32 ; \
+	fi ; \
 	if [ -f /usr/lib64/libelf.so.1 ]; then \
 		libelf=/usr/lib64/libelf.so.1 ; \
 	elif [ -f /usr/local/lib/libelf.a ]; then \

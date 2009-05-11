@@ -88,7 +88,11 @@ static void print_trace_address(void *data, unsigned long addr, int reliable)
 		g_pcstack[g_depth++] = addr;
 }
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+/**********************************************************************/
+/*   Linux  kernel  stacktrace  arrangements  are  brain  dead - its  */
+/*   difficult to get the compile right here, so lets turn it off.    */
+/**********************************************************************/
+# if defined(HAVE_STACKTRACE_OPS)
 static const struct stacktrace_ops print_trace_ops = {
 	.warning = print_trace_warning,
 	.warning_symbol = print_trace_warning_symbol,
@@ -109,11 +113,8 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	g_depth = 0;
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
-#else
+# if defined(HAVE_STACKTRACE_OPS)
 	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
 #endif
 	depth = g_depth;

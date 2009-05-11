@@ -68,14 +68,6 @@ find_task_by_vpid(int n)
 }
 # endif
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
-int
-mutex_is_locked(struct mutex *mp)
-{
-	return atomic_read(&mp->count) != 1;
-}
-# endif
-
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 16)
 /**********************************************************************/
 /*   Simple  bubble  sort  replacement  for  old  kernels. Called by  */

@@ -1,4 +1,4 @@
-CC=gcc -g
+CC=gcc -g $(BUILD_BITS)
 COMMON = ../common/ctf
 CPPFLAGS += -I../common -I../common/ctf -I../uts/common/ \
 	-I$(COMMON) -I. \

@@ -32,9 +32,6 @@
 #include <asm/tlbflush.h>
 #include <asm/current.h>
 #include <asm/desc.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19) && defined(__amd64)
-#include <asm/desc_defs.h>
-#endif
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
 //#include <asm/pgtable.h>
@@ -1205,7 +1202,7 @@ validate_ptr(const void *ptr)
 	return ret;
 }
 # if defined(__amd64)
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 16)
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 11)
 	/***********************************************/
 	/*   Note  sure  which  version of the kernel  */
 	/*   this  came in on, but we need it for AS4  */
@@ -1375,16 +1372,6 @@ static pte_t *(*lookup_address)(void *, int *);
 	return 1;
 }
 
-/**********************************************************************/
-/*   MUTEX_NOT_HELD  macro  calls  mutex_count. Linux doesnt seem to  */
-/*   have an assertion equivalent?				      */
-/**********************************************************************/
-int
-mutex_count(mutex_t *mp)
-{
-//	return atomic_read(&mp->count);
-	return mp->count;
-}
 /**********************************************************************/
 /*   Called from fbt_linux.c. Dont let us register a probe point for  */
 /*   something  on the notifier chain because if we trigger, we will  */
@@ -2314,13 +2301,36 @@ dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 /**********************************************************************/
 /*   Allow us to change driver parms.				      */
 /**********************************************************************/
+# define	MAX_SEC_LIST	64
+typedef struct dsecurity_t {
+	int	ds_proc[MAX_SEC_LIST];
+	int	ds_user[MAX_SEC_LIST];
+	int	ds_kernel[MAX_SEC_LIST];
+	int	ds_super[MAX_SEC_LIST];
+	} dsecurity_t;
 static ssize_t 
 dtracedrv_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos)
-{
-	if (count >= 6 &&
-	    strncmp(buf, "here=", 5) == 0) {
-	    	dtrace_here = simple_strtoul(buf + 5, NULL, 0);
+{	char	*bpend = buf + count;
+	char	*cp = buf;
+	int	len;
+
+	while (cp && cp < bpend) {
+		while (cp < bpend && *cp == ' ')
+			cp++;
+		if (cp >= bpend)
+			continue;
+		if (*cp == '\n') {
+			cp++;
+			continue;
+		}
+		len = bpend - cp;
+		if (len >= 6 && strncmp(cp, "here=", 5) == 0) {
+		    	dtrace_here = simple_strtoul(cp + 5, NULL, 0);
+			}
+		if ((cp = strchr(cp, '\n')) == NULL)
+			break;
+		cp++;
 		}
 	return count;
 }

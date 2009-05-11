@@ -84,14 +84,17 @@ struct modctl;
 	# include	<linux/kdev_t.h>
 	# include	<linux/version.h>
 	# include	<zone.h>
-	# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+	# if defined(HAVE_INCLUDE_LINUX_MUTEX_H)
 	#   include	<linux/mutex.h>
-	# else
+	# endif
+	# if defined(HAVE_INCLUDE_LINUX_STACKTRACE_H)
 	#   include	<linux/stacktrace.h>
+	# endif
+	# if defined(HAVE_INCLUDE_ASM_STACKTRACE_H)
 	#   include	<asm/stacktrace.h>
 	# endif
 
-	#define MUTEX_NOT_HELD(x)	mutex_count(x)
+	#define MUTEX_NOT_HELD(x)	!mutex_is_locked(x)
 
 	#define PS_VM 0x00020000 /* CPU in v8086 mode */
 
@@ -231,18 +234,22 @@ typedef unsigned long long hrtime_t;
 	/***********************************************/
 # if 0
 	typedef struct mutex mutex_t;
-	int	mutex_count(mutex_t *m);
 	#define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
 	#define	mutex_enter(x)	mutex_lock(x)
 	#define	mutex_exit(x)	mutex_unlock(x)
 	#define kmutex_t struct mutex
+	#define mutex_is_locked(x) (atomic_read(&(x)->count) != 1)
 # else
 	#define mutex semaphore
 	typedef struct semaphore mutex_t;
-	int	mutex_count(mutex_t *m);
 	#define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
 	#undef mutex_init
-	#define mutex_is_locked(x) ((x)->count == 0)
+
+	# if defined(HAVE_SEMAPHORE_ATOMIC_COUNT)
+	#  define mutex_is_locked(x) (atomic_read(&(x)->count) == 0)
+	# else
+	#  define mutex_is_locked(x) ((x)->count == 0)
+	#endif
 	#define	mutex_init(x)	init_MUTEX(x)
 	#define	mutex_enter(x)	down(x)
 	#define	mutex_exit(x)	up(x)
@@ -250,7 +257,12 @@ typedef unsigned long long hrtime_t;
 
 # endif
 
-	# include	<linux/semaphore.h>
+	# if defined(HAVE_INCLUDE_LINUX_SEMAPHORE_H)
+	#   include	<linux/semaphore.h>
+	# endif
+	# if defined(HAVE_INCLUDE_ASM_SEMAPHORE_H)
+	#   include	<asm/semaphore.h>
+	# endif
 	# include	<sys/cpuvar_defs.h>
 	# include	<sys/cpuvar.h>
 	

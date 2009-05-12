@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 13-Apr-2009 1.2 $ 			      */
+/*   $Header: Last edited: 13-May-2009 1.3 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -137,6 +137,14 @@ uintptr_t	_userlimit = 0x7fffffff;
 unsigned long dcnt[MAX_DCNT];
 
 /**********************************************************************/
+/*   The  security  profiles, loaded via /dev/dtrace. See comment in  */
+/*   dtrace_linux.h for details on how this works.		      */
+/**********************************************************************/
+# define	MAX_SEC_LIST	64
+int		di_cnt;
+dsec_item_t	di_list[MAX_SEC_LIST];
+
+/**********************************************************************/
 /*   The  kernel  can be compiled with a lot of potential CPUs, e.g.  */
 /*   64  is  not  untypical,  but  we  only have a dual core cpu. We  */
 /*   allocate  buffers  for each cpu - which can mushroom the memory  */
@@ -234,10 +242,17 @@ void	systrace_exit(void);
 static void print_pte(pte_t *pte, int level);
 static int dtrace_unregister_die_notifier(char *name, struct notifier_block *np);
 
+/**********************************************************************/
+/*   This  is broken -- shouldnt be using static and need to pass in  */
+/*   a struct.							      */
+/**********************************************************************/
 cred_t *
 CRED()
 {	static cred_t c;
 
+	c.cr_uid = current->uid;
+	c.cr_gid = current->gid;
+printk("CRED uid=%d gid=%d\n", c.cr_uid, c.cr_gid);
 	return &c;
 }
 # if 0
@@ -2181,14 +2196,13 @@ membar_producer(void)
 }
 
 /**********************************************************************/
-/*   TODO:  this  will  enable  dtrace_canload  and friends to let D  */
-/*   programs  peek  around  in  kernel  space.  We probably want to  */
-/*   parameter  or  create an ACL list loaded at run-time to do what  */
-/*   solaris has internally.					      */
+/*   Control  the access restrictions of processes (users) so we can  */
+/*   effect the privilege policies.				      */
 /**********************************************************************/
 int
-priv_policy_only(const cred_t *a, int b, int c)
+priv_policy_only(const cred_t *a, int priv, int allzone)
 {
+printk("priv_policy_only %p %x %d\n", a, priv, allzone);
         return 1;
 }
 /**********************************************************************/
@@ -2276,6 +2290,8 @@ static ssize_t
 dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {	int	n;
 	int	i;
+	int	size;
+	char	tmpbuf[128];
 
 	if (*off)
 		return 0;
@@ -2286,33 +2302,137 @@ dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 		dtrace_here,
 		cpu_get_id());
 	len -= n;
+	buf += n;
 	for (i = 0; i < MAX_DCNT && len > 0; i++) {
-		int	size;
 		if (dcnt[i] == 0)
 			continue;
-		size = snprintf(buf + strlen(buf), len,
+		size = snprintf(buf, len,
 			"dcnt%d=%lu\n", i, dcnt[i]);
+		buf += size;
 		len -= size;
 		n += size;
 		}
+	/***********************************************/
+	/*   Dump out the security table.	       */
+	/***********************************************/
+	for (i = 0; i < di_cnt && di_list[i].di_type && len > 0; i++) {
+		char	*tp;
+		char	*tpend = tmpbuf + sizeof tmpbuf;
+		strcpy(tmpbuf, 
+			di_list[i].di_type == DIT_UID ? "uid " :
+			di_list[i].di_type == DIT_GID ? "gid " :
+			di_list[i].di_type == DIT_ALL ? "all " : "sec?? ");
+		tp = tmpbuf + strlen(tmpbuf);
+
+		if (di_list[i].di_type != DIT_ALL) {
+			snprintf(tp, tpend - tp,
+				" %u", di_list[i].di_id);
+		}
+		if (di_list[i].di_priv & DTRACE_PRIV_USER)
+			strcat(tp, " priv_user");
+		if (di_list[i].di_priv & DTRACE_PRIV_KERNEL)
+			strcat(tp, " priv_kernel");
+		if (di_list[i].di_priv & DTRACE_PRIV_PROC)
+			strcat(tp, " priv_proc");
+		if (di_list[i].di_priv & DTRACE_PRIV_OWNER)
+			strcat(tp, " priv_owner");
+
+		size = snprintf(buf, len, "%s\n", tmpbuf);
+		buf += size;
+		len -= size;
+		n += size;
+	}
 	*off += n;
 	return n;
 }
 /**********************************************************************/
 /*   Allow us to change driver parms.				      */
 /**********************************************************************/
-# define	MAX_SEC_LIST	64
-typedef struct dsecurity_t {
-	int	ds_proc[MAX_SEC_LIST];
-	int	ds_user[MAX_SEC_LIST];
-	int	ds_kernel[MAX_SEC_LIST];
-	int	ds_super[MAX_SEC_LIST];
-	} dsecurity_t;
+
+/**********************************************************************/
+/*   Parse a security line, line this:				      */
+/*   								      */
+/*   clear                              			      */
+/*   uid 1 priv_user priv_kernel				      */
+/*   gid 23 priv_proc						      */
+/*   all priv_owner						      */
+/**********************************************************************/
+static int
+parse_sec(dsec_item_t *dp, const char *cp, const char *cpend)
+{	const char	*word;
+
+# define	skip_white() while (cp < cpend && *cp == ' ') cp++;
+
+	skip_white();
+	if (*cp == '#')
+		return FALSE;
+
+	word = cp;
+	while (cp < cpend && *cp != ' ') {
+		if (*cp == '\n')
+			return FALSE;
+		cp++;
+	}
+	/***********************************************/
+	/*   Lets us clear the array.		       */
+	/***********************************************/
+	if (cp - word >= 5 && strncmp(cp, "clear", 5) == 0)
+		return -1;
+
+	skip_white();
+	if (strncmp(word, "uid", 3) == 0)
+		dp->di_type = DIT_UID;
+	else if (strncmp(word, "gid", 3) == 0)
+		dp->di_type = DIT_GID;
+	else if (strncmp(word, "all", 3) == 0)
+		dp->di_type = DIT_ALL;
+	else
+		return FALSE;
+
+	if (dp->di_type == DIT_UID || dp->di_type == DIT_GID) {
+		word = cp;
+		dp->di_id = simple_strtoul(cp, NULL, 0);
+		while (cp < cpend && *cp != ' ') {
+			if (*cp == '\n')
+				return FALSE;
+			cp++;
+		}
+	}
+
+	dp->di_priv |= DTRACE_PRIV_NONE; /* 0x0000 */
+	while (cp < cpend && *cp != '\n') {
+		skip_white();
+		word = cp;
+		if (cp >= cpend || *cp == '\n' || *cp == '#')
+			break;
+
+		if (strncmp(cp, "priv_kernel", 11) == 0)
+			dp->di_priv |= DTRACE_PRIV_KERNEL;
+		else if (strncmp(cp, "priv_user", 9) == 0)
+			dp->di_priv |= DTRACE_PRIV_USER;
+		else if (strncmp(cp, "priv_proc", 9) == 0)
+			dp->di_priv |= DTRACE_PRIV_PROC;
+		else if (strncmp(cp, "priv_owner", 10) == 0)
+			dp->di_priv |= DTRACE_PRIV_OWNER;
+		else {
+			return FALSE;
+		}
+
+		while (cp < cpend && *cp != ' ' && *cp != '\n')
+			cp++;
+	}
+	return TRUE;
+}
+
+/**********************************************************************/
+/*   Parse  data written to /dev/dtrace. This is either debug stuff,  */
+/*   or the security regime.					      */
+/**********************************************************************/
 static ssize_t 
 dtracedrv_write(struct file *file, const char __user *buf,
 			      size_t count, loff_t *pos)
-{	char	*bpend = buf + count;
-	char	*cp = buf;
+{	const char	*bpend = buf + count;
+	const char	*cp = buf;
 	int	len;
 
 	while (cp && cp < bpend) {
@@ -2327,11 +2447,17 @@ dtracedrv_write(struct file *file, const char __user *buf,
 		len = bpend - cp;
 		if (len >= 6 && strncmp(cp, "here=", 5) == 0) {
 		    	dtrace_here = simple_strtoul(cp + 5, NULL, 0);
-			}
+		} else if (di_cnt < MAX_SEC_LIST) {
+			int	ret = parse_sec(&di_list[di_cnt], cp, bpend);
+			if (ret < 0)
+				di_cnt = 0;
+			else if (ret)
+				di_cnt++;
+		}
 		if ((cp = strchr(cp, '\n')) == NULL)
 			break;
 		cp++;
-		}
+	}
 	return count;
 }
 # if 0

@@ -263,6 +263,53 @@ typedef struct par_module_t {
 	} par_module_t;
 
 /**********************************************************************/
+/*   The following implements the security model for dtrace. We have  */
+/*   a list of items which are used to match process attributes.      */
+/*   								      */
+/*   We  want  to be generic, and allow the user to customise to the  */
+/*   local   security   regime.   We  allow  specific  ids  to  have  */
+/*   privileges and also to do the same against group ids.	      */
+/*   								      */
+/*   For  each security item, we can assign a distinct set of dtrace  */
+/*   privileges   (set   of   flags).   These   are   based  on  the  */
+/*   DTRACE_PRIV_xxxx  definitions.  On  Solaris, these would be set  */
+/*   via  policy  files accessed as the driver is loaded. For Linux,  */
+/*   we  try  to generalise the mechanism to provide finer levels of  */
+/*   granularity  and  allow  group  ids  or  groups  of ids to have  */
+/*   similar settings.						      */
+/*   								      */
+/*   The  load.pl script will load up the security settings from the  */
+/*   file  /etc/dtrace.conf  (if  available). See the etc/ directory  */
+/*   for an example config file.				      */
+/*   								      */
+/*   The format of a command line is as follows:		      */
+/*   								      */
+/*   clear                              			      */
+/*   uid 1 priv_user priv_kernel				      */
+/*   gid 23 priv_proc						      */
+/*   all priv_owner						      */
+/*   								      */
+/*   Multiple  privilege  flags  can  be set for an id. The array of  */
+/*   descriptors   is  searched  linearly,  so  you  can  specify  a  */
+/*   fallback, as in the example above. 			      */
+/*   								      */
+/*   There  is  a limit to the max number of descriptors. This could  */
+/*   change  to  be  based  on  a dynamic array rather than a static  */
+/*   array,  but  it  is  expected  that a typical scenario will use  */
+/*   group  mappings,  and  at  most, a handful. (Current array size  */
+/*   limited to 64).						      */
+/**********************************************************************/
+# define	DIT_UID	1
+# define	DIT_GID	2
+# define	DIT_ALL 3
+typedef struct dsec_item_t {
+	unsigned char	di_flags;
+	unsigned char	di_type;	/* DIT_UID, DIT_GID, DIT_ALL */
+	unsigned short	di_priv;	/* The dtrace credentials */
+	unsigned int	di_id;		/* The uid or group id */
+	} dsec_item_t;
+
+/**********************************************************************/
 /*   Stats   counters   -  for  seeing  where  we  got  to:  ad  hoc  */
 /*   debugging/performance monitoring.				      */
 /**********************************************************************/

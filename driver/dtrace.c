@@ -12601,7 +12601,7 @@ dtrace_state_create(struct file *fp, cred_t *cr)
 # else
         /*state->dts_aggid_arena = new_unrhdr(1, INT_MAX, &dtrace_unr_mtx);*/
 
-        state->dts_dev = (dev_t) (uintptr_t *) fp;
+        state->dts_dev = (dev_t) (long long) fp;
 # endif
 
 	/*

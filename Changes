@@ -1,3 +1,7 @@
+Wed May 13 21:27:06 2009  fox
+
+     269* dtrace_linux.c: Add security parsing for /dev/dtrace.
+
 Tue May 12 20:34:40 2009  fox
 
      268* Archive: 1.0088

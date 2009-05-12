@@ -5,6 +5,7 @@
 # 20090415 PDF Fix for when we are using the optional symbols (AS4)
 # 20090416 PDF Add /boot/System.map support
 # 20090416 PDF Add -unhandled switch support.
+# 20090513 PDF Add copy of /etc/dtrace.conf to /dev/dtrace.
 
 # Simple script to load the driver and get it ready.
 
@@ -255,6 +256,14 @@ EOF
 			print "symlink($pname, /tmp/probes.current) error -- $!\n";
 		}
 	}
+
+	###############################################
+	#   Load   the   security  policy  into  the  #
+	#   kernel.				      #
+	###############################################
+	if ( -f "/etc/dtrace.conf") {
+		system("cat /etc/dtrace.conf >/dev/dtrace");
+	}
 	print time_string() . "Time: ", time() - $tstart, "s\n";
 }
 #####################################################################
@@ -293,6 +302,11 @@ sub usage
 	print <<EOF;
 load.pl: load dtrace driver and prime the links to the kernel.
 Usage: load.pl [-v] [-here] [-fast] [-mem_alloc]
+
+Description:
+
+  Loads the dtrace driver into the kernel, prime the symbol tables,
+  and load the /etc/dtrace.conf policy file.
 
 Switches:
 

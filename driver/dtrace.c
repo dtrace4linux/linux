@@ -5802,7 +5802,7 @@ dcnt[0]++;
 	probe = dtrace_probes[id - 1];
 	cpuid = cpu_get_id();
 	onintr = CPU_ON_INTR(CPU);
-if (onintr) dcnt[10]++; else dcnt[11]++;
+
 //printk("dtrace_probe: cpuid=%d onintr=%d\n", cpuid, onintr);
 
 	if (!onintr && probe->dtpr_predcache != DTRACE_CACHEIDNONE &&
@@ -5820,7 +5820,6 @@ dcnt[1]++;
 		/*
 		 * We don't trace anything if we're panicking.
 		 */
-dcnt[2]++;
 		dtrace_interrupt_enable(cookie);
 		return;
 	}
@@ -5830,7 +5829,6 @@ dcnt[2]++;
 	if (vtime && curthread->t_dtrace_start)
 		curthread->t_dtrace_vtime += now - curthread->t_dtrace_start;
 
-dcnt[3]++;
 	mstate.dtms_difo = NULL;
 	mstate.dtms_probe = probe;
 	mstate.dtms_strtok = NULL;
@@ -5905,7 +5903,6 @@ dcnt[3]++;
 			 * has invoked the exit() action, we don't want to
 			 * evaluate subsequent BEGIN enablings.
 			 */
-dcnt[4]++;
 			if (probe->dtpr_id == dtrace_probeid_begin &&
 			    state->dts_activity != DTRACE_ACTIVITY_WARMUP) {
 				ASSERT(state->dts_activity ==
@@ -5913,8 +5910,6 @@ dcnt[4]++;
 				continue;
 			}
 		}
-dcnt[5]++;
-HERE();
 
 		if (ecb->dte_cond) {
 			/*
@@ -5925,12 +5920,13 @@ HERE();
 			 * while in a user context. Skip this ECB if that's
 			 * not the case.
 			 */
+HERE();
+printk("usermode=%p\n", prov->dtpv_pops.dtps_usermode);
 			if ((ecb->dte_cond & DTRACE_COND_USERMODE) &&
 			    prov->dtpv_pops.dtps_usermode(prov->dtpv_arg,
 			    probe->dtpr_id, probe->dtpr_arg) == 0)
 				continue;
 
-# if defined(sun)
 			/*
 			 * This is more subtle than it looks. We have to be
 			 * absolutely certain that CRED() isn't going to
@@ -5944,6 +5940,7 @@ HERE();
 			 * we're examining a user context.
 			 */
 			if (ecb->dte_cond & DTRACE_COND_OWNER) {
+# if defined(sun)
 				cred_t *cr;
 				cred_t *s_cr =
 				    ecb->dte_state->dts_cred.dcr_cred;
@@ -5961,8 +5958,9 @@ HERE();
 				    (proc = ttoproc(curthread)) == NULL ||
 				    (proc->p_flag & SNOCD))
 					continue;
-			}
 # endif
+			}
+
 			if (ecb->dte_cond & DTRACE_COND_ZONEOWNER) {
 				cred_t *cr;
 				cred_t *s_cr =
@@ -5977,6 +5975,7 @@ HERE();
 			}
 		}
 
+HERE();
 		if (now - state->dts_alive > dtrace_deadman_timeout) {
 			/*
 			 * We seem to be dead.  Unless we (a) have kernel
@@ -5991,7 +5990,7 @@ HERE();
 			    dtrace_destructive_disallow) {
 				void *activity = &state->dts_activity;
 				dtrace_activity_t current;
-HERE();
+
 //printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
 				do {
 					current = state->dts_activity;
@@ -6001,6 +6000,7 @@ HERE();
 				continue;
 			}
 		}
+
 
 		if ((offs = dtrace_buffer_reserve(buf, ecb->dte_needed,
 		    ecb->dte_alignment, state, &mstate)) < 0)
@@ -6020,6 +6020,7 @@ HERE();
 		else
 			mstate.dtms_access = 0;
 
+HERE();
 		if (pred != NULL) {
 			dtrace_difo_t *dp = pred->dtp_difo;
 			int rval;
@@ -6076,7 +6077,6 @@ HERE();
 				continue;
 			}
 
-HERE();
 			switch (act->dta_kind) {
 			case DTRACEACT_STOP:
 PRINT_CASE(DTRACEACT_STOP);
@@ -6705,7 +6705,6 @@ dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp)
 {
 	uint32_t priv;
 
-# if defined(sun)
 	if (cr == NULL || PRIV_POLICY_ONLY(cr, PRIV_ALL, B_FALSE)) {
 		/*
 		 * For DTRACE_PRIV_ALL, the uid and zoneid don't matter.
@@ -6727,9 +6726,6 @@ dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp)
 		if (PRIV_POLICY_ONLY(cr, PRIV_PROC_ZONE, B_FALSE))
 			priv |= DTRACE_PRIV_ZONEOWNER;
 	}
-# else
-	priv = DTRACE_PRIV_ALL;
-# endif
 	*privp = priv;
 }
 
@@ -15067,9 +15063,10 @@ int
 dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 {
 	dtrace_state_t *state;
-# if defined(sun)
 	uint32_t priv = 0;
 	uid_t uid = 0;
+	zoneid_t zoneid;
+# if defined(sun)
 
 	if (getminor(*devp) == DTRACEMNRN_HELPER)
 		return (0);
@@ -15081,6 +15078,7 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	if (getminor(*devp) != DTRACEMNRN_DTRACE)
 		RETURN(ENXIO);
 
+# endif
 	/*
 	 * If no DTRACE_PRIV_* bits are set in the credential, then the
 	 * caller lacks sufficient permission to do anything with DTrace.
@@ -15088,7 +15086,6 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	dtrace_cred2priv(cred_p, &priv, &uid, &zoneid);
 	if (priv == DTRACE_PRIV_NONE)
 		RETURN(EACCES);
-# endif
 
 	/*
 	 * Ask all providers to provide all their probes.
@@ -15117,7 +15114,11 @@ HERE();
 
 	state = dtrace_state_create(devp, cred_p);
 # else
-        state = dtrace_state_create(fp, NULL);
+	/***********************************************/
+	/*   We need a security context for the user.  */
+	/*   Construct and pass one in here.	       */
+	/***********************************************/
+        state = dtrace_state_create(fp, CRED());
 //printk("dev_set_drvdata(%p, %p)\n", fp, state);
 	fp->private_data = state;
 # endif

@@ -84,6 +84,7 @@ static char *invop_msgs[] = {
 	"DTRACE_INVOP_PUSHL_RCX",
 	"DTRACE_INVOP_PUSHL_REG",
 	"DTRACE_INVOP_PUSHL_REG2",
+	"DTRACE_INVOP_ANY",
 	};
 
 /**********************************************************************/
@@ -153,7 +154,8 @@ dsec_item_t	di_list[MAX_SEC_LIST];
 /**********************************************************************/
 cpu_t	*cpu_list;
 cpu_core_t *cpu_core;
-cpu_t *cpu_table;
+cpu_t	*cpu_table;
+cpu_t	*cpu_cred;
 int	nr_cpus = 1;
 MUTEX_DEFINE(mod_lock);
 
@@ -243,17 +245,26 @@ static void print_pte(pte_t *pte, int level);
 static int dtrace_unregister_die_notifier(char *name, struct notifier_block *np);
 
 /**********************************************************************/
-/*   This  is broken -- shouldnt be using static and need to pass in  */
-/*   a struct.							      */
+/*   Return  the credentials of the current process. Solaris assumes  */
+/*   we  are  embedded inside the proc/user struct, but in Linux, we  */
+/*   have   different   linages.   Earlier   kernels   had  explicit  */
+/*   uid/euid/...   fields,   and   from  2.6.29,  a  separate  cred  */
+/*   structure. We need to hide that from the kernel.		      */
+/*   								      */
+/*   In  addition,  because  we  are  encapsulating,  we  need to be  */
+/*   careful  of  SMP  systems - we cannot use a static, so we use a  */
+/*   per-cpu   array  so  that  any  CPU  wont  disturb  the  cached  */
+/*   credentials we are picking up.				      */
 /**********************************************************************/
 cred_t *
 CRED()
-{	static cred_t c;
+{	cred_t	*cr = &cpu_cred[cpu_get_id()];
 
-	c.cr_uid = current->uid;
-	c.cr_gid = current->gid;
-printk("CRED uid=%d gid=%d\n", c.cr_uid, c.cr_gid);
-	return &c;
+	cr->cr_uid = current->uid;
+	cr->cr_gid = current->gid;
+//printk("get cred end %d %d\n", cr->cr_uid, cr->cr_gid);
+
+	return cr;
 }
 # if 0
 /**********************************************************************/
@@ -578,7 +589,7 @@ set_idt_entry(int intr, unsigned long func)
 	int	ist = GATE_DEBUG_STACK;
 	int	seg = __KERNEL_CS;
 
-printk("patch idt %p vec %d func %lx\n", idt_table, intr, func);
+//printk("patch idt %p vec %d func %lx\n", idt_table, intr, func);
 
 	memset(&s, 0, sizeof s);
 
@@ -2195,15 +2206,50 @@ membar_producer(void)
 {
 }
 
+int
+priv_policy_choice(const cred_t *a, int priv, int allzone)
+{
+//printk("priv_policy_choice %p %x %d := trying...\n", a, priv, allzone);
+	return priv_policy_only(a, priv, allzone);
+}
 /**********************************************************************/
 /*   Control  the access restrictions of processes (users) so we can  */
 /*   effect the privilege policies.				      */
 /**********************************************************************/
 int
 priv_policy_only(const cred_t *a, int priv, int allzone)
-{
-printk("priv_policy_only %p %x %d\n", a, priv, allzone);
-        return 1;
+{	dsec_item_t	*dp;
+	dsec_item_t	*dpend;
+
+	/***********************************************/
+	/*   Let  root  have  access,  else we cannot  */
+	/*   really initialise the driver.	       */
+	/***********************************************/
+	if (a->cr_uid == 0)
+		return 1;
+
+	dpend = &di_list[di_cnt];
+//printk("priv_policy_only %p %x %d := trying...\n", a, priv, allzone);
+	for (dp = di_list; dp < dpend; dp++) {
+		switch (dp->di_type) {
+		  case DIT_UID:
+		  	if (dp->di_id != a->cr_uid)
+				continue;
+			break;
+		  case DIT_GID:
+		  	if (dp->di_id != a->cr_gid)
+				continue;
+			break;
+		  case DIT_ALL:
+		  	break;
+		  }
+		if ((dp->di_priv & priv) == 0)
+			continue;
+printk("priv_policy_only %p (%d,%d) %x %d := true\n", a, a->cr_uid, a->cr_gid, priv, allzone);
+		return 1;
+	}
+printk("priv_policy_only %p (%d,%d) %x %d := false\n", a, a->cr_uid, a->cr_gid, priv, allzone);
+        return 0;
 }
 /**********************************************************************/
 /*   Module   interface   for   /dev/dtrace_helper.  I  really  want  */
@@ -2261,7 +2307,7 @@ dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
 //HERE();
-	ret = dtrace_open(file, 0, 0, NULL);
+	ret = dtrace_open(file, 0, 0, CRED());
 HERE();
 
 	return -ret;
@@ -2370,13 +2416,13 @@ parse_sec(dsec_item_t *dp, const char *cp, const char *cpend)
 	word = cp;
 	while (cp < cpend && *cp != ' ') {
 		if (*cp == '\n')
-			return FALSE;
+			break;
 		cp++;
 	}
 	/***********************************************/
 	/*   Lets us clear the array.		       */
 	/***********************************************/
-	if (cp - word >= 5 && strncmp(cp, "clear", 5) == 0)
+	if (cp - word >= 5 && strncmp(word, "clear", 5) == 0)
 		return -1;
 
 	skip_white();
@@ -2434,6 +2480,14 @@ dtracedrv_write(struct file *file, const char __user *buf,
 {	const char	*bpend = buf + count;
 	const char	*cp = buf;
 	int	len;
+
+	/***********************************************/
+	/*   If  we  arent root, dont accept or trust  */
+	/*   anything  since  they  can  subvert  the  */
+	/*   security model.			       */
+	/***********************************************/
+	if (current->uid != 0 && current->euid != 0)
+		return count;
 
 	while (cp && cp < bpend) {
 		while (cp < bpend && *cp == ' ')
@@ -2552,6 +2606,7 @@ static struct proc_dir_entry *dir;
 	cpu_table = (cpu_t *) kzalloc(sizeof *cpu_table * nr_cpus, GFP_KERNEL);
 	cpu_core = (cpu_core_t *) kzalloc(sizeof *cpu_core * nr_cpus, GFP_KERNEL);
 	cpu_list = (cpu_t *) kzalloc(sizeof *cpu_list * nr_cpus, GFP_KERNEL);
+	cpu_cred = (cred_t *) kzalloc(sizeof *cpu_cred * nr_cpus, GFP_KERNEL);
 	for (i = 0; i < nr_cpus; i++) {
 		cpu_list[i].cpuid = i;
 		cpu_list[i].cpu_next = &cpu_list[i+1];
@@ -2637,6 +2692,7 @@ static void __exit dtracedrv_exit(void)
 		}
 	}
 
+	kfree(cpu_cred);
 	kfree(cpu_table);
 	kfree(cpu_core);
 	kfree(cpu_list);

@@ -244,17 +244,19 @@ EOF
 	if (!$opts{fast}) {
 
 		print time_string() . "Probes available: ";
-		my $pname = strftime("/tmp/probes-%Y%m%d-%H:%M", localtime);
-		if ( -f "/tmp/probes.current" && ! -f $pname ) {
-			if (!rename("/tmp/probes.current", "/tmp/probes.prev")) {
-				print "rename error /tmp/probes.current -- $!\n";
-			}
-		}
-		spawn("$dtrace -l | tee $pname | wc -l ");
-		unlink("/tmp/probes.current");
-		if (!symlink($pname, "/tmp/probes.current")) {
-			print "symlink($pname, /tmp/probes.current) error -- $!\n";
-		}
+		my $pname = "/tmp/probes";
+		spawn("$SUDO rm -f /tmp/probes");
+#		my $pname = strftime("/tmp/probes-%Y%m%d-%H:%M", localtime);
+#		if ( -f "/tmp/probes.current" && ! -f $pname ) {
+#			if (!rename("/tmp/probes.current", "/tmp/probes.prev")) {
+#				print "rename error /tmp/probes.current -- $!\n";
+#			}
+#		}
+		spawn("$SUDO $dtrace -l | tee $pname | wc -l ");
+#		unlink("/tmp/probes.current");
+#		if (!symlink($pname, "/tmp/probes.current")) {
+#			print "symlink($pname, /tmp/probes.current) error -- $!\n";
+#		}
 	}
 
 	###############################################
@@ -262,7 +264,7 @@ EOF
 	#   kernel.				      #
 	###############################################
 	if ( -f "/etc/dtrace.conf") {
-		system("cat /etc/dtrace.conf >/dev/dtrace");
+		system("$SUDO sh -c \"cat /etc/dtrace.conf >/dev/dtrace\"");
 	}
 	print time_string() . "Time: ", time() - $tstart, "s\n";
 }

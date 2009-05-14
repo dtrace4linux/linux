@@ -110,6 +110,9 @@ install: build/dtrace build/config.sh
 	mkdir -p /usr/lib/dtrace/$$CPU_BITS ; \
 	install -m 4755 -o root build/dtrace /usr/sbin/dtrace ; \
 	install -m 644 -o root build/drti.o /usr/lib/dtrace/$$CPU_BITS/drti.o
+	if [ ! -f /etc/dtrace.conf ] ; then \
+		install -m 644 -o root etc/dtrace.conf /etc/dtrace.conf ; \
+	fi
 
 newf:
 	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \

@@ -639,7 +639,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-	do_print = strncmp(name, "update_process", 9) == NULL;
+//	do_print = strncmp(name, "update_process", 9) == NULL;
 
 #ifdef __amd64
 	switch (instr[0]) {
@@ -651,6 +651,10 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	  	if (instr[1] >= 0x50 && instr[1] <= 0x57)
 			invop = DTRACE_INVOP_PUSHL_REG2;
 		break;
+
+	  case 0x48:
+		invop = DTRACE_INVOP_ANY;
+	  	break;
 
 	  case 0x50:  /* PUSH rXX */
 	  case 0x51:
@@ -1463,8 +1467,10 @@ printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
 
 	dtrace_invop_add(fbt_invop);
 	
-	dtrace_register("fbt", &fbt_attr, DTRACE_PRIV_KERNEL, 0,
-	    &fbt_pops, NULL, &fbt_id);
+	if (dtrace_register("fbt", &fbt_attr, DTRACE_PRIV_KERNEL, 0,
+	    &fbt_pops, NULL, &fbt_id)) {
+		printk("Failed to register fbt - insufficient priviledge\n");
+	}
 
 	initted = 1;
 

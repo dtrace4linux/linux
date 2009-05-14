@@ -316,6 +316,7 @@ typedef struct dsec_item_t {
 # define MAX_DCNT	32
 extern unsigned long dcnt[MAX_DCNT];
 
+int priv_policy_choice(const cred_t *a, int priv, int allzone);
 void *par_alloc(void *, int, int *);
 proc_t * par_find_thread(struct task_struct *t);
 void par_free(void *ptr);

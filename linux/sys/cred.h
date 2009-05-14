@@ -34,7 +34,7 @@ struct cred {
 typedef struct cred cred_t;
 
 cred_t *CRED(void);
-#define priv_policy_choice(a, b, c) 1
+int priv_policy_only(const cred_t *a, int priv, int allzone);
 #define crgetzoneid(p) 0
 #define crfree(cred)
 #define crgetgid(cred)  ((cred)->cr_gid)

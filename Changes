@@ -1,3 +1,25 @@
+Fri May 15 21:56:07 2009  fox
+
+     273* Archive: 1.0089
+
+     272* tools/load.pl, makefile: Load /etc/dtrace.conf into the kernel 
+          if present. SUDO when appropriate because now we need to be 
+	  root to talk to the kernel.
+
+	  Please edit /etc/dtrace.conf - it contains my uid in there which
+	  isnt appropriate for your system, but change according to taste.
+
+	  It wont get overwritten in a new 'make install', so its
+	  persistent.
+
+     271* dtrace.c, dtrace_linux.c: Fix security policy issues.
+
+Thu May 14 21:30:46 2009  fox
+
+     270* fbt_linux.c: Allow opcode 0x48 for 64-bit. More than doubles 
+     	  Ubuntu 8.10 / 2.6.27.8 kernel probes. We can allow them all 
+	  through but just taking it slowly.
+
 Wed May 13 21:27:06 2009  fox
 
      269* dtrace_linux.c: Add security parsing for /dev/dtrace.

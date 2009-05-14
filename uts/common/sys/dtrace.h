@@ -2253,6 +2253,7 @@ extern void dtrace_getfsr(uint64_t *);
 #define	DTRACE_INVOP_PUSHL_RCX		20
 #define	DTRACE_INVOP_PUSHL_REG		21
 #define	DTRACE_INVOP_PUSHL_REG2 	22
+#define	DTRACE_INVOP_ANY		23
 
 #endif
 

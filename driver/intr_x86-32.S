@@ -25,6 +25,12 @@
 
 # include <asm/segment.h>
 
+.macro FUNCTION name
+	.text
+	.globl \name
+	.type \name, @function
+.endm
+
 .macro POP_REGS
 	pop %ebx
 	pop %ecx
@@ -66,9 +72,7 @@
 /**********************************************************************/
 /*   Function wired into the IDT for INT3 interrupts.		      */
 /**********************************************************************/
-	.text
-	.globl dtrace_int1
-	.type dtrace_int1, @function
+	FUNCTION dtrace_int1
 
 dtrace_int1:
 	PUSH_REGS
@@ -92,7 +96,6 @@ dtrace_int1:
 user_int1:
 	POP_REGS
 	jmp *kernel_int1_handler
-	iret
 
 int1_handled:
 	POP_REGS
@@ -101,9 +104,7 @@ int1_handled:
 /**********************************************************************/
 /*   Function wired into the IDT for INT3 interrupts.		      */
 /**********************************************************************/
-	.text
-	.globl dtrace_int3
-	.type dtrace_int3, @function
+	FUNCTION dtrace_int3
 
 dtrace_int3:
 	PUSH_REGS
@@ -128,10 +129,54 @@ dtrace_int3:
 user_int3:
 	POP_REGS
 	jmp *kernel_int3_handler
-	iret
 
 int3_handled:
 	POP_REGS
 	iret
+
+/**********************************************************************/
+/*   Function wired into the IDT for Page Faults (14) interrupts.     */
+/**********************************************************************/
+	FUNCTION dtrace_page_fault
+
+dtrace_page_fault:
+	PUSH_REGS
+
+	/***********************************************/
+	/*   If this is a userspace INT3 instruction,  */
+	/*   just give it to the kernel.	       */
+	/***********************************************/
+	cmp $__KERNEL_CS, 0x30(%esp)
+	jne user_page_fault
+
+	/***********************************************/
+	/*   dtrace_page_fault_handler(1, regs)	       */
+	/***********************************************/
+	mov %esp,%edx
+	mov $1,%eax
+	call dtrace_page_fault_handler
+	cmp $0x8001,%eax
+	je page_fault_handled
+
+	// Not handled - so let kernel have it.
+user_page_fault:
+	POP_REGS
+	jmp *kernel_page_fault_handler
+
+page_fault_handled:
+	POP_REGS
+	iret
+
+/**********************************************************************/
+/*   We  define  mcount  function,  so  that  we  dont call into the  */
+/*   kernels  mcount. If we try and probe mcount, we want to see the  */
+/*   kernels  calls into it, not our own - which will cause a kernel  */
+/*   recursion  panic  if  we let this happen. (Ubuntu seems to have  */
+/*   some  kernels  with this turned on for some reason, e.g. Ubuntu  */
+/*   8.10 2.6.27 kernels).					      */
+/**********************************************************************/
+	FUNCTION mcount
+mcount:
+	ret
 
 # endif

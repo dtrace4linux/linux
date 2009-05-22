@@ -91,13 +91,14 @@ typedef struct fbt_probe {
 	uint8_t		fbtp_patchval;
 	uint8_t		fbtp_savedval;
 	uint8_t		fbtp_inslen;	/* Length of instr we are patching */
+	char		fbtp_modrm;	/* Offset to modrm byte of instruction */
 	uintptr_t	fbtp_roffset;
 	dtrace_id_t	fbtp_id;
 	char		*fbtp_name;
 	struct modctl	*fbtp_ctl;
 	int		fbtp_loadcnt;
 	int		fbtp_symndx;
-	int		fbtp_primary;
+//	int		fbtp_primary;
 	struct fbt_probe *fbtp_next;
 } fbt_probe_t;
 
@@ -223,6 +224,7 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 HERE();
 			tinfo->t_opcode = fbt->fbtp_savedval;
 			tinfo->t_inslen = fbt->fbtp_inslen;
+			tinfo->t_modrm = fbt->fbtp_modrm;
 			if (!tinfo->t_doprobe)
 				return fbt->fbtp_rval;
 			if (fbt->fbtp_roffset == 0) {
@@ -616,6 +618,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	int	invop = 0;
 	fbt_probe_t *fbt, *retfbt;
 	int	 size = 1;
+	int	modrm;
 
 	/***********************************************/
 	/*   Dont  let  us  register  anything on the  */
@@ -648,11 +651,18 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 		break;
 
 	  case 0x41:
-	  	if (instr[1] >= 0x50 && instr[1] <= 0x57)
-			invop = DTRACE_INVOP_PUSHL_REG2;
+		invop = DTRACE_INVOP_ANY;
 		break;
 
 	  case 0x48:
+	  case 0x88:
+	  case 0x89:
+	  case 0x8a:
+	  case 0x8b:
+	  case 0x8c:
+	  case 0x8d:
+	  case 0x8e:
+	  case 0x8f:
 		invop = DTRACE_INVOP_ANY;
 	  	break;
 
@@ -798,7 +808,12 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/***********************************************/
 	if (fbt_is_patched(instr))
 		return;
-
+/*
+{uchar_t *modrm = dtrace_instr_modrm(instr);
+if (modrm && (modrm[0] & 0xc7) == 0x05) {do_print = 1;
+printk("modrm=%d\n", modrm - instr);
+}}
+*/
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 			fbt->fbtp_name = name;
 
@@ -815,7 +830,9 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   over it.				       */
 	/***********************************************/
 	fbt->fbtp_savedval = *instr;
-	fbt->fbtp_inslen = dtrace_instr_size(instr);
+	fbt->fbtp_inslen = dtrace_instr_size_modrm(instr, &modrm);
+if (*instr == 0x48 && modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) printk("modrm %s %p rm=%d\n", name, instr, modrm);
+	fbt->fbtp_modrm = modrm;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
@@ -944,6 +961,7 @@ again:
 	/***********************************************/
 	fbt->fbtp_savedval = *instr;
 	fbt->fbtp_inslen = size;
+	fbt->fbtp_modrm = -1;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
 	fbt->fbtp_symndx = symndx;

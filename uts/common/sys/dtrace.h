@@ -2201,6 +2201,8 @@ extern int dtrace_mach_aframes(void);
 
 #if defined(__i386) || defined(__amd64)
 extern int dtrace_instr_size(uchar_t *instr);
+extern uchar_t *dtrace_instr_modrm(uchar_t *instr);
+extern int dtrace_instr_size_modrm(uchar_t *instr, int *modrm);
 extern int dtrace_instr_size_isa(uchar_t *, model_t, int *);
 extern void dtrace_invop_add(int (*)(uintptr_t, uintptr_t *, uintptr_t, trap_instr_t *));
 extern void dtrace_invop_remove(int (*)(uintptr_t, uintptr_t *, uintptr_t, trap_instr_t *));

@@ -66,16 +66,6 @@ typedef enum {
                                 sizeof (kmutex_t))
 #define CPUC_PADSIZE            CPU_CACHE_COHERENCE_SIZE - CPUC_SIZE
 
-/**********************************************************************/
-/*   Structure  used  when  hitting  a trap instruction, to describe  */
-/*   what the instruction looks like (dtrace_invop)		      */
-/**********************************************************************/
-typedef struct trap_instr_t {
-	int		t_doprobe;
-	unsigned char	t_opcode;
-	unsigned char	t_inslen;
-	} trap_instr_t;
-
 typedef struct cpu {
         int             cpuid;
         struct cyc_cpu *cpu_cyclic;
@@ -93,6 +83,32 @@ typedef struct cpu {
 	struct mutex	cpu_ft_lock;		/* fasttrap mutex.	*/
 } cpu_t;
 
+/**********************************************************************/
+/*   Structure  used  when  hitting  a trap instruction, to describe  */
+/*   what the instruction looks like (dtrace_invop)		      */
+/**********************************************************************/
+typedef struct trap_instr_t {
+	int		t_doprobe;
+	int		t_modrm;
+	unsigned char	t_opcode;
+	unsigned char	t_inslen;
+	} trap_instr_t;
+
+/**********************************************************************/
+/*   Structure  needed  whilst  we  single step a breakpoint. We may  */
+/*   need  more  than one to handle a nested trap (page fault during  */
+/*   single step of a probe).					      */
+/**********************************************************************/
+typedef struct cpu_trap_t {
+# define MAX_INSTR_LEN  16
+	unsigned char	ct_instr_buf[MAX_INSTR_LEN];
+	unsigned char	*ct_orig_pc;
+	unsigned char	*ct_expected_pc;
+	int             ct_stepping;
+	unsigned long	ct_eflags;
+	trap_instr_t	ct_tinfo;
+	} cpu_trap_t;
+
 typedef struct cpu_core {
         uint16_t        cpuc_dtrace_flags;      /* DTrace flags */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
@@ -107,14 +123,13 @@ typedef struct cpu_core {
 	/***********************************************/
 	/*   Here for single stepping.                 */
 	/***********************************************/
-# define MAX_INSTR_LEN  16
-	unsigned char cpuc_instr_buf[MAX_INSTR_LEN];
-	unsigned char *cpuc_orig_pc;
-	unsigned char *cpuc_expected_pc;
-	int             cpuc_stepping;
-	trap_instr_t	cpuc_tinfo;
-	unsigned long	cpuc_eflags;
+	int		cpuc_mode;
+	cpu_trap_t	cpuc_trap[2];
 } cpu_core_t;
+
+# define	CPUC_MODE_IDLE	0
+# define	CPUC_MODE_INT3	1
+# define	CPUC_MODE_INT1	2
 
 extern cpu_core_t *cpu_core;
 extern cpu_t	*cpu_table;

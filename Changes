@@ -1,3 +1,47 @@
+Sat May 23 19:18:09 2009  fox
+
+     283* intr_x86-32.S, intr_x86-64.S: Add a dummy mcount function
+          in case kernel is compiled with -pg. We mustnt call into
+	  the kernels mcount else we hit a recursion error.
+
+     282* fbt_linux.c: Re-enable more x86-64 opcodes which were disabled
+          whilst debugging the interrupt handlers.
+
+     281* fbt_linux.c, dtrace_linux.c, cpuvar.h: Compute modrm byte
+          during analysis phase, not during an interrupt, to lower overhead
+	  of RIP addressing mode handler.
+
+     280* Archive: 1.0090
+
+Thu May 21 23:10:10 2009  fox
+
+     279* systrace.c: Fix for write-protected interrupt handlers.
+	  (patch_enable).
+
+Wed May 20 21:55:34 2009  fox
+
+     278* dtrace_linux.c: Move /dev/dtrace into /proc/dtrace and segregate
+          the debug streams into separate entries (debug, security, stats, trace).
+	  This is easier to handle >4K reads for the trace buffer.
+
+Sun May 17 20:51:17 2009  fox
+
+     277* intr_x86-64.S: Allow us to probe an IRET instruction.
+          (irq_return)
+
+Sat May 16 22:19:52 2009  fox
+
+     276* dtrace_linux.c: Add support for RIP relative addressing mode
+          single step.
+
+     275* dtrace_linux.c: Add dtrace_memcpy to avoid reentrancy issues when
+          we probe memcpy(). This happens because we use this inside our
+	  single step handler.
+
+     274* fasttrap.c: Avoid kernel panic when invoking a USDT since
+          we are tuned to the number of cpus, not the max of cpus we
+	  could have.
+
 Fri May 15 21:56:07 2009  fox
 
      273* Archive: 1.0089

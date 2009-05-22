@@ -938,8 +938,14 @@ static int do_patch = TRUE; // Set to FALSE whilst browsing for a patch
 	/*   Compute relative jump target.	       */
 	/***********************************************/
 	pp->p_newval = ((unsigned char *) pp->p_code - (codep + 4));
-	if (do_patch)
+	if (do_patch) {
+		/***********************************************/
+		/*   Ensure this block of memory is writable.  */
+		/***********************************************/
+		if (memory_set_rw(pp->p_taddr, 1, TRUE) == 0)
+			printk("dtrace:patch_enable:Cannot make %p rd/wr\n", pp->p_taddr);
 		*(int32_t *) pp->p_taddr = pp->p_newval;
+	}
 }
 /**********************************************************************/
 /*   This  gets  called when someone is trying to launch a probe and  */

@@ -509,7 +509,7 @@ HERE();
 			(nents + 1) * sizeof(struct pid_entry),
 			GFP_KERNEL);
 
-		memcpy(tgid_base_stuff_2, ents, nents * sizeof ents[0]);
+		dtrace_memcpy(tgid_base_stuff_2, ents, nents * sizeof ents[0]);
 		tgid_base_stuff_2[nents].name = "ctl";
 		tgid_base_stuff_2[nents].len = 3;
 		tgid_base_stuff_2[nents].mode = S_IFREG | 0640;

@@ -116,7 +116,11 @@
 # undef current
 # endif
 
+# if 0
 # define RETURN(err) do { printk("%s(%d): RETURN ERROR %s\n", __func__, __LINE__, #err); return err;} while (0)
+# else
+# define RETURN(err) return err
+# endif
 
 /*
  * DTrace Tunable Variables
@@ -1001,19 +1005,6 @@ dtrace_bcmp(const void *s1, const void *s2, size_t len)
 		} while (--len != 0 && !(*flags & CPU_DTRACE_FAULT));
 	}
 	return (0);
-}
-
-/*
- * Zero the specified region using a simple byte-by-byte loop.  Note that this
- * is for safe DTrace-managed memory only.
- */
-static void
-dtrace_bzero(void *dst, size_t len)
-{
-	uchar_t *cp;
-
-	for (cp = dst; len != 0; len--)
-		*cp++ = 0;
 }
 
 static void

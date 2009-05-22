@@ -379,7 +379,14 @@ fasttrap_mod_barrier(uint64_t gen)
 	/***********************************************/
 
 HERE();
-	for (i = 0; i < NCPU; i++) {
+	/***********************************************/
+	/*   Be  careful  if  we have new cpus coming  */
+	/*   online  after  we  got  loaded since the  */
+	/*   cpu_core[]  array  wont  have  the right  */
+	/*   number  of  entries and we may panic the  */
+	/*   kernel.				       */
+	/***********************************************/
+	for (i = 0; i < num_online_cpus(); i++) {
 		mutex_enter(&cpu_core[i].cpuc_pid_lock);
 		mutex_exit(&cpu_core[i].cpuc_pid_lock);
 HERE();

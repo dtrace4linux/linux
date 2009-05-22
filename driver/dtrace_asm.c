@@ -133,7 +133,7 @@ dtrace_copy(uintptr_t src, uintptr_t dest, size_t size)
 		);
 
 #else
-	memcpy((void *) dest, (void *) src, size);
+	dtrace_memcpy((void *) dest, (void *) src, size);
 #endif	/* __i386 */
 }
 

@@ -5,7 +5,7 @@ if [ "$1" = "-n" ]; then
 	shift;
 fi
 
-grep " $1" /tmp/probes.current | 
+grep " $1" /tmp/probes | 
 awk '{printf "%s:%s:%s:%s {}\n", $2, $3, $4, $5;}' |
 sort  | 
 #grep :fbt: |

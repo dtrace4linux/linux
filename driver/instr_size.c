@@ -125,7 +125,33 @@ dtrace_instr_size(uchar_t *instr)
 	return (dtrace_dis_isize(instr, DIS_ISIZE_INSTR, DATAMODEL_NATIVE,
 	    NULL));
 }
+#if linux
+/**********************************************************************/
+/*   We  need  the  modrm  byte  of  an instruction for RIP relative  */
+/*   addressing for when we single step.			      */
+/**********************************************************************/
+uchar_t *
+dtrace_instr_modrm(uchar_t *instr)
+{	int	rmindex = -1;
 
+	dtrace_dis_isize(instr, DIS_ISIZE_INSTR, DATAMODEL_NATIVE,
+	    &rmindex);
+	return rmindex >= 0 ? instr + rmindex : NULL;
+}
+/**********************************************************************/
+/*   Get instr size and modrm in one hit.			      */
+/**********************************************************************/
+int
+dtrace_instr_size_modrm(uchar_t *instr, int *modrm)
+{	int	rmindex = -1;
+	int	size;
+
+	size = dtrace_dis_isize(instr, DIS_ISIZE_INSTR, DATAMODEL_NATIVE,
+	    &rmindex);
+	*modrm = rmindex;
+	return size;
+}
+#endif
 # if 0
 /*ARGSUSED*/
 int

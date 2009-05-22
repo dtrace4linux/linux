@@ -10,6 +10,7 @@ ssize_t syms_read(struct file *fp, char __user *buf, size_t len, loff_t *off);
 void *get_proc_addr(char *name);
 void	hunt_init(void);
 
+int	init_cyclic(void);
 void	dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *);
 void	dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp);
 int dtrace_detach(dev_info_t *devi, ddi_detach_cmd_t cmd);
@@ -36,6 +37,7 @@ void	trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu);
 int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *);
 void dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs);
 void	dtrace_print_regs(struct pt_regs *);
+void	dtrace_printf(char *fmt, ...);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 void	fbt_provide_kernel(void);

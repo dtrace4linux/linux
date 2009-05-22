@@ -75,7 +75,7 @@ static cyc_backend_t be = {
 /**********************************************************************/
 /*   Called when dtrace is loaded.				      */
 /**********************************************************************/
-void
+int
 init_cyclic()
 {
 	/***********************************************/
@@ -84,6 +84,7 @@ init_cyclic()
 	/***********************************************/
         cyclic_init(&be, 1);
 	
+	return TRUE;
 }
 
 # endif
@@ -110,9 +111,28 @@ struct c_timer {
 	cyc_time_t	c_time;
 	};
 
-void
-cyclic_init(cyc_backend_t *be, hrtime_t resolution)
+int
+init_cyclic()
 {
+	/***********************************************/
+	/*   Get the functions we need - some kernels  */
+	/*   wont export these (maybe I am wrong), so  */
+	/*   we    can    detect   at   runtime.   We  */
+	/*   could/should  do  something else if this  */
+	/*   happens,   but   its   not  a  supported  */
+	/*   scenario  since  we  can  use one of the  */
+	/*   other MODEs.			       */
+	/***********************************************/
+	fn_hrtimer_cancel = get_proc_addr("hrtimer_cancel");
+	fn_hrtimer_init   = get_proc_addr("hrtimer_init");
+	fn_hrtimer_start  = get_proc_addr("hrtimer_start");
+	fn_hrtimer_start  = get_proc_addr("hrtimer_start");
+
+	if (fn_hrtimer_start == NULL) {
+		printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
+		return FALSE;
+	}
+	return TRUE;
 }
 static enum hrtimer_restart
 be_callback(struct hrtimer *ptr)
@@ -146,33 +166,10 @@ cyclic_id_t
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 {	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
 	ktime_t kt;
-static int first_time = TRUE;
 
 	if (cp == NULL) {
 		printk("dtracedrv:cyclic_add: Cannot alloc memory\n");
 		return 0;
-	}
-
-	/***********************************************/
-	/*   Get the functions we need - some kernels  */
-	/*   wont export these (maybe I am wrong), so  */
-	/*   we    can    detect   at   runtime.   We  */
-	/*   could/should  do  something else if this  */
-	/*   happens,   but   its   not  a  supported  */
-	/*   scenario  since  we  can  use one of the  */
-	/*   other MODEs.			       */
-	/***********************************************/
-	if (first_time) {
-		first_time = FALSE;
-		fn_hrtimer_cancel = get_proc_addr("hrtimer_cancel");
-		fn_hrtimer_init   = get_proc_addr("hrtimer_init");
-		fn_hrtimer_start  = get_proc_addr("hrtimer_start");
-		fn_hrtimer_start  = get_proc_addr("hrtimer_start");
-
-		if (fn_hrtimer_start == NULL) {
-			printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
-			return 0;
-		}
 	}
 
 	kt.tv64 = t->cyt_interval;
@@ -216,6 +213,11 @@ struct c_timer {
         cyc_time_t      c_time;
         };
 
+int
+init_cyclic()
+{
+	return TRUE;
+}
 static void
 be_callback(struct timer_list *ptr)
 {	struct c_timer *cp = (struct c_timer *) ptr;

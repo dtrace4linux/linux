@@ -107,7 +107,6 @@
 	movq %gs:pda_data_offset,%rbp
 # endif
 
-//	subq $EXCEPTION_STKSZ, per_cpu__init_tss + TSS_ist + (\ist - 1) * 8(%rbp)
 .endm
 
 // Common exit point for a handler trap.
@@ -139,7 +138,6 @@ dtrace_double_fault:
 user_double_fault:
 	POP_REGS
 	jmp *kernel_double_fault_handler
-	iretq
 
 /**********************************************************************/
 /*   Function wired into the IDT for INT3 interrupts.		      */
@@ -149,7 +147,12 @@ dtrace_int1:
 	PUSH_REGS DEBUG_STACK
 	/***********************************************/
 	/*   If this is a userspace INT1 instruction,  */
-	/*   just give it to the kernel.	       */
+	/*   just  give  it  to  the  kernel. Dont do  */
+	/*   this, else we cannot single step past an  */
+	/*   IRET  where  we  took  an interrupt from  */
+	/*   user  space.  We  can  handle non-dtrace  */
+	/*   step   traps   via   the   return   from  */
+	/*   dtrace_int1_handler, below.	       */
 	/***********************************************/
 	cmp $__KERNEL_CS, CS(%rsp) // 0x88
 	jne user_int1
@@ -160,6 +163,7 @@ dtrace_int1:
 	mov %rsp,%rsi
 	mov $2,%rdi
 	call dtrace_int1_handler
+
 	cmp $0x8001,%rax
 	je exit_intr
 
@@ -167,7 +171,6 @@ dtrace_int1:
 user_int1:
 	POP_REGS
 	jmp *kernel_int1_handler
-	iretq
 
 /**********************************************************************/
 /*   Function wired into the IDT for INT3 interrupts.		      */
@@ -196,6 +199,50 @@ dtrace_int3:
 user_int3:
 	POP_REGS
 	jmp *kernel_int3_handler
-	iretq
+
+/**********************************************************************/
+/*   Function wired into the IDT for page fault handling.	      */
+/**********************************************************************/
+	FUNCTION dtrace_page_fault
+dtrace_page_fault:
+	PUSH_REGS DEBUG_STACK
+	/***********************************************/
+	/*   If this is a userspace INT1 instruction,  */
+	/*   just  give  it  to  the  kernel. Dont do  */
+	/*   this, else we cannot single step past an  */
+	/*   IRET  where  we  took  an interrupt from  */
+	/*   user  space.  We  can  handle non-dtrace  */
+	/*   step   traps   via   the   return   from  */
+	/*   dtrace_page_fault_handler, below.	       */
+	/***********************************************/
+	cmp $__KERNEL_CS, CS(%rsp) // 0x88
+	jne user_page_fault
+
+	/***********************************************/
+	/*   dtrace_int3_handler(1, regs)	       */
+	/***********************************************/
+	mov %rsp,%rsi
+	mov $2,%rdi
+	call dtrace_page_fault_handler
+
+	cmp $0x8001,%rax
+	je exit_intr
+
+	// Not handled - so let kernel have it.
+user_page_fault:
+	POP_REGS
+	jmp *kernel_page_fault_handler
+
+/**********************************************************************/
+/*   We  define  mcount  function,  so  that  we  dont call into the  */
+/*   kernels  mcount. If we try and probe mcount, we want to see the  */
+/*   kernels  calls into it, not our own - which will cause a kernel  */
+/*   recursion  panic  if  we let this happen. (Ubuntu seems to have  */
+/*   some  kernels  with this turned on for some reason, e.g. Ubuntu  */
+/*   8.10 2.6.27 kernels).					      */
+/**********************************************************************/
+	FUNCTION mcount
+mcount:
+	retq
 
 # endif

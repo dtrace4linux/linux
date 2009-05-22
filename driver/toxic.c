@@ -49,6 +49,7 @@
 char toxic_probe_tbl[] = {
 	"__atomic_notifier_call_chain "
 	"__kmalloc "
+	"__kprobes_text_start"
 	"__mod_timer "
 	"__show_registers "
 	"__mutex_init "

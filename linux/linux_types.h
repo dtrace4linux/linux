@@ -223,8 +223,8 @@ typedef unsigned long long hrtime_t;
 	void cmn_err(int ce, const char *fmt, ...);
 	void	*kmem_alloc(size_t, int);
 
-	#define	bcopy(a, b, c) memcpy(b, a, c)
-	#define	bzero(a, b) memset(a, 0, b)
+	#define	bcopy(a, b, c) dtrace_memcpy(b, a, c)
+	#define	bzero(a, b) dtrace_bzero(a, b)
 
 	/***********************************************/
 	/*   Dtrace  mutexes are semaphores on Linux,  */
@@ -343,6 +343,8 @@ typedef struct iovec iovec_t;
 	# include	<sys/stat.h>
 	# include	<sys/wait.h>
 	# include	<zone.h>
+
+	#define	bzero(a, b) memset(a, 0, b)
 
 	#define SHT_SUNW_dof            0x6ffffff4
 	#define SHT_PROGBITS    1               /* Program specific (private) data */
@@ -568,5 +570,7 @@ void *dtrace_casptr(void *target, void *cmp, void *new);
 void atomic_add_64(uint64_t *, int n);
 
 char	*dtrace_basename(char *);
+void	dtrace_bzero(void *dst, int len);
+void	dtrace_memcpy(void *dst, const void *src, int len);
 
 # endif /* LINE_TYPES_H */

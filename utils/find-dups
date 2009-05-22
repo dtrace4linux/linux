@@ -1,0 +1,8 @@
+grep ' [Tt] ' /proc/kallsyms | awk '{print $1}' | 
+sort | uniq -c | grep -v ' 1 ' |
+while read cnt addr
+do
+echo ""
+echo "=== $addr"
+grep "$addr [Tt] " /proc/kallsyms
+done

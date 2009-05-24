@@ -1,3 +1,11 @@
+Mon May 25 21:44:26 2009  fox
+
+     285* fbt_linux.c, dtrace_linux.c: Enable more 32-bit instructions
+          for :entry traces. Not all have been validated yet, but
+	  the code has been left in a safe state.
+
+     284* dtrace_linux.c: Dont do RIP addressing mode for 32-bit cpu.
+
 Sat May 23 19:18:09 2009  fox
 
      283* intr_x86-32.S, intr_x86-64.S: Add a dummy mcount function

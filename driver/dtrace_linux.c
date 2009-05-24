@@ -474,8 +474,29 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	  	regs->r_rfl &= ~IF_MASK;
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
 	  	break;
+	  case 0xfb: // STI
+	  	regs->r_rfl |= IF_MASK;
+		regs->r_pc = (greg_t) tp->ct_orig_pc;
+	  	break;
+
+	  case 0xff:
+	  	switch (pc[1] & 0xf0) {
+		  case 0x10: // call/lcall *(%reg)
+		  case 0x20: // jmp/ljmp *(%reg)
+		  case 0x50: // call/lcall *nnn(%reg)
+		  case 0x60: // jmp/ljmp *nnn(%reg)
+		  case 0x90: // call/lcall *nnn(%reg)
+		  case 0xa0: // jmp/ljmp *nnn(%reg)
+		  case 0xd0: // call/lcall *%reg
+		  case 0xe0: // jmp/ljmp *%reg
+		  	break;
+		  default:
+		  	goto DEFAULT;
+		  }
+		break;
 
 	  default:
+	  DEFAULT: ;
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
 //regs->r_rfl = (regs->r_rfl & ~(TF_MASK|IF_MASK)) | (this_cpu->cpuc_eflags & (IF_MASK));
 		break;
@@ -546,6 +567,7 @@ cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 static void
 cpu_fix_rel(cpu_core_t *this_cpu, cpu_trap_t *tp, unsigned char *orig_pc)
 {
+#if defined(__amd64)
 	unsigned char *pc = tp->ct_instr_buf;
 	int	modrm = tp->ct_tinfo.t_modrm;
 
@@ -572,7 +594,9 @@ dtrace_printf("pc:%p modrm=%d\n", orig_pc, modrm);
 //printk("%p modrm=%d %02x %02x %02x disp=%p ndisp=%p\n", pc, modrm, pc[0], pc[1], pc[2], target, new_target);
 		*(u32 *) (pc + modrm + 1) = new_target;
 	}
-#if __amd64 && 0
+#endif
+
+#if defined(__amd64) && 0
 	/***********************************************/
 	/*   Skip  prefix  bytes,  so we can find the  */
 	/*   underlying opcode.			       */

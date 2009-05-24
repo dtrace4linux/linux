@@ -680,10 +680,6 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	  default:
 	  	break;
 	  }
-	if (invop == 0) {
-		UNHANDLED_FBT();
-		return;
-	}
 
 # if 0
 	/***********************************************/
@@ -715,88 +711,55 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   assembler  to  deal with - so we disable  */
 	/*   this for now.			       */
 	/***********************************************/
-	switch (instr[0]) {
-	  case FBT_PUSHL_EBP:
-		invop = DTRACE_INVOP_PUSHL_EBP;
-		break;
-
-	  case FBT_PUSHL_EDI:
-		invop = DTRACE_INVOP_PUSHL_EDI;
-		break;
-
-	  case FBT_PUSHL_ESI:
-		invop = DTRACE_INVOP_PUSHL_ESI;
-		break;
-
-	  case FBT_PUSHL_EBX:
-		invop = DTRACE_INVOP_PUSHL_EBX;
-		break;
-
-	  case FBT_TEST_EAX_EAX:
-	  	if (instr[1] == 0xc0)
-			invop = DTRACE_INVOP_TEST_EAX_EAX;
-		else {
-			UNHANDLED_FBT();
-			return;
-		}
-		break;
-
-	  case FBT_SUBL_ESP_nn:
-	  	if (instr[1] == 0xec)
-			invop = DTRACE_INVOP_SUBL_ESP_nn;
-		else {
-			UNHANDLED_FBT();
-			return;
-		}
-		break;
-
-	  case FBT_MOVL_nnn_EAX:
-		invop = DTRACE_INVOP_MOVL_nnn_EAX;
-		break;
-
-	  case 0x31:
-	  	if ((instr[1] & 0xc0) == 0xc0)
-			invop = DTRACE_INVOP_XOR_REG_REG;
-		else {
-			UNHANDLED_FBT();
-			return;
-		}
-		break;
-
+	switch (instr[0] & 0xf0) {
+	  case 0x00:
+	  case 0x10:
+	  case 0x20:
+	  case 0x30:
+	  case 0x40:
 	  case 0x50:
-		invop = DTRACE_INVOP_PUSHL_EAX;
+	  case 0x60:
+	  case 0x70:
+	  case 0x80:
+	  case 0x90:
+	  case 0xa0:
+	  case 0xb0:
+//	  case 0xc0:
+	  case 0xd0:
+//	  case 0xe0:
+		invop = DTRACE_INVOP_ANY;
 		break;
-
-	  case 0x68:
-		invop = DTRACE_INVOP_PUSH_NN32;
-		break;
-
-	  case 0x6a:
-		invop = DTRACE_INVOP_PUSH_NN;
-		break;
-
-	  case 0x89:
-	  	if ((instr[1] & 0xc0) == 0xc0)
-			invop = DTRACE_INVOP_MOV_REG_REG;
-		else {
-			UNHANDLED_FBT();
+	  case 0xf0:
+	  	/***********************************************/
+	  	/*   This  doesnt  work - if we single step a  */
+	  	/*   HLT, well, the kernel doesnt really like  */
+	  	/*   it.				       */
+	  	/***********************************************/
+	  	if (instr[0] == 0xf4)
 			return;
-		}
+	  	if (instr[0] == 0xff) {
+			printk("fbt:FF instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
+			return;
+			}
+		invop = DTRACE_INVOP_ANY;
 		break;
-
-	  case 0xe9:
-		invop = DTRACE_INVOP_JMP;
-		break;
-
-	  case 0xfa:
-	  	invop = DTRACE_INVOP_CLI;
-		break;
-
-	  default:
-		UNHANDLED_FBT();
-		return;
 	  }
 #endif
+	/***********************************************/
+	/*   Handle  fact we may not be ready to cope  */
+	/*   with this instruction yet.		       */
+	/***********************************************/
+	if (invop == 0) {
+		UNHANDLED_FBT();
+		return;
+	}
+	/***********************************************/
+	/*   Make sure we dont try and handle data or  */
+	/*   bad instructions.			       */
+	/***********************************************/
+	if ((size = dtrace_instr_size_modrm(instr, &modrm)) <= 0)
+		return;
+
 	/***********************************************/
 	/*   Make  sure  this  doesnt overlap another  */
 	/*   sym. We are in trouble when this happens  */
@@ -830,8 +793,8 @@ printk("modrm=%d\n", modrm - instr);
 	/*   over it.				       */
 	/***********************************************/
 	fbt->fbtp_savedval = *instr;
-	fbt->fbtp_inslen = dtrace_instr_size_modrm(instr, &modrm);
-if (*instr == 0x48 && modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) printk("modrm %s %p rm=%d\n", name, instr, modrm);
+	fbt->fbtp_inslen = size;
+//if (*instr == 0x48 && modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) printk("modrm %s %p rm=%d\n", name, instr, modrm);
 	fbt->fbtp_modrm = modrm;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 

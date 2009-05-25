@@ -741,6 +741,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 			printk("fbt:FF instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
 			return;
 			}
+return;
 		invop = DTRACE_INVOP_ANY;
 		break;
 	  }

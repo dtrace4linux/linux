@@ -458,11 +458,10 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	  case 0xc3: //ret
 	  case 0xca: //lret nn
 	  case 0xcb: //lret
-	  case 0xea: // 0xea jmp abs
-	  	break;
-
+	  case 0xcd: //int $n
+	  case 0xce: //into
 	  case 0xcf: //iret
-//printk("doing iret rfl=%p orig=%p\n", regs->r_rfl, this_cpu->cpuc_eflags);
+	  case 0xea: // 0xea jmp abs
 	  	break;
 
 	  case 0xe9: // 0xe9 nn32 jmp relative

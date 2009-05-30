@@ -385,7 +385,6 @@ static MUTEX_DEFINE(dtrace_errlock);
 #define	DTRACE_ALIGNCHECK(addr, size, flags)				\
 	if (addr & (size - 1)) {					\
 		*flags |= CPU_DTRACE_BADALIGN;				\
-HERE2();								\
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
 		return (0);						\
 	}
@@ -440,7 +439,6 @@ dtrace_load##bits(uintptr_t addr)					\
 		 * This address falls within a toxic region; return 0.	\
 		 */							\
 		*flags |= CPU_DTRACE_BADADDR;				\
-HERE2(); \
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
 		return (0);						\
 	}								\
@@ -5771,6 +5769,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	volatile uint16_t *flags;
 	hrtime_t now;
 
+dtrace_printf("dtrace_probe(%d)\n", __LINE__);
 dcnt[0]++;
 # if linux
 	/***********************************************/
@@ -5912,7 +5911,7 @@ dcnt[1]++;
 			 * not the case.
 			 */
 HERE();
-printk("usermode=%p\n", prov->dtpv_pops.dtps_usermode);
+//printk("usermode=%p\n", prov->dtpv_pops.dtps_usermode);
 			if ((ecb->dte_cond & DTRACE_COND_USERMODE) &&
 			    prov->dtpv_pops.dtps_usermode(prov->dtpv_arg,
 			    probe->dtpr_id, probe->dtpr_arg) == 0)

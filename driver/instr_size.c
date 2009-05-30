@@ -148,6 +148,23 @@ dtrace_instr_size_modrm(uchar_t *instr, int *modrm)
 
 	size = dtrace_dis_isize(instr, DIS_ISIZE_INSTR, DATAMODEL_NATIVE,
 	    &rmindex);
+	/***********************************************/
+	/*   Handle LOCK prefixes - Sun thinks a lock  */
+	/*   prefix  is separate from the instruction  */
+	/*   after  it,  but  we  need to single step  */
+	/*   these,  and will end up with a LOCK away  */
+	/*   from the instruction. Bad news.	       */
+	/***********************************************/
+if (0)
+	switch (*instr) {
+	  case 0xf0: // LOCK
+	  case 0xf2: // REPZ
+	  case 0xf3: // REPNZ
+		size += dtrace_dis_isize(instr+1, DIS_ISIZE_INSTR, DATAMODEL_NATIVE,
+			&rmindex);
+		rmindex++;
+	  	break;
+	  }
 	*modrm = rmindex;
 	return size;
 }

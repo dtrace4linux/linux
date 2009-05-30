@@ -47,8 +47,7 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 
 # define	TRACE_ALLOC	0
 
-#define TF_MASK         0x00000100
-#define IF_MASK         0x00000200
+# define	NOTIFY_KERNEL	1
 
 /**********************************************************************/
 /*   Turn on HERE() macro tracing.				      */
@@ -60,32 +59,13 @@ module_param(dtrace_mem_alloc, int, 0);
 int dtrace_unhandled;
 module_param(dtrace_unhandled, int, 0);
 
-static char *invop_msgs[] = {
-	"DTRACE_INVOP_zero",
-	"DTRACE_INVOP_PUSHL_EBP",
-	"DTRACE_INVOP_POPL_EBP",
-	"DTRACE_INVOP_LEAVE",
-	"DTRACE_INVOP_NOP",
-	"DTRACE_INVOP_RET",
-	"DTRACE_INVOP_PUSHL_EDI",
-	"DTRACE_INVOP_TEST_EAX_EAX",
-	"DTRACE_INVOP_SUBL_ESP_nn",
-	"DTRACE_INVOP_PUSHL_ESI",
-	"DTRACE_INVOP_PUSHL_EBX",
-	"DTRACE_INVOP_RET_IMM16",
-	"DTRACE_INVOP_MOVL_nnn_EAX",
-	"DTRACE_INVOP_XOR_REG_REG",
-	"DTRACE_INVOP_JMP",
-	"DTRACE_INVOP_MOV_REG_REG",
-	"DTRACE_INVOP_CLI",
-	"DTRACE_INVOP_PUSH_NN",
-	"DTRACE_INVOP_PUSHL_EAX",
-	"DTRACE_INVOP_PUSH_NN32",
-	"DTRACE_INVOP_PUSHL_RCX",
-	"DTRACE_INVOP_PUSHL_REG",
-	"DTRACE_INVOP_PUSHL_REG2",
-	"DTRACE_INVOP_ANY",
-	};
+/**********************************************************************/
+/*   dtrace_printf() buffer and state.				      */
+/**********************************************************************/
+#define	LOG_BUFSIZ (64 * 1024)
+char	dtrace_buf[LOG_BUFSIZ];
+int	dbuf_i;
+int	dtrace_printf_disable;
 
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
@@ -195,15 +175,6 @@ static struct timespec *xtime_cache_ptr;
 /*   Stuff for INT3 interception.				      */
 /**********************************************************************/
 
-static int proc_notifier_int3(struct notifier_block *, unsigned long, void *);
-static struct notifier_block n_int3 = {
-	.notifier_call = proc_notifier_int3,
-	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
-	};
-# if 0
-static	int (*fn_register_die_notifier)(struct notifier_block *);
-# endif
-
 static int (*fn_profile_event_register)(enum profile_type type, struct notifier_block *n);
 static int (*fn_profile_event_unregister)(enum profile_type type, struct notifier_block *n);
 
@@ -233,6 +204,7 @@ static struct notifier_block n_exit = {
 int dtrace_double_fault(void);
 int dtrace_int1(void);
 int dtrace_int3(void);
+int dtrace_int13(void);
 int dtrace_page_fault(void);
 static void * par_lookup(void *ptr);
 # define	cas32 dtrace_cas32
@@ -253,8 +225,6 @@ int	systrace_init(void);
 void	systrace_exit(void);
 static void print_pte(pte_t *pte, int level);
 static int dtrace_unregister_die_notifier(char *name, struct notifier_block *np);
-static void cpu_fix_rel(cpu_core_t *, cpu_trap_t *tp, unsigned char *orig_pc);
-static uchar_t *cpu_skip_prefix(uchar_t *pc);
 
 /**********************************************************************/
 /*   Return  the credentials of the current process. Solaris assumes  */
@@ -420,231 +390,6 @@ cmn_err(int type, const char *fmt, ...)
         va_end(ap);
 }
 /**********************************************************************/
-/*   After  a single step trap, we need to readjust the PC and maybe  */
-/*   other things, so handle the exceptions here.		      */
-/**********************************************************************/
-static void
-cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
-{	uchar_t *pc = tp->ct_instr_buf;
-
-	/***********************************************/
-	/*   Need to ensure we reflect the IF_MASK at  */
-	/*   the time the initial INT3 was taken.      */
-	/***********************************************/
-//	regs->r_rfl &= ~(TF_MASK | IF_MASK);
-	regs->r_rfl = (regs->r_rfl & ~(TF_MASK|IF_MASK)) | 
-		(tp->ct_eflags & (IF_MASK));
-
-	pc = cpu_skip_prefix(pc);
-
-	switch (*pc) {
-	  case 0x9c: // pushfl
-	  	/***********************************************/
-	  	/*   If  we push flags, we have two copies on  */
-	  	/*   the stack - the one for the instruction,  */
-	  	/*   and the one for pt_regs we pushed on the  */
-	  	/*   stack  as  part  of  the  trap  handler.  */
-	  	/*   Update  the  invokers  flags, since ours  */
-	  	/*   are useless at this point (or, that they  */
-	  	/*   need to agree).			       */
-	  	/***********************************************/
-		{greg_t *fl = regs->r_sp;
-		*fl = (*fl & ~(TF_MASK|IF_MASK)) |
-			(tp->ct_eflags & (IF_MASK|TF_MASK));
-	  	break;
-		}
-
-	  case 0xc2: //ret imm16
-	  case 0xc3: //ret
-	  case 0xca: //lret nn
-	  case 0xcb: //lret
-	  case 0xcd: //int $n
-	  case 0xce: //into
-	  case 0xcf: //iret
-	  case 0xea: // 0xea jmp abs
-	  	break;
-
-	  case 0xe9: // 0xe9 nn32 jmp relative
-		regs->r_pc = (greg_t) tp->ct_orig_pc +
-			*(int32_t *) (tp->ct_instr_buf + 1);
-	  	break;
-
-	  case 0xfa: // CLI
-	  	regs->r_rfl &= ~IF_MASK;
-		regs->r_pc = (greg_t) tp->ct_orig_pc;
-	  	break;
-	  case 0xfb: // STI
-	  	regs->r_rfl |= IF_MASK;
-		regs->r_pc = (greg_t) tp->ct_orig_pc;
-	  	break;
-
-	  case 0xff:
-	  	switch (pc[1] & 0xf0) {
-		  case 0x10: // call/lcall *(%reg)
-		  case 0x20: // jmp/ljmp *(%reg)
-		  case 0x50: // call/lcall *nnn(%reg)
-		  case 0x60: // jmp/ljmp *nnn(%reg)
-		  case 0x90: // call/lcall *nnn(%reg)
-		  case 0xa0: // jmp/ljmp *nnn(%reg)
-		  case 0xd0: // call/lcall *%reg
-		  case 0xe0: // jmp/ljmp *%reg
-		  	break;
-		  default:
-		  	goto DEFAULT;
-		  }
-		break;
-
-	  default:
-	  DEFAULT: ;
-		regs->r_pc = (greg_t) tp->ct_orig_pc;
-//regs->r_rfl = (regs->r_rfl & ~(TF_MASK|IF_MASK)) | (this_cpu->cpuc_eflags & (IF_MASK));
-		break;
-	  }
-}
-/**********************************************************************/
-/*   In  the  single  step  trap handler, get ready to step over the  */
-/*   instruction. We copy it to a temp buffer, and set up so we know  */
-/*   what to do on return after the trap.			      */
-/*   								      */
-/*   We  may  need to patch the instruction if it uses %RIP relative  */
-/*   addressing mode (which x86-64 will do in the kernel).	      */
-/**********************************************************************/
-static void
-cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
-{
-
-	tp->ct_instr_buf[0] = tp->ct_tinfo.t_opcode;
-	dtrace_memcpy(&tp->ct_instr_buf[1], 
-		(void *) regs->r_pc, 
-		tp->ct_tinfo.t_inslen - 1);
-//printk("step..len=%d %2x %2x\n", this_cpu->cpuc_tinfo.t_inslen, this_cpu->cpuc_instr_buf[0], this_cpu->cpuc_instr_buf[1]);
-
-	/***********************************************/
-	/*   Set  where  the next instruction is. The  */
-	/*   instruction we hit could be a jump/call,  */
-	/*   so  we  will  need to detect that on the  */
-	/*   other  side of the single-step to ensure  */
-	/*   we dont 'undo' the instruction.	       */
-	/***********************************************/
-	tp->ct_orig_pc = (unsigned char *) regs->r_pc + 
-		tp->ct_tinfo.t_inslen - 1;
-
-	/***********************************************/
-	/*   Set prediction of expected PC. If we get  */
-	/*   another  trap and its not what we expect  */
-	/*   -  we  may be recursing - hitting a func  */
-	/*   which  should  be toxic. This is to help  */
-	/*   debugging only. Not normally expected if  */
-	/*   all is well.			       */
-	/***********************************************/
-	tp->ct_expected_pc = tp->ct_instr_buf + tp->ct_tinfo.t_inslen;
-
-	/***********************************************/
-	/*   May   need   to   rewrite   our   copied  */
-	/*   instruction if we are doing RIP relative  */
-	/*   addressing.			       */
-	/***********************************************/
-	cpu_fix_rel(this_cpu, tp,
-		(unsigned char *) regs->r_pc - 1);
-
-	/***********************************************/
-	/*   Go  into  single  step mode, and we will  */
-	/*   return to our fake buffer.		       */
-	/***********************************************/
-	tp->ct_eflags = regs->r_rfl;
-//printk("origpc=%p instpc=%p rfl=%p\n", regs->r_pc, tp->cpuc_instr_buf, regs->r_rfl);
-	regs->r_rfl |= TF_MASK;
-	regs->r_rfl &= ~IF_MASK;
-	regs->r_pc = (greg_t) tp->ct_instr_buf;
-}
-
-/**********************************************************************/
-/*   Fix instructions which do %RIP relative addressing, such as MOV  */
-/*   or  JMP,  since  oour  instruction  trap buffer is in the wrong  */
-/*   place.							      */
-/**********************************************************************/
-static void
-cpu_fix_rel(cpu_core_t *this_cpu, cpu_trap_t *tp, unsigned char *orig_pc)
-{
-#if defined(__amd64)
-	unsigned char *pc = tp->ct_instr_buf;
-	int	modrm = tp->ct_tinfo.t_modrm;
-
-	if (modrm >= 0 && (pc[modrm] & 0xc7) == 0x05) {
-dtrace_printf("pc:%p modrm=%d\n", orig_pc, modrm);
-		/***********************************************/
-		/*   We got one. A common idiom, e.g.	       */
-		/*   					       */
-		/*   48 8b 05 00 00 00 00 mov 0x0(%rip),%rax   */
-		/*   					       */
-		/*   Now,  we  need  to  adjust  the relative  */
-		/*   addressing   based  on  our  instruction  */
-		/*   cache  buffer,  vs the original location  */
-		/*   of the instruction.		       */
-		/***********************************************/
-		unsigned char *target;
-		unsigned char *new_target;
-
-//printk("%p disp=%p\n", orig_pc, *(u32 *) (pc + modrm+1));
-		target = orig_pc + tp->ct_tinfo.t_inslen
-				+ *(s32 *) (&pc[modrm + 1]);
-		new_target = target - (pc + tp->ct_tinfo.t_inslen);
-
-//printk("%p modrm=%d %02x %02x %02x disp=%p ndisp=%p\n", pc, modrm, pc[0], pc[1], pc[2], target, new_target);
-		*(u32 *) (pc + modrm + 1) = new_target;
-	}
-#endif
-
-#if defined(__amd64) && 0
-	/***********************************************/
-	/*   Skip  prefix  bytes,  so we can find the  */
-	/*   underlying opcode.			       */
-	/***********************************************/
-	while (1) {
-		switch (*pc) {
-		  case 0x26:
-		  case 0x2e:
-		  case 0x36:
-		  case 0x3e:
-		  case 0x64:
-		  case 0x65:
-		  case 0x66:
-		  case 0x67:
-		  case 0x9b:
-		  case 0xf0:	// lock
-		  case 0xf2: // repnz
-		  case 0xf3: // repz
-		  	pc++;
-			continue;
-		  }
-		break;
-	}
-
-	/***********************************************/
-	/*   REX - access to new 8-bit registers.      */
-	/***********************************************/
-	if (*pc == 0x40)
-		pc++;
-#endif
-}
-/**********************************************************************/
-/*   Skip  leading prefix for an instruction, so we can test what it  */
-/*   really is.							      */
-/**********************************************************************/
-static uchar_t *
-cpu_skip_prefix(uchar_t *pc)
-{
-#if defined(__amd64)
-	/***********************************************/
-	/*   Watch out for IRETQ (48 CF)	       */
-	/***********************************************/
-	if (*pc == 0x48)
-		pc++;
-#endif
-	return pc;
-}
-
-/**********************************************************************/
 /*   We dont really call this, but Solaris would.		      */
 /**********************************************************************/
 void
@@ -658,10 +403,13 @@ debug_enter(char *arg)
 /**********************************************************************/
 char *
 dtrace_basename(char *name)
-{	char	*cp = strrchr(name, '/');
+{	char	*cp = name + strlen(name);
 
-	if (cp)
-		return cp + 1;
+	while (cp > name) {
+		if (cp[-1] == '/')
+			return cp;
+		cp--;
+	}
 	return name;
 }
 void
@@ -727,6 +475,7 @@ return DATAMODEL_LP64;
 /**********************************************************************/
 void *kernel_int1_handler;
 void *kernel_int3_handler;
+void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
 
@@ -829,6 +578,7 @@ set_idt_entry(int intr, unsigned long func)
 gate_t saved_double_fault;
 gate_t saved_int1;
 gate_t saved_int3;
+gate_t saved_int13;
 gate_t saved_page_fault;
 
 /**********************************************************************/
@@ -859,6 +609,7 @@ static int first_time = TRUE;
 	/***********************************************/
 	kernel_int1_handler = get_proc_addr("debug");
 	kernel_int3_handler = get_proc_addr("int3");
+	kernel_int13_handler = get_proc_addr("general_protection");
 	kernel_double_fault_handler = get_proc_addr("double_fault");
 	kernel_page_fault_handler = get_proc_addr("page_fault");
 
@@ -959,12 +710,14 @@ static int first_time = TRUE;
 //		saved_double_fault = idt_table[8];
 		saved_int1 = idt_table[1];
 		saved_int3 = idt_table[3];
+		saved_int13 = idt_table[13];
 		saved_page_fault = idt_table[14];
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
+#if 0 && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
 		set_idt_entry(8, (unsigned long) dtrace_double_fault);
 #endif
 		set_idt_entry(1, (unsigned long) dtrace_int1);
 		set_idt_entry(3, (unsigned long) dtrace_int3);
+		set_idt_entry(13, (unsigned long) dtrace_int13);
 		set_idt_entry(14, (unsigned long) dtrace_page_fault);
 	}
 }
@@ -976,10 +729,10 @@ dtrace_linux_fini(void)
 {	int	ret = 1;
 	gate_t *idt_table;
 
+# if 0
 	if (!dtrace_unregister_die_notifier("n_int3", &n_int3))
 		ret = 0;
 
-# if 0
 	if (!dtrace_unregister_die_notifier("n_trap_illop", &n_trap_illop))
 		ret = 0;
 # endif
@@ -1002,6 +755,7 @@ dtrace_linux_fini(void)
 #endif
 		idt_table[1] = saved_int1;
 		idt_table[3] = saved_int3;
+		idt_table[13] = saved_int13;
 		idt_table[14] = saved_page_fault;
 	}
 
@@ -1104,19 +858,29 @@ dtrace_print_regs(struct pt_regs *regs)
 /*   Internal logging mechanism for dtrace. Avoid calls to printk if  */
 /*   we are in dangerous territory).				      */
 /**********************************************************************/
-#define	LOG_BUFSIZ (64 * 1024)
-char	dtrace_buf[LOG_BUFSIZ];
-int	dbuf_i;
+
 void
 dtrace_printf(char *fmt, ...)
-{	int	ch;
+{	short	ch;
 	va_list	ap;
 	unsigned long n;
 	char	*cp;
-	int	i;
-	char	tmp[40];
+	short	i;
+	short	l_mode;
+static	char	tmp[40];
+	short	zero;
+	short	width;
 static char digits[] = "0123456789abcdef";
 # define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
+
+	/***********************************************/
+	/*   Temp: dont wrap buffer - because we want  */
+	/*   to see first entries.		       */
+	/***********************************************/
+	if (0 && dbuf_i >= LOG_BUFSIZ - 2048)
+		return;
+	if (dtrace_printf_disable)
+		return;
 
 	va_start(ap, fmt);
 	while ((ch = *fmt++) != '\0') {
@@ -1124,13 +888,32 @@ static char digits[] = "0123456789abcdef";
 			ADDCH(ch);
 			continue;
 		}
+		zero = ' ';
+		width = -1;
+
 		if ((ch = *fmt++) == '\0')
 			break;
+		if (ch == '0')
+			zero = '0';
+		while (ch >= '0' && ch <= '9') {
+			if (width < 0)
+				width = ch - '0';
+			else
+				width = 10 * width + ch - '0';
+			if ((ch = *fmt++) == '\0')
+				break;
+		}
+		l_mode = FALSE;
 		if (ch == 'l') {
+			l_mode = TRUE;
 			if ((ch = *fmt++) == '\0')
 				break;
 		}
 		switch (ch) {
+		  case 'c':
+		  	n = (char) va_arg(ap, int);
+			ADDCH(n);
+		  	break;
 		  case 'd':
 		  case 'u':
 		  	n = va_arg(ap, int);
@@ -1148,19 +931,31 @@ static char digits[] = "0123456789abcdef";
 				ADDCH(tmp[i--]);
 		  	break;
 		  case 'p':
-		  case 'x':
-		  	n = va_arg(ap, unsigned long);
 #if defined(__i386)
-			for (i = 0; i < 8; i++) {
-				ADDCH(digits[(n >> 28) & 0x0f]);
-				n <<= 4;
-			}
+		  	width = 8;
 #else
-			for (i = 0; i < 16; i++) {
-				ADDCH(digits[(n >> 60) & 0x0f]);
-				n <<= 4;
-			}
+		  	width = 16;
 #endif
+			zero = '0';
+			l_mode = TRUE;
+			// fallthru...
+		  case 'x':
+			if (l_mode) {
+			  	n = va_arg(ap, unsigned long);
+			} else {
+			  	n = va_arg(ap, unsigned int);
+			}
+			for (i = 0; ; ) {
+				tmp[i++] = digits[(n & 0xf)];
+				n >>= 4;
+				if (n == 0)
+					break;
+			}
+			width -= i;
+			while (width-- > 0)
+				ADDCH(zero);
+			while (--i >= 0)
+				ADDCH(tmp[i]);
 		  	break;
 		  case 's':
 		  	cp = va_arg(ap, char *);
@@ -1445,7 +1240,7 @@ kmem_alloc(size_t size, int flags)
 		ptr = kmalloc(size, flags);
 	}
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("kmem_alloc(%d) := %p ret=%p\n", (int) size, ptr, __builtin_return_address(0));
+		dtrace_printf("kmem_alloc(%d) := %p ret=%p\n", (int) size, ptr, __builtin_return_address(0));
 	return ptr;
 }
 void *
@@ -1460,14 +1255,14 @@ kmem_zalloc(size_t size, int flags)
 		ptr = kzalloc(size, flags);
 	}
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("kmem_zalloc(%d) := %p\n", (int) size, ptr);
+		dtrace_printf("kmem_zalloc(%d) := %p\n", (int) size, ptr);
 	return ptr;
 }
 void
 kmem_free(void *ptr, int size)
 {
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("kmem_free(%p, size=%d)\n", ptr, size);
+		dtrace_printf("kmem_free(%p, size=%d)\n", ptr, size);
 	if (size > VMALLOC_SIZE)
 		vfree(ptr);
 	else
@@ -1733,6 +1528,8 @@ on_notifier_list(uint8_t *ptr)
 	int	do_print = 0; // set to 1 for debug
 static int first_time = TRUE;
 
+return 0;
+
 	if (first_time) {
 		first_time = FALSE;
 		if (die_chain == NULL)
@@ -1860,7 +1657,11 @@ static par_alloc_t *static_p;
 	par_alloc_t *p = NULL;
 	sol_proc_t	*solp;
 
-	p = par_alloc(tp, sizeof *curthread, &init);
+dtrace_printf("par_setup_thread1\n");
+//	p = par_alloc(tp, sizeof *curthread, &init);
+static char buf[1024];
+p = buf;
+dtrace_printf("par_setup_thread1b\n");
 	if (p == NULL) {
 		if (static_p == NULL) {
 			static_p = par_alloc(tp, sizeof *curthread, &init);
@@ -1960,12 +1761,11 @@ HERE();
 /**********************************************************************/
 int 
 dtrace_double_fault_handler(int type, struct pt_regs *regs)
-{	struct notifier_block n;
-	struct die_args die;
+{
+static int cnt;
 
-	die.regs = regs;
-	die.str = "double-fault";
-	return proc_notifier_int3(&n, DIE_DEBUG, &die);
+dtrace_printf("double-fault[%lu]: CPU:%d PC:%p\n", cnt++, smp_processor_id(), (void *) regs->r_pc-1);
+	return NOTIFY_KERNEL;
 }
 /**********************************************************************/
 /*   Handle  a  single step trap - hopefully ours, as we step past a  */
@@ -1976,31 +1776,39 @@ dtrace_int1_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 	cpu_trap_t	*tp;
 
+dtrace_printf("CPU:%d int1 PC:%p\n", smp_processor_id(), (void *) regs->r_pc-1);
 	/***********************************************/
 	/*   Did  we expect this? If not, back to the  */
 	/*   kernel.				       */
 	/***********************************************/
 	if (this_cpu->cpuc_mode != CPUC_MODE_INT1)
-		return NOTIFY_OK;
+		return NOTIFY_KERNEL;
 
 	/***********************************************/
 	/*   Yup - its ours, so we can finish off the  */
 	/*   probe.				       */
 	/***********************************************/
 	tp = &this_cpu->cpuc_trap[0];
-	cpu_adjust(this_cpu, tp, regs);
-	this_cpu->cpuc_mode = CPUC_MODE_IDLE;
+
+	/***********************************************/
+	/*   We  may  need to repeat the single step,  */
+	/*   e.g. for REP prefix instructions.	       */
+	/***********************************************/
+	if (cpu_adjust(this_cpu, tp, regs) == FALSE)
+		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
 
 	/***********************************************/
 	/*   Dont let the kernel know this happened.   */
 	/***********************************************/
-	return NOTIFY_STOP;
+//dtrace_printf("int1-end: CPU:%d PC:%p\n", smp_processor_id(), (void *) regs->r_pc-1);
+	return NOTIFY_DONE;
 }
 /**********************************************************************/
 /*   Called  from  intr_<cpu>.S -- see if this is a probe for us. If  */
 /*   not,  let  kernel  use  the normal notifier chain so kprobes or  */
 /*   user land debuggers can have a go.				      */
 /**********************************************************************/
+static int dtrace_int_disable;
 int 
 dtrace_int3_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
@@ -2014,8 +1822,11 @@ preempt_disable();
 	/*   Are  we idle, or already single stepping  */
 	/*   a probe?				       */
 	/***********************************************/
-//dtrace_printf("INT3 %p called cpu:%d\n", regs->r_pc-1, cpu_get_id());
+dtrace_printf("CPU:%d INT3 %p called\n", cpu_get_id(), regs->r_pc-1);
 dcnt[11]++;
+	if (dtrace_int_disable)
+		goto switch_off;
+
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE) {
 		/***********************************************/
 		/*   Is this one of our probes?		       */
@@ -2030,6 +1841,7 @@ dcnt[11]++;
 		/***********************************************/
 		/*   Now try for a probe.		       */
 		/***********************************************/
+dtrace_printf("CPU:%d ... calling invop\n", cpu_get_id());
 		ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
 			regs->r_rax, &tp->ct_tinfo);
 		if (ret) {
@@ -2044,7 +1856,8 @@ dcnt[11]++;
 			/***********************************************/
 			this_cpu->cpuc_mode = CPUC_MODE_INT1;
 preempt_enable_no_resched();
-			return NOTIFY_STOP;
+dtrace_printf("INT3 %p called CPU:%d good finish\n", regs->r_pc-1, cpu_get_id());
+			return NOTIFY_DONE;
 		}
 		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
 
@@ -2055,13 +1868,14 @@ preempt_enable_no_resched();
 preempt_enable_no_resched();
 		if (dtrace_user_probe(3, regs, (caddr_t) regs->r_pc, smp_processor_id())) {
 			HERE();
-			return NOTIFY_STOP;
+			return NOTIFY_DONE;
 		}
 
 		/***********************************************/
 		/*   Not outs, so let the kernel have it.      */
 		/***********************************************/
-		return NOTIFY_OK;
+dtrace_printf("INT3 %p called CPU:%d hand over\n", regs->r_pc-1, cpu_get_id());
+		return NOTIFY_KERNEL;
 	}
 
 	/***********************************************/
@@ -2076,7 +1890,10 @@ preempt_enable_no_resched();
 	/*   We  need to find the underlying probe so  */
 	/*   we can unpatch it.			       */
 	/***********************************************/
-dtrace_printf("dint3[%lu]: CPU:%d PC:%p\n", cnt++, smp_processor_id(), (void *) regs->r_pc-1);
+dtrace_printf("recursive-int[%lu]: CPU:%d PC:%p\n", cnt++, smp_processor_id(), (void *) regs->r_pc-1);
+dtrace_printf_disable = 1;
+
+switch_off:
 	tp = &this_cpu->cpuc_trap[1];
 	tp->ct_tinfo.t_doprobe = FALSE;
 	ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
@@ -2086,13 +1903,32 @@ preempt_enable_no_resched();
 		((unsigned char *) regs->r_pc)[-1] = tp->ct_tinfo.t_opcode;
 		regs->r_pc--;
 //preempt_enable();
-		return NOTIFY_STOP;
+		return NOTIFY_DONE;
 	}
 
 	/***********************************************/
 	/*   Not ours, so let the kernel have it.      */
 	/***********************************************/
-	return NOTIFY_OK;
+	return NOTIFY_KERNEL;
+}
+/**********************************************************************/
+/*   Detect  us  causing a GPF, before we ripple into a double-fault  */
+/*   and  a hung kernel. If we trace something incorrectly, this can  */
+/*   happen.  If it does, just disable as much of us as we can so we  */
+/*   can diagnose. If its not our GPF, then let the kernel have it.   */
+/**********************************************************************/
+int 
+dtrace_int13_handler(int type, struct pt_regs *regs)
+{	cpu_core_t *this_cpu = THIS_CPU();
+
+	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
+		return NOTIFY_KERNEL;
+
+	dtrace_printf("INT13:GPF %p called\n", regs->r_pc-1);
+	dtrace_printf_disable = 1;
+	dtrace_int_disable = TRUE;
+
+	return NOTIFY_DONE;
 }
 /**********************************************************************/
 /*   Handle  a  page  fault  - if its us being faulted, else we will  */
@@ -2107,204 +1943,14 @@ dtrace_page_fault_handler(int type, struct pt_regs *regs)
 dcnt[2]++;
 dtrace_printf("PGF %p called\n", regs->r_pc-1);
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
-		return NOTIFY_OK;
+		return NOTIFY_KERNEL;
 
 	/***********************************************/
 	/*   Hmm..we   page   faulted  whilst  single  */
 	/*   stepping.				       */
 	/***********************************************/
 dtrace_printf("dtrace nested page fault\n");
-	return NOTIFY_OK;
-}
-/**********************************************************************/
-/*   This  is  the  core  of the dtrace engine - we handle here INT3  */
-/*   breakpoint  traps for probes set by FBT and SDT. When we hit an  */
-/*   INT3,  we  check  to  see  if its ours. If not, we will let the  */
-/*   kernel have it, e.g. someone running gdb.			      */
-/*   								      */
-/*   Because  we need to handle the overwritten instruction, we need  */
-/*   to  then single step what we overwrote (in a temporary buffer).  */
-/*   We  cannot  temporarily undo the breakpoint because another cpu  */
-/*   may  see  the  window of opportunity and we would miss a probe.  */
-/*   This  will  cause  an  INT1  interrupt to fire whilst we single  */
-/*   step.							      */
-/*   								      */
-/*   Whilst  doing an INT1/INT3, we may get a page fault, so we need  */
-/*   to handle that too, being careful to distinguish if its ours or  */
-/*   someone elses.						      */
-/*   								      */
-/*   This  code  will  also  handle the USDT traps from user space -  */
-/*   remember, we get first try.				      */
-/*   								      */
-/*   By  patching  the int vectors directly we can avoid stomping on  */
-/*   kprobes toes (or kgdb), hopefully.				      */
-/**********************************************************************/
-static int 
-proc_notifier_int3(struct notifier_block *n, unsigned long code, void *ptr)
-{
-# if 0
-	struct die_args *args = (struct die_args *) ptr;
-	struct pt_regs *regs = args->regs;
-	int	ret;
-static greg_t pc_reentrancy; /* First bogus trap we hit - so we can print it */
-static int cnt_reentrancy;	/* Tell us how bad things got.		*/
-static int cnt_reentrancy_msgcnt; /* Avoid flood of reentrancy messages. */
-static int noisy;
-	cpu_core_t *this_cpu = THIS_CPU();
-	cpu_trap_t	*tp = this_cpu->cpuc_trap;
-
-preempt_disable();
-
-	/***********************************************/
-	/*   If  we  arent  expecting  this  PC, then  */
-	/*   disable   the  probe  so  we  can  debug  */
-	/*   re-entrancy issues.		       */
-	/*   This   seems   to   help   -   we  found  */
-	/*   native_get_debugreg    is    called   by  */
-	/*   do_trap()  function,  and  we killed the  */
-	/*   kernel.  Now,  this means, if toxic.c is  */
-	/*   wrong  -  tough  -  we just wont see any  */
-	/*   probes from that function.		       */
-	/*   					       */
-	/*   This  stops  an  arms  race and means we  */
-	/*   just   adapt.   We   could  emulate  the  */
-	/*   dependent function if we really care (or  */
-	/*   single  step  with  our own private trap  */
-	/*   handler  to  get  through  the difficult  */
-	/*   times).				       */
-	/***********************************************/
-	this_cpu->cpuc_tinfo.t_doprobe = FALSE;
-	if (code == DIE_INT3 &&
-	    this_cpu->cpuc_expected_pc != (unsigned char *) regs->r_pc &&
-	    this_cpu->cpuc_mode == CPUC_MODE_INT1) {
-		ret = dtrace_invop(regs->r_pc - 1, 
-			(uintptr_t *) regs, 
-			regs->r_rax,
-			&this_cpu->cpuc_tinfo);
-		if (ret) {
-			if (cnt_reentrancy++ == 0)
-				pc_reentrancy = regs->r_pc - 1;
-			((unsigned char *) regs->r_pc)[-1] = this_cpu->cpuc_tinfo.t_opcode;
-			regs->r_pc--;
-preempt_enable();
-			return NOTIFY_STOP;
-		}
-	}
-	/***********************************************/
-	/*   Something  happened bad, above, its safe  */
-	/*   now  to  report what happened. Typically  */
-	/*   we  can grep /proc/kallsyms to find what  */
-	/*   we forgot to do.			       */
-	/***********************************************/
-	if (cnt_reentrancy && cnt_reentrancy_msgcnt < 20) {
-		cnt_reentrancy_msgcnt++;
-		printk("dtrace:cnt_reentrancy=%d PC:%p\n", cnt_reentrancy, (void *) pc_reentrancy);
-	}
-
-	if (dtrace_here) {
-		printk("proc_notifier_int3 %s PC:%p CPU:%d %s err:%ld tr:%d\n", 
-			code == DIE_INT3 ? "INT3" :
-			code == DIE_GPF ? "GPF" :
-# if defined(DIE_PAGE_FAULT)
-			code == DIE_PAGE_FAULT ? "PgFlt" :
-# endif
-			code == DIE_DEBUG ? "DEBUG" : "??",
-			(void *) regs->r_pc, 
-			smp_processor_id(),
-			args->str, args->err, args->trapnr);
-//if (xx>100) printk("trouble?\n");
-	}
-	/***********************************************/
-	/*   We want to handle INT3 breakpoint traps.  */
-	/*   Might  want  to  handle  the others some  */
-	/*   day.				       */
-	/***********************************************/
-	switch (code) {
-	  case DIE_INT3:
-	  	break;
-	  case DIE_DEBUG:
-	  	/***********************************************/
-	  	/*   Single  step trap - might be ours, might  */
-	  	/*   not be...				       */
-	  	/***********************************************/
-		if (this_cpu->cpuc_mode == CPUC_MODE_INT1) {
-			//if (noisy++ < 100) printk("restoring trap...\n");
-			cpu_adjust(regs, this_cpu);
-			this_cpu->cpuc_stepping = CPUC_MODE_IDLE;
-			this_cpu->cpuc_expected_pc = 0;
-preempt_enable();
-			return NOTIFY_STOP;
-		}
-preempt_enable();
-		return NOTIFY_DONE;
-	  case DIE_GPF:
-		return NOTIFY_DONE;
-# if defined(DIE_PAGE_FAULT)
-		/***********************************************/
-		/*   Not defined in virgin 2.6.9 kernel.       */
-		/***********************************************/
-	  case DIE_PAGE_FAULT:
-		return NOTIFY_DONE;
-# endif
-	  default:
-preempt_enable();
-		return NOTIFY_DONE;
-	  }
-
-	/***********************************************/
-	/*   Check  with  fbt/sdt  and anyone else if  */
-	/*   this  is  one of our INT3 type traps. In  */
-	/*   case   we   are   calling   printk()  in  */
-	/*   dtrace_probe,  we  need  to flag that we  */
-	/*   dont  want  any  more  INT3's  until  we  */
-	/*   finish,   so   temporarily   enable  the  */
-	/*   auto-remove code above.		       */
-	/***********************************************/
-	this_cpu->cpuc_stepping++;
-	this_cpu->cpuc_tinfo.t_doprobe = TRUE;
-	ret = dtrace_invop(regs->r_pc - 1, 
-		(uintptr_t *) regs, 
-		regs->r_rax,
-		&this_cpu->cpuc_tinfo);
-	this_cpu->cpuc_stepping--;
-
-	if (dtrace_here && ret && noisy < 100) {
-		printk("ret=%d %s\n", ret, ret == 0 ? "nothing" :
-			ret < 0 || ret >= sizeof(invop_msgs) / sizeof invop_msgs[0] ? "??" : invop_msgs[ret]);
-	}
-
-	/***********************************************/
-	/*   If  we  match  a  probe, then we need to  */
-	/*   step over it.			       */
-	/***********************************************/
-	if (ret) {
-//		if (noisy++ < 100) printk("setting trap...\n");
-		/***********************************************/
-		/*   Copy  instruction  in its entirety so we  */
-		/*   can step over it.			       */
-		/***********************************************/
-		cpu_copy_instr(this_cpu, regs);
-		/***********************************************/
-		/*   Let  us  know  on  return  we are single  */
-		/*   stepping.				       */
-		/***********************************************/
-		this_cpu->cpuc_mode = CPUC_MODE_INT1;
-preempt_enable();
-		return NOTIFY_STOP;
-	}
-
-	/***********************************************/
-	/*   Not FBT/SDT, so try for USDT...	       */
-	/***********************************************/
-	if (dtrace_user_probe(3, args->regs, 
-		(caddr_t) args->regs->r_pc, 
-		smp_processor_id())) {
-		HERE();
-		return NOTIFY_STOP;
-	}
-preempt_enable();
-# endif
-	return NOTIFY_OK;
+	return NOTIFY_KERNEL;
 }
 /**********************************************************************/
 /*   Handle illegal instruction trap for fbt/sdt.		      */
@@ -2319,7 +1965,7 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 			(void *) args->regs->r_pc, 
 			smp_processor_id());
 	}
-	return NOTIFY_OK;
+	return NOTIFY_KERNEL;
 }
 # endif
 /**********************************************************************/
@@ -2426,7 +2072,7 @@ syms_write(struct file *file, const char __user *buf,
 		}
 		if (mp->m_name != NULL) {
 			mp->m_ptr = (unsigned long *) simple_strtoul(buf, NULL, 16);
-			if (1 || dtrace_here)
+			if (dtrace_here)
 				printk("fbt: got %s=%p\n", mp->m_name, mp->m_ptr);
 		}
 		buf = symend + 1;
@@ -2558,7 +2204,7 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 	void	*ret;
 
 	if (TRACE_ALLOC || dtrace_mem_alloc)
-		printk("vmem_alloc(size=%d)\n", (int) s);
+		dtrace_printf("vmem_alloc(size=%d)\n", (int) s);
 
 	mutex_enter(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
@@ -2573,7 +2219,7 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 {	seq_t *seqp = kmalloc(sizeof *seqp, GFP_KERNEL);
 
 	if (TRACE_ALLOC || dtrace_here)
-		printk("vmem_create(size=%d)\n", (int) size);
+		dtrace_printf("vmem_create(size=%d)\n", (int) size);
 
 	mutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
@@ -2585,7 +2231,7 @@ void
 vmem_free(vmem_t *hdr, void *ptr, size_t size)
 {
 	if (TRACE_ALLOC || dtrace_here)
-		printk("vmem_free(ptr=%p, size=%d)\n", ptr, (int) size);
+		dtrace_printf("vmem_free(ptr=%p, size=%d)\n", ptr, (int) size);
 
 }
 void 

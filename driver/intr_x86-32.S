@@ -25,6 +25,8 @@
 
 # include <asm/segment.h>
 
+# define NOTIFY_DONE	0
+
 .macro FUNCTION name
 	.text
 	.globl \name
@@ -69,6 +71,11 @@
 .endm
 
 
+// Common exit point for a handler trap.
+exit_intr:
+	POP_REGS
+	iret
+
 /**********************************************************************/
 /*   Function wired into the IDT for INT3 interrupts.		      */
 /**********************************************************************/
@@ -89,17 +96,13 @@ dtrace_int1:
 	mov %esp,%edx
 	mov $2,%eax
 	call dtrace_int1_handler
-	cmp $0x8001,%eax
-	je int1_handled
+	cmp $NOTIFY_DONE,%eax
+	je exit_intr
 
 	// Not handled - so let kernel have it.
 user_int1:
 	POP_REGS
 	jmp *kernel_int1_handler
-
-int1_handled:
-	POP_REGS
-	iret
 
 /**********************************************************************/
 /*   Function wired into the IDT for INT3 interrupts.		      */
@@ -122,17 +125,43 @@ dtrace_int3:
 	mov %esp,%edx
 	mov $1,%eax
 	call dtrace_int3_handler
-	cmp $0x8001,%eax
-	je int3_handled
+	cmp $NOTIFY_DONE,%eax
+	je exit_intr
 
 	// Not handled - so let kernel have it.
 user_int3:
 	POP_REGS
 	jmp *kernel_int3_handler
 
-int3_handled:
+/**********************************************************************/
+/*   Interrupt  handler  for  GPF - used to detect us being naughty,  */
+/*   else pass on to kernel.					      */
+/**********************************************************************/
+	FUNCTION dtrace_int13
+
+dtrace_int13:
+	PUSH_REGS
+
+	/***********************************************/
+	/*   If this is a userspace GPF, just give it  */
+	/*   to the kernel.			       */
+	/***********************************************/
+	cmp $__KERNEL_CS, 0x30(%esp)
+	jne user_int13
+
+	/***********************************************/
+	/*   dtrace_int13_handler(1, regs)	       */
+	/***********************************************/
+	mov %esp,%edx
+	mov $1,%eax
+	call dtrace_int13_handler
+	cmp $NOTIFY_DONE,%eax
+	je exit_intr
+
+	// Not handled - so let kernel have it.
+user_int13:
 	POP_REGS
-	iret
+	jmp *kernel_int13_handler
 
 /**********************************************************************/
 /*   Function wired into the IDT for Page Faults (14) interrupts.     */
@@ -155,17 +184,13 @@ dtrace_page_fault:
 	mov %esp,%edx
 	mov $1,%eax
 	call dtrace_page_fault_handler
-	cmp $0x8001,%eax
-	je page_fault_handled
+	cmp $NOTIFY_DONE,%eax
+	je exit_intr
 
 	// Not handled - so let kernel have it.
 user_page_fault:
 	POP_REGS
 	jmp *kernel_page_fault_handler
-
-page_fault_handled:
-	POP_REGS
-	iret
 
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */

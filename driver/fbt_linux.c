@@ -221,7 +221,6 @@ if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (l
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		if ((uintptr_t)fbt->fbtp_patchpoint == addr) {
-HERE();
 			tinfo->t_opcode = fbt->fbtp_savedval;
 			tinfo->t_inslen = fbt->fbtp_inslen;
 			tinfo->t_modrm = fbt->fbtp_modrm;
@@ -617,7 +616,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	int	do_print = FALSE;
 	int	invop = 0;
 	fbt_probe_t *fbt, *retfbt;
-	int	 size = 1;
+	int	size;
 	int	modrm;
 
 	/***********************************************/
@@ -637,6 +636,13 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 			}
 
 	/***********************************************/
+	/*   Make sure we dont try and handle data or  */
+	/*   bad instructions.			       */
+	/***********************************************/
+	if ((size = dtrace_instr_size_modrm(instr, &modrm)) <= 0)
+		return;
+
+	/***********************************************/
 	/*   Allow  us  to  work on a single function  */
 	/*   for  debugging/tracing  else we generate  */
 	/*   too  much  printk() output and swamp the  */
@@ -645,72 +651,63 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 //	do_print = strncmp(name, "update_process", 9) == NULL;
 
 #ifdef __amd64
-	switch (instr[0]) {
-	  case 0x31:
-		invop = DTRACE_INVOP_XOR_REG_REG;
-		break;
-
-	  case 0x41:
-		invop = DTRACE_INVOP_ANY;
-		break;
-
-	  case 0x48:
-	  case 0x88:
-	  case 0x89:
-	  case 0x8a:
-	  case 0x8b:
-	  case 0x8c:
-	  case 0x8d:
-	  case 0x8e:
-	  case 0x8f:
-		invop = DTRACE_INVOP_ANY;
+	invop = DTRACE_INVOP_ANY;
+	switch (instr[0] & 0xf0) {
+	  case 0x00:
+	  case 0x10:
+	  case 0x20:
+	  case 0x30:
 	  	break;
 
-	  case 0x50:  /* PUSH rXX */
-	  case 0x51:
-	  case 0x52:
-	  case 0x53:
-	  case 0x54:
-	  case 0x55:
-	  case 0x56:
-	  case 0x57:
-		invop = DTRACE_INVOP_PUSHL_REG;
-		break;
-
-	  default:
+	  case 0x40:
+	  	if (instr[0] == 0x48 && instr[1] == 0xcf)
+			return;
 	  	break;
+
+	  case 0x50:
+	  case 0x60:
+	  case 0x70:
+	  case 0x80:
+	  case 0x90:
+	  case 0xa0:
+	  case 0xb0:
+		break;
+	  case 0xc0:
+	  	/***********************************************/
+	  	/*   We  cannot  single step an IRET for now,  */
+	  	/*   so just ditch them as potential probes.   */
+	  	/***********************************************/
+	  	if (instr[0] == 0xcf)
+			return;
+		break;
+	  case 0xd0:
+	  case 0xe0:
+		break;
+	  case 0xf0:
+	  	/***********************************************/
+	  	/*   This  doesnt  work - if we single step a  */
+	  	/*   HLT, well, the kernel doesnt really like  */
+	  	/*   it.				       */
+	  	/***********************************************/
+	  	if (instr[0] == 0xf4)
+			return;
+
+//		printk("fbt:F instr %s:%p size=%d %02x %02x %02x %02x %02x %02x\n", name, instr, size, instr[0], instr[1], instr[2], instr[3], instr[4], instr[5]);
+		break;
 	  }
-
-# if 0
-	/***********************************************/
-	/*   Careful  in  case  we walked outside the  */
-	/*   function    or    its   an   unsupported  */
-	/*   instruction.			       */
-	/***********************************************/
-	if (size <= 0) {
-		if (dtrace_unhandled)
-			printk("fbt:unhandled disasm %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
-		return;
-	}
-	if (instr >= limit) {
-		if (dtrace_unhandled)
-			printk("fbt:unhandled limit %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
-		return;
-	}
-	if (*instr != FBT_PUSHL_EBP) {
-		if (dtrace_unhandled)
-			printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
-		return;
-	}
-	invop = DTRACE_INVOP_PUSHL_EBP;
-# endif
 #else
 	/***********************************************/
 	/*   GCC    generates   lots   of   different  */
 	/*   assembler  functions plus we have inline  */
-	/*   assembler  to  deal with - so we disable  */
-	/*   this for now.			       */
+	/*   assembler  to  deal  with.  We break the  */
+	/*   opcodes  down  into groups, which helped  */
+	/*   during  debugging,  or  if  we  need  to  */
+	/*   single  out  specific  opcodes,  but for  */
+	/*   now,   we  can  pretty  much  allow  all  */
+	/*   opcodes.  (Apart  from HLT - which I may  */
+	/*   get around to fixing).		       */
 	/***********************************************/
+	invop = DTRACE_INVOP_ANY;
 	switch (instr[0] & 0xf0) {
 	  case 0x00:
 	  case 0x10:
@@ -724,10 +721,17 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	  case 0x90:
 	  case 0xa0:
 	  case 0xb0:
-//	  case 0xc0:
+		break;
+	  case 0xc0:
+	  	/***********************************************/
+	  	/*   We  cannot  single step an IRET for now,  */
+	  	/*   so just ditch them as potential probes.   */
+	  	/***********************************************/
+	  	if (instr[0] == 0xcf)
+			return;
+		break;
 	  case 0xd0:
-//	  case 0xe0:
-		invop = DTRACE_INVOP_ANY;
+	  case 0xe0:
 		break;
 	  case 0xf0:
 	  	/***********************************************/
@@ -737,12 +741,8 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	  	/***********************************************/
 	  	if (instr[0] == 0xf4)
 			return;
-	  	if (instr[0] == 0xff) {
-			printk("fbt:FF instr %s:%p %02x %02x %02x %02x %02x\n", name, instr, instr[0], instr[1], instr[2], instr[3], instr[4]);
-			return;
-			}
-return;
-		invop = DTRACE_INVOP_ANY;
+
+//		printk("fbt:F instr %s:%p size=%d %02x %02x %02x %02x %02x %02x\n", name, instr, size, instr[0], instr[1], instr[2], instr[3], instr[4], instr[5]);
 		break;
 	  }
 #endif
@@ -754,12 +754,6 @@ return;
 		UNHANDLED_FBT();
 		return;
 	}
-	/***********************************************/
-	/*   Make sure we dont try and handle data or  */
-	/*   bad instructions.			       */
-	/***********************************************/
-	if ((size = dtrace_instr_size_modrm(instr, &modrm)) <= 0)
-		return;
 
 	/***********************************************/
 	/*   Make  sure  this  doesnt overlap another  */
@@ -778,6 +772,7 @@ if (modrm && (modrm[0] & 0xc7) == 0x05) {do_print = 1;
 printk("modrm=%d\n", modrm - instr);
 }}
 */
+if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) return;
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 			fbt->fbtp_name = name;
 
@@ -795,7 +790,7 @@ printk("modrm=%d\n", modrm - instr);
 	/***********************************************/
 	fbt->fbtp_savedval = *instr;
 	fbt->fbtp_inslen = size;
-//if (*instr == 0x48 && modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) printk("modrm %s %p rm=%d\n", name, instr, modrm);
+//if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) printk("modrm %s %p rm=%d\n", name, instr, modrm);
 	fbt->fbtp_modrm = modrm;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 

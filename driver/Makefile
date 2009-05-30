@@ -1,7 +1,4 @@
 
-# no longer needed.
-#	cpu_32bit.o
-#	cpu_64bit.o
 dtracedrv-objs := \
 	ctf_subr.o \
 	ctf_types.o \
@@ -11,6 +8,7 @@ dtracedrv-objs := \
 	ctf_open.o \
 	ctf_lookup.o \
 	ctl.o \
+	cpu_x86.o \
 	cyclic_linux.o \
 	dis_tables.o \
 	dtrace.o \

@@ -9,6 +9,7 @@
 #define	LINUX_TYPES_H 1
 
 #define HERE()	if (dtrace_here) {printk("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);}
+#define DHERE()	dtrace_printf("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);
 #define HERE2() if (dtrace_here) {printk("%s:%s:%d: XYZ we are here2\n", dtrace_basename(__FILE__), __func__, __LINE__);}
 #define HERE_WITH_INFO(str)	if (dtrace_here) {printk("%s:%s:%d:%s\n", dtrace_basename(__FILE__), __func__, __LINE__, str);}
 #define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", dtrace_basename(__FILE__), __func__, __LINE__)

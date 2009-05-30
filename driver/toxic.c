@@ -71,7 +71,6 @@ char toxic_probe_tbl[] = {
 	"copy_to_user "
 	"del_timer "
 	"do_debug "
-	"do_gettimeofday "
 	"do_oops_enter_exit "
 	"do_timer "
 	"do_trap "
@@ -85,7 +84,6 @@ char toxic_probe_tbl[] = {
 	"int3 "
 	"iret_exc "
 	"kfree "
-	"kmalloc_caches "
 	"kmem_cache_alloc "
 	"kmem_cache_create "
 	"kmem_cache_destroy "
@@ -93,15 +91,6 @@ char toxic_probe_tbl[] = {
 	"mutex_lock "
 	"mutex_unlock "
 	"native_get_debugreg "
-	"notify_die "
-	/***********************************************/
-	/*   We  need  to  patch the interrupt vector  */
-	/*   direct  to allow us to avoid this, since  */
-	/*   we  are  called  by the first level trap  */
-	/*   handler from the following functions.     */
-	/***********************************************/
-	"notifier_call_chain "
-	"notify_die "
 	"on_each_cpu " 		// Needed by dtrace_xcall
 	"oops_exit "
 	"oops_may_print "
@@ -116,8 +105,11 @@ char toxic_probe_tbl[] = {
 	"send_sig_info "
 	"show_registers "
 	"show_regs "
+	"smp_call_function "
 	"smp_call_function_single "
 	"sysenter_past_esp "
+	"system_call "
+	"system_call_after_swapgs "
 	"vfree "
 	"vmalloc "
 	"vprintk "

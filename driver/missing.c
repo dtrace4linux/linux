@@ -2,7 +2,7 @@
 /*   Functions which are not there in the older kernels.	      */
 /*   Open Source						      */
 /*   Author: P D Fox						      */
-/* $Header: Last edited: 05-May-2009 1.3 $ 			      */
+/* $Header: Last edited: 31-May-2009 1.4 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -35,6 +35,12 @@ strcasecmp(char *s1, char *s2)
 		return -1;
 	return 0;
 }
+# endif
+
+/**********************************************************************/
+/*   Make  sure  we  never use the kernels string functions here, in  */
+/*   case we are probing them.					      */
+/**********************************************************************/
 size_t
 strlen(const char *str)
 {
@@ -44,17 +50,22 @@ strlen(const char *str)
 		str1++;
 	return str1 - str;
 }
+
 int
 strncmp(const char *s1, const char *s2, size_t len)
 {
 	while (len-- > 0) {
-		int ch = *s2++ - *s1++;
-		if (ch)
-			return ch;
+		int	c1 = *s1++;
+		int	c2 = *s2++;
+		if (c1 == c2 && c1 == 0)
+			return 0;
+		if (c1 < c2)
+			return -1;
+		if (c1 > c2)
+			return 1;
 	}
 	return 0;
 }
-# endif
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 struct task_struct *

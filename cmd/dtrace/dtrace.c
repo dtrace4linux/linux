@@ -1858,7 +1858,6 @@ main(int argc, char *argv[])
 
 	if (sigaction(SIGINT, NULL, &oact) == 0 && oact.sa_handler != SIG_IGN)
 		(void) sigaction(SIGINT, &act, NULL);
-
 	if (sigaction(SIGTERM, NULL, &oact) == 0 && oact.sa_handler != SIG_IGN)
 		(void) sigaction(SIGTERM, &act, NULL);
 #if !defined(sun)

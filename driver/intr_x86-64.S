@@ -34,6 +34,8 @@
 # endif
 # include <asm/page.h>
 
+# define NOTIFY_DONE	0
+
 .macro FUNCTION name
 	.text
 	.globl \name
@@ -131,7 +133,7 @@ dtrace_double_fault:
 	mov %rsp,%rsi
 	mov $2,%rdi
 	call dtrace_double_fault_handler
-	cmp $0x8001,%rax
+	cmp $NOTIFY_DONE,%rax
 	je exit_intr
 
 	// Not handled - so let kernel have it.
@@ -164,7 +166,7 @@ dtrace_int1:
 	mov $2,%rdi
 	call dtrace_int1_handler
 
-	cmp $0x8001,%rax
+	cmp $NOTIFY_DONE,%rax
 	je exit_intr
 
 	// Not handled - so let kernel have it.
@@ -192,13 +194,43 @@ dtrace_int3:
 	mov %rsp,%rsi
 	mov $1,%rdi
 	call dtrace_int3_handler
-	cmp $0x8001,%rax
+	cmp $NOTIFY_DONE,%rax
 	je exit_intr
 
 	// Not handled - so let kernel have it.
 user_int3:
 	POP_REGS
 	jmp *kernel_int3_handler
+
+/**********************************************************************/
+/*   Interrupt  handler  for  GPF - used to detect us being naughty,  */
+/*   else pass on to kernel.					      */
+/**********************************************************************/
+	FUNCTION dtrace_int13
+dtrace_int13:
+	PUSH_REGS DEBUG_STACK
+
+	/***********************************************/
+	/*   If this is a userspace GPF, just give it  */
+	/*   to the kernel.			       */
+	/***********************************************/
+	cmp $__KERNEL_CS, CS(%rsp) // 0x88
+	jne user_int13
+
+	/***********************************************/
+	/*   dtrace_int3_handler(1, regs)	       */
+	/***********************************************/
+	mov %rsp,%rsi
+	mov $2,%rdi
+	call dtrace_int13_handler
+
+	cmp $NOTIFY_DONE,%rax
+	je exit_intr
+
+	// Not handled - so let kernel have it.
+user_int13:
+	POP_REGS
+	jmp *kernel_int13_handler
 
 /**********************************************************************/
 /*   Function wired into the IDT for page fault handling.	      */
@@ -225,7 +257,7 @@ dtrace_page_fault:
 	mov $2,%rdi
 	call dtrace_page_fault_handler
 
-	cmp $0x8001,%rax
+	cmp $NOTIFY_DONE,%rax
 	je exit_intr
 
 	// Not handled - so let kernel have it.

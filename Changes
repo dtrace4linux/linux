@@ -1,3 +1,30 @@
+Sun May 31 10:39:20 2009  fox
+
+     290* dtrace_linux.c, intr_x86*.S: Add support for INT13 (GPF), so
+          we can disable ourselves when we run into issues.
+
+     289* toxic.c: Add system_call: This is a very special kernel
+          entry point and if we probe it, we may get a kernel double-fault
+	  because the stack wont be ready for kernel space.
+
+Fri May 29 19:50:52 2009  fox
+
+     288* driver/cpu_x86.c: New file - put the single step cpu specific code
+          in here, from dtrace_linux.c.
+
+	  Add support for 0xEn opcodes (call/jump/loop instructions).
+
+Thu May 28 23:55:45 2009  fox
+
+     287* dtrace_linux.c: Handle the FF .. opcodes (indirect jump/calls).
+          fbt::__delay: now works on my Ubuntu 32bit kernel.
+
+	  (Not yet proven for 64bit kernels).
+
+Wed May 27 20:25:44 2009  fox
+
+     286* instr_size.c: Workaround for LOCK/REPZ/REPNZ prefix instructions.
+
 Mon May 25 21:44:26 2009  fox
 
      285* fbt_linux.c, dtrace_linux.c: Enable more 32-bit instructions

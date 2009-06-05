@@ -1,0 +1,4 @@
+#! /bin/sh
+# simple script to get probes by opcodes, assuming fbt_linux.c has
+# been compiled or loaded to generate opcode prefixed probes.
+grep fbt /tmp/probes | sed -e 's/^.* x//' -e 's/_.*$//' | sort | uniq -c

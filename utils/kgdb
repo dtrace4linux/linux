@@ -1,0 +1,3 @@
+#! /bin/sh
+# simple script to allow me to disassemble running kernel
+root gdb /proc/mem /proc/kcore

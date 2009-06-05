@@ -58,6 +58,8 @@ int dtrace_mem_alloc;
 module_param(dtrace_mem_alloc, int, 0);
 int dtrace_unhandled;
 module_param(dtrace_unhandled, int, 0);
+int fbt_name_opcodes;
+module_param(fbt_name_opcodes, int, 0);
 
 /**********************************************************************/
 /*   dtrace_printf() buffer and state.				      */
@@ -454,7 +456,7 @@ dtrace_dump_mem64(unsigned long *cp, int len)
 			sprintf(buf + strlen(buf), "%p ", (void *) *cp++);
 			}
 		strcat(buf, "\n");
-		printk("%s", buf);
+		dtrace_printf("%s", buf);
 		}
 }
 /**********************************************************************/
@@ -819,38 +821,48 @@ dtrace_print_gate(struct gate_struct *g)
 		g->offset_low, g->segment, g->ist, g->type, g->dpl, g->p);
 	printk("offset_mid=%x offset_hi=%x\n", g->offset_middle, g->offset_high);
 }
+# endif
+# if 1
 /**********************************************************************/
 /*   For debugging only.					      */
 /**********************************************************************/
 void
 dtrace_print_regs(struct pt_regs *regs)
 {
-	printk("Regs @ %p\n", regs);
-        printk("r15:%p r14:%p r13:%p r12:%p\n",
+	dtrace_printf("Regs @ %p..%p CPU:%d\n", regs, regs+1, cpu_get_id());
+# if defined(__amd64)
+        dtrace_printf("r15:%p r14:%p r13:%p r12:%p\n",
 		regs->r15,
 	        regs->r14,
 	        regs->r13,
 	        regs->r12);
-        printk("rbp:%p rbx:%p r11:%p r10:%p\n",
+        dtrace_printf("rbp:%p rbx:%p r11:%p r10:%p\n",
 	        regs->r_rbp,
 	        regs->r_rbx,
 	        regs->r11,
 	        regs->r10);
-        printk("r9:%p r8:%p rax:%p rcx:%p\n",
+        dtrace_printf("r9:%p r8:%p rax:%p rcx:%p\n",
 	        regs->r9,
 	        regs->r8,
 	        regs->r_rax,
 	        regs->r_rcx);
-        printk("rdx:%p rsi:%p rdi:%p orig_rax:%p\n",
+        dtrace_printf("rdx:%p rsi:%p rdi:%p orig_rax:%p\n",
 	        regs->r_rdx,
 	        regs->r_rsi,
 	        regs->r_rdi,
 	        regs->r_trapno);
-        printk("rip:%p cs:%p eflags:%p rsp:%p\n",
+        dtrace_printf("rip:%p cs:%p eflags:%p %s%s\n",
 	        regs->r_pc,
 	        regs->cs,
 	        regs->r_rfl,
-	        regs->r_sp);
+		regs->r_rfl & X86_EFLAGS_TF ? "TF " : "",
+		regs->r_rfl & X86_EFLAGS_IF ? "IF " : "");
+        dtrace_printf("rsp:%p ss:%p %p %p\n",
+	        regs->r_sp,
+	        regs->r_ss,
+		((long *) regs->r_sp)[0],
+		((long *) regs->r_sp)[1]);
+# endif
 
 }
 # endif
@@ -1661,7 +1673,7 @@ dtrace_printf("par_setup_thread1\n");
 //	p = par_alloc(tp, sizeof *curthread, &init);
 static char buf[1024];
 p = buf;
-dtrace_printf("par_setup_thread1b\n");
+//dtrace_printf("par_setup_thread1b\n");
 	if (p == NULL) {
 		if (static_p == NULL) {
 			static_p = par_alloc(tp, sizeof *curthread, &init);
@@ -1776,7 +1788,7 @@ dtrace_int1_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 	cpu_trap_t	*tp;
 
-dtrace_printf("CPU:%d int1 PC:%p\n", smp_processor_id(), (void *) regs->r_pc-1);
+dtrace_printf("int1 PC:%p regs:%p CPU:%d\n", (void *) regs->r_pc-1, regs, smp_processor_id());
 	/***********************************************/
 	/*   Did  we expect this? If not, back to the  */
 	/*   kernel.				       */
@@ -1808,7 +1820,7 @@ dtrace_printf("CPU:%d int1 PC:%p\n", smp_processor_id(), (void *) regs->r_pc-1);
 /*   not,  let  kernel  use  the normal notifier chain so kprobes or  */
 /*   user land debuggers can have a go.				      */
 /**********************************************************************/
-static int dtrace_int_disable;
+int dtrace_int_disable;
 int 
 dtrace_int3_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
@@ -1816,13 +1828,14 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	int	ret;
 static unsigned long cnt;
 
+dtrace_printf("INT3 PC:%p REGS:%p CPU:%d\n", regs->r_pc-1, regs, cpu_get_id());
+
 preempt_disable();
 
 	/***********************************************/
 	/*   Are  we idle, or already single stepping  */
 	/*   a probe?				       */
 	/***********************************************/
-dtrace_printf("CPU:%d INT3 %p called\n", cpu_get_id(), regs->r_pc-1);
 dcnt[11]++;
 	if (dtrace_int_disable)
 		goto switch_off;
@@ -1841,20 +1854,20 @@ dcnt[11]++;
 		/***********************************************/
 		/*   Now try for a probe.		       */
 		/***********************************************/
-dtrace_printf("CPU:%d ... calling invop\n", cpu_get_id());
+//dtrace_printf("CPU:%d ... calling invop\n", cpu_get_id());
 		ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
 			regs->r_rax, &tp->ct_tinfo);
 		if (ret) {
-			/***********************************************/
-			/*   Copy  instruction  in its entirety so we  */
-			/*   can step over it.			       */
-			/***********************************************/
-			cpu_copy_instr(this_cpu, tp, regs);
 			/***********************************************/
 			/*   Let  us  know  on  return  we are single  */
 			/*   stepping.				       */
 			/***********************************************/
 			this_cpu->cpuc_mode = CPUC_MODE_INT1;
+			/***********************************************/
+			/*   Copy  instruction  in its entirety so we  */
+			/*   can step over it.			       */
+			/***********************************************/
+			cpu_copy_instr(this_cpu, tp, regs);
 preempt_enable_no_resched();
 dtrace_printf("INT3 %p called CPU:%d good finish\n", regs->r_pc-1, cpu_get_id());
 			return NOTIFY_DONE;
@@ -1973,9 +1986,9 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 /**********************************************************************/
 proc_t *
 prfind(int p)
-{
-	struct task_struct *tp = find_task_by_vpid(p);
-
+{	struct task_struct *tp;
+	
+	tp = find_task_by_vpid(p);
 	if (!tp)
 		return (proc_t *) NULL;
 HERE();

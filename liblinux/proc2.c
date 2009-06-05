@@ -12,6 +12,10 @@
 #include "Pcontrol.h"
 #include "libproc.h"
 
+void bzero(void *s, size_t n)
+{
+	memset(s, 0, n);
+}
 /**********************************************************************/
 /*   When  logging  HERE()  calls, dont bloat/slow us down with full  */
 /*   path names, we only want to know which file its in.	      */

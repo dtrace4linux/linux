@@ -113,15 +113,32 @@ dtrace_printf("rfl=%p\n", regs->r_rfl);
 		break;
 
 	  case 0xe8: // CALLR nn32 call relative
+dtrace_printf("AFTER:\n");
+dtrace_print_regs(regs);
+dtrace_dump_mem64(regs + 1, 20);
 		{greg_t *sp = &regs->r_rsp; // This is where the RET address is sitting.
-		*sp = (greg_t) tp->ct_orig_pc;
-		regs->r_pc = (greg_t) tp->ct_orig_pc + 
-			*(int32_t *) (tp->ct_instr_buf + 1);
+dtrace_printf("rsp=%p:%p %p cpu=%d len=%d\n", sp, *sp, sp[1], cpu_get_id(), tp->ct_tinfo.t_inslen);
+dtrace_printf("jmp offset %p\n", (long) *(int32_t *) (tp->ct_instr_buf + 1));
+dtrace_printf("SET instr_buf: %p -> orig_pc:%p\n", regs->r_pc, tp->ct_orig_pc);
+dtrace_dump_mem64(regs, sizeof *regs / 8 + 2);
+		/***********************************************/
+		/*   sp[3]  because we have an exception (IP,  */
+		/*   CS, EFLAGS) on the stack.		       */
+		/***********************************************/
+#if defined(__amd64)
+//		sp[3] = (greg_t) tp->ct_orig_pc;
+		sp[2] = (greg_t) tp->ct_orig_pc;
+#else
+		sp[0] = (greg_t) tp->ct_orig_pc;
+#endif
+		regs->r_pc = (long) tp->ct_orig_pc + 
+			*(s32 *) (tp->ct_orig_pc - 4);
+//printk("PC now %p\n", regs->r_pc);
 		break;
 		}
 	  case 0xe9: // 0xe9 nn32 jmp relative
 		regs->r_pc = (greg_t) tp->ct_orig_pc +
-			*(int32_t *) (tp->ct_instr_buf + 1);
+			*(s32 *) (tp->ct_instr_buf + 1);
 	  	break;
 	  case 0xea: // 0xea jmp abs
 	  	break;
@@ -149,10 +166,22 @@ dtrace_printf("rfl=%p\n", regs->r_rfl);
 	  	break;
 
 	  case 0xfa: // CLI
+	  	/***********************************************/
+	  	/*   Notreached   -   we   emulate   this  in  */
+	  	/*   cpu_copy_instr  because  we  panic if we  */
+	  	/*   single   step.   Not   sure  why  -  but  */
+	  	/*   emulation is better anyhow.	       */
+	  	/***********************************************/
 	  	regs->r_rfl &= ~X86_EFLAGS_IF;
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
 	  	break;
 	  case 0xfb: // STI
+	  	/***********************************************/
+	  	/*   Notreached   -   we   emulate   this  in  */
+	  	/*   cpu_copy_instr  because  we  panic if we  */
+	  	/*   single   step.   Not   sure  why  -  but  */
+	  	/*   emulation is better anyhow.	       */
+	  	/***********************************************/
 	  	regs->r_rfl |= X86_EFLAGS_IF;
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
 	  	break;
@@ -208,6 +237,28 @@ dtrace_dump_mem32(&regs->r_pc, 32);*/
 void
 cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 {
+dtrace_printf("BEFORE:\n");
+dtrace_print_regs(regs);
+
+	/***********************************************/
+	/*   Emulate  delicate  instructions. Without  */
+	/*   this   we   can   hit  problems  in  the  */
+	/*   syscall/interrupt handlers if we try and  */
+	/*   single step the instructions.	       */
+	/*   Its  also faster and less overhead if we  */
+	/*   do this here.			       */
+	/***********************************************/
+	switch (tp->ct_tinfo.t_opcode) {
+	  case 0xfa: // CLI
+		regs->r_rfl &= ~X86_EFLAGS_IF;
+		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
+		return;
+
+	  case 0xfb: // STI
+		regs->r_rfl |= X86_EFLAGS_IF;
+		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
+		return;
+	}
 
 	tp->ct_instr_buf[0] = tp->ct_tinfo.t_opcode;
 	dtrace_memcpy(&tp->ct_instr_buf[1], 
@@ -224,16 +275,6 @@ cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	/***********************************************/
 	tp->ct_orig_pc = (unsigned char *) regs->r_pc + 
 		tp->ct_tinfo.t_inslen - 1;
-
-	/***********************************************/
-	/*   Set prediction of expected PC. If we get  */
-	/*   another  trap and its not what we expect  */
-	/*   -  we  may be recursing - hitting a func  */
-	/*   which  should  be toxic. This is to help  */
-	/*   debugging only. Not normally expected if  */
-	/*   all is well.			       */
-	/***********************************************/
-	tp->ct_expected_pc = tp->ct_instr_buf + tp->ct_tinfo.t_inslen;
 
 	/***********************************************/
 	/*   May   need   to   rewrite   our   copied  */
@@ -286,7 +327,7 @@ cpu_fix_rel(cpu_core_t *this_cpu, cpu_trap_t *tp, unsigned char *orig_pc)
 				+ *(s32 *) (&pc[modrm + 1]);
 		new_target = target - (pc + tp->ct_tinfo.t_inslen);
 
-dtrace_printf("%p:%p modrm=%d %02x %02x %02x %02x %02x disp=%p ndisp=%p\n", orig_pc, pc, modrm, pc[0], pc[1], pc[2], pc[4], pc[5], target, new_target);
+//dtrace_printf("%p:%p modrm=%d %02x %02x %02x %02x %02x disp=%p ndisp=%p\n", orig_pc, pc, modrm, pc[0], pc[1], pc[2], pc[4], pc[5], target, new_target);
 		*(u32 *) (pc + modrm + 1) = (u32) new_target;
 	}
 #endif

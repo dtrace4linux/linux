@@ -108,7 +108,9 @@ static fbt_probe_t		**fbt_probetab;
 static int			fbt_probetab_size;
 static int			fbt_probetab_mask;
 static int			fbt_verbose = 0;
+
 extern int dtrace_unhandled;
+extern int fbt_name_opcodes;
 
 static void fbt_provide_function(struct modctl *mp, 
     	par_module_t *pmp,
@@ -200,7 +202,7 @@ fbt_is_patched(uint8_t *addr)
 
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 		if (fbt->fbtp_patchpoint == addr) {
-			printk("fbt:dup patch: %p\n", addr);
+			dtrace_printf("fbt:dup patch: %p\n", addr);
 			return 1;
 		}
 	}
@@ -766,13 +768,28 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/***********************************************/
 	if (fbt_is_patched(instr))
 		return;
-/*
-{uchar_t *modrm = dtrace_instr_modrm(instr);
-if (modrm && (modrm[0] & 0xc7) == 0x05) {do_print = 1;
-printk("modrm=%d\n", modrm - instr);
-}}
+/*if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) {
+static char buf[128];
+sprintf(buf, "MODRM_%s", name);
+name = buf;
+}
 */
-if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) return;
+	/***********************************************/
+	/*   Special code here for debugging - we can  */
+	/*   make  the  name of a probe a function of  */
+	/*   the  instruction, so we can validate and  */
+	/*   binary search to find faulty instruction  */
+	/*   stepping code in cpu_x86.c		       */
+	/***********************************************/
+	if (fbt_name_opcodes) {
+		static char buf[128];
+		if (fbt_name_opcodes == 2)
+			snprintf(buf, sizeof buf, "x%02x%02x_%s", *instr, instr[1], name);
+		else
+			snprintf(buf, sizeof buf, "x%02x_%s", *instr, name);
+		name = buf;
+	}
+
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 			fbt->fbtp_name = name;
 
@@ -866,6 +883,13 @@ again:
 	  case FBT_RET_IMM16:
 		invop = DTRACE_INVOP_RET_IMM16;
 		break;
+	  /***********************************************/
+	  /*   Some  functions  can end in a jump, e.g.	 */
+	  /*   security_file_permission has an indirect	 */
+	  /*   jmp.  Dont  think we care too much about	 */
+	  /*   this,  but  we  could  handle direct and	 */
+	  /*   indirect jumps out of the function body.	 */
+	  /***********************************************/
 	  default:
 		instr += size;
 		goto again;

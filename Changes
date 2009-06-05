@@ -1,3 +1,8 @@
+Thu Jun  4 22:08:45 2009  fox
+
+     291* strings.h: Dont undef __USE_BSD. Dont know why Sun insist on using
+          the legacy strings.h and not ISO string.h. Oh well.
+
 Sun May 31 10:39:20 2009  fox
 
      290* dtrace_linux.c, intr_x86*.S: Add support for INT13 (GPF), so

@@ -20,6 +20,14 @@ cat <<EOF | tee $file
 == and the information provided will be used to help
 == enhance the tool and fix the underlying issue.
 ==
+== Latest news and blog updates on dtrace available here. Please
+== check for latest problem reports.
+==
+== http://www.crisp.demon.co.uk/blog/
+==
+== Latest downloads available from here:
+==
+== ftp://crisp.dynalias.com/pub/release/website/dtrace
 == ======================
 (generating a make run - this may take a few moments...)
 EOF

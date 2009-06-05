@@ -345,8 +345,6 @@ typedef struct iovec iovec_t;
 	# include	<sys/wait.h>
 	# include	<zone.h>
 
-	#define	bzero(a, b) memset(a, 0, b)
-
 	#define SHT_SUNW_dof            0x6ffffff4
 	#define SHT_PROGBITS    1               /* Program specific (private) data */
 	#define STT_OBJECT      1               /* Symbol is a data object */

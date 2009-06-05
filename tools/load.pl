@@ -6,6 +6,7 @@
 # 20090416 PDF Add /boot/System.map support
 # 20090416 PDF Add -unhandled switch support.
 # 20090513 PDF Add copy of /etc/dtrace.conf to /dev/dtrace.
+# 20090605 PDF Add -opcodes support for fbt provider.
 
 # Simple script to load the driver and get it ready.
 
@@ -27,6 +28,8 @@ my $SUDO = "setuid root";
 my %opts = (
 	here => 0,
 	mem_alloc => 0,
+	opcodes => 0,
+	opcodes2 => 0,
 	unhandled => 0,
 	v => 0,
 	);
@@ -39,6 +42,8 @@ sub main
 		'help',
 		'here',
 		'mem_alloc',
+		'opcodes',
+		'opcodes2',
 		'unhandled',
 		'unload',
 		'v+',
@@ -83,7 +88,10 @@ sub main
 	#####################################################################
 	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
 	print time_string() . "Loading: $dtracedrv\n";
+	my $opc_len = $opts{opcodes};
+	$opc_len = 2 if $opts{opcodes2};
 	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}" .
+		" fbt_name_opcodes=$opc_len" .
 		" dtrace_unhandled=$opts{unhandled}" .
 		" dtrace_mem_alloc=$opts{mem_alloc}");
 	if ($ret) {
@@ -316,6 +324,9 @@ Switches:
    -fast      Dont do 'dtrace -l' after load to avoid kernel messages.
    -here      Enable tracing to /var/log/messages.
    -mem_alloc Trace memory allocs (kmem_alloc/kmem_zalloc/kmem_free).
+   -opcodes   Make probes named after x86 instruction opcodes to help
+              debugging.
+   -opcodes2  Make probes named after first two bytes of opcode.
    -unhandled Log FBT functions we couldnt handle because of unsupported/
               disassembly errors.
    -unload    Unload the dtrace driver.

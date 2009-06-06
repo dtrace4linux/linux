@@ -1073,7 +1073,7 @@ systrace_destroy(void *arg, dtrace_id_t id, void *parg)
 /*   table (if not done already).				      */
 /**********************************************************************/
 /*ARGSUSED*/
-static void
+static int
 systrace_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
@@ -1096,7 +1096,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	/*   got invoked.			       */
 	/***********************************************/
 	if (syscall_func == NULL)
-		return;
+		return 0;
 
 	/***********************************************/
 	/*   The  x86  kernel  will  page protect the  */
@@ -1107,7 +1107,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	/*   dont care for now.			       */
 	/***********************************************/
 	if (memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE) == 0)
-		return;
+		return 0;
 
 	if (dtrace_here) {
 		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
@@ -1135,6 +1135,7 @@ HERE();
 			    (void *)syscall_func,
 				sysent[sysnum].sy_callc);
 	}
+	return 0;
 }
 
 /*ARGSUSED*/

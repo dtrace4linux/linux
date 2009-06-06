@@ -1,3 +1,14 @@
+Sun Jun  7 11:12:40 2009  fox
+
+     294* Archive: 1.0091
+
+     293* dtrace.h, dtrace.c, cpu_var.h: Add some dtrace fixes from
+          opensolaris-20090607.
+
+     292* fbt_linux.c: Added /proc/dtrace/fbt so we can get info about
+          probes. This is CPU intensive and O(N^2) in performance, so treat
+	  with care. This is to help debug or add perf stats.
+
 Thu Jun  4 22:08:45 2009  fox
 
      291* strings.h: Dont undef __USE_BSD. Dont know why Sun insist on using

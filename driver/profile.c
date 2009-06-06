@@ -381,7 +381,7 @@ profile_offline(void *arg, cpu_t *cpu, void *oarg)
 }
 
 /*ARGSUSED*/
-static void
+static int
 profile_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	profile_probe_t *prof = parg;
@@ -411,6 +411,7 @@ profile_enable(void *arg, dtrace_id_t id, void *parg)
 	} else {
 		prof->prof_cyclic = cyclic_add_omni(&omni);
 	}
+	return 0;
 }
 
 /*ARGSUSED*/

@@ -1047,7 +1047,7 @@ HERE();
 }
 
 /*ARGSUSED*/
-static void
+static int
 fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	fasttrap_probe_t *probe = parg;
@@ -1075,7 +1075,7 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 	 * provider can't go away while we're in this code path.
 	 */
 	if (probe->ftp_prov->ftp_retired)
-		return;
+		return 0;
 
 	/*
 	 * If we can't find the process, it may be that we're in the context of
@@ -1086,7 +1086,7 @@ HERE();
 	if ((p = sprlock(probe->ftp_pid)) == NULL) {
 HERE();
 		if ((curproc->p_flag & SFORKING) == 0)
-			return;
+			return 0;
 HERE();
 
 		mutex_enter(&pidlock);
@@ -1155,7 +1155,7 @@ HERE();
 			 * drop our reference on the trap table entry.
 			 */
 			fasttrap_disable_callbacks();
-			return;
+			return 0;
 		}
 	}
 
@@ -1163,6 +1163,7 @@ HERE();
 	sprunlock(p);
 
 	probe->ftp_enabled = 1;
+	return 0;
 }
 
 /*ARGSUSED*/
@@ -2180,7 +2181,8 @@ fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *
 
 		probe = kmem_alloc(size, KM_SLEEP);
 
-		if (copyin(uprobe, probe, size) != 0) {
+		if (copyin(uprobe, probe, size) != 0 ||
+		    probe->ftps_noffs != noffs) {
 			kmem_free(probe, size);
 			return (EFAULT);
 		}

@@ -60,6 +60,8 @@ int dtrace_unhandled;
 module_param(dtrace_unhandled, int, 0);
 int fbt_name_opcodes;
 module_param(fbt_name_opcodes, int, 0);
+int dtrace_printk;
+module_param(dtrace_printk, int, 0);
 
 /**********************************************************************/
 /*   dtrace_printf() buffer and state.				      */
@@ -895,6 +897,11 @@ static char digits[] = "0123456789abcdef";
 		return;
 
 	va_start(ap, fmt);
+	if (dtrace_printk) {
+		vprintk(fmt, ap);
+		va_end(ap);
+		return;
+	}
 	while ((ch = *fmt++) != '\0') {
 		if (ch != '%') {
 			ADDCH(ch);

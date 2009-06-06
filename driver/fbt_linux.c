@@ -11,7 +11,10 @@
 /*   Date: April 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   $Header: Last edited: 13-Apr-2009 1.1 $ 			      */
+/*   $Header: Last edited: 07-Jun-2009 1.2 $ 			      */
+/*
+07-Jun-2009 PDF Add /proc/dtrace/fbt support to view the probe data
+*/
 /**********************************************************************/
 
 //#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
@@ -29,6 +32,7 @@
 #include <linux/module.h>
 #include <linux/list.h>
 #include <linux/kallsyms.h>
+#include <linux/seq_file.h>
 
 # undef NULL
 # define NULL 0
@@ -108,6 +112,7 @@ static fbt_probe_t		**fbt_probetab;
 static int			fbt_probetab_size;
 static int			fbt_probetab_mask;
 static int			fbt_verbose = 0;
+static int			num_probes;
 
 extern int dtrace_unhandled;
 extern int fbt_name_opcodes;
@@ -116,6 +121,10 @@ static void fbt_provide_function(struct modctl *mp,
     	par_module_t *pmp,
 	char *modname, char *name, uint8_t *st_value, 
 	uint8_t *instr, uint8_t *limit, int);
+static	const char *(*my_kallsyms_lookup)(unsigned long addr,
+                        unsigned long *symbolsize,
+                        unsigned long *offset,
+                        char **modname, char *namebuf);
 
 /**********************************************************************/
 /*   Given  a symbol we got from a module, is the symbol pointing to  */
@@ -196,13 +205,13 @@ HERE();
 /*   For debugging - make sure we dont add a patch to the same addr.  */
 /**********************************************************************/
 static int
-fbt_is_patched(uint8_t *addr)
+fbt_is_patched(char *name, uint8_t *addr)
 {
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
 
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 		if (fbt->fbtp_patchpoint == addr) {
-			dtrace_printf("fbt:dup patch: %p\n", addr);
+			dtrace_printf("fbt:dup patch: %p %s\n", addr, name);
 			return 1;
 		}
 	}
@@ -309,10 +318,6 @@ fbt_provide_kernel()
 {
 	static struct module kern;
 	int	n;
-static	const char *(*kallsyms_lookup)(unsigned long addr,
-                        unsigned long *symbolsize,
-                        unsigned long *offset,
-                        char **modname, char *namebuf);
 static	caddr_t ktext;
 static	caddr_t ketext;
 static int first_time = TRUE;
@@ -325,7 +330,7 @@ static int first_time = TRUE;
 		if (ktext == NULL)
 			ktext = get_proc_addr("_stext");
 		ketext = get_proc_addr("_etext");
-		kallsyms_lookup = get_proc_addr("kallsyms_lookup");
+		my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
 		}
 
 	if (ktext == NULL) {
@@ -341,14 +346,14 @@ static int first_time = TRUE;
 	/*   symbols,  and  creating a probe for each  */
 	/*   one.				       */
 	/***********************************************/
-	for (n = 0, a = ktext; kallsyms_lookup && a < ketext; ) {
+	for (n = 0, a = ktext; my_kallsyms_lookup && a < ketext; ) {
 		const char *cp;
 		unsigned long size;
 		unsigned long offset;
 		char	*modname = NULL;
 
 //printk("lookup %p kallsyms_lookup=%p\n", a, kallsyms_lookup);
-		cp = kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
+		cp = my_kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
 if (cp && size == 0)
 printk("fbt_linux: size=0 %p %s\n", a, cp ? cp : "??");
 /*		printk("a:%p cp:%s size:%lx offset:%lx\n", a, cp ? cp : "--undef--", size, offset);*/
@@ -653,6 +658,8 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 //	do_print = strncmp(name, "update_process", 9) == NULL;
 
 #ifdef __amd64
+// am not happy with 0xe8 CALLR instructions, so disable them for now.
+if (*instr == 0xe8) return;
 	invop = DTRACE_INVOP_ANY;
 	switch (instr[0] & 0xf0) {
 	  case 0x00:
@@ -766,7 +773,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	/*   a  page  (eg  for init/exit section of a  */
 	/*   module).				       */
 	/***********************************************/
-	if (fbt_is_patched(instr))
+	if (fbt_is_patched(name, instr))
 		return;
 /*if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) {
 static char buf[128];
@@ -791,10 +798,11 @@ name = buf;
 	}
 
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-			fbt->fbtp_name = name;
+	fbt->fbtp_name = name;
 
 	fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
 	    name, FBT_ENTRY, 3, fbt);
+	num_probes++;
 	fbt->fbtp_patchpoint = instr;
 	fbt->fbtp_ctl = mp; // ctl;
 	fbt->fbtp_loadcnt = get_refcount(mp);
@@ -899,7 +907,7 @@ again:
 	/***********************************************/
 	/*   Sanity check for bad things happening.    */
 	/***********************************************/
-	if (fbt_is_patched(instr)) {
+	if (fbt_is_patched(name, instr)) {
 		instr += size;
 		goto again;
 	}
@@ -912,6 +920,7 @@ again:
 	if (retfbt == NULL) {
 		fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
 		    name, FBT_RETURN, 3, fbt);
+		num_probes++;
 	} else {
 		retfbt->fbtp_next = fbt;
 		fbt->fbtp_id = retfbt->fbtp_id;
@@ -1006,7 +1015,7 @@ fbt_destroy(void *arg, dtrace_id_t id, void *parg)
 }
 
 /*ARGSUSED*/
-static void
+static int
 fbt_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	fbt_probe_t *fbt = parg;
@@ -1023,7 +1032,7 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 			    fbt->fbtp_name, mp->name);
 		}
 
-		return;
+		return 0;
 	}
 
 	/*
@@ -1038,9 +1047,8 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 			    fbt->fbtp_name, mp->name);
 		}
 
-		return;
+		return 0;
 	}
-HERE();
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
 		if (dtrace_here) 
@@ -1048,7 +1056,7 @@ HERE();
 		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
 			*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
 	}
-HERE();
+	return 0;
 }
 
 /*ARGSUSED*/
@@ -1422,6 +1430,97 @@ fbt_write(struct file *file, const char __user *buf,
 	return syms_write(file, buf, count, pos);
 }
 
+/**********************************************************************/
+/*   Code for /proc/dtrace/fbt					      */
+/**********************************************************************/
+
+static void *fbt_seq_start(struct seq_file *seq, loff_t *pos)
+{
+	if (*pos > num_probes)
+		return 0;
+	return *pos + 1;
+}
+static void *fbt_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+{
+//printk("%s pos=%p mcnt=%d\n", __func__, *pos, mcnt);
+	++*pos;
+
+	return (int) v - 2 > num_probes ? NULL : ((int) v + 1);
+}
+static void fbt_seq_stop(struct seq_file *seq, void *v)
+{
+//printk("%s v=%p\n", __func__, v);
+}
+static int fbt_seq_show(struct seq_file *seq, void *v)
+{
+	int	i;
+	int	n = (int) v;
+	int	target;
+	fbt_probe_t *fbt = NULL;
+	unsigned long size;
+	unsigned long offset;
+	char	*modname = NULL;
+	char	name[KSYM_NAME_LEN];
+	const	char	*cp;
+
+//printk("%s v=%p\n", __func__, v);
+	if (n == 1) {
+		seq_printf(seq, "# patchpoint opcode inslen modrm name\n");
+		return 0;
+	}
+	if (n > num_probes)
+		return 0;
+
+	/***********************************************/
+	/*   Find first probe.			       */
+	/***********************************************/
+	target = n;
+	for (i = 0; target > 0 && i < fbt_probetab_size; i++) {
+		fbt = fbt_probetab[i];
+		if (fbt == NULL)
+			continue;
+		target--;
+		while (target > 0 && fbt) {
+			if ((fbt = fbt->fbtp_hashnext) == NULL)
+				break;
+			target--;
+		}
+	}
+	if (fbt == NULL)
+		return 0;
+
+	cp = my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
+		&size, &offset, &modname, name);
+	seq_printf(seq, "%d %p %02x %d %2d %s:%s\n", n-1, 
+		fbt->fbtp_patchpoint,
+		fbt->fbtp_savedval,
+		fbt->fbtp_inslen,
+		fbt->fbtp_modrm,
+		modname ? modname : "kernel",
+		cp ? cp : "NULL");
+	return 0;
+}
+struct seq_operations seq_ops = {
+	.start = fbt_seq_start,
+	.next = fbt_seq_next,
+	.stop = fbt_seq_stop,
+	.show = fbt_seq_show,
+	};
+static int fbt_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &seq_ops);
+}
+static const struct file_operations fbt_proc_fops = {
+        .owner   = THIS_MODULE,
+        .open    = fbt_seq_open,
+        .read    = seq_read,
+        .llseek  = seq_lseek,
+        .release = seq_release,
+};
+
+/**********************************************************************/
+/*   Main starting interface for the driver.			      */
+/**********************************************************************/
 static const struct file_operations fbt_fops = {
         .ioctl = fbt_ioctl,
         .open = fbt_open,
@@ -1434,10 +1533,12 @@ static struct miscdevice fbt_dev = {
         "fbt",
         &fbt_fops
 };
+
 static int initted;
 
 int fbt_init(void)
 {	int	ret;
+	struct proc_dir_entry *ent;
 
 	ret = misc_register(&fbt_dev);
 	if (ret) {
@@ -1449,16 +1550,7 @@ int fbt_init(void)
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
 	printk(KERN_WARNING "fbt loaded: /dev/fbt now available\n");
-/*{char buf[256];
-extern int kallsyms_lookup_name(char *);
-extern int kallsyms_lookup_size_offset(char *);
-extern int kallsyms_op;
-unsigned long p;
 
-//p = kallsyms_lookup_name("kallsyms_init");
-printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
-}
-*/
 	if (fbt_probetab_size == 0)
 		fbt_probetab_size = FBT_PROBETAB_SIZE;
 
@@ -1468,6 +1560,10 @@ printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
 
 	dtrace_invop_add(fbt_invop);
 	
+	ent = create_proc_entry("dtrace/fbt", 0444, NULL);
+	if (ent)
+		ent->proc_fops = &fbt_proc_fops;
+
 	if (dtrace_register("fbt", &fbt_attr, DTRACE_PRIV_KERNEL, 0,
 	    &fbt_pops, NULL, &fbt_id)) {
 		printk("Failed to register fbt - insufficient priviledge\n");
@@ -1479,6 +1575,7 @@ printk("fbt: kallsyms_op = %p\n", kallsyms_lookup_size_offset);
 }
 void fbt_exit(void)
 {
+	remove_proc_entry("dtrace/fbt", 0);
 	if (initted) {
 		fbt_cleanup(NULL);
 		misc_deregister(&fbt_dev);

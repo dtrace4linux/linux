@@ -30,6 +30,7 @@ my %opts = (
 	mem_alloc => 0,
 	opcodes => 0,
 	opcodes2 => 0,
+	printk => 0,
 	unhandled => 0,
 	v => 0,
 	);
@@ -44,6 +45,7 @@ sub main
 		'mem_alloc',
 		'opcodes',
 		'opcodes2',
+		'printk',
 		'unhandled',
 		'unload',
 		'v+',
@@ -93,7 +95,8 @@ sub main
 	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}" .
 		" fbt_name_opcodes=$opc_len" .
 		" dtrace_unhandled=$opts{unhandled}" .
-		" dtrace_mem_alloc=$opts{mem_alloc}");
+		" dtrace_mem_alloc=$opts{mem_alloc}" .
+		" dtrace_printk=$opts{printk}");
 	if ($ret) {
 		print "\n";
 		print "An error was detected loading the driver. Refer to\n";
@@ -327,6 +330,7 @@ Switches:
    -opcodes   Make probes named after x86 instruction opcodes to help
               debugging.
    -opcodes2  Make probes named after first two bytes of opcode.
+   -printk    Use printk to print to console instead of /proc/dtrace/trace
    -unhandled Log FBT functions we couldnt handle because of unsupported/
               disassembly errors.
    -unload    Unload the dtrace driver.

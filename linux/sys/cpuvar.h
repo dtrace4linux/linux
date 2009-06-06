@@ -110,6 +110,7 @@ typedef struct cpu_trap_t {
 
 typedef struct cpu_core {
         uint16_t        cpuc_dtrace_flags;      /* DTrace flags */
+	uint8_t         cpuc_dcpc_intr_state;   /* DCPC provider intr state */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
 	/***********************************************/
 	/*   sizeof(kmutex_t)  can  exceed  64 bytes,  */

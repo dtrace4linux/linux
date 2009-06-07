@@ -7753,6 +7753,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 	/*   Code below handles the modules.	       */
 	/***********************************************/
 	fbt_provide_kernel();
+	instr_provide_kernel();
 	
 	do {
 		/*

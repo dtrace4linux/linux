@@ -127,81 +127,6 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         char **modname, char *namebuf);
 
 /**********************************************************************/
-/*   Given  a symbol we got from a module, is the symbol pointing to  */
-/*   a  valid  address? We might have jettisoned the .init sections,  */
-/*   so avoid GPF if symbol is not in the .text section.	      */
-/*   								      */
-/*   Complexity  here  for older pre-2.6.19 kernels since the module  */
-/*   private area changed.					      */
-/**********************************************************************/
-static int
-fbt_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
-{
-	char	*secname = NULL;
-
-# if defined(MODULE_SECT_NAME_LEN)
-	/***********************************************/
-	/*   Kernel  <=  2.6.18  ..  we dont know how  */
-	/*   many  sections  there  are so we need to  */
-	/*   validate  the  attrs[]  array in the for  */
-	/*   loop below.			       */
-	/***********************************************/
-	{
-	int j;
-	struct module_sections *secp = (struct module_sections *) 
-		mp->sect_attrs;
-HERE();
-	for (j = 0; ; j++) {
-		/***********************************************/
-		/*   We  dont know how many entries there are  */
-		/*   - so need to validate the ptr.	       */
-		/***********************************************/
-		if (!validate_ptr(secp->attrs[j].address))
-			break;
-		if (sym->st_value < secp->attrs[j+1].address) {
-			secname = secp->attrs[j].name;
-			break;
-		}
-	}
-	}
-# else
-	/***********************************************/
-	/*   Kernel   >=  2.6.19,  hides  the  struct  */
-	/*   definitions, so we have to do this - its  */
-	/*   ugly  and  we  may  break  when/if  they  */
-	/*   change the struct.			       */
-	/***********************************************/
-	{
-	struct module_sect_attr {
-	        struct module_attribute mattr;
-	        char *name;
-	        unsigned long address;
-	};
-	struct module_sect_attrs {
-	        struct attribute_group grp;
-	        unsigned int nsections;
-	        struct module_sect_attr attrs[0];
-	};
-	struct module_sect_attrs *secp = (struct module_sect_attrs *) 
-		mp->sect_attrs;
-//printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
-	if (secp->attrs)
-		secname = secp->attrs[sym->st_shndx].name;
-	}
-# endif
-
-	if (secname == NULL)
-		return FALSE;
-HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
-	if (!validate_ptr(secname))
-		return FALSE;
-HERE();
-	if (strcmp(secname, ".text") != 0)
-		return FALSE;
-HERE();
-	return TRUE;
-}
-/**********************************************************************/
 /*   For debugging - make sure we dont add a patch to the same addr.  */
 /**********************************************************************/
 static int
@@ -599,7 +524,7 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 		/*   section  indexes). What we need to do is  */
 		/*   attempt to find the section by address.   */
 		/***********************************************/
-		if (!fbt_in_text_seg(mp, name, sym))
+		if (!instr_in_text_seg(mp, name, sym))
 			continue;
 
 		/***********************************************/
@@ -1438,14 +1363,14 @@ static void *fbt_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	if (*pos > num_probes)
 		return 0;
-	return *pos + 1;
+	return (void *) (*pos + 1);
 }
 static void *fbt_seq_next(struct seq_file *seq, void *v, loff_t *pos)
-{
+{	long	n = (long) v;
 //printk("%s pos=%p mcnt=%d\n", __func__, *pos, mcnt);
 	++*pos;
 
-	return (int) v - 2 > num_probes ? NULL : ((int) v + 1);
+	return (void *) (n - 2 > num_probes ? NULL : (n + 1));
 }
 static void fbt_seq_stop(struct seq_file *seq, void *v)
 {

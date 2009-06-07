@@ -41,6 +41,7 @@ void	dtrace_printf(char *fmt, ...);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 void	fbt_provide_kernel(void);
+void	instr_provide_kernel(void);
 
 # if !defined(kmem_alloc)
 void	*kmem_alloc(size_t, int);

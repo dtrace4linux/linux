@@ -1,3 +1,9 @@
+Mon Jun  8 22:39:17 2009  fox
+
+     296* instr_linux.c: Instruction provider. Not fully tested/debugged.
+
+     295* dtrace_linux.c: Fix for 2.6.29 task_struct/cred structure compile.
+
 Sun Jun  7 11:12:40 2009  fox
 
      294* Archive: 1.0091

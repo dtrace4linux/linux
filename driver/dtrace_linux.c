@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 17-May-2009 1.4 $ 			      */
+/*   $Header: Last edited: 08-Jun-2009 1.5 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -223,6 +223,8 @@ int	fasttrap_init(void);
 void	fasttrap_exit(void);
 int	fbt_init(void);
 void	fbt_exit(void);
+int	instr_init(void);
+void	instr_exit(void);
 int	sdt_init(void);
 void	sdt_exit(void);
 int	systrace_init(void);
@@ -246,8 +248,13 @@ cred_t *
 CRED()
 {	cred_t	*cr = &cpu_cred[cpu_get_id()];
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	cr->cr_uid = current->cred->uid;
+	cr->cr_gid = current->cred->gid;
+#else
 	cr->cr_uid = current->uid;
 	cr->cr_gid = current->gid;
+#endif
 //printk("get cred end %d %d\n", cr->cr_uid, cr->cr_gid);
 
 	return cr;
@@ -1248,6 +1255,81 @@ suword32(const void *addr, uint32_t value)
 	*(uint32_t *) addr = value;
 	return 0;
 }
+/**********************************************************************/
+/*   Given  a symbol we got from a module, is the symbol pointing to  */
+/*   a  valid  address? We might have jettisoned the .init sections,  */
+/*   so avoid GPF if symbol is not in the .text section.	      */
+/*   								      */
+/*   Complexity  here  for older pre-2.6.19 kernels since the module  */
+/*   private area changed.					      */
+/**********************************************************************/
+int
+instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
+{
+	char	*secname = NULL;
+
+# if defined(MODULE_SECT_NAME_LEN)
+	/***********************************************/
+	/*   Kernel  <=  2.6.18  ..  we dont know how  */
+	/*   many  sections  there  are so we need to  */
+	/*   validate  the  attrs[]  array in the for  */
+	/*   loop below.			       */
+	/***********************************************/
+	{
+	int j;
+	struct module_sections *secp = (struct module_sections *) 
+		mp->sect_attrs;
+HERE();
+	for (j = 0; ; j++) {
+		/***********************************************/
+		/*   We  dont know how many entries there are  */
+		/*   - so need to validate the ptr.	       */
+		/***********************************************/
+		if (!validate_ptr(secp->attrs[j].address))
+			break;
+		if (sym->st_value < secp->attrs[j+1].address) {
+			secname = secp->attrs[j].name;
+			break;
+		}
+	}
+	}
+# else
+	/***********************************************/
+	/*   Kernel   >=  2.6.19,  hides  the  struct  */
+	/*   definitions, so we have to do this - its  */
+	/*   ugly  and  we  may  break  when/if  they  */
+	/*   change the struct.			       */
+	/***********************************************/
+	{
+	struct module_sect_attr {
+	        struct module_attribute mattr;
+	        char *name;
+	        unsigned long address;
+	};
+	struct module_sect_attrs {
+	        struct attribute_group grp;
+	        unsigned int nsections;
+	        struct module_sect_attr attrs[0];
+	};
+	struct module_sect_attrs *secp = (struct module_sect_attrs *) 
+		mp->sect_attrs;
+//printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
+	if (secp->attrs)
+		secname = secp->attrs[sym->st_shndx].name;
+	}
+# endif
+
+	if (secname == NULL)
+		return FALSE;
+HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
+	if (!validate_ptr(secname))
+		return FALSE;
+HERE();
+	if (strcmp(secname, ".text") != 0)
+		return FALSE;
+HERE();
+	return TRUE;
+}
 # define	VMALLOC_SIZE	(100 * 1024)
 void *
 kmem_alloc(size_t size, int flags)
@@ -1836,14 +1918,12 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 static unsigned long cnt;
 
 dtrace_printf("INT3 PC:%p REGS:%p CPU:%d\n", regs->r_pc-1, regs, cpu_get_id());
-
 preempt_disable();
 
 	/***********************************************/
 	/*   Are  we idle, or already single stepping  */
 	/*   a probe?				       */
 	/***********************************************/
-dcnt[11]++;
 	if (dtrace_int_disable)
 		goto switch_off;
 
@@ -2514,7 +2594,11 @@ dtracedrv_write(struct file *file, const char __user *buf,
 	/*   anything  since  they  can  subvert  the  */
 	/*   security model.			       */
 	/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	if (current->cred->uid != 0 && current->cred->euid != 0)
+#else
 	if (current->uid != 0 && current->euid != 0)
+#endif
 		return count;
 
 	while (cp && cp < bpend) {
@@ -2753,6 +2837,7 @@ static struct proc_dir_entry *dir;
 	ctf_init();
 	fasttrap_init();
 	fbt_init();
+	instr_init();
 	systrace_init();
 	dtrace_profile_init();
 	sdt_init();
@@ -2793,6 +2878,7 @@ static void __exit dtracedrv_exit(void)
 	sdt_exit();
 	dtrace_profile_fini();
 	systrace_exit();
+	instr_exit();
 	fbt_exit();
 	fasttrap_exit();
 	ctf_exit();

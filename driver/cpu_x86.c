@@ -54,11 +54,22 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 			(tp->ct_eflags & (X86_EFLAGS_IF));
 
 	switch (*pc) {
-	  /***********************************************/
-	  /*   We  should emulate the 0x7n JMP opcodes,	 */
-	  /*   but  they  can  (?)  never happen in the	 */
-	  /*   first line of a subroutine/probe point.	 */
-	  /***********************************************/
+	  case 0x70: case 0x71: case 0x72: case 0x73:
+	  case 0x74: case 0x75: case 0x76: case 0x77:
+	  case 0x78: case 0x79: case 0x7a: case 0x7b:
+	  case 0x7c: case 0x7d: case 0x7e: case 0x7f:
+	  	/***********************************************/
+	  	/*   These can happen for instr provider.      */
+		/*   If  the  instruction  pointer  isnt  the  */
+		/*   'next'  instruction  then  a  branch was  */
+		/*   taken,   so   handle   the   destination  */
+		/*   relative jump.			       */
+	  	/***********************************************/
+		if (regs->r_pc != tp->ct_instr_buf + 2)
+			regs->r_pc = tp->ct_orig_pc + (char) tp->ct_instr_buf[1];
+		else
+			regs->r_pc = tp->ct_orig_pc;
+		break;
 
 	  case 0x9c: // pushfl
 	  	/***********************************************/
@@ -115,12 +126,12 @@ dtrace_printf("rfl=%p\n", regs->r_rfl);
 	  case 0xe8: // CALLR nn32 call relative
 dtrace_printf("AFTER:\n");
 dtrace_print_regs(regs);
-dtrace_dump_mem64(regs + 1, 20);
+dtrace_dump_mem64((unsigned long *) regs + 1, 20);
 		{greg_t *sp = &regs->r_rsp; // This is where the RET address is sitting.
 dtrace_printf("rsp=%p:%p %p cpu=%d len=%d\n", sp, *sp, sp[1], cpu_get_id(), tp->ct_tinfo.t_inslen);
 dtrace_printf("jmp offset %p\n", (long) *(int32_t *) (tp->ct_instr_buf + 1));
 dtrace_printf("SET instr_buf: %p -> orig_pc:%p\n", regs->r_pc, tp->ct_orig_pc);
-dtrace_dump_mem64(regs, sizeof *regs / 8 + 2);
+dtrace_dump_mem64((unsigned long *) regs, sizeof *regs / 8 + 2);
 		/***********************************************/
 		/*   sp[3]  because we have an exception (IP,  */
 		/*   CS, EFLAGS) on the stack.		       */

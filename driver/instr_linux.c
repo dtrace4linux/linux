@@ -438,7 +438,6 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	uint8_t *instr, uint8_t *limit, int symndx)
 {
 	int	do_print = FALSE;
-	int	invop = 0;
 	instr_probe_t *fbt;
 	int	size;
 	int	modrm;
@@ -446,7 +445,6 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	char	name_buf[128];
 	char	pred_buf[128];
 
-printk("instr_provide %s\n", name);
 # define UNHANDLED_FBT() if (do_print || dtrace_unhandled) { \
 		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
 			name, instr, instr[0], instr[1], instr[2], instr[3]); \

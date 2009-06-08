@@ -1,3 +1,8 @@
+Tue Jun  9 21:32:20 2009  fox
+
+     297* cpu_x86.c: Add support for stepping over 0x7n Jump relative
+          instructions for the instruction provider.
+
 Mon Jun  8 22:39:17 2009  fox
 
      296* instr_linux.c: Instruction provider. Not fully tested/debugged.

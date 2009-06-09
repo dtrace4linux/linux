@@ -1,3 +1,7 @@
+Wed Jun 10 18:34:03 2009  fox
+
+     298* dtrace_linux.c: Remove dependency on init_mm for 2.6.30 kernel.
+
 Tue Jun  9 21:32:20 2009  fox
 
      297* cpu_x86.c: Add support for stepping over 0x7n Jump relative

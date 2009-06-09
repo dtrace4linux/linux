@@ -1469,7 +1469,8 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	/*   e.g. sys_call_table.		       */
 	/***********************************************/
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
-	pgd_t *pgd = pgd_offset_k(addr);
+//	pgd_t *pgd = pgd_offset_k(addr);
+	pgd_t *pgd = pgd_offset(current->mm, addr);
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;

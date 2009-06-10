@@ -19,6 +19,11 @@
  * CDDL HEADER END
  */
 
+/* This code is likely to be removed in a future release - it doesnt
+work, and needs more work to complete it, and isnt needed at
+present.
+*/
+
 /**********************************************************************/
 /*   This  file  contains  a thin /proc/$pid/ctl interface (procfs).  */
 /*   This  interface is 'legacy' at the moment (Feb 2009), since the  */
@@ -39,6 +44,7 @@
 #include <sys/modctl.h>
 #include <sys/dtrace.h>
 #include <sys/stack.h>
+#include <linux/delay.h>
 #include <linux/ptrace.h>
 #include <linux/pid.h>
 //#include <sys/procfs.h>

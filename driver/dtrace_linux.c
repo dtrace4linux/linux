@@ -230,7 +230,12 @@ void	sdt_exit(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 static void print_pte(pte_t *pte, int level);
-static int dtrace_unregister_die_notifier(char *name, struct notifier_block *np);
+
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+void clflush(void *ptr);
+struct task_struct * find_task_by_vpid(int n);
+# endif
+
 
 /**********************************************************************/
 /*   Return  the credentials of the current process. Solaris assumes  */
@@ -740,14 +745,6 @@ dtrace_linux_fini(void)
 {	int	ret = 1;
 	gate_t *idt_table;
 
-# if 0
-	if (!dtrace_unregister_die_notifier("n_int3", &n_int3))
-		ret = 0;
-
-	if (!dtrace_unregister_die_notifier("n_trap_illop", &n_trap_illop))
-		ret = 0;
-# endif
-
 	if (fn_profile_event_unregister) {
 		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
 	} else {
@@ -1004,69 +1001,6 @@ dtrace_sync(void)
 {
         dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
 }
-
-/**********************************************************************/
-/*   Unregister the die notifiers when we are unloaded. This handles  */
-/*   the    scenario   that   the   system   may   be   issing   the  */
-/*   unregister_die_notifier() function (eg. 2.6.9 kernels). We need  */
-/*   to  be  careful  because  if  there  is  no unregister call, we  */
-/*   cannot/must  not  unload  the  driver  - but the __exit handler  */
-/*   doesnt let us signify this.				      */
-/**********************************************************************/
-static int
-dtrace_unregister_die_notifier(char *name, struct notifier_block *np)
-{
-# if 1
-	/***********************************************/
-	/*   No longer needed since we bind direct to  */
-	/*   the interrupt vectors.		       */
-	/***********************************************/
-	return TRUE;
-# else
-	struct notifier_block **die_chain;
-	struct notifier_block *p;
-
-	int (*fn_unregister_die_notifier)(struct notifier_block *) = 
-		get_proc_addr("unregister_die_notifier");
-	if (fn_unregister_die_notifier) {
-		(*fn_unregister_die_notifier)(np);
-		return TRUE;
-	}
-
-	/***********************************************/
-	/*   Try  for  the  die_chain and just remove  */
-	/*   us.				       */
-	/***********************************************/
-	die_chain = (struct notifier_block **) syms[OFFSET_die_chain].m_ptr;
-	if (die_chain == NULL) {
-		printk(KERN_WARNING "dtrace_linux.c: No die_chain in kernel - sorry - cannot rmmod me.\n");
-		/***********************************************/
-		/*   Look,  we  cant unregister, but then, we  */
-		/*   could  register  in  the first place, so  */
-		/*   this should be safe.		       */
-		/***********************************************/
-		return TRUE;
-	}
-	printk(KERN_WARNING "dtrace_linux.c: manual removal in progress (%s)\n", name);
-	if (*die_chain == np) {
-		*die_chain = np->next;
-		return TRUE;
-	}
-
-	for (p = *die_chain ; p; p = p->next) {
-		if (p->next == np) {
-			p->next = np->next;
-			return TRUE;
-		}
-	}
-
-	/***********************************************/
-	/*   Darn it - nothing we can do.	       */
-	/***********************************************/
-	printk(KERN_WARNING "dtrace_linux.c: (%s) cannot locate on chain - sorry - cannot rmmod me.\n", name);
-	return 0;
-# endif
-}
 void
 dtrace_vtime_enable(void)
 {
@@ -1269,6 +1203,13 @@ instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 	char	*secname = NULL;
 
 # if defined(MODULE_SECT_NAME_LEN)
+	/***********************************************/
+	/*   This  is  horrid.  I  know  2.6.18 wants  */
+	/*   this, but 2.6.9 (much older) doesnt.      */
+	/***********************************************/
+# if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 18)
+#   define module_sections module_sect_attrs
+# endif
 	/***********************************************/
 	/*   Kernel  <=  2.6.18  ..  we dont know how  */
 	/*   many  sections  there  are so we need to  */

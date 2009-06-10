@@ -450,10 +450,10 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 			name, instr, instr[0], instr[1], instr[2], instr[3]); \
 			}
 
-# define INSTR(val, opcode_name) if (instr[0] == val) { \
+# define INSTR(val, opcode_name) do {if (instr[0] == val) { \
 	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
 	name = name_buf; \
-	}
+	}} while (0)
 
 	for (; instr < limit; instr += size) {
 		/***********************************************/
@@ -490,6 +490,12 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 		INSTR(0xe2, "loop");
 
 		INSTR(0xe8, "callr");
+		if (*instr == 0xe8) {
+			if (instr[4] & 0x80)
+				INSTR(0xe8, "callr-back");
+			else
+				INSTR(0xe8, "callr-fwd");
+		}
 
 		INSTR(0xf0, "lock");
 		INSTR(0xf1, "icebp");

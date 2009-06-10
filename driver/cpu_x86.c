@@ -138,7 +138,8 @@ dtrace_dump_mem64((unsigned long *) regs, sizeof *regs / 8 + 2);
 		/***********************************************/
 #if defined(__amd64)
 //		sp[3] = (greg_t) tp->ct_orig_pc;
-		sp[2] = (greg_t) tp->ct_orig_pc;
+//		sp[2] = (greg_t) tp->ct_orig_pc;
+		sp[0] = (greg_t) tp->ct_orig_pc;
 #else
 		sp[0] = (greg_t) tp->ct_orig_pc;
 #endif

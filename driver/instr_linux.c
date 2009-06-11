@@ -490,7 +490,11 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 		INSTR(0xe2, "loop");
 
 		INSTR(0xe8, "callr");
-		if (*instr == 0xe8) {
+		/***********************************************/
+		/*   I  was debugging the fwd/back scenario -  */
+		/*   dont need this now.		       */
+		/***********************************************/
+		if (0 && *instr == 0xe8) {
 			if (instr[4] & 0x80)
 				INSTR(0xe8, "callr-back");
 			else

@@ -1,3 +1,12 @@
+Fri Jun 12 19:51:37 2009  fox
+
+     300* cpu_x86.c: Fixed the issue with CALLR and the other call
+          instructions which manipulate the stack as we step over them.
+	  32 and 64 bit kernels should be safe - til we hit another
+	  instruction we have never seen before.
+
+     299* Archive: 1.0092
+
 Wed Jun 10 18:34:03 2009  fox
 
      298* dtrace_linux.c: Remove dependency on init_mm for 2.6.30 kernel.

@@ -24,6 +24,12 @@
 #include "dtrace_proto.h"
 #include <sys/privregs.h>
 
+#if defined(__amd64)
+#   define	stack_ptr(regs) regs->r_rsp
+# else
+#   define	stack_ptr(regs) &regs->r_rsp
+#endif
+
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
@@ -37,6 +43,7 @@ static uchar_t *cpu_skip_prefix(uchar_t *pc);
 int
 cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 {	uchar_t *pc = tp->ct_instr_buf;
+	greg_t *sp;
 	int	keep_going = FALSE;
 
 	pc = cpu_skip_prefix(pc);
@@ -65,10 +72,10 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 		/*   taken,   so   handle   the   destination  */
 		/*   relative jump.			       */
 	  	/***********************************************/
-		if (regs->r_pc != tp->ct_instr_buf + 2)
-			regs->r_pc = tp->ct_orig_pc + (char) tp->ct_instr_buf[1];
+		if ((uchar_t *) regs->r_pc != tp->ct_instr_buf + 2)
+			regs->r_pc = (greg_t) tp->ct_orig_pc + (char) tp->ct_instr_buf[1];
 		else
-			regs->r_pc = tp->ct_orig_pc;
+			regs->r_pc = (greg_t) tp->ct_orig_pc;
 		break;
 
 	  case 0x9c: // pushfl
@@ -124,30 +131,14 @@ dtrace_printf("rfl=%p\n", regs->r_rfl);
 		break;
 
 	  case 0xe8: // CALLR nn32 call relative
-dtrace_printf("AFTER:\n");
-dtrace_print_regs(regs);
-dtrace_dump_mem64((unsigned long *) regs + 1, 20);
-		{greg_t *sp = &regs->r_rsp; // This is where the RET address is sitting.
-dtrace_printf("rsp=%p:%p %p cpu=%d len=%d\n", sp, *sp, sp[1], cpu_get_id(), tp->ct_tinfo.t_inslen);
-dtrace_printf("jmp offset %p\n", (long) *(int32_t *) (tp->ct_instr_buf + 1));
-dtrace_printf("SET instr_buf: %p -> orig_pc:%p\n", regs->r_pc, tp->ct_orig_pc);
-dtrace_dump_mem64((unsigned long *) regs, sizeof *regs / 8 + 2);
-		/***********************************************/
-		/*   sp[3]  because we have an exception (IP,  */
-		/*   CS, EFLAGS) on the stack.		       */
-		/***********************************************/
-#if defined(__amd64)
-//		sp[3] = (greg_t) tp->ct_orig_pc;
-//		sp[2] = (greg_t) tp->ct_orig_pc;
+		sp = (greg_t *) stack_ptr(regs);
 		sp[0] = (greg_t) tp->ct_orig_pc;
-#else
-		sp[0] = (greg_t) tp->ct_orig_pc;
-#endif
+
 		regs->r_pc = (long) tp->ct_orig_pc + 
 			*(s32 *) (tp->ct_orig_pc - 4);
 //printk("PC now %p\n", regs->r_pc);
 		break;
-		}
+
 	  case 0xe9: // 0xe9 nn32 jmp relative
 		regs->r_pc = (greg_t) tp->ct_orig_pc +
 			*(s32 *) (tp->ct_instr_buf + 1);
@@ -209,10 +200,7 @@ dtrace_dump_mem64((unsigned long *) regs, sizeof *regs / 8 + 2);
 		  case 0x50: // call/lcall *nn(%reg)
 		  case 0x90: // call/lcall *nn32(%reg)
 		  case 0xd0: // call/lcall *%reg
-		  	{greg_t *sp = &regs->r_rsp; // This is where the RET address is sitting.
-/*printk("RET %p %p -> %p (inslen=%d)\n", &regs->r_rsp, *sp, tp->ct_orig_pc, tp->ct_tinfo.t_inslen);
-printk("sp:%p instr_bu:%p\n", sp, tp->ct_instr_buf);
-dtrace_dump_mem32(&regs->r_pc, 32);*/
+		  	{greg_t *sp = (greg_t *) stack_ptr(regs);
 			*sp = (greg_t) tp->ct_orig_pc;
 		  	break;
 			}
@@ -249,8 +237,6 @@ dtrace_dump_mem32(&regs->r_pc, 32);*/
 void
 cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 {
-dtrace_printf("BEFORE:\n");
-dtrace_print_regs(regs);
 
 	/***********************************************/
 	/*   Emulate  delicate  instructions. Without  */

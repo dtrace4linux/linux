@@ -1969,7 +1969,6 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 	dtrace_printf("INT13:GPF %p called\n", regs->r_pc-1);
 	dtrace_printf_disable = 1;
 	dtrace_int_disable = TRUE;
-
 	return NOTIFY_DONE;
 }
 /**********************************************************************/

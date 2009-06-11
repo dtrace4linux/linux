@@ -5775,7 +5775,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	volatile uint16_t *flags;
 	hrtime_t now;
 
-dtrace_printf("dtrace_probe(%d)\n", __LINE__);
+//dtrace_printf("dtrace_probe(%d)\n", __LINE__);
 dcnt[0]++;
 # if linux
 	/***********************************************/
@@ -5807,7 +5807,6 @@ dcnt[0]++;
 		 * We have hit in the predicate cache; we know that
 		 * this predicate would evaluate to be false.
 		 */
-dcnt[1]++;
 		dtrace_interrupt_enable(cookie);
 		return;
 	}

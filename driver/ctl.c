@@ -582,7 +582,7 @@ static int proc_pident_readdir2(struct file *filp,
 
 int ctl_init(void)
 {
-	printk(KERN_WARNING "ctl loaded: /proc/pid/ctl now available\n");
+	dtrace_printf("ctl loaded: /proc/pid/ctl now available\n");
 
 	return 0;
 }
@@ -590,6 +590,6 @@ void ctl_exit(void)
 {
 	hunt_cleanup();
 
-	printk(KERN_WARNING "ctl: /proc/pid/ctl driver unloaded.\n");
+/*	printk(KERN_WARNING "ctl: /proc/pid/ctl driver unloaded.\n");*/
 }
 

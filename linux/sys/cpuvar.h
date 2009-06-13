@@ -125,6 +125,13 @@ typedef struct cpu_core {
 	/***********************************************/
 	int		cpuc_mode;
 	cpu_trap_t	cpuc_trap[2];
+
+	/***********************************************/
+	/*   Make  registers  easily available to the  */
+	/*   probe code.			       */
+	/***********************************************/
+	struct pt_regs	*cpuc_regs;
+	struct pt_regs	*cpuc_regs_old; /* Allow for interrupts */
 } cpu_core_t;
 
 # define	CPUC_MODE_IDLE	0

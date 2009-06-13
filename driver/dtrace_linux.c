@@ -144,6 +144,16 @@ int	nr_cpus = 1;
 MUTEX_DEFINE(mod_lock);
 
 /**********************************************************************/
+/*   We  need  one  of  these for every process on the system. Linux  */
+/*   doesnt  provide a way to find a process being created, and even  */
+/*   if  it did, we need to allocate memory when that happens, which  */
+/*   is not viable. So we preallocate all the space we need up front  */
+/*   during driver init. This isnt nice, since that max_pid variable  */
+/*   can change, but typically doesnt.				      */
+/**********************************************************************/
+sol_proc_t	*shadow_procs;
+
+/**********************************************************************/
 /*   We need this to be in an executable page. kzalloc doesnt return  */
 /*   us  one  of  these, and havent yet fixed this so we can make it  */
 /*   executable, so for now, this will do.			      */
@@ -313,6 +323,11 @@ void
 atomic_add_64(uint64_t *p, int n)
 {
 	*p += n;
+}
+cpu_core_t *
+cpu_get_this(void)
+{
+	return THIS_CPU();
 }
 /**********************************************************************/
 /*   We cannot call do_gettimeofday, or ktime_get_ts or any of their  */
@@ -588,6 +603,16 @@ set_idt_entry(int intr, unsigned long func)
 }
 #endif
 
+/**********************************************************************/
+/*   'ipl'  function inside a probe - let us know if interrupts were  */
+/*   enabled or not.						      */
+/**********************************************************************/
+int
+dtrace_getipl(void)
+{	cpu_core_t *this_cpu = THIS_CPU();
+
+	return this_cpu->cpuc_regs->r_rfl & X86_EFLAGS_IF ? 0 : 1;
+}
 /**********************************************************************/
 /*   Saved copies of idt_table[n] for when we get unloaded.	      */
 /**********************************************************************/
@@ -895,7 +920,7 @@ static char digits[] = "0123456789abcdef";
 	/*   Temp: dont wrap buffer - because we want  */
 	/*   to see first entries.		       */
 	/***********************************************/
-	if (0 && dbuf_i >= LOG_BUFSIZ - 2048)
+	if (dbuf_i >= LOG_BUFSIZ - 2048)
 		return;
 	if (dtrace_printf_disable)
 		return;
@@ -1220,7 +1245,7 @@ instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 	int j;
 	struct module_sections *secp = (struct module_sections *) 
 		mp->sect_attrs;
-HERE();
+//HERE();
 	for (j = 0; ; j++) {
 		/***********************************************/
 		/*   We  dont know how many entries there are  */
@@ -1262,13 +1287,13 @@ HERE();
 
 	if (secname == NULL)
 		return FALSE;
-HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
+//HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
 	if (!validate_ptr(secname))
 		return FALSE;
-HERE();
+//HERE();
 	if (strcmp(secname, ".text") != 0)
 		return FALSE;
-HERE();
+//HERE();
 	return TRUE;
 }
 # define	VMALLOC_SIZE	(100 * 1024)
@@ -1695,31 +1720,10 @@ par_setup_thread()
 }
 void *
 par_setup_thread1(struct task_struct *tp)
-{	int	init = TRUE;
-static par_alloc_t *static_p;
-	par_alloc_t *p = NULL;
-	sol_proc_t	*solp;
+{	sol_proc_t	*solp;
 
-dtrace_printf("par_setup_thread1\n");
-//	p = par_alloc(tp, sizeof *curthread, &init);
-static char buf[1024];
-p = buf;
-//dtrace_printf("par_setup_thread1b\n");
-	if (p == NULL) {
-		if (static_p == NULL) {
-			static_p = par_alloc(tp, sizeof *curthread, &init);
-		}
-		p = static_p;
-	}
-
-	if (p == NULL)
-		return NULL;
-
-	solp = (sol_proc_t *) (p + 1);
-	if (init) {
-		mutex_init(&solp->p_lock);
-		mutex_init(&solp->p_crlock);
-	}
+//	solp = cpu_core[cpu_get_id()].cpuc_proc;
+	solp = &shadow_procs[tp->pid];
 
 	curthread = solp;
 	curthread->pid = tp->pid;
@@ -1880,6 +1884,9 @@ preempt_disable();
 		/*   causes a re-entrancy.		       */
 		/***********************************************/
 		this_cpu->cpuc_mode = CPUC_MODE_INT1;
+		this_cpu->cpuc_regs_old = this_cpu->cpuc_regs;
+		this_cpu->cpuc_regs = regs;
+
 		/***********************************************/
 		/*   Now try for a probe.		       */
 		/***********************************************/
@@ -1899,6 +1906,7 @@ preempt_disable();
 			cpu_copy_instr(this_cpu, tp, regs);
 preempt_enable_no_resched();
 dtrace_printf("INT3 %p called CPU:%d good finish\n", regs->r_pc-1, cpu_get_id());
+			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 			return NOTIFY_DONE;
 		}
 		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
@@ -1909,6 +1917,7 @@ dtrace_printf("INT3 %p called CPU:%d good finish\n", regs->r_pc-1, cpu_get_id())
 		/***********************************************/
 preempt_enable_no_resched();
 		if (dtrace_user_probe(3, regs, (caddr_t) regs->r_pc, smp_processor_id())) {
+			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 			HERE();
 			return NOTIFY_DONE;
 		}
@@ -1917,6 +1926,7 @@ preempt_enable_no_resched();
 		/*   Not outs, so let the kernel have it.      */
 		/***********************************************/
 dtrace_printf("INT3 %p called CPU:%d hand over\n", regs->r_pc-1, cpu_get_id());
+		this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 		return NOTIFY_KERNEL;
 	}
 
@@ -1966,9 +1976,14 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
 		return NOTIFY_KERNEL;
 
+	this_cpu->cpuc_regs_old = this_cpu->cpuc_regs;
+	this_cpu->cpuc_regs = regs;
+	
 	dtrace_printf("INT13:GPF %p called\n", regs->r_pc-1);
 	dtrace_printf_disable = 1;
 	dtrace_int_disable = TRUE;
+
+	this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 	return NOTIFY_DONE;
 }
 /**********************************************************************/
@@ -1981,11 +1996,11 @@ int
 dtrace_page_fault_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 
-dcnt[2]++;
 dtrace_printf("PGF %p called\n", regs->r_pc-1);
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
 		return NOTIFY_KERNEL;
 
+	this_cpu->cpuc_regs = regs;
 	/***********************************************/
 	/*   Hmm..we   page   faulted  whilst  single  */
 	/*   stepping.				       */
@@ -2746,11 +2761,22 @@ static struct proc_dir_entry *dir;
 		/***********************************************/
 		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
 		mutex_init(&cpu_list[i].cpu_ft_lock);
-		}
+	}
 	cpu_list[nr_cpus-1].cpu_next = cpu_list;
 	for (i = 0; i < nr_cpus; i++) {
 		mutex_init(&cpu_core[i].cpuc_pid_lock);
 	}
+	/***********************************************/
+	/*   Initialise  the  shadow  procs.  We dont  */
+	/*   cope  with pid_max changing on us. So be  */
+	/*   careful.				       */
+	/***********************************************/
+	shadow_procs = (sol_proc_t *) vmalloc(sizeof(sol_proc_t) * PID_MAX_DEFAULT);
+	memset(shadow_procs, 0, sizeof(sol_proc_t) * PID_MAX_DEFAULT);
+	for (i = 0; i < PID_MAX_DEFAULT; i++) {
+		mutex_init(&shadow_procs[i].p_lock);
+		mutex_init(&shadow_procs[i].p_crlock);
+		}
 
 	/***********************************************/
 	/*   Create /proc/dtrace subentries.	       */
@@ -2834,6 +2860,7 @@ static void __exit dtracedrv_exit(void)
 	kfree(cpu_table);
 	kfree(cpu_core);
 	kfree(cpu_list);
+	vfree(shadow_procs);
 
 	printk(KERN_WARNING "dtracedrv driver unloaded.\n");
 

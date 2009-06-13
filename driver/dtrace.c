@@ -109,6 +109,7 @@
 #include <sys/socket.h>
 # endif
 #include <netinet/in.h>
+#include <sys/privregs.h>
 
 # if linux
 # undef NULL
@@ -2744,7 +2745,6 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		}
 		return (mstate->dtms_walltimestamp);
 
-# if defined(sun)
 	case DIF_VAR_IPL:
 		if (!dtrace_priv_kernel(state))
 			return (0);
@@ -2753,7 +2753,6 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 			mstate->dtms_present |= DTRACE_MSTATE_IPL;
 		}
 		return (mstate->dtms_ipl);
-# endif
 
 	case DIF_VAR_EPID:
 		ASSERT(mstate->dtms_present & DTRACE_MSTATE_EPID);
@@ -2900,7 +2899,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)curthread->t_procp->p_pidp->pid_id);
 # else
-		return curthread->pid;
+		return get_current()->pid;
 # endif
 
 	case DIF_VAR_PPID:
@@ -3005,8 +3004,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)curthread->t_procp->p_cred->cr_uid);
 # else
-		TODO();
-		return 0;
+		return (uint64_t) CRED()->cr_uid;
 # endif
 
 	case DIF_VAR_GID:
@@ -3031,8 +3029,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)curthread->t_procp->p_cred->cr_gid);
 # else
-		TODO();
-		return 0;
+		return (uint64_t) CRED()->cr_gid;
 # endif
 
 	case DIF_VAR_ERRNO: {
@@ -3058,8 +3055,18 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 
 		return ((uint64_t)lwp->lwp_errno);
 # else
-		TODO();
-		return 0;
+		if (!dtrace_priv_proc(state))
+			return (0);
+
+		/*
+		 * See comment in DIF_VAR_PID.
+		 */
+		if (DTRACE_ANCHORED(mstate->dtms_probe) && CPU_ON_INTR(CPU))
+			return (0);
+
+		{cpu_core_t *this_cpu = cpu_get_this();
+		return this_cpu->cpuc_regs ? this_cpu->cpuc_regs->r_rax : 0;
+		}
 # endif
 	}
 
@@ -15530,7 +15537,6 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 
 PRINT_CASE(DTRACEIOC_ENABLE);
 		if (rv == 0) {
-			TODO();
 			printk("Sorry - but rv is null and should not be!\n");
 			return EFAULT;
 		}
@@ -15553,8 +15559,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		mutex_enter(&dtrace_lock);
 
 		if (state == NULL) {
-			TODO();
-			printk("Sorry - but state is null and it should not be!\n");
+			printk("DTRACEIOC_ENABLE: Sorry - but state is null and it should not be!\n");
 			return EFAULT;
 		}
 

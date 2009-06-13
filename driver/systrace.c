@@ -591,6 +591,9 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	}
 
         if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
+		cpu_core_t *this_cpu = cpu_get_this();
+		this_cpu->cpuc_regs = pregs;
+
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
 	}
 

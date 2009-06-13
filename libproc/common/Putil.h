@@ -62,7 +62,7 @@ extern int prset_ismember(void *, size_t, uint_t);
 /*
  * Routine to print debug messages:
  */
-extern void dprintf(const char *, ...);
+extern void dprintf1(const char *, ...);
 
 #ifdef	__cplusplus
 }

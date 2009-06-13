@@ -1379,7 +1379,7 @@ static void fbt_seq_stop(struct seq_file *seq, void *v)
 static int fbt_seq_show(struct seq_file *seq, void *v)
 {
 	int	i;
-	int	n = (int) v;
+	int	n = (int) (long) v;
 	int	target;
 	fbt_probe_t *fbt = NULL;
 	unsigned long size;

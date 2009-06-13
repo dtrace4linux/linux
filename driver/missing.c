@@ -99,7 +99,7 @@ void sort(void *base, size_t num, size_t size,
 }
 #endif
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 void
 smp_call_function_single(int cpuid, int (*func)(void *), void *info, int wait)
 {

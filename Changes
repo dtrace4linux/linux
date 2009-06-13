@@ -1,4 +1,33 @@
+Sun Jun 14 09:58:36 2009  fox
+
+     306* Archive: 1.0093
+
+     305* dtrace_linux.c: We need to preallocate and change the
+          process shadowing code, so that when we use predicates such
+	  as
+
+	  dtrace -n 'syscall::: /pid == NNN/ {}'
+
+	  that we can actually intercept the targetted process and not
+	  confuse dtrace_probe when we share the shadow structure.
+
+     304* Various: change dprintf() to be dprintf1() because GLIBC
+          likes to break working apps and defines a POSIX dprintf().
+	  POSIX like to break working apps too, and should be ashamed
+	  of themselves.
+
+     303* systrace.c, dtrace_linux.c: Make the pt_regs available to 
+          dtrace_probe() so we can access register specific state.
+	  Handle nesting of interrupts (so we dont destroy the
+	  pt_regs pointer in the event of an interrupt on a syscall).
+
+     302* dtrace.c, dtrace_linux.c: Add 'ipl' probe function support.
+
 Fri Jun 12 19:51:37 2009  fox
+
+     301* dtrace_linux.c: Avoid proc shadowing - dont think we need
+          this and can do it with per-cpu allocation instead.
+	  (par_setup_thread1).
 
      300* cpu_x86.c: Fixed the issue with CALLR and the other call
           instructions which manipulate the stack as we step over them.

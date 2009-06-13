@@ -237,7 +237,7 @@ sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 }
 
 /*ARGSUSED*/
-static void
+static int
 sdt_enable(void *arg, dtrace_id_t id, void *parg)
 {
 	sdt_probe_t *sdp = parg;
@@ -255,7 +255,7 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 			    "(module %s unloaded)",
 			    sdp->sdp_name, ctl->mod_modname);
 		}
-		return;
+		return 0;
 	}
 
 	/*
@@ -269,7 +269,7 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 			    "(module %s reloaded)",
 			    sdp->sdp_name, ctl->mod_modname);
 		}
-		return;
+		return 0;
 	}
 	}
 # endif
@@ -278,6 +278,8 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 		*sdp->sdp_patchpoint = sdp->sdp_patchval;
 		sdp = sdp->sdp_next;
 	}
+
+	return 0;
 }
 
 /*ARGSUSED*/
@@ -494,7 +496,7 @@ int sdt_init(void)
 
 	sdt_attach();
 
-	printk(KERN_WARNING "sdt loaded: /dev/sdt now available\n");
+	dtrace_printf("sdt loaded: /dev/sdt now available\n");
 
 	initted = 1;
 
@@ -507,6 +509,6 @@ void sdt_exit(void)
 		misc_deregister(&sdt_dev);
 	}
 
-	printk(KERN_WARNING "sdt driver unloaded.\n");
+/*	printk(KERN_WARNING "sdt driver unloaded.\n");*/
 }
 

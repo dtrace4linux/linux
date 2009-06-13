@@ -29,6 +29,8 @@ MODULE_DESCRIPTION("DTRACE CTF Driver");
 
 int ctf_leave_compressed = 0;
 
+void dtrace_printf(char *, ...);
+
 /*ARGSUSED*/
 void *
 ctf_zopen(int *errp)
@@ -175,14 +177,14 @@ ctf_init(void)
 		printk(KERN_WARNING "ctf: Unable to register misc device\n");
 		return ret;
 		}
-	printk(KERN_WARNING "ctf driver loaded /proc/ctf and /dev/ctf now available\n");
+	dtrace_printf("ctf driver loaded /proc/ctf and /dev/ctf now available\n");
 	initted = TRUE;
 
 	return 0;
 }
 void ctf_exit(void)
 {
-	printk(KERN_WARNING "ctf driver unloaded.\n");
+/*	printk(KERN_WARNING "ctf driver unloaded.\n");*/
 	if (initted) {
 		misc_deregister(&ctf_dev);
 	}

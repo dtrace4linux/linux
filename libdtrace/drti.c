@@ -65,7 +65,6 @@
  */
 
 # if defined(linux)
-# define dprintf dtrace_printf /* Avoid conflict with stdio.h */
 static const char *devname = "/dev/dtrace_helper";
 # else
 static const char *devname = "/dev/dtrace/helper";
@@ -77,7 +76,7 @@ static int gen;			/* DOF helper generation */
 extern dof_hdr_t __SUNW_dof;	/* DOF defined in the .SUNW_dof section */
 
 static void
-dprintf(int debug, const char *fmt, ...)
+dprintf1(int debug, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -125,7 +124,7 @@ dtrace_dof_init(void)
 
 	snprintf(buf, sizeof buf, "/proc/%d/maps", (int) getpid());
 	if ((fp = fopen(buf, "r")) == NULL) {
-		dprintf(0, "drti: failed to open %s\n", buf);
+		dprintf1(0, "drti: failed to open %s\n", buf);
 		}
 	while (fgets(buf, sizeof buf, fp)) {
 		char	*s1 = strtok(buf, "-");
@@ -154,7 +153,7 @@ dtrace_dof_init(void)
 	/*   rely on -lelf/-ldl so just do it here.    */
 	/***********************************************/
 	if (modname == NULL) {
-		dprintf(0, "drti: cannot locate self in shlibs\n");
+		dprintf1(0, "drti: cannot locate self in shlibs\n");
 		return;
 	}
 
@@ -165,7 +164,7 @@ dtrace_dof_init(void)
 	    dof->dofh_ident[DOF_ID_MAG1] != DOF_MAG_MAG1 ||
 	    dof->dofh_ident[DOF_ID_MAG2] != DOF_MAG_MAG2 ||
 	    dof->dofh_ident[DOF_ID_MAG3] != DOF_MAG_MAG3) {
-		dprintf(0, ".SUNW_dof section corrupt\n");
+		dprintf1(0, ".SUNW_dof section corrupt\n");
 		return;
 	}
 
@@ -183,12 +182,12 @@ dtrace_dof_init(void)
 # else
 //printf("dof=__SUNW_dof\n");
 	if (dlinfo(RTLD_SELF, RTLD_DI_LINKMAP, &lmp) == -1 || lmp == NULL) {
-		dprintf(1, "couldn't discover module name or address\n");
+		dprintf1(1, "couldn't discover module name or address\n");
 		return;
 	}
 
 	if (dlinfo(RTLD_SELF, RTLD_DI_LMID, &lmid) == -1) {
-		dprintf(1, "couldn't discover link map ID\n");
+		dprintf1(1, "couldn't discover link map ID\n");
 		return;
 	}
 
@@ -201,7 +200,7 @@ dtrace_dof_init(void)
 	    dof->dofh_ident[DOF_ID_MAG1] != DOF_MAG_MAG1 ||
 	    dof->dofh_ident[DOF_ID_MAG2] != DOF_MAG_MAG2 ||
 	    dof->dofh_ident[DOF_ID_MAG3] != DOF_MAG_MAG3) {
-		dprintf(0, ".SUNW_dof section corrupt\n");
+		dprintf1(0, ".SUNW_dof section corrupt\n");
 		return;
 	}
 
@@ -223,7 +222,7 @@ dtrace_dof_init(void)
 		devname = p;
 
 	if ((fd = open64(devname, O_RDWR)) < 0) {
-		dprintf(1, "failed to open helper device %s", devname);
+		dprintf1(1, "failed to open helper device %s", devname);
 
 		/*
 		 * If the device path wasn't explicitly set, try again with
@@ -235,15 +234,15 @@ dtrace_dof_init(void)
 		devname = olddevname;
 
 		if ((fd = open64(devname, O_RDWR)) < 0) {
-			dprintf(1, "failed to open helper device %s", devname);
+			dprintf1(1, "failed to open helper device %s", devname);
 			return;
 		}
 	}
 
 	if ((gen = ioctl(fd, DTRACEHIOC_ADDDOF, &dh)) == -1)
-		dprintf(1, "DTrace ioctl failed for DOF at %p", dof);
+		dprintf1(1, "DTrace ioctl failed for DOF at %p", dof);
 	else
-		dprintf(1, "DTrace ioctl succeeded for DOF at %p\n", dof);
+		dprintf1(1, "DTrace ioctl succeeded for DOF at %p\n", dof);
 
 	(void) close(fd);
 }
@@ -255,14 +254,14 @@ dtrace_dof_fini(void)
 	int fd;
 
 	if ((fd = open64(devname, O_RDWR)) < 0) {
-		dprintf(1, "failed to open helper device %s", devname);
+		dprintf1(1, "failed to open helper device %s", devname);
 		return;
 	}
 
 	if ((gen = ioctl(fd, DTRACEHIOC_REMOVE, gen)) == -1)
-		dprintf(1, "DTrace ioctl failed to remove DOF (%d)\n", gen);
+		dprintf1(1, "DTrace ioctl failed to remove DOF (%d)\n", gen);
 	else
-		dprintf(1, "DTrace ioctl removed DOF (%d)\n", gen);
+		dprintf1(1, "DTrace ioctl removed DOF (%d)\n", gen);
 
 	(void) close(fd);
 }

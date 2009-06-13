@@ -55,7 +55,7 @@ proc_continue(struct ps_prochandle *phdl)
 		return (EINVAL);
 
 printf("HERE:%s phdl=%p\n", __func__, phdl);
-	while (ptrace(PT_CONTINUE, phdl->pid, (caddr_t)(uintptr_t) 1, 0) != 0) {
+	while (ptrace(PT_CONTINUE, phdl->pid, (caddr_t)(uintptr_t) 0, 0) != 0) {
 		fprintf(stderr, "Error: pid=%d ", phdl->pid);
 		perror("ptrace(PT_CONTINUE)");
 		if (ptrace(PTRACE_ATTACH, phdl->pid, 0, 0) < 0) {
@@ -89,7 +89,6 @@ proc_getflags(struct ps_prochandle *phdl)
 	if (phdl == NULL)
 		return (-1);
 
-printf("HERE:%s\n", __func__);
 	return(phdl->p_flags);
 }
 

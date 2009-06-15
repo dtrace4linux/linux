@@ -1339,7 +1339,7 @@ kmem_free(void *ptr, int size)
 int
 lx_get_curthread_id()
 {
-	return 0;
+	return get_current()->pid;
 }
 
 /**********************************************************************/

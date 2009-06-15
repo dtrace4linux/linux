@@ -113,10 +113,11 @@ proc_create2(struct ps_prochandle *phdl)
 		return -1;
 	}
 	if (pid == 0) {
-		if (ptrace(PT_TRACE_ME, 0, 0, 0) != 0)
+		if (ptrace(PTRACE_TRACEME, 0, 0, 0) != 0)
 			_exit(1);
 
 		/* Execute the specified file: */
+sleep(2);
 printf("child:doing execp %s\n", glob_file);
 		execvp(glob_file, glob_argv);
 
@@ -124,8 +125,11 @@ printf("child:doing execp %s\n", glob_file);
 		_exit(2);
 	}
 	/* Wait for the child process to stop. */
-	if (waitpid(pid, &status, WUNTRACED) == -1)
+printf("thread...am waiting for pid %d\n", pid);
+//	if (waitpid(pid, &status, WUNTRACED) == -1)
+	if (wait(&status) == -1)
                 err(3, "ERROR: child process %d didn't stop as expected", pid);
+printf("waitpid returns\n");
 	phdl->pid = pid;
 	return 0;
 }
@@ -147,7 +151,7 @@ proc_create(const char *file, char * const *argv, struct ps_prochandle **pphdl)
 	if ((phdl = malloc(sizeof(struct ps_prochandle))) == NULL)
 		return (ENOMEM);
 
-# if 1
+# if 0
 	glob_file = file;
 	glob_argv = argv;
 	phdl->p_status = PS_STOP;

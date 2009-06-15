@@ -1,3 +1,8 @@
+Tue Jun 16 22:00:24 2009  fox
+
+     307* dtrace_linux.c: lx_get_curthread_id: Use current->pid, rather
+          than zero. <mauritz.sundell@viem.se>
+
 Sun Jun 14 09:58:36 2009  fox
 
      306* Archive: 1.0093

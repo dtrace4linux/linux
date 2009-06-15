@@ -477,9 +477,6 @@ dt_proc_control(void *arg)
 #endif
 	int notify = B_FALSE;
 
-	proc_create2(P);
-	dpr->dpr_pid = proc_getpid(P);
-	int pid = dpr->dpr_pid;
 	/*
 	 * We disable the POSIX thread cancellation mechanism so that the
 	 * client program using libdtrace can't accidentally cancel our thread.
@@ -488,6 +485,9 @@ dt_proc_control(void *arg)
 	 */
 	(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
+//	proc_create2(P);
+	dpr->dpr_pid = proc_getpid(P);
+	int pid = dpr->dpr_pid;
 	/*
 	 * Set up the corresponding process for tracing by libdtrace.  We want
 	 * to be able to catch breakpoints and efficiently single-step over
@@ -856,12 +856,11 @@ dt_proc_create_thread(dtrace_hdl_t *dtp, dt_proc_t *dpr, uint_t stop)
 	pthread_attr_t a;
 	int err;
 
-printf("main:mutex_lock %p\n", &dpr->dpr_lock);
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
 	dpr->dpr_stop |= stop; /* set bit for initial rendezvous */
 
 	(void) pthread_attr_init(&a);
-//	(void) pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
+	(void) pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
 
 	(void) sigfillset(&nset);
 	(void) sigdelset(&nset, SIGABRT);	/* unblocked for assert() */
@@ -972,7 +971,7 @@ dt_proc_create(dtrace_hdl_t *dtp, const char *file, char *const *argv)
         dpr->dpr_pid = proc_getpid(dpr->dpr_proc);
 #endif
 
-#if defined(sun) || 1
+#if defined(sun)
 	if (dt_proc_create_thread(dtp, dpr, dtp->dt_prcmode) != 0)
 #else
 	if (dt_proc_create_thread(dtp, dpr, DT_PROC_STOP_IDLE) != 0)

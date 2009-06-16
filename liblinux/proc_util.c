@@ -139,6 +139,5 @@ proc_getpid(struct ps_prochandle *phdl)
 	if (phdl == NULL)
 		return (-1);
 
-printf("HERE:%s\n", __func__);
 	return (phdl->pid);
 }

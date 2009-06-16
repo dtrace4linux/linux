@@ -6,10 +6,10 @@ CPPFLAGS += -I. \
 	-I../libproc/common \
 	-I../libctf/ \
 	-DCTF_OLD_VERSIONS $(PTR32)
-CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64
 #CPPFLAGS += -DYY_NO_INPUT
 
 BINDIR = ../$(BUILD_DIR)
+CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -I$(BINDIR)
 LIB = $(BINDIR)/libdtrace.a
 H = \
 	./dt_as.h		\
@@ -83,7 +83,7 @@ dt_names.c: mknames.sh
 
 dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H) 
 	$(YACC) -d dt_grammar.y
-	mv y.tab.h dt_grammar.h
+	mv y.tab.h $(BINDIR)/dt_grammar.h
 	mv y.tab.c dt_grammar.c
 	$(CC) -DYYDEBUG=1 -DYYERROR_VERBOSE $(CPPFLAGS) -c dt_grammar.c
 	ar rv $(LIB) dt_grammar.o

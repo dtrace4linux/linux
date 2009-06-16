@@ -59,8 +59,8 @@ release:
 		--exclude=*.mod.c \
 		--exclude=build/ \
 		--exclude=build-* \
-		--exclude=libdtrace/dt_grammar.h \
-		--exclude=libdtrace/dt_lex.c \
+		--exclude=dt_grammar.h \
+		--exclude=dt_lex.c \
 		--exclude=.tmp_versions \
 		--exclude=Module.symvers \
 		--exclude=*.ko \
@@ -68,7 +68,6 @@ release:
 		--exclude=*.mod \
 		--exclude=tags \
 		--exclude=lwn \
-		--exclude=dt_lex.c \
 		--exclude=.dtrace.nobug \
 		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
 	mv dtrace-$(rel) dtrace ; \

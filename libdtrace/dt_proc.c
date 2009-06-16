@@ -496,7 +496,7 @@ dt_proc_control(void *arg)
 printf("thread:mutex_lock %p\n", &dpr->dpr_lock);
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
 printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
-#if defined(sun)
+
 	(void) Punsetflags(P, PR_ASYNC);	/* require synchronous mode */
 	(void) Psetflags(P, PR_BPTADJ);		/* always adjust eip on x86 */
 	(void) Punsetflags(P, PR_FORK);		/* do not inherit on fork */
@@ -542,18 +542,12 @@ printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 		dt_dprintf("pid %d: failed to set running: %s\n",
 		    (int)dpr->dpr_pid, strerror(errno));
 	}
-#else
-	/*
-	 * If PR_KLC is set, we created the process; otherwise we grabbed it.
-	 * Check for an appropriate stop request and wait for dt_proc_continue.
-	 */
-printf("%s(%d): in thread dt_proc_control flags=%x PR_KLC=%x\n", __FILE__, __LINE__, proc_getflags(P), PR_KLC);
+#if 0
 	if (proc_getflags(P) & PR_KLC)
 		dt_proc_stop(dpr, DT_PROC_STOP_CREATE);
 	else
 		dt_proc_stop(dpr, DT_PROC_STOP_GRAB);
 
-printf("%s(%d): in thread dt_proc_control\n", __FILE__, __LINE__);
 	if (proc_continue(P) != 0)
 		dt_dprintf("pid %d: failed to set running: %s\n",
 		    (int)dpr->dpr_pid, strerror(errno));

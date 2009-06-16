@@ -2285,7 +2285,10 @@ Psetrun(struct ps_prochandle *P,
 	long *ctlp = ctl;
 	size_t size;
 
+printf("Psetrun P->state=%d PS_STOP=%d\n", P->state, PS_STOP);
+if (0)
 	if (P->state != PS_STOP && (P->status.pr_lwp.pr_flags & sbits) == 0) {
+printf("Psetrun - errr\n");
 		errno = EBUSY;
 		return (-1);
 	}
@@ -2327,6 +2330,11 @@ Psetrun(struct ps_prochandle *P,
 		P->ucnelems = 0;
 	}
 
+#if defined(linux)
+	if (ptrace(PTRACE_CONT, proc_getpid(P), 0, 0) == -1) {
+		printf("PTRACE_CONT: returns error\n");
+	}
+#else
 	if (write(ctlfd, ctl, size) != size) {
 		/* If it is dead or lost, return the real status, not PS_RUN */
 		if (errno == ENOENT || errno == EAGAIN) {
@@ -2341,6 +2349,7 @@ Psetrun(struct ps_prochandle *P,
 		}
 		/* Otherwise pretend that the job-stopped process is running */
 	}
+#endif
 
 	P->state = PS_RUN;
 	return (0);
@@ -2837,7 +2846,11 @@ Pxecwapt(struct ps_prochandle *P, const prwatch_t *wp)
 
 	return (rv);
 }
-
+/**********************************************************************/
+/*   Let  us  pretend we are writing to the /proc/pid/ctl interface,  */
+/*   so we can track the state. We dont need it.		      */
+/**********************************************************************/
+# define DO_CTL_WRITE	0
 int
 Psetflags(struct ps_prochandle *P, long flags)
 {
@@ -2847,7 +2860,7 @@ Psetflags(struct ps_prochandle *P, long flags)
 	ctl[0] = PCSET;
 	ctl[1] = flags;
 
-	if (write(P->ctlfd, ctl, 2*sizeof (long)) != 2*sizeof (long)) {
+	if (DO_CTL_WRITE && write(P->ctlfd, ctl, 2*sizeof (long)) != 2*sizeof (long)) {
 		rc = -1;
 	} else {
 		P->status.pr_flags |= flags;
@@ -2867,7 +2880,7 @@ Punsetflags(struct ps_prochandle *P, long flags)
 	ctl[0] = PCUNSET;
 	ctl[1] = flags;
 
-	if (write(P->ctlfd, ctl, 2*sizeof (long)) != 2*sizeof (long)) {
+	if (DO_CTL_WRITE && write(P->ctlfd, ctl, 2*sizeof (long)) != 2*sizeof (long)) {
 		rc = -1;
 	} else {
 		P->status.pr_flags &= ~flags;

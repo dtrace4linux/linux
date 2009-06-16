@@ -31,11 +31,11 @@ dtrace_basename(char *name)
 
 _mutex_held(pthread_mutex_t *mp)
 {
-	if (pthread_mutex_trylock(mp)) {
+	if (pthread_mutex_trylock(mp) == 0) {
 		pthread_mutex_unlock(mp);
-		return 1;
+		return 0;
 	}
-	return 0;
+	return 1;
 }
 int fork1()
 {

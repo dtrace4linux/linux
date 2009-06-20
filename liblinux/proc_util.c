@@ -55,10 +55,10 @@ proc_continue(struct ps_prochandle *phdl)
 		return (EINVAL);
 
 printf("HERE:%s phdl=%p\n", __func__, phdl);
-	while (ptrace(PT_CONTINUE, phdl->pid, (caddr_t)(uintptr_t) 0, 0) != 0) {
-		fprintf(stderr, "Error: pid=%d ", phdl->pid);
-		perror("ptrace(PT_CONTINUE)");
-		if (ptrace(PTRACE_ATTACH, phdl->pid, 0, 0) < 0) {
+	while (do_ptrace(__func__, PTRACE_CONT, phdl->pid, (caddr_t)(uintptr_t) 0, 0) != 0) {
+//		fprintf(stderr, "Error: pid=%d ", phdl->pid);
+//		perror("ptrace(PT_CONTINUE)");
+		if (do_ptrace(__func__, PTRACE_ATTACH, phdl->pid, 0, 0) < 0) {
 			perror("ptrace(PTRACE_ATTACH)");
 		}
 		break;
@@ -98,7 +98,7 @@ proc_setflags(struct ps_prochandle *phdl, int mask)
 	if (phdl == NULL)
 		return (EINVAL);
 
-printf("HERE:%s\n", __func__);
+//printf("HERE:%s\n", __func__);
 	phdl->p_flags |= mask;
 
 	return (0);
@@ -110,7 +110,7 @@ proc_state(struct ps_prochandle *phdl)
 	if (phdl == NULL)
 		return (-1);
 
-printf("HERE:%s\n", __func__);
+//printf("HERE:%s status=%d\n", __func__, phdl->p_status);
 	return (phdl->p_status);
 }
 
@@ -123,13 +123,16 @@ proc_wait(struct ps_prochandle *phdl)
 	if (phdl == NULL)
 		return (EINVAL);
 
-printf("HERE:%s\n", __func__);
-	waitpid(phdl->pid, &status, 0);
+//printf("HERE:%s\n", __func__);
+	if (waitpid(phdl->pid, &status, 0) < 0)
+		return -1;
 	snprintf(buf, sizeof buf, "/proc/%d", phdl->pid);
 	int fd = stat(buf, &sbuf);
 	if (fd < 0) {
-		phdl->p_status = PS_UNDEAD;
+		phdl->p_status = PS_DEAD;
 		}
+	else
+		phdl->p_status = PS_STOP;
 	return status;
 }
 
@@ -140,4 +143,24 @@ proc_getpid(struct ps_prochandle *phdl)
 		return (-1);
 
 	return (phdl->pid);
+}
+int
+do_ptrace(char *func, int req, int pid, void *addr, void *data)
+{	int	ret = ptrace(req, pid, addr, data);
+
+	if (getenv("DTRACE_PTRACE") == NULL)
+		return ret;
+	printf("%s(): ptrace(%s, %d, %p, %p) := %d ",
+		func,
+		req == PTRACE_CONT ? "PTRACE_CONT" :
+		req == PTRACE_DETACH ? "PTRACE_DETACH" :
+		req == PTRACE_ATTACH ? "PTRACE_ATTACH" :
+			"??",
+		pid, addr, data, ret);
+	fflush(stdout);
+	if (ret == -1)
+		perror("");
+	else
+		printf("\n");
+	return ret;
 }

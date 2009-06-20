@@ -98,7 +98,6 @@ dtrace_sleep(dtrace_hdl_t *dtp)
 			char *err = dprn->dprn_errmsg;
 			if (*err == '\0')
 				err = NULL;
-
 			dtp->dt_prochdlr(dprn->dprn_dpr->dpr_proc, err,
 			    dtp->dt_procarg);
 		}

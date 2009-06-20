@@ -114,7 +114,7 @@ printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
 		printf("Pread_live: pid=%d, read=%d err=%s\n", P->pid, ret, strerror(errno));
 	}
 	if (ptrace(PTRACE_DETACH, P->pid, 0, 0) < 0) {
-		perror("PTRACE_DETACH");
+		perror("Pread_live: PTRACE_DETACH");
 	}
 	return ret;
 # else
@@ -134,7 +134,7 @@ static const ps_rwops_t P_live_ops = { Pread_live, Pwrite_live };
  * This is the library's .init handler.
  */
 #pragma init(_libproc_init)
-void
+void pragma_init
 _libproc_init(void)
 {
 # if linux
@@ -259,7 +259,7 @@ Pxcreate(const char *file,	/* executable file name */
 		id_t id;
 		extern char **environ;
 
-		int ret = ptrace(PTRACE_TRACEME, 0, 1, 0);
+		int ret = ptrace(PTRACE_TRACEME, 0, 0, 0);
 		if (ret < 0) {
 			perror("PTRACE_TRACEME");
 		}
@@ -272,6 +272,14 @@ Pxcreate(const char *file,	/* executable file name */
 			(void) setuid(id);
 
 		Pcreate_callback(P);	/* execute callback (see below) */
+//printf("child pausing...\n");
+		/***********************************************/
+		/*   Wait for parent to catch up with us.      */
+		/***********************************************/
+		signal(SIGSTOP, SIG_DFL);
+		kill(getpid(), SIGSTOP);
+		sleep(1);
+
 //		(void) pause();		/* wait for PRSABORT from parent */
 
 		/*
@@ -338,6 +346,7 @@ Pxcreate(const char *file,	/* executable file name */
 	}
 	P->statfd = fd;
 
+#if defined(sun)
 	(void) strcpy(fname, "ctl");
 	if ((fd = open(procname, O_WRONLY)) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
@@ -346,15 +355,21 @@ Pxcreate(const char *file,	/* executable file name */
 		rc = C_STRANGE;
 		goto bad;
 	}
+#else
+	fd = -1;
+#endif
 	P->ctlfd = fd;
 
 # if defined(linux)
-//experimental to use ptrace instead of /proc/$$/ctl
-printf("going for it....................\n");
-	int status;
-	int ret = waitpid(pid, &status, NULL);
-	printf("ret=%d\n", ret);
-//	kill(pid, SIGCONT);
+	int ret, status;
+//printf("going for it....................\n");
+
+//sleep(1);kill(pid, SIGSTOP);
+	pid = waitpid(pid, &status, NULL);
+	do_ptrace(__func__, PTRACE_DETACH, pid, 0, 0);
+	P->status.pr_flags |= PR_STOPPED;
+	P->state = PS_STOP;
+	P->status.pr_pid = pid;
 	*perr = 0;
 	return P;
 # else
@@ -371,7 +386,6 @@ printf("going for it....................\n");
 	(void) Psysentry(P, SYS_pause, 1);
 	(void) Psysexit(P, SYS_pause, 1);
 	for (;;) {
-printf("waiting for stop -- state=%d(PS_STOP=%d)\n", P->state, PS_STOP);
 		if (P->state == PS_STOP &&
 		    P->status.pr_lwp.pr_syscall == SYS_pause &&
 		    (P->status.pr_lwp.pr_why == PR_REQUESTED ||
@@ -1574,7 +1588,7 @@ Psync(struct ps_prochandle *P)
 	int n = 0;
 
 	if (P->flags & SETHOLD) {
-printf("%s(%d): sync SETHOLD\n", __FILE__, __LINE__);
+//printf("%s(%d): sync SETHOLD\n", __FILE__, __LINE__);
 		cmd[0] = PCSHOLD;
 		iov[n].iov_base = (caddr_t)&cmd[0];
 		iov[n++].iov_len = sizeof (long);
@@ -1582,7 +1596,7 @@ printf("%s(%d): sync SETHOLD\n", __FILE__, __LINE__);
 		iov[n++].iov_len = sizeof (P->status.pr_lwp.pr_lwphold);
 	}
 	if (P->flags & SETREGS) {
-printf("%s(%d): sync SETREGS\n", __FILE__, __LINE__);
+//printf("%s(%d): sync SETREGS\n", __FILE__, __LINE__);
 		cmd[1] = PCSREG;
 #ifdef __i386
 		/* XX64 we should probably restore REG_GS after this */
@@ -1597,7 +1611,7 @@ printf("%s(%d): sync SETREGS\n", __FILE__, __LINE__);
 		iov[n++].iov_len = sizeof (P->status.pr_lwp.pr_reg);
 	}
 	if (P->flags & SETSIG) {
-printf("%s(%d): sync SETSIG\n", __FILE__, __LINE__);
+//printf("%s(%d): sync SETSIG\n", __FILE__, __LINE__);
 		cmd[2] = PCSTRACE;
 		iov[n].iov_base = (caddr_t)&cmd[2];
 		iov[n++].iov_len = sizeof (long);
@@ -1605,7 +1619,7 @@ printf("%s(%d): sync SETSIG\n", __FILE__, __LINE__);
 		iov[n++].iov_len = sizeof (P->status.pr_sigtrace);
 	}
 	if (P->flags & SETFAULT) {
-printf("%s(%d): sync SETFAULT\n", __FILE__, __LINE__);
+//printf("%s(%d): sync SETFAULT\n", __FILE__, __LINE__);
 		cmd[3] = PCSFAULT;
 		iov[n].iov_base = (caddr_t)&cmd[3];
 		iov[n++].iov_len = sizeof (long);
@@ -1613,7 +1627,7 @@ printf("%s(%d): sync SETFAULT\n", __FILE__, __LINE__);
 		iov[n++].iov_len = sizeof (P->status.pr_flttrace);
 	}
 	if (P->flags & SETENTRY) {
-printf("%s(%d): sync SETENTRY\n", __FILE__, __LINE__);
+//printf("%s(%d): sync SETENTRY\n", __FILE__, __LINE__);
 		cmd[4] = PCSENTRY;
 		iov[n].iov_base = (caddr_t)&cmd[4];
 		iov[n++].iov_len = sizeof (long);
@@ -1621,7 +1635,7 @@ printf("%s(%d): sync SETENTRY\n", __FILE__, __LINE__);
 		iov[n++].iov_len = sizeof (P->status.pr_sysentry);
 	}
 	if (P->flags & SETEXIT) {
-printf("%s(%d): sync SETEXIT\n", __FILE__, __LINE__);
+//printf("%s(%d): sync SETEXIT\n", __FILE__, __LINE__);
 		cmd[5] = PCSEXIT;
 		iov[n].iov_base = (caddr_t)&cmd[5];
 		iov[n++].iov_len = sizeof (long);
@@ -1645,6 +1659,7 @@ Preopen(struct ps_prochandle *P)
 	char procname[PATH_MAX];
 	char *fname;
 
+printf("In Preopen\n");
 	if (P->state == PS_DEAD || P->state == PS_IDLE)
 		return (0);
 
@@ -1786,7 +1801,7 @@ restore_tracing_flags(struct ps_prochandle *P)
 		}
 	}
 
-printf("%s(%d):%s: PCSTRACE........\n", __FILE__, __LINE__, __func__);
+//printf("%s(%d):%s: PCSTRACE........\n", __FILE__, __LINE__, __func__);
 	cmd[0] = PCSTRACE;
 	iov[0].iov_base = (caddr_t)&cmd[0];
 	iov[0].iov_len = sizeof (long);
@@ -1845,10 +1860,12 @@ Prelease(struct ps_prochandle *P, int flags)
 	dprintf("Prelease: releasing handle %p pid %d\n",
 	    (void *)P, (int)P->pid);
 
+#if defined(sun)
 	if (P->ctlfd == -1) {
 		Pfree(P);
 		return;
 	}
+#endif
 
 	if (P->agentcnt > 0) {
 		P->agentcnt = 1;
@@ -1868,6 +1885,11 @@ Prelease(struct ps_prochandle *P, int flags)
 		Pfree(P);
 		return;
 	}
+
+#if defined(linux)
+	if (flags & PRELEASE_HANG)
+		(void) kill(P->pid, SIGKILL);
+#endif
 
 	/*
 	 * If we lost control, all we can do now is close the files.
@@ -2032,6 +2054,8 @@ Pstopstatus(struct ps_prochandle *P,
 	ctl[1] = PCTWSTOP;
 	ctl[2] = (long)msec;
 	rc = 0;
+
+#if defined(sun)
 	switch (request) {
 	case PCSTOP:
 		rc = write(ctlfd, &ctl[0], 3*sizeof (long));
@@ -2051,20 +2075,27 @@ Pstopstatus(struct ps_prochandle *P,
 		return (-1);
 	}
 	err = (rc < 0)? errno : 0;
+#endif
 	Psync(P);
 
-HERE();
 # if linux
-	sleep(1);
-	if (lx_read_stat(P, &P->status) < 0)
+	if (lx_read_stat(P, &P->status) < 0) {
+		/***********************************************/
+		/*   Process  has  died. Set state to PS_LOST  */
+		/*   so that prochandler knows we lost a kid.  */
+		/***********************************************/
 		err = errno;
+		P->state = PS_UNDEAD;
+//printf("did someone kill me?\n");
+		return -1;
+	}
+	P->state = PS_STOP;
 # else
 	if (P->agentstatfd < 0) {
 		if (pread(P->statfd, &P->status,
 		    sizeof (P->status), (off_t)0) < 0)
 			err = errno;
 	} else {
-HERE();
 		if (pread(P->agentstatfd, &P->status.pr_lwp,
 		    sizeof (P->status.pr_lwp), (off_t)0) < 0)
 			err = errno;
@@ -2072,7 +2103,6 @@ HERE();
 	}
 # endif
 
-HERE();
 	if (err) {
 		switch (err) {
 		case EINTR:		/* user typed ctl-C */
@@ -2113,8 +2143,6 @@ HERE();
 
 	if (!(P->status.pr_flags & PR_STOPPED)) {
 HERE();
-printf("something is wrong....not stoppped....sleeping (pid=%d)\n", P->pid);
-sleep(100);
 		P->state = PS_RUN;
 		if (request == PCNULL || request == PCDSTOP || msec != 0)
 			return (0);
@@ -2163,7 +2191,7 @@ sleep(100);
 int
 Pwait(struct ps_prochandle *P, uint_t msec)
 {
-HERE();
+//HERE();
 	return (Pstopstatus(P, PCWSTOP, msec));
 }
 
@@ -2173,7 +2201,7 @@ HERE();
 int
 Pstop(struct ps_prochandle *P, uint_t msec)
 {
-HERE();
+//HERE();
 	return (Pstopstatus(P, PCSTOP, msec));
 }
 
@@ -2285,15 +2313,16 @@ Psetrun(struct ps_prochandle *P,
 	long *ctlp = ctl;
 	size_t size;
 
-printf("Psetrun P->state=%d PS_STOP=%d\n", P->state, PS_STOP);
+//printf("Psetrun P->state=%d PS_STOP=%d pid=%d\n", P->state, PS_STOP, Pstatus(P)->pr_pid);
 if (0)
 	if (P->state != PS_STOP && (P->status.pr_lwp.pr_flags & sbits) == 0) {
-printf("Psetrun - errr\n");
+//printf("Psetrun - errr\n");
 		errno = EBUSY;
 		return (-1);
 	}
 
 	Psync(P);	/* flush tracing flags and registers */
+//printf("Psetrun(%d) P->state=%d PS_STOP=%d pid=%d\n", __LINE__, P->state, PS_STOP, Pstatus(P)->pr_pid);
 
 	if (flags & PRCFAULT) {		/* clear current fault */
 		*ctlp++ = PCCFAULT;
@@ -2331,8 +2360,7 @@ printf("Psetrun - errr\n");
 	}
 
 #if defined(linux)
-	if (ptrace(PTRACE_CONT, proc_getpid(P), 0, 0) == -1) {
-		printf("PTRACE_CONT: returns error\n");
+	if (do_ptrace(__func__, PTRACE_CONT, proc_getpid(P), 0, 0) == -1) {
 	}
 #else
 	if (write(ctlfd, ctl, size) != size) {

@@ -52,7 +52,7 @@ static size_t _PAGESIZE;
 static size_t _PAGEMASK;
 
 #pragma init(_libctf_init)
-void
+void pragma_init
 _libctf_init(void)
 {
 	const char *p = getenv("LIBCTF_DECOMPRESSOR");

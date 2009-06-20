@@ -88,13 +88,11 @@
 #include <dt_proc.h>
 #include <dt_pid.h>
 #include <dt_impl.h>
+# include <sys/ptrace.h>
 
 #define	IS_SYS_EXEC(w)	(w == SYS_exec || w == SYS_execve)
 #define	IS_SYS_FORK(w)	(w == SYS_vfork || w == SYS_fork1 ||	\
 			w == SYS_forkall || w == SYS_forksys)
-#if defined(linux)
-#	define	Pstate(x)	proc_state(x)
-#endif
 char *rd_errstr(int);
 
 static dt_bkpt_t *
@@ -222,6 +220,7 @@ dt_proc_notify(dtrace_hdl_t *dtp, dt_proc_hash_t *dph, dt_proc_t *dpr,
 		dprn->dprn_next = dph->dph_notify;
 		dph->dph_notify = dprn;
 
+//printf("%s pid=%d\n", __func__, Pstatus(dpr->dpr_proc)->pr_pid);
 		(void) pthread_cond_broadcast(&dph->dph_cv);
 		(void) pthread_mutex_unlock(&dph->dph_lock);
 	}
@@ -485,17 +484,16 @@ dt_proc_control(void *arg)
 	 */
 	(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-//	proc_create2(P);
 	dpr->dpr_pid = proc_getpid(P);
 	int pid = dpr->dpr_pid;
+
 	/*
 	 * Set up the corresponding process for tracing by libdtrace.  We want
 	 * to be able to catch breakpoints and efficiently single-step over
 	 * them, and we need to enable librtld_db to watch libdl activity.
 	 */
-printf("thread:mutex_lock %p\n", &dpr->dpr_lock);
+	do_ptrace(__func__, PTRACE_ATTACH, dpr->dpr_pid, 0, 0);
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
-printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 
 	(void) Punsetflags(P, PR_ASYNC);	/* require synchronous mode */
 	(void) Psetflags(P, PR_BPTADJ);		/* always adjust eip on x86 */
@@ -533,6 +531,7 @@ printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 	 * If PR_KLC is set, we created the process; otherwise we grabbed it.
 	 * Check for an appropriate stop request and wait for dt_proc_continue.
 	 */
+	dpr->dpr_stop |= DT_PROC_STOP_CREATE;
 	if (Pstatus(P)->pr_flags & PR_KLC)
 		dt_proc_stop(dpr, DT_PROC_STOP_CREATE);
 	else
@@ -542,16 +541,7 @@ printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 		dt_dprintf("pid %d: failed to set running: %s\n",
 		    (int)dpr->dpr_pid, strerror(errno));
 	}
-#if 0
-	if (proc_getflags(P) & PR_KLC)
-		dt_proc_stop(dpr, DT_PROC_STOP_CREATE);
-	else
-		dt_proc_stop(dpr, DT_PROC_STOP_GRAB);
 
-	if (proc_continue(P) != 0)
-		dt_dprintf("pid %d: failed to set running: %s\n",
-		    (int)dpr->dpr_pid, strerror(errno));
-#endif
 	(void) pthread_mutex_unlock(&dpr->dpr_lock);
 
 	/*
@@ -563,9 +553,10 @@ printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 	 * Once the process stops, we wake up, grab dpr_lock, and then call
 	 * Pwait() (which will return immediately) and do our processing.
 	 */
+//printf("%s: waiting to quit\n", __func__);
 	while (!dpr->dpr_quit) {
-#if defined(sun)
 		const lwpstatus_t *psp;
+#if defined(sun)
 
 		if (write(pfd, &wstop, sizeof (wstop)) == -1 && errno == EINTR)
 			continue; /* check dpr_quit and continue waiting */
@@ -573,29 +564,22 @@ printf("thread:mutex_lock %p ... succeeded!\n", &dpr->dpr_lock);
 		/* Wait for the process to report status. */
                 proc_wait(P);
 #endif
-
 		(void) pthread_mutex_lock(&dpr->dpr_lock);
-#if defined(sun)
 pwait_locked:
 		if (Pstopstatus(P, PCNULL, 0) == -1 && errno == EINTR) {
+//printf("%s stopstatus (loop) pr_pid pid=%d\n", __func__, Pstatus(dpr->dpr_proc)->pr_pid);
 			(void) pthread_mutex_unlock(&dpr->dpr_lock);
 			continue; /* check dpr_quit and continue waiting */
 		}
-#endif
 
-#if defined(sun)
-		switch (Pstate(P))
-#else
-		switch (proc_state(P))
-#endif
-		{
+		switch (Pstate(P)) {
 		case PS_STOP:
-#if defined(TODOxxx)
 			psp = &Pstatus(P)->pr_lwp;
 
 			dt_dprintf("pid %d: proc stopped showing %d/%d\n",
 			    pid, psp->pr_why, psp->pr_what);
 
+#if defined(sun)
 			/*
 			 * If the process stops showing PR_REQUESTED, then the
 			 * DTrace stop() action was applied to it or another
@@ -634,13 +618,13 @@ pwait_locked:
 			    IS_SYS_EXEC(psp->pr_what))
 				dt_proc_attach(dpr, B_TRUE);
 #endif
+//printf("In PS_STOP dpr_stop=%x\n", dpr->dpr_stop);
 			break;
 
 		case PS_LOST:
-#if defined(sun)
+//printf("in PS_LOST\n");
 			if (Preopen(P) == 0)
 				goto pwait_locked;
-#endif
 
 			dt_dprintf("pid %d: proc lost: %s\n",
 			    pid, strerror(errno));
@@ -650,18 +634,18 @@ pwait_locked:
 			break;
 
 		case PS_UNDEAD:
+		case PS_DEAD:
 			dt_dprintf("pid %d: proc died\n", pid);
 			dpr->dpr_quit = B_TRUE;
 			notify = B_TRUE;
 			break;
+
 		}
 
-#if defined(sun)
 		if (Pstate(P) != PS_UNDEAD && Psetrun(P, 0, 0) == -1) {
 			dt_dprintf("pid %d: failed to set running: %s\n",
 			    (int)dpr->dpr_pid, strerror(errno));
 		}
-#endif
 
 		(void) pthread_mutex_unlock(&dpr->dpr_lock);
 	}
@@ -753,11 +737,8 @@ dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 	 * an external debugger and we were waiting in dt_proc_waitrun().
 	 * Leave the process in this condition using PRELEASE_HANG.
 	 */
-#if defined(sun)
+//printf("dt_proc_destroy flags=%d\n", Pstatus(dpr->dpr_proc)->pr_flags);
 	if (!(Pstatus(dpr->dpr_proc)->pr_flags & (PR_KLC | PR_RLC))) {
-#else
-	if (!(proc_getflags(dpr->dpr_proc) & (PR_KLC | PR_RLC))) {
-#endif
 		dt_dprintf("abandoning pid %d\n", (int)dpr->dpr_pid);
 		rflag = PRELEASE_HANG;
 	} else {
@@ -834,11 +815,7 @@ dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 	}
 
 	dt_list_delete(&dph->dph_lrulist, dpr);
-#if defined(sun)
 	Prelease(dpr->dpr_proc, rflag);
-#else
-	proc_detach(dpr->dpr_proc);
-#endif
 	dt_free(dtp, dpr);
 }
 
@@ -868,10 +845,10 @@ dt_proc_create_thread(dtrace_hdl_t *dtp, dt_proc_t *dpr, uint_t stop)
 	data.dpcd_proc = dpr;
 
 	(void) pthread_sigmask(SIG_SETMASK, &nset, &oset);
-printf("creating thread...&data=%p\n", &data);
 	err = pthread_create(&dpr->dpr_tid, &a, dt_proc_control, &data);
 	(void) pthread_sigmask(SIG_SETMASK, &oset, NULL);
 
+do_ptrace(__func__, PTRACE_DETACH, dpr->dpr_pid, 0, 0);
 	/*
 	 * If the control thread was created, then wait on dpr_cv for either
 	 * dpr_done to be set (the victim died or the control thread failed)
@@ -881,12 +858,12 @@ printf("creating thread...&data=%p\n", &data);
 	 * the caller can then apply dt_proc_continue() to resume both.
 	 */
 	if (err == 0) {
-printf("0..waiting for dt_proc_control....dpr_done=%d stop=%d !stop=%d\n", dpr->dpr_done, dpr->dpr_stop, !(dpr->dpr_stop & DT_PROC_STOP_IDLE));
+//printf("0..waiting for dt_proc_control....dpr_done=%d stop=%d !stop=%d\n", dpr->dpr_done, dpr->dpr_stop, !(dpr->dpr_stop & DT_PROC_STOP_IDLE));
 		while (!dpr->dpr_done && !(dpr->dpr_stop & DT_PROC_STOP_IDLE)) {
-printf("1..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done, dpr->dpr_stop);
+//printf("1..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done, dpr->dpr_stop);
 			(void) pthread_cond_wait(&dpr->dpr_cv, &dpr->dpr_lock);
 		}
-printf("2..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done, dpr->dpr_stop);
+//printf("2..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done, dpr->dpr_stop);
 
 		/*
 		 * If dpr_done is set, the control thread aborted before it
@@ -895,17 +872,14 @@ printf("2..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done,
 		 * small amount of useful information to help figure it out.
 		 */
 		if (dpr->dpr_done) {
-#if defined(sun)
 			const psinfo_t *prp = Ppsinfo(dpr->dpr_proc);
 			int stat = prp ? prp->pr_wstat : 0;
-#endif
 			int pid = dpr->dpr_pid;
 
 			if (Pstate(dpr->dpr_proc) == PS_LOST) {
 				(void) dt_proc_error(dpr->dpr_hdl, dpr,
 				    "failed to control pid %d: process exec'd "
 				    "set-id or unobservable program\n", pid);
-#if defined(sun)
 			} else if (WIFSIGNALED(stat)) {
 				(void) dt_proc_error(dpr->dpr_hdl, dpr,
 				    "failed to control pid %d: process died "
@@ -914,7 +888,6 @@ printf("2..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done,
 				(void) dt_proc_error(dpr->dpr_hdl, dpr,
 				    "failed to control pid %d: process exited "
 				    "with status %d\n", pid, WEXITSTATUS(stat));
-#endif
 			}
 
 			err = ESRCH; /* cause grab() or create() to fail */
@@ -927,7 +900,7 @@ printf("2..waiting for dt_proc_control....dpr_done=%d stop=%d\n", dpr->dpr_done,
 
 	(void) pthread_mutex_unlock(&dpr->dpr_lock);
 	(void) pthread_attr_destroy(&a);
-printf("losing stack frame\n");
+
 	return (err);
 }
 
@@ -944,7 +917,6 @@ dt_proc_create(dtrace_hdl_t *dtp, const char *file, char *const *argv)
 	(void) pthread_mutex_init(&dpr->dpr_lock, NULL);
 	(void) pthread_cond_init(&dpr->dpr_cv, NULL);
 
-#if defined(sun)
 	if ((dpr->dpr_proc = Pcreate(file, argv, &err, NULL, 0)) == NULL) {
 		return (dt_proc_error(dtp, dpr,
 		    "failed to execute %s: %s\n", file, Pcreate_error(err)));
@@ -955,25 +927,9 @@ dt_proc_create(dtrace_hdl_t *dtp, const char *file, char *const *argv)
 
 	(void) Punsetflags(dpr->dpr_proc, PR_RLC);
 	(void) Psetflags(dpr->dpr_proc, PR_KLC);
-#else
-        (void) proc_clearflags(dpr->dpr_proc, PR_RLC);
-        (void) proc_setflags(dpr->dpr_proc, PR_KLC);
-        if ((err = proc_create(file, argv, &dpr->dpr_proc)) != 0)
-                return (dt_proc_error(dtp, dpr,
-                    "failed to execute %s: %s\n", file, strerror(err)));
-        dpr->dpr_hdl = dtp;
-        dpr->dpr_pid = proc_getpid(dpr->dpr_proc);
-#endif
 
-#if defined(sun)
 	if (dt_proc_create_thread(dtp, dpr, dtp->dt_prcmode) != 0)
-#else
-	if (dt_proc_create_thread(dtp, dpr, DT_PROC_STOP_IDLE) != 0)
-#endif
 		return (NULL); /* dt_proc_error() has been called for us */
-# if linux
-        dpr->dpr_pid = proc_getpid(dpr->dpr_proc);
-# endif
 
 	dpr->dpr_hash = dph->dph_hash[dpr->dpr_pid & (dph->dph_hashlen - 1)];
 	dph->dph_hash[dpr->dpr_pid & (dph->dph_hashlen - 1)] = dpr;

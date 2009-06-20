@@ -671,7 +671,7 @@ typedef struct dt_fdlist {
 } dt_fdlist_t;
 
 #pragma init(_dtrace_init)
-void
+void pragma_init
 _dtrace_init(void)
 {
 	_dtrace_debug = getenv("DTRACE_DEBUG") != NULL;

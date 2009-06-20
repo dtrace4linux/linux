@@ -1,3 +1,17 @@
+Sun Jun 21 21:27:25 2009  fox
+
+     311* rchive: 1.0097
+
+     310* dt_proc.c, Pcontrol.c: Make dtrace -c <cmd> work.
+
+Wed Jun 17 23:29:46 2009  fox
+
+     309* Archive: 1.0094
+
+     308* libdtrace/makefile: Put dt_grammar.h in the build dir so that
+          it is not part of the release, to avoid polluting peoples
+	  systems with my yacc or bison build.
+
 Tue Jun 16 22:00:24 2009  fox
 
      307* dtrace_linux.c: lx_get_curthread_id: Use current->pid, rather

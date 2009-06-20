@@ -9,6 +9,7 @@
 # include	<time.h>
 # include	<sys/time.h>
 # include	<pthread.h>
+# include	<string.h>
 #include "Pcontrol.h"
 #include "libproc.h"
 
@@ -39,7 +40,7 @@ _mutex_held(pthread_mutex_t *mp)
 }
 int fork1()
 {
-	printf("proc2.c: fork1 called:%s\n", __func__);
+//	printf("proc2.c: fork1 called:%s\n", __func__);
 	return fork();
 }
 int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
@@ -59,7 +60,7 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 	long	wchan, zero1, zero2, exit_signal;
 	long	cpu, rt_priority, policy;
 
-HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
+//HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
 	memset(pst, 0, sizeof *pst);
 	sprintf(buf, "/proc/%d/stat", P->pid);
 	if ((fd = open(buf, O_RDONLY)) < 0)
@@ -89,7 +90,7 @@ HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
 		&cpu, &rt_priority, &policy);
 
 	pst->pr_dmodel = PR_MODEL_ILP32;
-printf("lx_read_stat pid=%d: state='%s'\n", P->pid, state);
+//printf("lx_read_stat pid=%d: state='%s'\n", P->pid, state);
 	if (*state == 'T')
 		pst->pr_flags |= PR_STOPPED;
 	P->status.pr_flags = pst->pr_flags;

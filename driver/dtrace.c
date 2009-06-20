@@ -5846,9 +5846,6 @@ dcnt[0]++;
 
 	flags = (volatile uint16_t *)&cpu_core[cpuid].cpuc_dtrace_flags;
 
-//dtrace_interrupt_enable(cookie);
-//return;
-
 	for (ecb = probe->dtpr_ecb; ecb != NULL; ecb = ecb->dte_next) {
 		dtrace_predicate_t *pred = ecb->dte_predicate;
 		dtrace_state_t *state = ecb->dte_state;
@@ -5942,7 +5939,6 @@ HERE();
 			 * we're examining a user context.
 			 */
 			if (ecb->dte_cond & DTRACE_COND_OWNER) {
-# if defined(sun)
 				cred_t *cr;
 				cred_t *s_cr =
 				    ecb->dte_state->dts_cred.dcr_cred;
@@ -5960,7 +5956,6 @@ HERE();
 				    (proc = ttoproc(curthread)) == NULL ||
 				    (proc->p_flag & SNOCD))
 					continue;
-# endif
 			}
 
 			if (ecb->dte_cond & DTRACE_COND_ZONEOWNER) {

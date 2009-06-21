@@ -827,6 +827,18 @@ dt_proc_create_thread(dtrace_hdl_t *dtp, dt_proc_t *dpr, uint_t stop)
 	pthread_attr_t a;
 	int err;
 
+#if defined(linux)
+	/***********************************************/
+	/*   Kernel bug -- a parent which attaches to  */
+	/*   a  proc  --  cannot  share  with a child  */
+	/*   thread.   So   we  have  to  detach  and  */
+	/*   reattach  in  the child thread if we are  */
+	/*   to work properly.			       */
+	/***********************************************/
+	if (stop == DT_PROC_STOP_GRAB) {
+		do_ptrace(__func__, PTRACE_DETACH, dpr->dpr_pid, 0, 0);
+	}
+#endif
 	(void) pthread_mutex_lock(&dpr->dpr_lock);
 	dpr->dpr_stop |= stop; /* set bit for initial rendezvous */
 
@@ -984,27 +996,17 @@ dt_proc_grab(dtrace_hdl_t *dtp, pid_t pid, int flags, int nomonitor)
 	(void) pthread_mutex_init(&dpr->dpr_lock, NULL);
 	(void) pthread_cond_init(&dpr->dpr_cv, NULL);
 
-#if defined(sun)
+//printf("grabbing pid %d\n", pid);
 	if ((dpr->dpr_proc = Pgrab(pid, flags, &err)) == NULL) {
 		return (dt_proc_error(dtp, dpr,
 		    "failed to grab pid %d: %s\n", (int)pid, Pgrab_error(err)));
 	}
-#else
-	if ((err = proc_attach(pid, flags, &dpr->dpr_proc)) != 0)
-		return (dt_proc_error(dtp, dpr,
-		    "failed to grab pid %d: %s\n", (int) pid, strerror(err)));
-#endif
 
 	dpr->dpr_hdl = dtp;
 	dpr->dpr_pid = pid;
 
-#if defined(sun)
 	(void) Punsetflags(dpr->dpr_proc, PR_KLC);
 	(void) Psetflags(dpr->dpr_proc, PR_RLC);
-#else
-        (void) proc_clearflags(dpr->dpr_proc, PR_KLC);
-        (void) proc_setflags(dpr->dpr_proc, PR_RLC);
-#endif
 
 	/*
 	 * If we are attempting to grab the process without a monitor

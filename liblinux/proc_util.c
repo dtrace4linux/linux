@@ -42,7 +42,7 @@ proc_clearflags(struct ps_prochandle *phdl, int mask)
 	if (phdl == NULL)
 		return (EINVAL);
 
-printf("HERE:%s\n", __func__);
+//printf("HERE:%s\n", __func__);
 	phdl->p_flags &= ~mask;
 
 	return (0);
@@ -54,7 +54,7 @@ proc_continue(struct ps_prochandle *phdl)
 	if (phdl == NULL)
 		return (EINVAL);
 
-printf("HERE:%s phdl=%p\n", __func__, phdl);
+//printf("HERE:%s phdl=%p\n", __func__, phdl);
 	while (do_ptrace(__func__, PTRACE_CONT, phdl->pid, (caddr_t)(uintptr_t) 0, 0) != 0) {
 //		fprintf(stderr, "Error: pid=%d ", phdl->pid);
 //		perror("ptrace(PT_CONTINUE)");
@@ -76,7 +76,7 @@ proc_detach(struct ps_prochandle *phdl)
 	if (phdl == NULL)
 		return (EINVAL);
 
-printf("HERE:%s\n", __func__);
+//printf("HERE:%s\n", __func__);
 	if (ptrace(PT_DETACH, phdl->pid, 0, 0) != 0)
 		return (errno);
 

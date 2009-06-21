@@ -74,6 +74,9 @@ sigset_t blockable_sigs;	/* signals to block when we need to be safe */
 static	int	minfd;	/* minimum file descriptor returned by dupfd(fd, 0) */
 char	procfs_path[PATH_MAX] = "/proc";
 
+# undef GOTO
+# define GOTO(x) goto x
+
 /*
  * Function prototypes for static routines in this module.
  */
@@ -879,9 +882,6 @@ Pgrab(pid_t pid, int flags, int *perr)
 	char *fname;
 	int rc = 0;
 
-# if linux
-	_libproc_init();
-# endif
 	/*
 	 * PGRAB_RDONLY means that we do not open the /proc/<pid>/control file,
 	 * and so it implies RETAIN and NOSTOP since both require control.
@@ -982,6 +982,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	}
 	P->statfd = fd;
 
+#if defined(sun)
 	if (!(flags & PGRAB_RDONLY)) {
 		(void) strcpy(fname, "ctl");
 		if ((fd = open(procname, O_WRONLY)) < 0 ||
@@ -1003,10 +1004,18 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		}
 		P->ctlfd = fd;
 	}
-
+#endif
 	P->state = PS_RUN;
 	P->pid = pid;
 
+#if defined(linux)
+	if (do_ptrace(__func__, PTRACE_ATTACH, pid, 0, 0) == -1) {
+		rc = G_PERM;
+		GOTO(err);
+	}
+	*perr = 0;
+	return (P);
+#endif
 	/*
 	 * We are now in the Window of Vulnerability (WoV).  The process may
 	 * exec() a setuid/setgid or unreadable object file between the open()
@@ -1136,6 +1145,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			P->status.pr_lwp.pr_flags &= ~PR_DSTOP;
 		}
 	}
+
 
 	/*
 	 * If the process is not already stopped or directed to stop

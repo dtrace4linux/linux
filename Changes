@@ -1,3 +1,11 @@
+Tue Jun 23 23:52:03 2009  fox
+
+     315* dtrace_linux.c: Disable the GPF interrupt hook for now -- we
+          dont need it, and on a 32b kernel, reloading dtrace lots
+	  of times can crash the kernel.
+
+     314* tools/build.pl: Detect if we have bison/yacc/flex.
+
 Mon Jun 22 21:03:36 2009  fox
 
      313* Archive: 1.0098

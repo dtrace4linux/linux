@@ -565,7 +565,7 @@ void
 set_idt_entry(int intr, unsigned long func)
 {
 	gate_t *idt_table = get_proc_addr("idt_table");
-	gate_t s;
+static	gate_t s;
 	int	type = CPU_GATE_INTERRUPT;
 	int	dpl = 3;
 	int	seg = __KERNEL_CS;
@@ -598,8 +598,9 @@ set_idt_entry(int intr, unsigned long func)
 #  error "set_idt_entry: please help me"
 #endif
 
-	idt_table[intr] = s;
+printk("set_idt_entry %p %p sz=%d %p %p\n", &idt_table[intr], &s, sizeof s, ((long *) &idt_table[intr])[0], ((long *) &idt_table[intr])[1]);
 
+	idt_table[intr] = s;
 }
 #endif
 
@@ -630,8 +631,7 @@ gate_t saved_page_fault;
 /**********************************************************************/
 static void
 dtrace_linux_init(void)
-{
-	hrtime_t	t, t1;
+{	hrtime_t	t, t1;
 	gate_t *idt_table;
 static int first_time = TRUE;
 
@@ -655,50 +655,6 @@ static int first_time = TRUE;
 	kernel_page_fault_handler = get_proc_addr("page_fault");
 
 	/***********************************************/
-	/*   Register 0xcc INT3 breakpoint trap.       */
-	/***********************************************/
-# if 0
-	fn_register_die_notifier = get_proc_addr("register_die_notifier");
-	if (fn_register_die_notifier == NULL) {
-		printk("dtrace: register_die_notifier is NULL : FIX ME !\n");
-	} else {
-		int done = FALSE;
-		/***********************************************/
-		/*   Ensure we always are at the front of the  */
-		/*   chain.  kprobes  uses  0x7fffffff  which  */
-		/*   means we cannot get their first.	       */
-		/*   Older kernels may not have die_chain, so  */
-		/*   default  to the unsafe way, but this may  */
-		/*   not  be  a  problem since they wont have  */
-		/*   kprobes anyway (eg AS4).		       */
-		/***********************************************/
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 19)
-		struct atomic_notifier_head *die_chain = get_proc_addr("die_chain");
-		if (die_chain) {
-			n_int3.next = die_chain->head;
-			die_chain->head = &n_int3;
-			done = TRUE;
-		}
-#else
-		/***********************************************/
-		/*   Note   the  type  of  the  die_chain  is  */
-		/*   different  here. Need to really validate  */
-		/*   the type agrees with the kernel...	       */
-		/***********************************************/
-		struct notifier_block **die_chain = get_proc_addr("die_chain");
-//printk("die_chain IS %p\n", die_chain);
-		if (die_chain) {
-			n_int3.next = *die_chain;
-			*die_chain = &n_int3;
-			done = TRUE;
-		}
-#endif
-		if (!done)
-			(*fn_register_die_notifier)(&n_int3);
-	}
-# endif
-
-	/***********************************************/
 	/*   Register proc exit hook.		       */
 	/***********************************************/
 	fn_profile_event_register = 
@@ -715,15 +671,7 @@ static int first_time = TRUE;
 	if (fn_profile_event_register) {
 		fn_profile_event_register(PROFILE_TASK_EXIT, &n_exit);
 	}
-	/***********************************************/
-	/*   We  need  to  intercept  invalid  opcode  */
-	/*   exceptions for fbt/sdt.		       */
-	/***********************************************/
-# if 0
-	if (fn_register_die_notifier) {
-		(*fn_register_die_notifier)(&n_trap_illop);
-	}
-# endif
+
 	/***********************************************/
 	/*   Compute     tsc_max_delta     so    that  */
 	/*   dtrace_gethrtime  doesnt hang around for  */
@@ -748,7 +696,7 @@ static int first_time = TRUE;
 	if (idt_table == NULL) {
 		printk("dtrace: idt_table: not found - cannot patch INT3 handler\n");
 	} else {
-//		saved_double_fault = idt_table[8];
+		saved_double_fault = idt_table[8];
 		saved_int1 = idt_table[1];
 		saved_int3 = idt_table[3];
 		saved_int13 = idt_table[13];
@@ -758,8 +706,8 @@ static int first_time = TRUE;
 #endif
 		set_idt_entry(1, (unsigned long) dtrace_int1);
 		set_idt_entry(3, (unsigned long) dtrace_int3);
-		set_idt_entry(13, (unsigned long) dtrace_int13);
-		set_idt_entry(14, (unsigned long) dtrace_page_fault);
+		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
+//		set_idt_entry(14, (unsigned long) dtrace_page_fault);
 	}
 }
 /**********************************************************************/

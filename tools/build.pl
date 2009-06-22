@@ -1,6 +1,8 @@
 #! /usr/bin/perl
 
-# $Header:$
+# $Header: Last edited: 23-Jun-2009 1.1 $ 
+
+# 23-Jun-2009 PDF Add check for bison/yacc/flex on the system.
 
 # Script to do a 'make all'
 
@@ -26,6 +28,12 @@ sub main
 		);
 
 	usage() if ($opts{help});
+
+	###############################################
+	#   Look for the tools we are going to need.  #
+	###############################################
+	find_binary("bison", "yacc");
+	find_binary("flex");
 
 	###############################################
 	#   Create  the  build  directory.  Dont let  #
@@ -95,6 +103,22 @@ sub main
 		spawn("tools/bug.sh") if !$ENV{MAKE_KERNELS};
 		exit(1);
 	}
+}
+sub find_binary
+{	my @bins = @_;
+
+	foreach my $p (split(":", $ENV{PATH})) {
+		foreach my $b (@bins) {
+			return 1 if -f "$p/$b";
+		}
+	}
+	print "Sorry - but I cannot find " . join(" or ", @bins) . " on your system.\n";
+	print "You may need to install more packages. See utils/get-deps.pl\n";
+	print "for a script to semi-automate this for you.\n";
+	print "Continue ? [y/n] ";
+	my $ans = <STDIN>;
+	exit(1) if $ans !~ /^y/;
+	return 0;
 }
 sub spawn
 {	my $cmd = shift;

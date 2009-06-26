@@ -1,3 +1,11 @@
+Sat Jun 27 20:23:53 2009  fox
+
+     316* dtrace_isa.c, dtrace_linux.c: Make stack() work - using the
+          kernels dump_trace code - if its present, else a cheaper
+	  stack walker.
+
+	  We have problems getting a stack on syscall::: provider.
+
 Tue Jun 23 23:52:03 2009  fox
 
      315* dtrace_linux.c: Disable the GPF interrupt hook for now -- we

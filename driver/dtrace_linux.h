@@ -327,5 +327,6 @@ int suword32(const void *addr, uint32_t value);
 int sulword(const void *addr, ulong_t value);
 int instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym);
 cpu_core_t	*cpu_get_this(void);
+int	is_kernel_text(unsigned long);
 
 # endif

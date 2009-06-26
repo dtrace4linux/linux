@@ -24,12 +24,6 @@
 #include "dtrace_proto.h"
 #include <sys/privregs.h>
 
-#if defined(__amd64)
-#   define	stack_ptr(regs) regs->r_rsp
-# else
-#   define	stack_ptr(regs) &regs->r_rsp
-#endif
-
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/

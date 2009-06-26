@@ -238,13 +238,14 @@ get_refcount(struct module *mp)
 /*   we  are arming the fbt functions. Since the kernel doesnt exist  */
 /*   as a module, we need to handle that as a special case.	      */
 /**********************************************************************/
+caddr_t ktext;
+caddr_t ketext;
+
 void
 fbt_provide_kernel()
 {
 	static struct module kern;
 	int	n;
-static	caddr_t ktext;
-static	caddr_t ketext;
 static int first_time = TRUE;
 	caddr_t a, aend;
 	char	name[KSYM_NAME_LEN];

@@ -187,6 +187,7 @@ sub main
 		idt_table
 		idt_descr
 		xtime:optional
+		kernel_text_address
 		/) {
 		my $done = 0;
 		my $real_name;

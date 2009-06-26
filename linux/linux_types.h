@@ -117,6 +117,12 @@ struct modctl;
 	#	define	dotraplinkage asmlinkage
 	# endif
 
+	#if defined(__amd64)
+	#   define	stack_ptr(regs) regs->r_rsp
+	# else
+	#   define	stack_ptr(regs) &regs->r_rsp
+	#endif
+
 # else /* !__KERNEL */
 
 	#define	_LARGEFILE_SOURCE	1

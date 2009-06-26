@@ -30,6 +30,7 @@
 # undef zone
 # define zone linux_zone
 #include <dtrace_linux.h>
+#include <sys/privregs.h>
 #include <sys/dtrace_impl.h>
 #include <linux/sched.h>
 #include <linux/sys.h>

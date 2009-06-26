@@ -33,6 +33,7 @@
 #include <asm/ucontext.h>
 #include <linux/thread_info.h>
 #include <sys/privregs.h>
+#include "../port.h"
 # endif
 
 #include <sys/dtrace_impl.h>
@@ -101,28 +102,55 @@ static const struct stacktrace_ops print_trace_ops = {
 };
 # endif
 
+/**********************************************************************/
+/*   Used by the stack() D function to get a stack dump at the point  */
+/*   of the probe.						      */
+/**********************************************************************/
 /*ARGSUSED*/
 void
 dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
     uint32_t *ignored)
 {
-/*	int	dummy;*/
 	int	depth;
+#if !defined(HAVE_STACKTRACE_OPS)
+	/***********************************************/
+	/*   This  is  a basic stack walker - we dont  */
+	/*   care  about  omit-frame-pointer,  and we  */
+	/*   can  have  false positives. We also dont  */
+	/*   handle  exception  stacks properly - but  */
+	/*   this  is  for  older  kernels, where the  */
+	/*   kernel  wont  help  us,  so they may not  */
+	/*   have exception stacks anyhow.	       */
+	/***********************************************/
+
+	cpu_core_t	*this_cpu = cpu_get_this();
+	struct pt_regs *regs = this_cpu->cpuc_regs;
+	uintptr_t *sp = (uintptr_t *) &regs->r_rsp;
+	uintptr_t *spend;
+	
+	if (regs == NULL)
+		sp = &depth;
+
+	spend = sp + THREAD_SIZE / sizeof(uintptr_t);
+
+	for (depth = 0; depth < pcstack_limit && sp < spend; ) {
+		if (sp && is_kernel_text((unsigned long) *sp)) {
+			pcstack[depth++] = *sp;
+		}
+		sp++;
+	}
+#else
 
 	mutex_enter(&dtrace_stack_mutex);
 	g_depth = 0;
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
 
-# if defined(HAVE_STACKTRACE_OPS)
 	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
-#endif
 	depth = g_depth;
 	mutex_exit(&dtrace_stack_mutex);
+#endif
 
-/*	for (dummy = 0; dummy < depth; dummy++) {
-		printk("stack: %d %p\n", dummy, pcstack[dummy]);
-	}*/
 	while (depth < pcstack_limit)
 		pcstack[depth++] = (pc_t) NULL;
 }

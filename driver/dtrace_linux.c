@@ -87,6 +87,7 @@ enum {
 	OFFSET_idt_table,
 	OFFSET_task_exit_notifier,
 	OFFSET_xtime,
+	OFFSET_kernel_text_address,
 	OFFSET_END_SYMS,
 	};
 static struct map {
@@ -107,6 +108,7 @@ static struct map {
 {"idt_table",              NULL}, /* For int3 vector patching.		*/
 {"task_exit_notifier",     NULL},
 {"xtime",     		   NULL}, /* Needed for dtrace_gethrtime, if 2.6.9 */
+{"kernel_text_address",    NULL}, /* Used for stack walking when no dump_trace available */
 {"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
 	};
@@ -1227,6 +1229,7 @@ instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 	};
 	struct module_sect_attrs *secp = (struct module_sect_attrs *) 
 		mp->sect_attrs;
+//printk("mp:%p mp->sect_attrs:%p\n", mp, mp->sect_attrs);
 //printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
 	if (secp->attrs)
 		secname = secp->attrs[sym->st_shndx].name;
@@ -1236,14 +1239,36 @@ instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 	if (secname == NULL)
 		return FALSE;
 //HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
+//printk("secname=%p (1)\n", secname);
 	if (!validate_ptr(secname))
 		return FALSE;
 //HERE();
+//printk("secname=%p (2)\n", secname);
 	if (strcmp(secname, ".text") != 0)
 		return FALSE;
 //HERE();
 	return TRUE;
 }
+/**********************************************************************/
+/*   When  walking  stacks, need to see if this is a kernel pointer,  */
+/*   to avoid garbage on the stack.				      */
+/**********************************************************************/
+extern caddr_t ktext;
+extern caddr_t ketext;
+int
+is_kernel_text(unsigned long p)
+{
+	int (*func)(unsigned long) = syms[OFFSET_kernel_text_address].m_ptr;
+
+	if (ktext <= p && p <= ketext)
+		return 1;
+
+	if (func) {
+		return func(p);
+	}
+	return 0;
+}
+
 # define	VMALLOC_SIZE	(100 * 1024)
 void *
 kmem_alloc(size_t size, int flags)

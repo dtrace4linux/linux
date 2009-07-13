@@ -1,0 +1,53 @@
+/*
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+
+#ifndef __RTLD_DB_H
+#define __RTLD_DB_H
+
+#pragma ident   "%Z%%M% %I%     %E% SMI"
+
+#include <sys/auxv.h>
+
+/*
+ * Values for rd_flags
+ */
+#define RDF_FL_COREFILE         0x0001          /* client is core file image */
+
+
+#define RDAGLOCK(x)     (void) mutex_lock(&(x->rd_mutex));
+#define RDAGUNLOCK(x)   (void) mutex_unlock(&(x->rd_mutex));
+#define LOG(func)       {                                               \
+                                (void) mutex_lock(&glob_mutex);         \
+                                if (rtld_db_logging)                    \
+                                        func;                           \
+                                (void) mutex_unlock(&glob_mutex);       \
+                        }
+extern mutex_t	glob_mutex;
+extern int	rtld_db_version;
+extern int	rtld_db_logging;
+extern char	rtld_db_helper_path[];
+
+#endif /* __RTLD_DB_H */

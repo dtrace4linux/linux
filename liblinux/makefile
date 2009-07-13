@@ -22,7 +22,6 @@ $(LIB): \
 	$(LIB)(proc_create.o) \
 	$(LIB)(proc_names.o) \
 	$(LIB)(proc_util.o) \
-	$(LIB)(rd.o) \
 	$(LIB)(strlcpy.o)
 
 

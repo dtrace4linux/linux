@@ -28,6 +28,9 @@
 
 # if linux
 #define _SYSCALL32
+#define zone mm_zone
+#include <linux/mm.h>
+#undef zone
 #include "dtrace_linux.h"
 #include <linux/sched.h>
 #include <asm/ucontext.h>
@@ -42,6 +45,7 @@
 #include <sys/cmn_err.h>
 #include <sys/privregs.h>
 #include <sys/sysmacros.h>
+#include "dtrace_proto.h"
 
 typedef struct ucontext ucontext_t;
 typedef struct ucontext32 ucontext32_t;
@@ -146,7 +150,11 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
+#else
 	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
+#endif
 	depth = g_depth;
 	mutex_exit(&dtrace_stack_mutex);
 #endif
@@ -154,6 +162,70 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	while (depth < pcstack_limit)
 		pcstack[depth++] = (pc_t) NULL;
 }
+/*
+http://refspecs.freestandards.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/ehframechpt.html
+ignore this -- i am experimenting....
+*/
+static void
+dwarf_stuff(unsigned long *sp)
+{
+#if 0
+	struct mm_struct *mm = current->mm;
+	struct vm_area_struct *vma;
+	int	i;
+	Elf64_Ehdr	*ehdr;
+	Elf64_Phdr      *phdr;
+	Elf64_Shdr      *shdr;
+
+	vma = find_vma(mm, *sp);
+printk("mm ours=%p vma=%p\n", mm, vma);
+	printk("  vm_start=%p\n",vma->vm_start);
+	printk("  vm_end  =%p\n", vma->vm_end);
+	dtrace_dump_mem32(vma->vm_start, 16);
+	if (vma->vm_file && vma->vm_file->f_path.dentry) {
+		char	buf[256];
+		buf[0] = '\0';
+		d_path(&vma->vm_file->f_path, buf, sizeof buf);
+		printk("  file=%s\n", buf);
+	}
+
+	ehdr = vma->vm_start;
+        printk("e_phoff:              %04x\n", ehdr->e_phoff);
+        printk("e_phnum:              %04x\n", ehdr->e_phnum);
+        printk("e_shoff:              %04x\n", ehdr->e_shoff);
+        printk("e_shnum:              %04x\n", ehdr->e_shnum);
+        printk("e_shstrndx:           %04x\n", ehdr->e_shstrndx);
+	phdr = (char *) vma->vm_start + ehdr->e_phoff;
+/*
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		phdr = (char *) vma->vm_start + ehdr->e_phoff + sizeof *phdr * i;
+		printk("  phdr[%d]: type=%x offset=%x size=%x\n", i, phdr->p_type, phdr->p_offset, phdr->p_memsz);
+	}
+*/
+	/***********************************************/
+	/*   Locate the .eh_frame_hdr segment.	       */
+	/***********************************************/
+	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
+		if (phdr->p_type == PT_GNU_EH_FRAME)
+			break;
+	}
+	if (i >= ehdr->e_phnum)
+		return;
+	printk("  .eh_frame_hdr phdr[%d]: type=%x offset=%x size=%x\n", i, phdr->p_type, phdr->p_offset, phdr->p_memsz);
+	shdr = (char *) vma->vm_start + ehdr->e_shoff;
+	printk("shdr=%p\n", shdr);
+return;
+printk("sec[0]=%p\n", shdr[0].sh_offset);
+	char *strtab = (char *) vma->vm_start + shdr[ehdr->e_shstrndx].sh_offset;
+	printk("strtab=%p\n", strtab);
+return;
+	for (i = 0; i < ehdr->e_shnum; i++) {
+		printk("sec %d: %p %d\n", i, shdr[i].sh_addr, shdr[i].sh_size);
+	}
+
+#endif
+}
+
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {	uint64_t *pcstack_end = pcstack + pcstack_limit;
@@ -244,19 +316,57 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 #else
 	bos = sp = task_pt_regs(current)->rsp;
 #endif
-	*pcstack++ = (uint64_t) sp;
-//printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.rsp, current->stack);
-//{int i; for (i = 0; i < 64; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
-	while (pcstack < pcstack_end &&
-	       sp >= bos) {
-		if (validate_ptr(sp))
-			*pcstack++ = sp[0];
-		sp++;
-//printk("sp=%p limit=%d\n", sp, pcstack_limit);
+
+        while (pcstack < pcstack_end &&                                       
+               sp >= bos) {                                                   
+                if (validate_ptr(sp))                                         
+                        *pcstack++ = sp[0];                                   
+                sp++; 
 	}
+#if 0
+	int lvl = 0;
+	*pcstack++ = sp[0];
+	dwarf_stuff(sp);
+	while (pcstack < pcstack_end && sp >= bos) {
+//printk("probe1 %p\n", sp);
+//		if (!access_ok(VERIFY_READ, sp, sizeof(uintptr_t)))
+//			break;
+
+		if (!validate_ptr(sp))
+			break;
+
+//printk("probe2 %p %p %p %p %p %p\n", sp[1], sp[2], sp[3], sp[4], sp[5], sp[6]);
+//		if (!validate_ptr(sp[1]))
+//			break;
+//		if (!access_ok(VERIFY_READ, sp[1], sizeof(uintptr_t)))
+//			break;
+
+		if (lvl <4) {
+			int i;
+			for (i = 0; i < 51200; i++) {
+				if (!validate_ptr(sp))
+					goto do_end;
+//				printk("%p try %d %p\n", sp, i, sp[0]);
+				if (sp[0] > sp && sp[0] < sp + 10000)
+					goto do_ok;
+				sp++;
+			}
+			goto do_end;
+		}
+do_ok:
+		*pcstack++ = sp[1];
+if (sp[2])*pcstack++ = sp[2];
+if (sp[3])*pcstack++ = sp[3];
+		if (sp[0] < sp)
+			break;
+		sp = sp[0];
+//dtrace_printf("sp=%p limit=%d\n", sp, pcstack_limit);
+		lvl++;
+	}
+#endif
 # endif
 	}
-
+do_end:
 	while (pcstack < pcstack_end)
 		*pcstack++ = (pc_t) NULL;
 }

@@ -10,8 +10,9 @@
 # include	<sys/time.h>
 # include	<pthread.h>
 # include	<string.h>
-#include "Pcontrol.h"
-#include "libproc.h"
+# include	"Pcontrol.h"
+# include	"libproc.h"
+# include	<sys/model.h>
 
 void bzero(void *s, size_t n)
 {
@@ -45,6 +46,7 @@ int fork1()
 }
 int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 {	int	fd;
+	FILE	*fp;
 	char	buf[4096];
 	char	cmd[1024];
 	char	state[1024];
@@ -61,7 +63,30 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 	long	cpu, rt_priority, policy;
 
 //HERE(); printf("Help: reading /stat/ structure (64b: fix pr_dmodel) <==.\n");
-	memset(pst, 0, sizeof *pst);
+	/***********************************************/
+	/*   Dont  clean out the memory, else we lose  */
+	/*   the  PR_KLC/PR_RLC  flags  which mean we  */
+	/*   kill -9 a process we grabbed on exit.     */
+	/***********************************************/
+/*	memset(pst, 0, sizeof *pst);*/
+
+	/***********************************************/
+	/*   Determine if this is a 32 or 64b binary.  */
+	/*   Look  at  the  mmaps  to  see  if we are  */
+	/*   seeing a 32 or 64 bit address.	       */
+	/***********************************************/
+	P->status.pr_dmodel = PR_MODEL_ILP32;
+	sprintf(buf, "/proc/%d/maps", P->pid);
+	if ((fp = fopen(buf, "r")) == NULL)
+		return -1;
+	while (fgets(buf, sizeof buf, fp)) {
+		if (buf[16] == '-') {
+			P->status.pr_dmodel = PR_MODEL_LP64;
+			break;
+		}
+	}
+	fclose(fp);
+
 	sprintf(buf, "/proc/%d/stat", P->pid);
 	if ((fd = open(buf, O_RDONLY)) < 0)
 		return -1;
@@ -89,7 +114,18 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 		&wchan, &zero1, &zero2, &exit_signal,
 		&cpu, &rt_priority, &policy);
 
-	pst->pr_dmodel = PR_MODEL_ILP32;
+	/***********************************************/
+	/*   Try  and  work  out  if  its an ELF32 or  */
+	/*   ELF64 binary.			       */
+	/***********************************************/
+	sprintf(buf, "/proc/%d/exe", P->pid);
+	if ((fd = open(buf, O_RDONLY)) >= 0) {
+		pst->pr_dmodel = PR_MODEL_ILP32;
+		read(buf, 6, fd);
+		if (buf[4] == 2)
+			pst->pr_dmodel = PR_MODEL_LP64;
+		close(fd);
+	}
 //printf("lx_read_stat pid=%d: state='%s'\n", P->pid, state);
 	if (*state == 'T')
 		pst->pr_flags |= PR_STOPPED;

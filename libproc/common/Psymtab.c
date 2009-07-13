@@ -357,6 +357,10 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 		fptr->file_lname = NULL;
 	}
 
+#if defined(linux)
+	fptr->file_lname = lop->rl_nameaddr;
+printf("filename=%s\n", fptr->file_lname);
+#else
 	if (Pread_string(P, buf, sizeof (buf), lop->rl_nameaddr) > 0) {
 		if ((fptr->file_lname = strdup(buf)) != NULL)
 			fptr->file_lbase = basename(fptr->file_lname);
@@ -364,6 +368,7 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 		dprintf("map_iter: failed to read string at %p\n",
 		    (void *)lop->rl_nameaddr);
 	}
+#endif
 
 	dprintf("loaded rd object %s lmid %lx\n",
 	    fptr->file_lname ? fptr->file_lname : "<NULL>", lop->rl_lmident);
@@ -447,7 +452,7 @@ Pupdate_maps(struct ps_prochandle *P)
 	Preadauxvec(P);
 
 printf("in Pupdate_maps (check for 64b maps!)\n");
-printf("in Pupdate_maps (check: pr_mapname is big enough)\n");
+printf("in Pupdate_maps (check: pr_mapname is big enough PRMAPSZ=%d)\n", PRMAPSZ);
 # if linux
 	FILE *fp;
 	char	buf[BUFSIZ];
@@ -626,7 +631,7 @@ Prd_agent(struct ps_prochandle *P)
 		if (P->num_files == 0)
 			load_static_maps(P);
 		rd_log(_libproc_debug);
-		if ((P->rap = rd_new(P)) != NULL)
+		if ((P->rap = rd_new(P, P->pid)) != NULL)
 			(void) rd_loadobj_iter(P->rap, map_iter, P);
 	}
 	return (P->rap);
@@ -723,7 +728,7 @@ Paddr_to_loadobj(struct ps_prochandle *P, uintptr_t addr)
 	 * information up to date in the load object.
 	 */
 	(void) build_map_symtab(P, mptr);
-
+printf("mapping %p to loadobj\n", addr);
 	return (mptr->map_file->file_lo);
 }
 
@@ -898,6 +903,27 @@ Preadauxvec(struct ps_prochandle *P)
 	if ((fd = open(auxfile, O_RDONLY)) < 0)
 		return;
 
+#if linux
+	/***********************************************/
+	/*   On   Linux,   /proc  entries  cannot  be  */
+	/*   stat()ed to find their sizes.	       */
+	/***********************************************/
+	P->auxv = malloc(128 * sizeof(auxv_t));
+	naux = read(fd, P->auxv, 128 * sizeof(auxv_t));
+	if (naux <= 0) {
+		free(P->auxv);
+		P->auxv = NULL;
+		close(fd);
+		return;
+	}
+	naux /= sizeof(auxv_t);
+{int i; 
+for (i = 0; i < naux; i++) {printf("aux[%d]: type=%d\n", i, P->auxv[i].a_type);}
+}
+	P->auxv[naux].a_type = AT_NULL;
+	P->auxv[naux].a_un.a_val = 0L;
+	P->nauxv = (int)naux;
+#else
 	if (fstat(fd, &statb) == 0 &&
 	    statb.st_size >= sizeof (auxv_t) &&
 	    (P->auxv = malloc(statb.st_size + sizeof (auxv_t))) != NULL) {
@@ -911,6 +937,7 @@ Preadauxvec(struct ps_prochandle *P)
 			P->nauxv = (int)naux;
 		}
 	}
+#endif
 
 	(void) close(fd);
 }
@@ -1035,8 +1062,9 @@ build_map_symtab(struct ps_prochandle *P, map_info_t *mptr)
 	 */
 	for (i = 0, fptr = list_next(&P->file_head); i < P->num_files;
 	    i++, fptr = list_next(fptr)) {
-		if (strcmp(fptr->file_pname, pmap->pr_mapname) == 0 &&
-		    fptr->file_lo && is_mapping_in_file(P, mptr, fptr)) {
+		if (fptr->file_lo &&
+		    strcmp(fptr->file_pname, pmap->pr_mapname) == 0 &&
+		    is_mapping_in_file(P, mptr, fptr)) {
 			mptr->map_file = fptr;
 			fptr->file_ref++;
 			Pbuild_file_symtab(P, fptr);
@@ -1665,6 +1693,11 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 # endif
 	}
 
+/**********************************************************************/
+/*   libelf  disagrees  with  solaris  on  what  return is from some  */
+/*   functions, so parameterise this.				      */
+/**********************************************************************/
+#define ELF_ERR -1
 	/*
 	 * Open the object file, create the elf file, and then get the elf
 	 * header and .shstrtab data buffer so we can process sections by
@@ -1679,8 +1712,8 @@ printf("Build symtab %s\n", objectfile);
 		if ((elf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(elf) != ELF_K_ELF ||
 		    gelf_getehdr(elf, &ehdr) == NULL ||
-		    elf_getshnum(elf, &nshdrs) == 0 ||
-		    elf_getshstrndx(elf, &shstrndx) == 0 ||
+		    elf_getshnum(elf, &nshdrs) == ELF_ERR ||
+		    elf_getshstrndx(elf, &shstrndx) == ELF_ERR ||
 		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
@@ -1690,19 +1723,26 @@ printf("Build symtab %s\n", objectfile);
 	} else if ((elf = elf_begin(fptr->file_fd, ELF_C_READ, NULL)) == NULL ||
 	    elf_kind(elf) != ELF_K_ELF ||
 	    gelf_getehdr(elf, &ehdr) == NULL ||
-	    elf_getshnum(elf, &nshdrs) == 0 ||
-	    elf_getshstrndx(elf, &shstrndx) == 0 ||
+	    elf_getshnum(elf, &nshdrs) == ELF_ERR ||
+	    elf_getshstrndx(elf, &shstrndx) == ELF_ERR ||
 	    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 	    (shdata = elf_getdata(scn, NULL)) == NULL) {
 		int err = elf_errno();
 		dprintf("failed to process ELF file %s: %s\n",
 		    objectfile, (err == 0) ? "<null>" : elf_errmsg(err));
-
+#if 0
+printf("bad elf_kind %x\n", elf_kind(elf));
+printf("bad gelf_getehdr: %p\n", gelf_getehdr(elf, &ehdr));
+printf("bad elf_getshnum = %d nshdrs=%d\n", elf_getshnum(elf, &nshdrs), nshdrs);
+printf("bad elf_getshstrndx:%d shstrndx=%d\n", elf_getshstrndx(elf, &shstrndx), shstrndx);
+//		if (    (scn = elf_getscn(elf, shstrndx)) == NULL ||
+//		    (shdata = elf_getdata(scn, NULL)) == NULL) printf("bad last\n");
+#endif
 		if ((elf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(elf) != ELF_K_ELF ||
 		    gelf_getehdr(elf, &ehdr) == NULL ||
-		    elf_getshnum(elf, &nshdrs) == 0 ||
-		    elf_getshstrndx(elf, &shstrndx) == 0 ||
+		    elf_getshnum(elf, &nshdrs) == ELF_ERR ||
+		    elf_getshstrndx(elf, &shstrndx) == ELF_ERR ||
 		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
@@ -1727,8 +1767,8 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		if ((newelf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(newelf) != ELF_K_ELF ||
 		    gelf_getehdr(newelf, &ehdr) == NULL ||
-		    elf_getshnum(newelf, &nshdrs) == 0 ||
-		    elf_getshstrndx(newelf, &shstrndx) == 0 ||
+		    elf_getshnum(newelf, &nshdrs) == ELF_ERR ||
+		    elf_getshstrndx(newelf, &shstrndx) == ELF_ERR ||
 		    (scn = elf_getscn(newelf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
@@ -1775,6 +1815,7 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		}
 
 		cp->c_name = (const char *)shdata->d_buf + cp->c_shdr.sh_name;
+printf("found section %s\n", cp->c_name);
 	}
 
 	/*
@@ -1895,6 +1936,7 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		fptr->file_dyn_base = fptr->file_lo->rl_base;
 	}
 
+printf("plt at %p\n", plt);
 	/*
 	 * Fill in the PLT information for this file if a PLT symbol is found.
 	 */
@@ -1915,7 +1957,20 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		dprintf("PLT found at %p, size = %lu\n",
 		    (void *)fptr->file_plt_base, (ulong_t)fptr->file_plt_size);
 	}
+#if defined(linux)
+	/***********************************************/
+	/*   Linux    executables    dont    have   a  */
+	/*   _PROCEDURE_LINKAGE_TABLE_  but  we  have  */
+	/*   the plt section anyway, so lets use it.   */
+	/***********************************************/
+	if (1 || plt) {
+		fptr->file_lo->rl_plt_base = plt->c_shdr.sh_offset;
+		fptr->file_lo->rl_plt_size = plt->c_shdr.sh_size;
 
+		dprintf("PLT found at %p, size = %lu\n",
+		    (void *)fptr->file_plt_base, (ulong_t)fptr->file_plt_size);
+	}
+#endif
 	/*
 	 * Fill in the PLT information.
 	 */
@@ -2321,6 +2376,7 @@ sym_by_name_binary(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
 		if ((cmp = strcmp(name, strs + symp->st_name)) == 0) {
 			if (idp != NULL)
 				*idp = i;
+printf("sym_by_name_binary: found %s\n", name);
 			return (symp);
 		}
 
@@ -2330,6 +2386,7 @@ sym_by_name_binary(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
 			min = mid + 1;
 	}
 
+printf("sym_by_name_binary: NOT found %s\n", name);
 	return (NULL);
 }
 
@@ -2510,6 +2567,7 @@ Pxlookup_by_name(
 		    lmid != fptr->file_lo->rl_lmident)
 			continue;
 
+printf("Pxlookup_by_name '%s' %s %p %p\n", sname, oname, fptr->file_symtab.sym_data_pri, fptr->file_dynsym.sym_data_pri);
 		if (fptr->file_symtab.sym_data_pri != NULL &&
 		    sym_by_name(&fptr->file_symtab, sname, symp, &id)) {
 			if (sip != NULL) {
@@ -2632,7 +2690,7 @@ Pobjname(struct ps_prochandle *P, uintptr_t addr,
 	char *buffer, size_t bufsize)
 {
 	map_info_t *mptr;
-	file_info_t *fptr;
+	file_info_t *fptr = NULL;
 
 	/* create all the file_info_t's for all the mappings */
 	(void) Prd_agent(P);
@@ -2645,6 +2703,11 @@ Pobjname(struct ps_prochandle *P, uintptr_t addr,
 			buffer[bufsize-1] = '\0';
 		return (buffer);
 	}
+#if defined(linux)
+	// temp hack - but seems to work
+	if (fptr)
+		fptr->file_lname = fptr->file_pname;
+#endif
 	return (NULL);
 }
 

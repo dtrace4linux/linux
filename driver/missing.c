@@ -20,7 +20,7 @@ clflush(void *ptr)
 # define tolower(x) ((x) >= 'A' && (x) <= 'Z' ? (x) + 0x20 : (x))
 
 int
-strcasecmp(char *s1, char *s2)
+strcasecmp(const char *s1, const char *s2)
 {
 	while (*s1 && *s2) {
 		int	ch1 = *s1++;

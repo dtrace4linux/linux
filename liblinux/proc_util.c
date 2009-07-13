@@ -77,7 +77,7 @@ proc_detach(struct ps_prochandle *phdl)
 		return (EINVAL);
 
 //printf("HERE:%s\n", __func__);
-	if (ptrace(PT_DETACH, phdl->pid, 0, 0) != 0)
+	if (do_ptrace(__func__, PT_DETACH, phdl->pid, 0, 0) != 0)
 		return (errno);
 
 	return (0);
@@ -127,8 +127,7 @@ proc_wait(struct ps_prochandle *phdl)
 	if (waitpid(phdl->pid, &status, 0) < 0)
 		return -1;
 	snprintf(buf, sizeof buf, "/proc/%d", phdl->pid);
-	int fd = stat(buf, &sbuf);
-	if (fd < 0) {
+	if (stat(buf, &sbuf) < 0) {
 		phdl->p_status = PS_DEAD;
 		}
 	else
@@ -143,6 +142,17 @@ proc_getpid(struct ps_prochandle *phdl)
 		return (-1);
 
 	return (phdl->pid);
+}
+int
+do_kill(char *func, int pid, int sig)
+{	int	ret = kill(pid, sig);
+
+	if (getenv("DTRACE_KILL")) {
+		printf("%s(): kill(%d, %d %s) := %d\n", 
+			func, pid, sig, 
+			sys_siglist[sig], ret);
+	}
+	return ret;
 }
 int
 do_ptrace(char *func, int req, int pid, void *addr, void *data)

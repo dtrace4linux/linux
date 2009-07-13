@@ -1019,9 +1019,13 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		/*   because  kernel  freed an .init section,  */
 		/*   then  dont  try and unpatch something we  */
 		/*   didnt patch.			       */
+		/*   We  were  trying to be clever and ensure  */
+		/*   memory is writable but this seems to GPF  */
+		/*   on  us.  Might be a temporary issue as I  */
+		/*   fiddle with other things tho.	       */
 		/***********************************************/
 		if (*fbt->fbtp_patchpoint == fbt->fbtp_patchval) {
-			if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
+			if (1 || memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
 				*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
 		}
 	}

@@ -1,3 +1,25 @@
+Tue Jul 14 21:15:07 2009  fox
+
+     319* toxic.c: Add level3_kernel_pgt and level2_kernel_pgt because
+          these are data areas, not code areas. (Nicolos.Willams@sun.com)
+
+Fri Jul 10 22:50:35 2009  fox
+
+     318* dtrace_linux.c: Patch to handle smp_call_function_single() when
+          invoking current cpu by <Nicolas.Williams@sun.com>
+
+	  strcasecmp: Fix const correctness.
+
+	  dtrace_isa.c: fix call to dump_trace on 2.6.18 kernel.
+
+Sun Jun 28 18:08:39 2009  fox
+
+     317* dtrace_linux.c: instr_in_text_seg: Use strncmp instead of strcmp
+          to avoid potential GPF. Dont know why this may help, but its
+	  a useful addition.
+
+	  <lahti@student.chalmers.se>
+
 Sat Jun 27 20:23:53 2009  fox
 
      316* dtrace_isa.c, dtrace_linux.c: Make stack() work - using the
@@ -22,7 +44,7 @@ Mon Jun 22 21:03:36 2009  fox
 
 Sun Jun 21 21:27:25 2009  fox
 
-     311* rchive: 1.0097
+     311* Archive: 1.0097
 
      310* dt_proc.c, Pcontrol.c: Make dtrace -c <cmd> work.
 

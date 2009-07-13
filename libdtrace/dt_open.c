@@ -763,6 +763,22 @@ dt_provmod_destroy(dt_provmod_t **provmod)
 static const char *
 dt_get_sysinfo(int cmd, char *buf, size_t len)
 {
+#if defined(linux)
+	struct utsname u;
+	int ret = uname(&u);
+
+	switch (cmd) {
+	  case SI_SYSNAME:
+	  	strncpy(buf, u.sysname, len);
+		return buf;
+	  case SI_RELEASE:
+	  	strncpy(buf, u.release, len);
+		return buf;
+	  default:
+	  	printf("dt_get_sysinfo: invalid cmd %d -- aborting\n", cmd);
+		abort();
+	  }
+#else
 	ssize_t rv = sysinfo(cmd, buf, len);
 	char *p = buf;
 
@@ -773,6 +789,7 @@ dt_get_sysinfo(int cmd, char *buf, size_t len)
 		*p++ = '_';
 
 	return (buf);
+#endif
 }
 
 static dtrace_hdl_t *

@@ -322,7 +322,11 @@ ps_pauxv(struct ps_prochandle *P, const auxv_t **aux)
 ps_err_e
 ps_pbrandname(struct ps_prochandle *P, char *buf, size_t len)
 {
+#if defined(linux)
+	return PS_ERR;
+#else
 	return (Pbrandname(P, buf, len) ? PS_OK : PS_ERR);
+#endif
 }
 
 /*

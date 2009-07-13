@@ -7,6 +7,8 @@
 /*   Author: Paul D. Fox					      */
 /*   								      */
 /*   License: CDDL						      */
+/*   								      */
+/*  $Header: Last edited: 14-Jul-2009 1.1 $ 			      */
 /**********************************************************************/
 
 /**********************************************************************/
@@ -88,6 +90,8 @@ char toxic_probe_tbl[] = {
 	"kmem_cache_create "
 	"kmem_cache_destroy "
 	"kmem_cache_free "
+	"level3_kernel_pgt " // this is a data element in the code segment
+	"level2_kernel_pgt " // this is a data element in the code segment
 	"mutex_lock "
 	"mutex_unlock "
 	"native_get_debugreg "

@@ -110,6 +110,11 @@ typedef struct rd_loadobj {
         unsigned long   rl_tlsmodid;    /* module ID for TLS references */
 } rd_loadobj_t;
 
+/*
+ * Commands for rd_ctl()
+ */
+#define RD_CTL_SET_HELPPATH     0x01    /* Set the path used to find helpers */
+
 typedef int rl_iter_f(const rd_loadobj_t *, void *);
 
 typedef struct rd_agent rd_agent_t;
@@ -168,6 +173,9 @@ struct rd_agent {
 	ulong_t				rd_rdebugvers;	/* rtld_db_priv.vers */
 	int				rd_dmodel;	/* data model */
 	rd_helper_t			rd_helper;	/* private to helper */
+#if defined(linux)
+	int				rd_pid;
+#endif
 };
 
 # endif

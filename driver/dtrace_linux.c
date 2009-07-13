@@ -1045,6 +1045,23 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 #endif
 	} else {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
+		/***********************************************/
+		/*   20090710   Special  case  where  we  are  */
+		/*   trying    to   call   ourselves,   since  */
+		/*   smp_call_function_single  doesnt like us  */
+		/*   doing    this.    Patch    provided   by  */
+		/*   Nicolas.Williams@sun.com		       */
+		/***********************************************/
+		int me = get_cpu();
+
+		put_cpu();
+
+		if (me == cpu) {
+			local_irq_disable();
+			func(arg);
+			local_irq_enable();
+			return;
+		}
 		smp_call_function_single(cpu, func, arg, 0, TRUE);
 #else
 		smp_call_function_single(cpu, func, arg, TRUE);
@@ -1236,15 +1253,16 @@ instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 	}
 # endif
 
+
 	if (secname == NULL)
 		return FALSE;
+printk(""); // workaround for 2.6.18 kernel - without this we will GPF. Dont know why
 //HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
 //printk("secname=%p (1)\n", secname);
 	if (!validate_ptr(secname))
 		return FALSE;
 //HERE();
-//printk("secname=%p (2)\n", secname);
-	if (strcmp(secname, ".text") != 0)
+	if (strncmp(secname, ".text", 5) != 0)
 		return FALSE;
 //HERE();
 	return TRUE;
@@ -1260,7 +1278,7 @@ is_kernel_text(unsigned long p)
 {
 	int (*func)(unsigned long) = syms[OFFSET_kernel_text_address].m_ptr;
 
-	if (ktext <= p && p <= ketext)
+	if (ktext <= p && p < ketext)
 		return 1;
 
 	if (func) {

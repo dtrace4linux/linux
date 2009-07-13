@@ -554,8 +554,13 @@ dt_pid_usdt_mapping(void *data, const prmap_t *pmp, const char *oname)
 		dt_pid_objname(dh.dofhp_mod, sizeof (dh.dofhp_mod),
 		    sip.prs_lmid, mname);
 
+#if defined(linux)
+#  define helper_name "/dev/dtrace_helper"
+#else
+#  define helper_name "/dev/dtrace/helper"
+#endif
 		if (fd == -1 &&
-		    (fd = pr_open(P, "/dev/dtrace/helper", O_RDWR, 0)) < 0) {
+		    (fd = pr_open(P, helper_name, O_RDWR, 0)) < 0) {
 			dt_dprintf("pr_open of helper device failed: %s\n",
 			    strerror(errno));
 			return (-1); /* errno is set for us */

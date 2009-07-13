@@ -959,11 +959,13 @@ dt_print_ustack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 
 			if (pc[i] > sym.st_value) {
 				(void) snprintf(c, sizeof (c),
-				    "%s`%s+0x%llx", dt_basename(objname), name,
+				    "%p: %s`%s+0x%llx", 
+				    pc[i],
+				    dt_basename(objname), name,
 				    (u_longlong_t)(pc[i] - sym.st_value));
 			} else {
 				(void) snprintf(c, sizeof (c),
-				    "%s`%s", dt_basename(objname), name);
+				    "%p: %s`%s", pc[i], dt_basename(objname), name);
 			}
 		} else if (str != NULL && str[0] != '\0' && str[0] != '@' &&
 		    (P != NULL && ((map = Paddr_to_map(P, pc[i])) == NULL ||

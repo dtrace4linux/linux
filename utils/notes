@@ -1,0 +1,4 @@
+random cut/paste stuff - ignore this file.
+
+-n "syscall:::entry/pid==\$target/{ustack();}" -p 6680
+-n "fbt::sys*:entry/pid==\$target/{ustack();}" -p 6680

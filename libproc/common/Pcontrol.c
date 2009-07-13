@@ -101,7 +101,7 @@ Pread_live(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr)
 	int	ret;
 
 printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
-	if ((ret = ptrace(PTRACE_ATTACH, P->pid, 0, 0)) < 0) {
+	if (0&&(ret = ptrace(PTRACE_ATTACH, P->pid, 0, 0)) < 0) {
 		perror("PTRACE_ATTACH");
 	}
 # if defined(__i386)
@@ -116,7 +116,7 @@ printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
 	if (ret < 0) {
 		printf("Pread_live: pid=%d, read=%d err=%s\n", P->pid, ret, strerror(errno));
 	}
-	if (ptrace(PTRACE_DETACH, P->pid, 0, 0) < 0) {
+	if (0&&ptrace(PTRACE_DETACH, P->pid, 0, 0) < 0) {
 		perror("Pread_live: PTRACE_DETACH");
 	}
 	return ret;
@@ -247,7 +247,7 @@ Pxcreate(const char *file,	/* executable file name */
 	if (path != NULL)
 		*path = '\0';
 
-	if ((P = malloc(sizeof (struct ps_prochandle))) == NULL) {
+	if ((P = calloc(sizeof (struct ps_prochandle), 1)) == NULL) {
 		*perr = C_STRANGE;
 		return (NULL);
 	}
@@ -280,7 +280,7 @@ Pxcreate(const char *file,	/* executable file name */
 		/*   Wait for parent to catch up with us.      */
 		/***********************************************/
 		signal(SIGSTOP, SIG_DFL);
-		kill(getpid(), SIGSTOP);
+		do_kill(__func__, getpid(), SIGSTOP);
 		sleep(1);
 
 //		(void) pause();		/* wait for PRSABORT from parent */
@@ -516,7 +516,7 @@ Pxcreate(const char *file,	/* executable file name */
 # endif
 
 bad:
-	(void) kill(pid, SIGKILL);
+	(void) do_kill(__func__, pid, SIGKILL);
 	if (path != NULL && rc != C_PERM && rc != C_LP64)
 		*path = '\0';
 	Pfree(P);
@@ -547,7 +547,7 @@ Pxcreate(const char *file,	/* executable file name */
 	if (path != NULL)
 		*path = '\0';
 
-	if ((P = malloc(sizeof (struct ps_prochandle))) == NULL) {
+	if ((P = calloc(sizeof (struct ps_prochandle), 1)) == NULL) {
 		*perr = C_STRANGE;
 		return (NULL);
 	}
@@ -787,7 +787,7 @@ printf("waiting for stop -- state=%d(PS_STOP=%d)\n", P->state, PS_STOP);
 	rc = lasterrno == ENOENT ? C_NOENT : C_NOEXEC;
 
 bad:
-	(void) kill(pid, SIGKILL);
+	(void) do_kill(__func__, pid, SIGKILL);
 	if (path != NULL && rc != C_PERM && rc != C_LP64)
 		*path = '\0';
 	Pfree(P);
@@ -889,7 +889,7 @@ Pgrab(pid_t pid, int flags, int *perr)
 	if (flags & PGRAB_RDONLY)
 		flags |= PGRAB_RETAIN | PGRAB_NOSTOP;
 
-	if ((P = malloc(sizeof (struct ps_prochandle))) == NULL) {
+	if ((P = calloc(sizeof (struct ps_prochandle), 1)) == NULL) {
 		*perr = G_STRANGE;
 		return (NULL);
 	}
@@ -1653,7 +1653,7 @@ Psync(struct ps_prochandle *P)
 		iov[n++].iov_len = sizeof (P->status.pr_sysexit);
 	}
 
-	if (n == 0 || writev(ctlfd, iov, n) < 0)
+	if (ctlfd >= 0 && (n == 0 || writev(ctlfd, iov, n) < 0))
 		return;		/* nothing to do or write failed */
 
 	P->flags &= ~(SETSIG|SETFAULT|SETENTRY|SETEXIT|SETHOLD|SETREGS);
@@ -1836,7 +1836,8 @@ restore_tracing_flags(struct ps_prochandle *P)
 	iov[7].iov_base = (caddr_t)&P->status.pr_sysexit;
 	iov[7].iov_len = sizeof (P->status.pr_sysexit);
 
-	(void) writev(P->ctlfd, iov, 8);
+	if (P->ctlfd >= 0)
+		(void) writev(P->ctlfd, iov, 8);
 
 	P->flags &= ~(SETSIG|SETFAULT|SETENTRY|SETEXIT);
 }
@@ -1891,14 +1892,14 @@ Prelease(struct ps_prochandle *P, int flags)
 	if (flags & PRELEASE_KILL) {
 		if (P->state == PS_STOP)
 			(void) Psetrun(P, SIGKILL, 0);
-		(void) kill(P->pid, SIGKILL);
+		(void) do_kill(__func__, P->pid, SIGKILL);
 		Pfree(P);
 		return;
 	}
 
 #if defined(linux)
 	if (flags & PRELEASE_HANG)
-		(void) kill(P->pid, SIGKILL);
+		(void) do_kill(__func__, P->pid, SIGKILL);
 #endif
 
 	/*
@@ -2089,6 +2090,7 @@ Pstopstatus(struct ps_prochandle *P,
 	Psync(P);
 
 # if linux
+	err = 0;
 	if (lx_read_stat(P, &P->status) < 0) {
 		/***********************************************/
 		/*   Process  has  died. Set state to PS_LOST  */
@@ -2152,7 +2154,7 @@ Pstopstatus(struct ps_prochandle *P,
 	}
 
 	if (!(P->status.pr_flags & PR_STOPPED)) {
-HERE();
+//HERE();
 		P->state = PS_RUN;
 		if (request == PCNULL || request == PCDSTOP || msec != 0)
 			return (0);
@@ -3640,7 +3642,7 @@ printf("%s(%d):%s: PCSREG\n", __FILE__, __LINE__, __func__);
 		iov[n++].iov_len = sizeof (L->lwp_status.pr_reg);
 	}
 
-	if (n == 0 || writev(ctlfd, iov, n) < 0)
+	if (ctlfd >= 0 && (n == 0 || writev(ctlfd, iov, n) < 0))
 		return;		/* nothing to do or write failed */
 
 	L->lwp_flags &= ~(SETHOLD|SETREGS);

@@ -89,6 +89,7 @@ all0:
 	cd libdtrace ; $(MAKE) $(NOPWD)
 	cd liblinux ; $(MAKE) $(NOPWD)
 	cd libproc/common ; $(MAKE) $(NOPWD)
+	cd librtld ; $(MAKE) $(NOPWD)
 	cd cmd/dtrace ; $(MAKE) $(NOPWD)
 	cd usdt/c ; $(MAKE) $(NOPWD)
 	tools/mkdriver.pl all

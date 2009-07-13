@@ -2123,7 +2123,7 @@ Pfgrab_core(int core_fd, const char *aout_path, int *perr)
 	 */
 	rd_log(_libproc_debug);
 
-	if ((P->rap = rd_new(P)) != NULL) {
+	if ((P->rap = rd_new(P, 0)) != NULL) {
 		(void) rd_loadobj_iter(P->rap, (rl_iter_f *)
 		    core_iter_mapping, P);
 

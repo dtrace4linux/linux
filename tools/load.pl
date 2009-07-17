@@ -7,6 +7,7 @@
 # 20090416 PDF Add -unhandled switch support.
 # 20090513 PDF Add copy of /etc/dtrace.conf to /dev/dtrace.
 # 20090605 PDF Add -opcodes support for fbt provider.
+# 20090718 PDF Add System.map26 support for Arch linux.
 
 # Simple script to load the driver and get it ready.
 
@@ -144,11 +145,14 @@ sub main
 		$syms{$s} = $_;
 	}
 	###############################################
-	#   Just in case - read the system map.	      #
+	#   Just  in  case - read the system map. We  #
+	#   try System.map26 for 'arch' linux, since  #
+	#   it uses a different naming convention.    #
 	###############################################
 	my $kernel = `uname -r`;
 	chomp($kernel);
 	my $fname = "/boot/System.map-$kernel";
+	$fname = "/boot/System.map26" if ! -f $fname;
 	$fh = new FileHandle($fname);
 	if ($fh) {
 		while (<$fh>) {

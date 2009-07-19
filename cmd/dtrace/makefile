@@ -11,7 +11,7 @@ COMPILE = $(CC) $(CFLAGS) -o $(BINDIR)/dtrace \
 		-L$(BINDIR) $$LIB32 \
 		$(BINDIR)/dtrace.o -ldtrace -lctf -lproc -llinux -lz -lrt -lpthread $$libelf -ldl
 
-all:	$(BINDIR)/dtrace
+all:	$(BINDIR)/dtrace $(BINDIR)/dwarf
 	@/bin/true
 
 $(BINDIR)/dtrace: $(BINDIR)/dtrace.o $(LIBS)
@@ -36,6 +36,9 @@ $(BINDIR)/dtrace.o: dtrace.c
 		-I../../linux \
 		dtrace.c
 	mv dtrace.o $(BINDIR)
+
+$(BINDIR)/dwarf: ../../driver/dwarf.c
+	$(CC) -o $(BINDIR)/dwarf ../../driver/dwarf.c -lelf
 
 test:
 	./dtrace -x nolibs -n BEGIN -e -S

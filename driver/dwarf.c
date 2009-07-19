@@ -2,8 +2,6 @@
 Author : Paul Fox
 Date:  July 2009
 
-This is crap experimental code to understand DWARF debug records.
-
 Much of the working code derived from the readelf.c utility
 and reading the DWARF spec, copied verbatim below.
 
@@ -11,6 +9,11 @@ and reading the DWARF spec, copied verbatim below.
 
 and this code should agree, but readelf is more generic targetting
 arbitrary cpus.
+
+This file is both a kernel driver subroutine for stack
+walking an application with/without frame pointers, but
+compiled with DWARF eh_frame support, and a standalone
+tool.
 
 */
 
@@ -100,6 +103,9 @@ The rules in the register set now apply to location L1.
 */
 /**********************************************************************/
 
+#if defined(_KERNEL)
+#include "dtrace_linux.h"
+#else
 # define _LARGEFILE64_SOURCE
 #include <stdio.h>
 #include <fcntl.h>
@@ -110,6 +116,14 @@ The rules in the register set now apply to location L1.
 #include <dwarf.h>
 #include <elf.h>
 #include <libelf.h>
+#endif
+
+/**********************************************************************/
+/*   Kernel mode definitions.					      */
+/**********************************************************************/
+#if defined(_KERNEL)
+#	define	printf if (0) printk
+#endif
 
 #define DW_EH_PE_FORMAT_MASK    0x0f    /* format of the encoded value */
 #if !defined(DW_EH_PE_absptr)
@@ -132,6 +146,24 @@ The rules in the register set now apply to location L1.
 #define DW_EH_PE_datarel        0x30    /* data-relative */
 #endif
 
+/**********************************************************************/
+/*   CFA definitions.						      */
+/**********************************************************************/
+#if !defined(DW_CFA_advance_loc)
+#define DW_CFA_advance_loc      0x40
+#define DW_CFA_offset           0x80
+
+#define DW_CFA_nop              0x00
+#define DW_CFA_set_loc          0x01
+#define DW_CFA_advance_loc1     0x02
+#define DW_CFA_advance_loc2     0x03
+#define DW_CFA_advance_loc4     0x04
+#define DW_CFA_def_cfa          0x0c
+#define DW_CFA_def_cfa_register 0x0d
+#define DW_CFA_def_cfa_offset   0x0e
+#endif
+
+
 typedef struct dwarf_eh_frame_hdr {
         unsigned char version;
         unsigned char eh_frame_ptr_enc;
@@ -140,8 +172,12 @@ typedef struct dwarf_eh_frame_hdr {
         } dwarf_eh_frame_hdr;
 
 static int do_phdr;
+#if !defined(_KERNEL)
 static int do_sec;
 static int do_self;
+
+static void dump_mem(char *start, char *mem, char *memend);
+#endif
 
 typedef struct dw_info_t {
 	int	data_factor;
@@ -157,12 +193,11 @@ typedef struct dw_info_t {
         char    *eh_frame_hdr_data;
 } dw_info_t;
 
-#define LEB(cp) get_leb128(&cp, 0);
-#define SLEB(cp) get_leb128(&cp, 1);
+#define LEB(cp) get_leb128(&cp, 0)
+#define SLEB(cp) get_leb128(&cp, 1)
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
-static void dump_mem(char *start, char *mem, char *memend);
 static char *dump_ptr(char *ptr, char *);
 void elferr(char *);
 static int size_of_encoded_value(int encoding);
@@ -187,6 +222,10 @@ get_leb128(char **fp, int sign)
 
 	return result;
 }
+#if !defined(_KERNEL)
+/**********************************************************************/
+/*   Userland code using the -lelf library.			      */
+/**********************************************************************/
 static int
 do_dwarf_elf(char *filename, dw_info_t *dw)
 {	int	fd;
@@ -267,89 +306,52 @@ do_dwarf_elf(char *filename, dw_info_t *dw)
 
 	return 0;
 }
+#endif
+
 /**********************************************************************/
 /*   Get  ready to look for the .eh_frame / .eh_frame_hdr when given  */
 /*   a pointer to an in-memory ELF header.			      */
 /**********************************************************************/
-static int
+int
 do_dwarf_phdr(char *ptr, dw_info_t *dw)
 {
         Elf64_Ehdr *ehdr;
         Elf64_Phdr *phdr;
-        Elf64_Shdr *shdr;
-        Elf64_Shdr *str_sec;
-	char	*strtab;
 	int	i;
 
         ehdr = (Elf64_Ehdr *) ptr;
         phdr = (Elf64_Phdr *) ((char *) ehdr + ehdr->e_phoff);
-        if (phdr == NULL)
-                elferr("elf64_getphdr");
 
         for (i = 0; i < ehdr->e_phnum; i++) {
 		if (do_phdr)
 			printf("%d: type=%x offset=%lx size=%lx vaddr=%p\n", 
-				i, phdr->p_type, phdr->p_offset, phdr->p_memsz,
+				i, phdr->p_type, (long) phdr->p_offset, 
+				(long) phdr->p_memsz,
 				(void *) phdr->p_vaddr);
 		if (phdr->p_type == PT_GNU_EH_FRAME) {
+			char	*addr;
+
 			dw->eh_frame_hdr_sec = &dw->eh_frame_hdr_s;
 			dw->eh_frame_hdr_s.sh_addr = phdr->p_vaddr;
 			dw->eh_frame_hdr_s.sh_offset = phdr->p_offset;
 			dw->eh_frame_hdr_s.sh_size = phdr->p_memsz;
-                        dw->eh_frame_hdr_data = phdr->p_vaddr;
+                        dw->eh_frame_hdr_data = (char *) phdr->p_vaddr;
 
-			char *addr = phdr->p_vaddr + phdr->p_memsz;
-			if ((int) addr & 0x7)
+			addr = (char *) phdr->p_vaddr + phdr->p_memsz;
+			if ((long) addr & 0x7)
 				addr = (char *) (((long) addr | 7) + 1);
 			dw->eh_frame_sec = &dw->eh_frame_s;
-			dw->eh_frame_s.sh_addr = addr;
-			dw->eh_frame_s.sh_offset = addr;
+			dw->eh_frame_s.sh_addr = (long) addr;
+			dw->eh_frame_s.sh_offset = (long) addr;
 			dw->eh_frame_s.sh_size = phdr->p_memsz  + 0x1f8;
                         dw->eh_frame_data = addr;
 			}
                 phdr++;
         }
-	/***********************************************/
-	/*   Now find the .eh_frame section.	       */
-	/***********************************************/
-# if 0
-	shdr = (Elf64_Shdr *) ((char *) ehdr + ehdr->e_shoff);
-	str_sec = shdr + ehdr->e_shstrndx;
-	strtab = str_sec->sh_offset;
-	for (i = 0; i < ehdr->e_shnum; i++) {
-		printf("%d: sec '%s'\n", i, strtab + shdr[i].sh_name);
-	}
-# endif
+
 	return 0;
 }
 
-int 
-do_switches(int argc, char **argv)
-{	int	i;
-	char	*cp;
-
-	for (i = 1; i < argc; i++) {
-		cp = argv[i];
-		if (*cp++ != '-')
-			return i;
-		if (strcmp(cp, "self") == 0) {
-			do_self = 1;
-			continue;
-		}
-
-		while (*cp) {
-			switch (*cp++) {
-			  case 'p':
-			  	do_phdr = 1;
-				break;
-			  case 's':
-			  	do_sec = 1;
-				break;
-			}
-		}
-	}
-	return i;
-}
 int
 dwarf_read_pointer(void **addr, void *dst, int fmt)
 {       char    *src = *addr;
@@ -370,9 +372,13 @@ dwarf_read_pointer(void **addr, void *dst, int fmt)
 /*   stack.							      */
 /**********************************************************************/
 int
-dw_find_ret_addr(dw_info_t *dw, unsigned long pc)
+dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 {	int	i;
         char *fp = dw->eh_frame_data;
+	char	*fp_start;
+	int	cie;
+	int	len;
+	int	version;
 	char *eh_frame_end = dw->eh_frame_data + dw->eh_frame_sec->sh_size;
 //	printf("=== .eh_frame\n");
 
@@ -385,17 +391,21 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc)
 	/*   program counter.			       */
 	/***********************************************/
 	while (fp < eh_frame_end) {
-	        int len = *(uint32_t *) fp; fp += 4;
+		char	*cp, *cpend;
+		int	cfa_offset;
+
+	        len = *(uint32_t *) fp; fp += 4;
+
 		if (len == 0) {
 //			printf("  Length is zero -- end\n");
 			return 0;
 		}
-		char	*fp_start = fp;
+		fp_start = fp;
 
-		int cie = *(uint32_t *) fp; fp += 4;
+		cie = *(uint32_t *) fp; fp += 4;
 		if (cie == 0) {
 		        printf("\nCIE length=%08x\n", len);
-			int	version = *fp++;
+			version = *fp++;
 		        printf("  Version:              %02x\n", version);
 			aug = fp;
 		        printf("  Augmentation:         \"");
@@ -410,8 +420,11 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc)
 		        printf("  Data alignment factor: %d\n", dw->data_factor);
 			if (strchr(aug, 'z')) {
 				int ret_addr = version == 1 ? (int) *fp++ : (int) LEB(fp);
+				int	aug_len;
+				char	*a, *p;
+
 				printf("  Return address reg:    0x%02x\n", ret_addr);
-				int aug_len = LEB(fp);
+				aug_len = LEB(fp);
 				if (aug_len) {
 					printf("  Augmentation Length:   len=0x%02x ", aug_len);
 					for (i = 0; i < aug_len; i++) {
@@ -420,8 +433,7 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc)
 					printf("\n");
 				}
 				fp += aug_len;
-				char *p;
-				char	*a = fp;
+				a = fp;
 				for (p = aug; ; p++) {
 					int	ok = 1;
 //printf("aug %x %c\n", *p, *p ? *p : 'x');
@@ -483,20 +495,24 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc)
 			/*   Something  wrong  ..  we  didnt find the  */
 			/*   block.				       */
 			/***********************************************/
-			printf("block not found pc=%p begin=%p\n", pc, dw->pc_begin);
+			printf("block not found pc=%p begin=%p\n", 
+				(void *) pc, 
+				(void *) dw->pc_begin);
 			return 0;
 		}
 		/***********************************************/
 		/*   Not reached the right block yet.	       */
 		/***********************************************/
 		if (pc >= dw->pc_begin + dw->pc_end) {
-printf("skip %p %p\n", pc, dw->pc_begin + dw->pc_end);
+printf("skip %p %p\n", (void *) pc, (void *) (dw->pc_begin + dw->pc_end));
 			fp = fp_start + len;
 			continue;
 		}
 
-	        char *cp = fp; 
-		char *cpend = fp_start + len;
+	        cp = fp; 
+		cpend = fp_start + len;
+		cfa_offset = 0;
+
 	        while (cp < cpend) {
 			int	a, b;
 			int	offset;
@@ -514,15 +530,27 @@ printf("skip %p %p\n", pc, dw->pc_begin + dw->pc_end);
 
 	                switch (op) {
 	                  case DW_CFA_advance_loc:
-				sprintf(msgbuf, "DW_CFA_advance_loc %d to %08lx",
+			  	/***********************************************/
+			  	/*   As  we  advance the PC, we may jump past  */
+			  	/*   the  target  instruction. But we need to  */
+			  	/*   grab   the  DW_CFA_def_cfa_offset  which  */
+			  	/*   appears  here.  So, we can skip out once  */
+			  	/*   we get past the target area.	       */
+			  	/***********************************************/
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc %d to %08lx",
 					opa * dw->code_factor,
 					dw->pc_begin + opa * dw->code_factor);
 				dw->pc_begin += opa * dw->code_factor;
+				if (pc < dw->pc_begin) {
+printf("found you, you little baby\n");
+					*cfa_offsetp = cfa_offset;
+					return 1;
+				}
 				break;
 
 	                  case DW_CFA_advance_loc4:
 			  	offset = *(int32_t *) cp; cp += 4;
-				sprintf(msgbuf, "DW_CFA_advance_loc4 %d to %08lx",
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc4 %d to %08lx",
 					offset * dw->code_factor,
 					dw->pc_begin + offset * dw->code_factor);
 				dw->pc_begin += offset * dw->code_factor;
@@ -531,36 +559,39 @@ printf("skip %p %p\n", pc, dw->pc_begin + dw->pc_end);
 	                  case DW_CFA_def_cfa:
 				a = LEB(cp);
 				b = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
 	                        break;
 	                  case DW_CFA_def_cfa_offset:
 				a = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_def_cfa_offset: %d", a);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_offset: %d", a);
+				cfa_offset = a;
 	                        break;
 	                  case DW_CFA_def_cfa_register:
 				a = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_def_cfa_register: r%d", a);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_register: r%d", a);
 	                        break;
 	                  case DW_CFA_offset:
 				a = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw->data_factor);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw->data_factor);
+				cfa_offset = a * dw->data_factor;
 	                        break;
 	                  case DW_CFA_set_loc:
-	                        sprintf(msgbuf, "DW_CFA_set_loc: ");
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_set_loc: ");
 	                        cp = dump_ptr(cp, msgbuf + strlen(msgbuf));
 	                        break;
 			  case DW_CFA_nop:
-	                        sprintf(msgbuf, "DW_CFA_nop");
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_nop");
 			  	break;
 			  default:
-			  	fprintf(stderr, "unsupported DW entry %x\n", op);
-				exit(1);
+			  	printf("unsupported DW entry %x\n", op);
+				return 0;
 	                  }
 			for (a = 0, cp1 = cp_start; a < 4; cp1++, a++) {
-				if (cp1 < cp)
+				if (cp1 < cp) {
 					printf("%02x ", *cp1 & 0xff);
-				else
+				} else {
 					printf("   ");
+				}
 			}
 	                printf("%s\n", msgbuf);
 	        }
@@ -573,6 +604,60 @@ return 1;
 	/***********************************************/
 printf("not found at all....\n");
 	return 0;
+}
+static char *
+dump_ptr(char *ptr, char *msgbuf)
+{
+        int     i;
+
+        for (i = 0; i < 8; i++) {
+                snprintf(msgbuf, sizeof msgbuf, "%02x", *ptr++ & 0xff);
+		msgbuf += 2;
+        }
+        return ptr;
+}
+static int
+size_of_encoded_value(int encoding)
+{
+	switch (encoding & 0x7) {
+	  default:
+	  case 0:     return sizeof(void *);
+	  case 2:     return 2;
+	  case 3:     return 4;
+	  case 4:     return 8;
+	}
+}
+/**********************************************************************/
+/*   Following  is  the  main  code  for  the  userland  utility for  */
+/*   dumping/debugging the dwarf stack walk code.		      */
+/**********************************************************************/
+#if !defined(_KERNEL)
+int 
+do_switches(int argc, char **argv)
+{	int	i;
+	char	*cp;
+
+	for (i = 1; i < argc; i++) {
+		cp = argv[i];
+		if (*cp++ != '-')
+			return i;
+		if (strcmp(cp, "self") == 0) {
+			do_self = 1;
+			continue;
+		}
+
+		while (*cp) {
+			switch (*cp++) {
+			  case 'p':
+			  	do_phdr = 1;
+				break;
+			  case 's':
+			  	do_sec = 1;
+				break;
+			}
+		}
+	}
+	return i;
 }
 /**********************************************************************/
 /*   Main entry for the program.				      */
@@ -608,8 +693,9 @@ main(int argc, char **argv)
 		}
 		sscanf(argv[arg_index], "%p", &addr);
 		printf("Searching for %p\n", addr);
-		int ret = dw_find_ret_addr(&dw, addr);
-		printf("dw_find_ret_addr: returns %d\n", ret);
+		int	cfa_offset = 0;
+		int ret = dw_find_ret_addr(&dw, (unsigned long) addr, &cfa_offset);
+		printf("dw_find_ret_addr: returns %d, cfa=%d\n", ret, cfa_offset);
 		exit(0);
 
 	} else {
@@ -766,7 +852,7 @@ main(int argc, char **argv)
 
 	                switch (op) {
 	                  case DW_CFA_advance_loc:
-				sprintf(msgbuf, "DW_CFA_advance_loc %d to %08lx",
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc %d to %08lx",
 					opa * dw.code_factor,
 					dw.pc_begin + opa * dw.code_factor);
 				dw.pc_begin += opa * dw.code_factor;
@@ -774,7 +860,7 @@ main(int argc, char **argv)
 
 	                  case DW_CFA_advance_loc4:
 			  	offset = *(int32_t *) cp; cp += 4;
-				sprintf(msgbuf, "DW_CFA_advance_loc4 %d to %08lx",
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc4 %d to %08lx",
 					offset * dw.code_factor,
 					dw.pc_begin + offset * dw.code_factor);
 				dw.pc_begin += offset * dw.code_factor;
@@ -783,26 +869,26 @@ main(int argc, char **argv)
 	                  case DW_CFA_def_cfa:
 				a = LEB(cp);
 				b = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
 	                        break;
 	                  case DW_CFA_def_cfa_offset:
 				a = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_def_cfa_offset: %d", a);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_offset: %d", a);
 	                        break;
 	                  case DW_CFA_def_cfa_register:
 				a = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_def_cfa_register: r%d", a);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_register: r%d", a);
 	                        break;
 	                  case DW_CFA_offset:
 				a = LEB(cp);
-				sprintf(msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw.data_factor);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw.data_factor);
 	                        break;
 	                  case DW_CFA_set_loc:
-	                        sprintf(msgbuf, "DW_CFA_set_loc: ");
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_set_loc: ");
 	                        cp = dump_ptr(cp, msgbuf + strlen(msgbuf));
 	                        break;
 			  case DW_CFA_nop:
-	                        sprintf(msgbuf, "DW_CFA_nop");
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_nop");
 			  	break;
 			  default:
 			  	fprintf(stderr, "unsupported DW entry %x\n", op);
@@ -832,31 +918,10 @@ dump_mem(char *start, char *mem, char *memend)
                 printf("\n");
         }
 }
-static char *
-dump_ptr(char *ptr, char *msgbuf)
-{
-        int     i;
-
-        for (i = 0; i < 8; i++) {
-                sprintf(msgbuf, "%02x", *ptr++ & 0xff);
-		msgbuf += 2;
-        }
-        return ptr;
-}
 void
 elferr(char *str)
 {
         fprintf(stderr, "%s: %s\n", str, elf_errmsg(elf_errno()));
         exit(1);
 }
-static int
-size_of_encoded_value(int encoding)
-{
-	switch (encoding & 0x7) {
-	  default:
-	  case 0:     return sizeof(void *);
-	  case 2:     return 2;
-	  case 3:     return 4;
-	  case 4:     return 8;
-	}
-}
+#endif /* !defined(_KERNEL) */

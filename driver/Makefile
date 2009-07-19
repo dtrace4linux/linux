@@ -16,6 +16,7 @@ dtracedrv-objs := \
 	dtrace_isa.o \
 	dtrace_linux.o \
 	dtrace_subr.o \
+	dwarf.o \
 	fasttrap.o \
 	fasttrap_isa.o \
 	fasttrap_linux.o \

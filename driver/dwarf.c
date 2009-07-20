@@ -113,7 +113,7 @@ The rules in the register set now apply to location L1.
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <dwarf.h>
+//#include <dwarf.h> /* Might not have dwarf.h, but we dont need it */
 #include <elf.h>
 #include <libelf.h>
 #endif
@@ -122,7 +122,9 @@ The rules in the register set now apply to location L1.
 /*   Kernel mode definitions.					      */
 /**********************************************************************/
 #if defined(_KERNEL)
-#	define	printf if (0) printk
+#	define	printf if (1) printk
+#else
+#	define	printk printf
 #endif
 
 #define DW_EH_PE_FORMAT_MASK    0x0f    /* format of the encoded value */
@@ -319,8 +321,16 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
         Elf64_Phdr *phdr;
 	int	i;
 
+	/***********************************************/
+	/*   Check for ELF magic header.	       */
+	/***********************************************/
+	if (ptr[0] != 0x7f || ptr[1] != 'E' || ptr[2] != 'L' || ptr[3] != 'F')
+		return -1;
+
         ehdr = (Elf64_Ehdr *) ptr;
         phdr = (Elf64_Phdr *) ((char *) ehdr + ehdr->e_phoff);
+
+	memset(dw, 0, sizeof *dw);
 
         for (i = 0; i < ehdr->e_phnum; i++) {
 		if (do_phdr)
@@ -338,6 +348,9 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
                         dw->eh_frame_hdr_data = (char *) phdr->p_vaddr;
 
 			addr = (char *) phdr->p_vaddr + phdr->p_memsz;
+#if defined(_KERNEL)
+			addr = ptr + (long) addr;
+#endif
 			if ((long) addr & 0x7)
 				addr = (char *) (((long) addr | 7) + 1);
 			dw->eh_frame_sec = &dw->eh_frame_s;
@@ -385,6 +398,7 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 
 	char	*aug = NULL;
 
+printk("here....1 fp=%p\n", fp);
 	/***********************************************/
 	/*   Walk  the  series of CIE/FDE entries til  */
 	/*   we  find  one  that  matches  the target  */
@@ -403,6 +417,7 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 		fp_start = fp;
 
 		cie = *(uint32_t *) fp; fp += 4;
+printk("here....%d\n", __LINE__);
 		if (cie == 0) {
 		        printf("\nCIE length=%08x\n", len);
 			version = *fp++;
@@ -432,8 +447,8 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 					}
 					printf("\n");
 				}
-				fp += aug_len;
 				a = fp;
+				fp += aug_len;
 				for (p = aug; ; p++) {
 					int	ok = 1;
 //printf("aug %x %c\n", *p, *p ? *p : 'x');
@@ -445,7 +460,7 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 					  	a += 1 + size_of_encoded_value(*a);
 					  	break;
 					  case 'R':
-//printf("R encoding %x\n", *a);
+printf("R encoding %x\n", *a);
 					  	dw->fde_encoding = *a++;
 					  	break;
 					  case 'z':
@@ -465,6 +480,10 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 			dw->pc_end = *(uint32_t *) fp; fp += 4;
 //printf("pc_begin=%p vad=%p %p\n", pc_begin, p_eh->p_vaddr, fp-eh_frame_data);
 			if ((dw->fde_encoding & 0x70) == DW_EH_PE_pcrel) {
+printk("pc_begin1=%p\n", dw->pc_begin);
+printk("pc_begin2=%p\n", dw->eh_frame_sec->sh_addr);
+printk("pc_begin3=%p\n", fp - dw->eh_frame_data - 8);
+printk("looking for %p\n", pc);
 				dw->pc_begin += dw->eh_frame_sec->sh_addr;
 				dw->pc_begin += fp - dw->eh_frame_data - 8;
 			}

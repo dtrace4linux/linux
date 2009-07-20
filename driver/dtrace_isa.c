@@ -226,6 +226,12 @@ return;
 #endif
 }
 
+/**********************************************************************/
+/*   Get  user space stack for the probed process. We need to handle  */
+/*   32 + 64 bit binaries, if we are on a 64b kernel, and also frame  */
+/*   pointer/no frame pointer. We use the DWARF code to walk the CFA  */
+/*   frames to tell us where we can find the return address.	      */
+/**********************************************************************/
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {	uint64_t *pcstack_end = pcstack + pcstack_limit;
@@ -317,8 +323,54 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	bos = sp = task_pt_regs(current)->rsp;
 #endif
 
+#if 0
         while (pcstack < pcstack_end &&                                       
                sp >= bos) {                                                   
+                if (validate_ptr(sp))                                         
+                        *pcstack++ = sp[0];                                   
+                sp++; 
+	}
+#endif
+
+	/***********************************************/
+	/*   Find  base  of  the  code  area  for ELF  */
+	/*   header.				       */
+	/***********************************************/
+        while (pcstack < pcstack_end &&                                       
+               sp >= bos) {
+	       	struct vm_area_struct *vm = find_vma(current->mm, sp[0]);
+		int	cfa_offset;
+char	dw[200];
+int do_dwarf_phdr(char *, char *);
+int dw_find_ret_addr(char *, unsigned long, int *);
+
+
+		if (vm == NULL)
+			break;
+		/***********************************************/
+		/*   Work  out where the .eh_frame section is  */
+		/*   in memory.				       */
+		/***********************************************/
+char *ptr = vm->vm_start;
+printk("elf=%02x %02x %02x %02x\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+		if (do_dwarf_phdr((char *) vm->vm_start, &dw) < 0) {
+			printk("sorry - no phdr\n");
+			break;
+		}
+
+		/***********************************************/
+		/*   Now  process  the  CFA machinery to find  */
+		/*   where  the next return address is on the  */
+		/*   stack (relative to where we are).	       */
+		/***********************************************/
+		if (dw_find_ret_addr(dw, *sp, &cfa_offset) < 0) {
+			printk("sorry..\n");
+			break;
+		}
+
+		printk("vm=%p %p: %p\n", vm, vm->vm_start, *(long *) vm->vm_start);
+		sp = (char *) sp + cfa_offset;
+		break;
                 if (validate_ptr(sp))                                         
                         *pcstack++ = sp[0];                                   
                 sp++; 

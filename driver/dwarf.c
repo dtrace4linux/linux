@@ -163,6 +163,12 @@ The rules in the register set now apply to location L1.
 #define DW_CFA_def_cfa          0x0c
 #define DW_CFA_def_cfa_register 0x0d
 #define DW_CFA_def_cfa_offset   0x0e
+
+/**********************************************************************/
+/*   For the fda_encoding/pc_begin/pc_end code.			      */
+/**********************************************************************/
+#define DW_EH_PE_signed		0x08
+
 #endif
 
 
@@ -203,6 +209,7 @@ typedef struct dw_info_t {
 static char *dump_ptr(char *ptr, char *);
 void elferr(char *);
 static int size_of_encoded_value(int encoding);
+static unsigned long get_encoded_value(char **fp, int encoding);
 
 unsigned long
 get_leb128(char **fp, int sign)
@@ -476,8 +483,8 @@ printf("R encoding %x\n", *a);
 			continue;
 			}
 		} else {
-			dw->pc_begin = *(int32_t *) fp; fp += 4;
-			dw->pc_end = *(uint32_t *) fp; fp += 4;
+			dw->pc_begin = get_encoded_value(&fp, dw->fde_encoding);
+			dw->pc_end = get_encoded_value(&fp, dw->fde_encoding);
 //printf("pc_begin=%p vad=%p %p\n", pc_begin, p_eh->p_vaddr, fp-eh_frame_data);
 			if ((dw->fde_encoding & 0x70) == DW_EH_PE_pcrel) {
 printk("pc_begin1=%p\n", dw->pc_begin);
@@ -485,7 +492,7 @@ printk("pc_begin2=%p\n", dw->eh_frame_sec->sh_addr);
 printk("pc_begin3=%p\n", fp - dw->eh_frame_data - 8);
 printk("looking for %p\n", pc);
 				dw->pc_begin += dw->eh_frame_sec->sh_addr;
-				dw->pc_begin += fp - dw->eh_frame_data - 8;
+//				dw->pc_begin += fp - dw->eh_frame_data - 8;
 			}
 		        printf("\nFDE length=%08x ptr=%04x pc=%08lx..%08lx\n", 
 				len, cie,
@@ -634,6 +641,21 @@ dump_ptr(char *ptr, char *msgbuf)
 		msgbuf += 2;
         }
         return ptr;
+}
+static unsigned long
+get_encoded_value(char **fp, int encoding)
+{
+	unsigned long n;
+
+	if (encoding & DW_EH_PE_signed) {
+		n = *(int32_t *) *fp;
+printf("n=%lx\n", n);
+	} else {
+		n = *(uint32_t *) *fp;
+	}
+	*fp += 4;
+
+	return n;
 }
 static int
 size_of_encoded_value(int encoding)
@@ -816,7 +838,7 @@ main(int argc, char **argv)
 					  	a += 1 + size_of_encoded_value(*a);
 					  	break;
 					  case 'R':
-//printf("R encoding %x\n", *a);
+printf("R encoding %x\n", *a);
 					  	dw.fde_encoding = *a++;
 					  	break;
 					  case 'z':
@@ -830,8 +852,8 @@ main(int argc, char **argv)
 				}
 			}
 		} else {
-			dw.pc_begin = *(int32_t *) fp; fp += 4;
-			dw.pc_end = *(uint32_t *) fp; fp += 4;
+			dw.pc_begin = get_encoded_value(&fp, dw.fde_encoding);
+			dw.pc_end = get_encoded_value(&fp, dw.fde_encoding);
 //printf("pc_begin=%p vad=%p %p\n", pc_begin, p_eh->p_vaddr, fp-eh_frame_data);
 			if ((dw.fde_encoding & 0x70) == DW_EH_PE_pcrel) {
 				dw.pc_begin += dw.eh_frame_sec->sh_addr;

@@ -1,3 +1,8 @@
+Thu Jul 23 20:07:18 2009  fox
+
+     322* Pcontrol.c, Putil.c: Rename dprintf to p_dprintf to avoid glibc
+          clashes.
+
 Mon Jul 20 21:10:50 2009  fox
 
      321* driver/dwarf.c: Subroutine code for stack walking and for the

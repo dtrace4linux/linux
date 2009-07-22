@@ -332,7 +332,7 @@ Pxcreate(const char *file,	/* executable file name */
 # endif
 	if ((fd = open(procname, (O_RDWR|O_EXCL))) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
-		dprintf("Pcreate: failed to open %s: %s\n",
+		p_dprintf("Pcreate: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
@@ -342,7 +342,7 @@ Pxcreate(const char *file,	/* executable file name */
 	(void) strcpy(fname, "status");
 	if ((fd = open(procname, O_RDONLY)) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
-		dprintf("Pcreate: failed to open %s: %s\n",
+		p_dprintf("Pcreate: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
@@ -353,7 +353,7 @@ Pxcreate(const char *file,	/* executable file name */
 	(void) strcpy(fname, "ctl");
 	if ((fd = open(procname, O_WRONLY)) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
-		dprintf("Pcreate: failed to open %s: %s\n",
+		p_dprintf("Pcreate: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
@@ -401,7 +401,7 @@ Pxcreate(const char *file,	/* executable file name */
 			if (errno == EINTR || errno == ERESTART)
 				rc = C_INTR;
 			else {
-				dprintf("Pcreate: Psetrun failed: %s\n",
+				p_dprintf("Pcreate: Psetrun failed: %s\n",
 				    strerror(errno));
 				rc = C_STRANGE;
 			}
@@ -421,13 +421,13 @@ Pxcreate(const char *file,	/* executable file name */
 	(void) Psysentry(P, SYS_exec, 1);
 	(void) Psysentry(P, SYS_execve, 1);
 	if (Psetrun(P, 0, PRSABORT) == -1) {
-		dprintf("Pcreate: Psetrun failed: %s\n", strerror(errno));
+		p_dprintf("Pcreate: Psetrun failed: %s\n", strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
 	}
 	(void) Pwait(P, 0);
 	if (P->state != PS_STOP) {
-		dprintf("Pcreate: Pwait failed: %s\n", strerror(errno));
+		p_dprintf("Pcreate: Pwait failed: %s\n", strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
 	}
@@ -620,7 +620,7 @@ Pxcreate(const char *file,	/* executable file name */
 # endif
 	if ((fd = open(procname, (O_RDWR|O_EXCL))) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
-		dprintf("Pcreate: failed to open %s: %s\n",
+		p_dprintf("Pcreate: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
@@ -630,7 +630,7 @@ Pxcreate(const char *file,	/* executable file name */
 	(void) strcpy(fname, "status");
 	if ((fd = open(procname, O_RDONLY)) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
-		dprintf("Pcreate: failed to open %s: %s\n",
+		p_dprintf("Pcreate: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
@@ -640,7 +640,7 @@ Pxcreate(const char *file,	/* executable file name */
 	(void) strcpy(fname, "ctl");
 	if ((fd = open(procname, O_WRONLY)) < 0 ||
 	    (fd = dupfd(fd, 0)) < 0) {
-		dprintf("Pcreate: failed to open %s: %s\n",
+		p_dprintf("Pcreate: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
@@ -673,7 +673,7 @@ printf("waiting for stop -- state=%d(PS_STOP=%d)\n", P->state, PS_STOP);
 			if (errno == EINTR || errno == ERESTART)
 				rc = C_INTR;
 			else {
-				dprintf("Pcreate: Psetrun failed: %s\n",
+				p_dprintf("Pcreate: Psetrun failed: %s\n",
 				    strerror(errno));
 				rc = C_STRANGE;
 			}
@@ -693,13 +693,13 @@ printf("waiting for stop -- state=%d(PS_STOP=%d)\n", P->state, PS_STOP);
 	(void) Psysentry(P, SYS_exec, 1);
 	(void) Psysentry(P, SYS_execve, 1);
 	if (Psetrun(P, 0, PRSABORT) == -1) {
-		dprintf("Pcreate: Psetrun failed: %s\n", strerror(errno));
+		p_dprintf("Pcreate: Psetrun failed: %s\n", strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
 	}
 	(void) Pwait(P, 0);
 	if (P->state != PS_STOP) {
-		dprintf("Pcreate: Pwait failed: %s\n", strerror(errno));
+		p_dprintf("Pcreate: Pwait failed: %s\n", strerror(errno));
 		rc = C_STRANGE;
 		goto bad;
 	}
@@ -953,7 +953,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			}
 			/* FALLTHROUGH */
 		default:
-			dprintf("Pgrab: failed to open %s: %s\n",
+			p_dprintf("Pgrab: failed to open %s: %s\n",
 			    procname, strerror(errno));
 			rc = G_STRANGE;
 			break;
@@ -973,7 +973,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			rc = G_NOFD;
 			break;
 		default:
-			dprintf("Pgrab: failed to open %s: %s\n",
+			p_dprintf("Pgrab: failed to open %s: %s\n",
 			    procname, strerror(errno));
 			rc = G_STRANGE;
 			break;
@@ -995,7 +995,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 				rc = G_NOFD;
 				break;
 			default:
-				dprintf("Pgrab: failed to open %s: %s\n",
+				p_dprintf("Pgrab: failed to open %s: %s\n",
 				    procname, strerror(errno));
 				rc = G_STRANGE;
 				break;
@@ -1114,7 +1114,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			if (errno == ENOENT)	/* No complaint about zombies */
 				rc = G_ZOMB;
 			else {
-				dprintf("Pgrab: failed to set RLC\n");
+				p_dprintf("Pgrab: failed to set RLC\n");
 				rc = G_STRANGE;
 			}
 			GOTO(err);
@@ -1173,7 +1173,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 			    (P->state != PS_STOP &&
 			    !(P->status.pr_flags & PR_DSTOP))) {
 				if (P->state != PS_RUN && errno != ENOENT) {
-					dprintf("Pgrab: failed to PCSTOP\n");
+					p_dprintf("Pgrab: failed to PCSTOP\n");
 					rc = G_STRANGE;
 				} else {
 					rc = G_ZOMB;
@@ -1187,7 +1187,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		 * should be an outstanding stop directive.
 		 */
 		if (!(P->status.pr_flags & (PR_ISTOP|PR_DSTOP))) {
-			dprintf("Pgrab: process is not stopped\n");
+			p_dprintf("Pgrab: process is not stopped\n");
 			rc = G_STRANGE;
 			GOTO(err);
 		}
@@ -1686,7 +1686,7 @@ printf("In Preopen\n");
 	if ((fd = open(procname, O_RDWR)) < 0 ||
 	    close(P->asfd) < 0 ||
 	    (fd = dupfd(fd, P->asfd)) != P->asfd) {
-		dprintf("Preopen: failed to open %s: %s\n",
+		p_dprintf("Preopen: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		if (fd >= 0)
 			(void) close(fd);
@@ -1698,7 +1698,7 @@ printf("In Preopen\n");
 	if ((fd = open(procname, O_RDONLY)) < 0 ||
 	    close(P->statfd) < 0 ||
 	    (fd = dupfd(fd, P->statfd)) != P->statfd) {
-		dprintf("Preopen: failed to open %s: %s\n",
+		p_dprintf("Preopen: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		if (fd >= 0)
 			(void) close(fd);
@@ -1710,7 +1710,7 @@ printf("In Preopen\n");
 	if ((fd = open("/dev/dtrace_ctl", O_RDWR)) < 0 ||
 	    close(P->ctlfd) < 0 ||
 	    (fd = dupfd(fd, P->ctlfd)) != P->ctlfd) {
-		dprintf("Preopen: failed to open /dev/dtrace_ctl: %s\n",
+		p_dprintf("Preopen: failed to open /dev/dtrace_ctl: %s\n",
 		    strerror(errno));
 		if (fd >= 0)
 			(void) close(fd);
@@ -1721,7 +1721,7 @@ printf("In Preopen\n");
 	if ((fd = open(procname, O_WRONLY)) < 0 ||
 	    close(P->ctlfd) < 0 ||
 	    (fd = dupfd(fd, P->ctlfd)) != P->ctlfd) {
-		dprintf("Preopen: failed to open %s: %s\n",
+		p_dprintf("Preopen: failed to open %s: %s\n",
 		    procname, strerror(errno));
 		if (fd >= 0)
 			(void) close(fd);
@@ -1765,7 +1765,7 @@ printf("In Preopen\n");
 			P->status.pr_lwp.pr_errno = 0;
 		}
 	} else {
-		dprintf("Preopen: expected REQUESTED or "
+		p_dprintf("Preopen: expected REQUESTED or "
 		    "SYSEXIT(SYS_execve) stop\n");
 	}
 
@@ -1854,7 +1854,7 @@ void
 Prelease(struct ps_prochandle *P, int flags)
 {
 	if (P->state == PS_DEAD) {
-		dprintf("Prelease: releasing handle %p PS_DEAD of pid %d\n",
+		p_dprintf("Prelease: releasing handle %p PS_DEAD of pid %d\n",
 		    (void *)P, (int)P->pid);
 		Pfree(P);
 		return;
@@ -1862,13 +1862,13 @@ Prelease(struct ps_prochandle *P, int flags)
 
 	if (P->state == PS_IDLE) {
 		file_info_t *fptr = list_next(&P->file_head);
-		dprintf("Prelease: releasing handle %p PS_IDLE of file %s\n",
+		p_dprintf("Prelease: releasing handle %p PS_IDLE of file %s\n",
 		    (void *)P, fptr->file_pname);
 		Pfree(P);
 		return;
 	}
 
-	dprintf("Prelease: releasing handle %p pid %d\n",
+	p_dprintf("Prelease: releasing handle %p pid %d\n",
 	    (void *)P, (int)P->pid);
 
 #if defined(sun)
@@ -1950,7 +1950,7 @@ Prelease(struct ps_prochandle *P, int flags)
 		    P->status.pr_lwp.pr_flags & (PR_ISTOP|PR_DSTOP));
 
 		if (P->status.pr_lwp.pr_flags & (PR_ISTOP|PR_DSTOP))
-			dprintf("Prelease: failed to set process running\n");
+			p_dprintf("Prelease: failed to set process running\n");
 	}
 
 	Pfree(P);
@@ -1965,42 +1965,42 @@ prldump(const char *caller, lwpstatus_t *lsp)
 
 	switch (lsp->pr_why) {
 	case PR_REQUESTED:
-		dprintf("%s: REQUESTED\n", caller);
+		p_dprintf("%s: REQUESTED\n", caller);
 		break;
 	case PR_SIGNALLED:
-		dprintf("%s: SIGNALLED %s\n", caller,
+		p_dprintf("%s: SIGNALLED %s\n", caller,
 		    proc_signame(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_FAULTED:
-		dprintf("%s: FAULTED %s\n", caller,
+		p_dprintf("%s: FAULTED %s\n", caller,
 		    proc_fltname(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_SYSENTRY:
-		dprintf("%s: SYSENTRY %s\n", caller,
+		p_dprintf("%s: SYSENTRY %s\n", caller,
 		    proc_sysname(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_SYSEXIT:
-		dprintf("%s: SYSEXIT %s\n", caller,
+		p_dprintf("%s: SYSEXIT %s\n", caller,
 		    proc_sysname(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_JOBCONTROL:
-		dprintf("%s: JOBCONTROL %s\n", caller,
+		p_dprintf("%s: JOBCONTROL %s\n", caller,
 		    proc_signame(lsp->pr_what, name, sizeof (name)));
 		break;
 	case PR_SUSPENDED:
-		dprintf("%s: SUSPENDED\n", caller);
+		p_dprintf("%s: SUSPENDED\n", caller);
 		break;
 	default:
-		dprintf("%s: Unknown\n", caller);
+		p_dprintf("%s: Unknown\n", caller);
 		break;
 	}
 
 	if (lsp->pr_cursig)
-		dprintf("%s: p_cursig  = %d\n", caller, lsp->pr_cursig);
+		p_dprintf("%s: p_cursig  = %d\n", caller, lsp->pr_cursig);
 
 	bits = *((uint32_t *)&lsp->pr_lwppend);
 	if (bits)
-		dprintf("%s: pr_lwppend = 0x%.8X\n", caller, bits);
+		p_dprintf("%s: pr_lwppend = 0x%.8X\n", caller, bits);
 }
 
 /* debugging */
@@ -2013,7 +2013,7 @@ prdump(struct ps_prochandle *P)
 
 	bits = *((uint32_t *)&P->status.pr_sigpend);
 	if (bits)
-		dprintf("Pstopstatus: pr_sigpend = 0x%.8X\n", bits);
+		p_dprintf("Pstopstatus: pr_sigpend = 0x%.8X\n", bits);
 }
 
 /*
@@ -2056,7 +2056,7 @@ Pstopstatus(struct ps_prochandle *P,
 		}
 		break;
 	default:	/* corrupted state */
-		dprintf("Pstopstatus: corrupted state: %d\n", P->state);
+		p_dprintf("Pstopstatus: corrupted state: %d\n", P->state);
 		errno = EINVAL;
 		return (-1);
 	}
@@ -2119,11 +2119,11 @@ Pstopstatus(struct ps_prochandle *P,
 		switch (err) {
 		case EINTR:		/* user typed ctl-C */
 		case ERESTART:
-			dprintf("Pstopstatus: EINTR\n");
+			p_dprintf("Pstopstatus: EINTR\n");
 			break;
 		case EAGAIN:		/* we lost control of the the process */
 		case EOVERFLOW:
-			dprintf("Pstopstatus: PS_LOST, errno=%d\n", err);
+			p_dprintf("Pstopstatus: PS_LOST, errno=%d\n", err);
 			P->state = PS_LOST;
 			break;
 		default:		/* check for dead process */
@@ -2142,7 +2142,7 @@ Pstopstatus(struct ps_prochandle *P,
 				default:
 					errstr = "Pstopstatus PC???"; break;
 				}
-				dprintf("%s: %s\n", errstr, strerror(err));
+				p_dprintf("%s: %s\n", errstr, strerror(err));
 			}
 			deadcheck(P);
 			break;
@@ -2158,7 +2158,7 @@ Pstopstatus(struct ps_prochandle *P,
 		P->state = PS_RUN;
 		if (request == PCNULL || request == PCDSTOP || msec != 0)
 			return (0);
-		dprintf("Pstopstatus: process is not stopped\n");
+		p_dprintf("Pstopstatus: process is not stopped\n");
 		errno = EPROTO;
 		return (-1);
 	}
@@ -2384,7 +2384,7 @@ if (0)
 		/* If it is not in a jobcontrol stop, issue an error message */
 		if (errno != EBUSY ||
 		    P->status.pr_lwp.pr_why != PR_JOBCONTROL) {
-			dprintf("Psetrun: %s\n", strerror(errno));
+			p_dprintf("Psetrun: %s\n", strerror(errno));
 			return (-1);
 		}
 		/* Otherwise pretend that the job-stopped process is running */
@@ -3447,7 +3447,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 			rc = G_NOPROC;
 			break;
 		default:
-			dprintf("Lgrab: failed to open %s: %s\n",
+			p_dprintf("Lgrab: failed to open %s: %s\n",
 			    procname, strerror(errno));
 			rc = G_STRANGE;
 			break;
@@ -3462,7 +3462,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 			rc = G_NOPROC;
 			break;
 		default:
-			dprintf("Lgrab: failed to read %s: %s\n",
+			p_dprintf("Lgrab: failed to read %s: %s\n",
 			    procname, strerror(errno));
 			rc = G_STRANGE;
 			break;
@@ -3478,7 +3478,7 @@ Lgrab(struct ps_prochandle *P, lwpid_t lwpid, int *perr)
 			rc = G_NOPROC;
 			break;
 		default:
-			dprintf("Lgrab: failed to open %s: %s\n",
+			p_dprintf("Lgrab: failed to open %s: %s\n",
 			    procname, strerror(errno));
 			rc = G_STRANGE;
 			break;
@@ -3684,7 +3684,7 @@ Lstopstatus(struct ps_lwphandle *L,
 		}
 		break;
 	default:	/* corrupted state */
-		dprintf("Lstopstatus: corrupted state: %d\n", L->lwp_state);
+		p_dprintf("Lstopstatus: corrupted state: %d\n", L->lwp_state);
 		errno = EINVAL;
 		return (-1);
 	}
@@ -3722,10 +3722,10 @@ Lstopstatus(struct ps_lwphandle *L,
 		switch (err) {
 		case EINTR:		/* user typed ctl-C */
 		case ERESTART:
-			dprintf("Lstopstatus: EINTR\n");
+			p_dprintf("Lstopstatus: EINTR\n");
 			break;
 		case EAGAIN:		/* we lost control of the the process */
-			dprintf("Lstopstatus: EAGAIN\n");
+			p_dprintf("Lstopstatus: EAGAIN\n");
 			L->lwp_state = PS_LOST;
 			errno = err;
 			return (-1);
@@ -3745,7 +3745,7 @@ Lstopstatus(struct ps_lwphandle *L,
 				default:
 					errstr = "Lstopstatus PC???"; break;
 				}
-				dprintf("%s: %s\n", errstr, strerror(err));
+				p_dprintf("%s: %s\n", errstr, strerror(err));
 			}
 			L->lwp_state = PS_UNDEAD;
 			errno = err;
@@ -3758,7 +3758,7 @@ Lstopstatus(struct ps_lwphandle *L,
 		L->lwp_state = PS_RUN;
 		if (request == PCNULL || request == PCDSTOP || msec != 0)
 			return (0);
-		dprintf("Lstopstatus: LWP is not stopped\n");
+		p_dprintf("Lstopstatus: LWP is not stopped\n");
 		errno = EPROTO;
 		return (-1);
 	}

@@ -119,10 +119,14 @@ prset_ismember(void *sp, size_t size, uint_t flag)
 /*
  * If _libproc_debug is set, printf the debug message to stderr
  * with an appropriate prefix.
+#if defined(linux)
+ * Rename this function to avoid compile errors on later glibc systems. dprintf()
+ * is new in later glibc releases.
+#endif
  */
 /*PRINTFLIKE1*/
 void
-dprintf(const char *format, ...)
+p_dprintf(const char *format, ...)
 {
 	if (_libproc_debug) {
 		va_list alist;

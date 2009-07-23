@@ -162,69 +162,6 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	while (depth < pcstack_limit)
 		pcstack[depth++] = (pc_t) NULL;
 }
-/*
-http://refspecs.freestandards.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/ehframechpt.html
-ignore this -- i am experimenting....
-*/
-static void
-dwarf_stuff(unsigned long *sp)
-{
-#if 0
-	struct mm_struct *mm = current->mm;
-	struct vm_area_struct *vma;
-	int	i;
-	Elf64_Ehdr	*ehdr;
-	Elf64_Phdr      *phdr;
-	Elf64_Shdr      *shdr;
-
-	vma = find_vma(mm, *sp);
-printk("mm ours=%p vma=%p\n", mm, vma);
-	printk("  vm_start=%p\n",vma->vm_start);
-	printk("  vm_end  =%p\n", vma->vm_end);
-	dtrace_dump_mem32(vma->vm_start, 16);
-	if (vma->vm_file && vma->vm_file->f_path.dentry) {
-		char	buf[256];
-		buf[0] = '\0';
-		d_path(&vma->vm_file->f_path, buf, sizeof buf);
-		printk("  file=%s\n", buf);
-	}
-
-	ehdr = vma->vm_start;
-        printk("e_phoff:              %04x\n", ehdr->e_phoff);
-        printk("e_phnum:              %04x\n", ehdr->e_phnum);
-        printk("e_shoff:              %04x\n", ehdr->e_shoff);
-        printk("e_shnum:              %04x\n", ehdr->e_shnum);
-        printk("e_shstrndx:           %04x\n", ehdr->e_shstrndx);
-	phdr = (char *) vma->vm_start + ehdr->e_phoff;
-/*
-	for (i = 0; i < ehdr->e_phnum; i++) {
-		phdr = (char *) vma->vm_start + ehdr->e_phoff + sizeof *phdr * i;
-		printk("  phdr[%d]: type=%x offset=%x size=%x\n", i, phdr->p_type, phdr->p_offset, phdr->p_memsz);
-	}
-*/
-	/***********************************************/
-	/*   Locate the .eh_frame_hdr segment.	       */
-	/***********************************************/
-	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_EH_FRAME)
-			break;
-	}
-	if (i >= ehdr->e_phnum)
-		return;
-	printk("  .eh_frame_hdr phdr[%d]: type=%x offset=%x size=%x\n", i, phdr->p_type, phdr->p_offset, phdr->p_memsz);
-	shdr = (char *) vma->vm_start + ehdr->e_shoff;
-	printk("shdr=%p\n", shdr);
-return;
-printk("sec[0]=%p\n", shdr[0].sh_offset);
-	char *strtab = (char *) vma->vm_start + shdr[ehdr->e_shstrndx].sh_offset;
-	printk("strtab=%p\n", strtab);
-return;
-	for (i = 0; i < ehdr->e_shnum; i++) {
-		printk("sec %d: %p %d\n", i, shdr[i].sh_addr, shdr[i].sh_size);
-	}
-
-#endif
-}
 
 /**********************************************************************/
 /*   Get  user space stack for the probed process. We need to handle  */
@@ -352,7 +289,7 @@ int dw_find_ret_addr(char *, unsigned long, int *);
 		/*   in memory.				       */
 		/***********************************************/
 char *ptr = vm->vm_start;
-printk("elf=%02x %02x %02x %02x\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+printk("vmtart=%p elf=%02x %02x %02x %02x\n", vm->vm_start, ptr[0], ptr[1], ptr[2], ptr[3]);
 		if (do_dwarf_phdr((char *) vm->vm_start, &dw) < 0) {
 			printk("sorry - no phdr\n");
 			break;

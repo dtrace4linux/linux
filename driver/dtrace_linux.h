@@ -24,6 +24,7 @@
  *
  */
 
+#include "../port.h"
 #include <linux/zone.h>
 #include <linux_types.h>
 #include <linux/smp.h>
@@ -328,5 +329,19 @@ int sulword(const void *addr, ulong_t value);
 int instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym);
 cpu_core_t	*cpu_get_this(void);
 int	is_kernel_text(unsigned long);
+
+/**********************************************************************/
+/*   Some  kernels  dont  define if not SMP, but we define anyway so  */
+/*   long  as  we  agree with smp.h header file. Even worse, on some  */
+/*   2.6.18  kernels we have 4 args and 5 on others so we cannot use  */
+/*   the KERNEL_VERSION macro to help us.			      */
+/**********************************************************************/
+#if defined(FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS)
+int smp_call_function_single(int cpuid, void (*func)(void *), void *info, int retry, int wait);
+#define SMP_CALL_FUNCTION_SINGLE(a, b, c, d) smp_call_function_single(a, b, c, 0, d)
+#else
+int smp_call_function_single(int cpuid, void (*func)(void *), void *info, int wait);
+#define SMP_CALL_FUNCTION_SINGLE(a, b, c, d) smp_call_function_single(a, b, c, d)
+#endif
 
 # endif

@@ -211,6 +211,20 @@ void elferr(char *);
 static int size_of_encoded_value(int encoding);
 static unsigned long get_encoded_value(char **fp, int encoding);
 
+static unsigned long
+get_encoded_value(char **fp, int encoding)
+{
+	unsigned long n;
+
+	if (encoding & DW_EH_PE_signed) {
+		n = *(int32_t *) *fp;
+	} else {
+		n = *(uint32_t *) *fp;
+	}
+	*fp += 4;
+
+	return n;
+}
 unsigned long
 get_leb128(char **fp, int sign)
 {	unsigned shift = 0;
@@ -467,7 +481,7 @@ printk("here....%d\n", __LINE__);
 					  	a += 1 + size_of_encoded_value(*a);
 					  	break;
 					  case 'R':
-printf("R encoding %x\n", *a);
+printf("R encoding %x (kernel)\n", *a);
 					  	dw->fde_encoding = *a++;
 					  	break;
 					  case 'z':
@@ -490,9 +504,9 @@ printf("R encoding %x\n", *a);
 printk("pc_begin1=%p\n", dw->pc_begin);
 printk("pc_begin2=%p\n", dw->eh_frame_sec->sh_addr);
 printk("pc_begin3=%p\n", fp - dw->eh_frame_data - 8);
-printk("looking for %p\n", pc);
+printk("looking 4 %p\n", pc);
 				dw->pc_begin += dw->eh_frame_sec->sh_addr;
-//				dw->pc_begin += fp - dw->eh_frame_data - 8;
+				dw->pc_begin += fp - dw->eh_frame_data - 8;
 			}
 		        printf("\nFDE length=%08x ptr=%04x pc=%08lx..%08lx\n", 
 				len, cie,
@@ -516,15 +530,17 @@ printk("looking for %p\n", pc);
 		/*   then  we  can skip over it without doing  */
 		/*   any interpretation.		       */
 		/***********************************************/
+		cfa_offset = 0;
 		if (pc < dw->pc_begin) {
 			/***********************************************/
 			/*   Something  wrong  ..  we  didnt find the  */
 			/*   block.				       */
 			/***********************************************/
-			printf("block not found pc=%p begin=%p\n", 
+			printf("block not found pc=%p begin=%p cfa_offset=%d\n", 
 				(void *) pc, 
-				(void *) dw->pc_begin);
-			return 0;
+				(void *) dw->pc_begin,
+				cfa_offset);
+			return 1;
 		}
 		/***********************************************/
 		/*   Not reached the right block yet.	       */
@@ -537,7 +553,6 @@ printf("skip %p %p\n", (void *) pc, (void *) (dw->pc_begin + dw->pc_end));
 
 	        cp = fp; 
 		cpend = fp_start + len;
-		cfa_offset = 0;
 
 	        while (cp < cpend) {
 			int	a, b;
@@ -641,21 +656,6 @@ dump_ptr(char *ptr, char *msgbuf)
 		msgbuf += 2;
         }
         return ptr;
-}
-static unsigned long
-get_encoded_value(char **fp, int encoding)
-{
-	unsigned long n;
-
-	if (encoding & DW_EH_PE_signed) {
-		n = *(int32_t *) *fp;
-printf("n=%lx\n", n);
-	} else {
-		n = *(uint32_t *) *fp;
-	}
-	*fp += 4;
-
-	return n;
 }
 static int
 size_of_encoded_value(int encoding)
@@ -821,12 +821,13 @@ main(int argc, char **argv)
 				if (aug_len) {
 					printf("  Augmentation Length:   len=0x%02x ", aug_len);
 					for (i = 0; i < aug_len; i++) {
-						printf("%02x ", *fp++);
+						printf("%02x ", fp[i]);
 					}
 					printf("\n");
 				}
-				char *p;
 				char	*a = fp;
+				fp += aug_len;
+				char *p;
 				for (p = aug; ; p++) {
 					int	ok = 1;
 //printf("aug %x %c\n", *p, *p ? *p : 'x');
@@ -855,8 +856,11 @@ printf("R encoding %x\n", *a);
 			dw.pc_begin = get_encoded_value(&fp, dw.fde_encoding);
 			dw.pc_end = get_encoded_value(&fp, dw.fde_encoding);
 //printf("pc_begin=%p vad=%p %p\n", pc_begin, p_eh->p_vaddr, fp-eh_frame_data);
+//printf("encoding=%x\n", dw.fde_encoding);
 			if ((dw.fde_encoding & 0x70) == DW_EH_PE_pcrel) {
+printf("+= %p\n", dw.eh_frame_sec->sh_addr);
 				dw.pc_begin += dw.eh_frame_sec->sh_addr;
+printf("+= %p - %p\n", fp, dw.eh_frame_data);
 				dw.pc_begin += fp - dw.eh_frame_data - 8;
 			}
 		        printf("\nFDE length=%08x ptr=%04x pc=%08lx..%08lx\n", 

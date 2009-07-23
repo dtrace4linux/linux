@@ -2,7 +2,7 @@
 /*   Functions which are not there in the older kernels.	      */
 /*   Open Source						      */
 /*   Author: P D Fox						      */
-/* $Header: Last edited: 31-May-2009 1.4 $ 			      */
+/* $Header: Last edited: 24-Jul-2009 1.5 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -41,6 +41,7 @@ strcasecmp(const char *s1, const char *s2)
 /*   Make  sure  we  never use the kernels string functions here, in  */
 /*   case we are probing them.					      */
 /**********************************************************************/
+#if !defined(__HAVE_ARCH_STRLEN)
 size_t
 strlen(const char *str)
 {
@@ -50,7 +51,9 @@ strlen(const char *str)
 		str1++;
 	return str1 - str;
 }
+#endif
 
+#if !defined(__HAVE_ARCH_STRCMP)
 int
 strncmp(const char *s1, const char *s2, size_t len)
 {
@@ -66,6 +69,7 @@ strncmp(const char *s1, const char *s2, size_t len)
 	}
 	return 0;
 }
+#endif
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 struct task_struct *
@@ -99,12 +103,16 @@ void sort(void *base, size_t num, size_t size,
 }
 #endif
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-void
-smp_call_function_single(int cpuid, int (*func)(void *), void *info, int wait)
+# if defined(FUNC_SMP_CALL_FUNCTION_SINGLE_MISSING)
+/**********************************************************************/
+/*   If only one cpu, then it must be us who gets called.	      */
+/**********************************************************************/
+int
+smp_call_function_single(int cpuid, void (*func)(void *), void *info, int wait)
 {
         local_irq_disable();
         (*func)(info);
         local_irq_enable();
+	return 0;
 }
 # endif

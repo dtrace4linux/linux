@@ -136,6 +136,8 @@ static int profile_ticks[] = {
     0, 0, 0, 0, 0
 };
 
+int strcasecmp(const char *s1, const char *s2);
+
 /*
  * profile_max defines the upper bound on the number of profile probes that
  * can exist (this is to prevent malicious or clumsy users from exhausing

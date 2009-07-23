@@ -1062,9 +1062,9 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 			local_irq_enable();
 			return;
 		}
-		smp_call_function_single(cpu, func, arg, 0, TRUE);
+		SMP_CALL_FUNCTION_SINGLE(cpu, func, arg, TRUE);
 #else
-		smp_call_function_single(cpu, func, arg, TRUE);
+		SMP_CALL_FUNCTION_SINGLE(cpu, func, arg, TRUE);
 #endif
 	}
 }

@@ -66,8 +66,10 @@
 	movl $__USER_DS, %edx
 	movl %edx,%ds
 	movl %edx,%es
+#if defined(__KERNEL_PERCPU)
 	movl $__KERNEL_PERCPU, %edx
 	movl %edx, %fs
+#endif
 .endm
 
 

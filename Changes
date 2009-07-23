@@ -1,3 +1,24 @@
+Fri Jul 24 20:13:15 2009  fox
+
+     326* Archive: 1.0100
+
+     325* Below two changes for RH 2.6.18-92.1.13.el5xen kernel
+          (Oracle platform)
+
+     324* intr_x86-32.S: Add conditional if __KERNEL_PERCPU does not
+          exist in this kernel.
+
+	  missing.c: Add checks for strcmp/strlen to avoid asm/string.h
+	  conflicts.
+
+	  profile.c: Add missing strcasecmp() prototype.
+
+     323* missing.c: smp_call_function_single: Only defined if SMP, not
+          a kernel version specific function.
+
+	  tools/mkport.pl: Add special detection for smp_call_function_single
+	  since theres a variety of scenarios to support.
+
 Thu Jul 23 20:07:18 2009  fox
 
      322* Pcontrol.c, Putil.c: Rename dprintf to p_dprintf to avoid glibc

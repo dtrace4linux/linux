@@ -179,8 +179,8 @@ typedef struct dwarf_eh_frame_hdr {
         unsigned char table_enc;
         } dwarf_eh_frame_hdr;
 
-static int do_phdr;
 #if !defined(_KERNEL)
+static int do_phdr;
 static int do_sec;
 static int do_self;
 
@@ -341,6 +341,7 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
         Elf64_Ehdr *ehdr;
         Elf64_Phdr *phdr;
 	int	i;
+	int	found = 0;
 
 	/***********************************************/
 	/*   Check for ELF magic header.	       */
@@ -348,6 +349,8 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
 	if (ptr[0] != 0x7f || ptr[1] != 'E' || ptr[2] != 'L' || ptr[3] != 'F')
 		return -1;
 
+printk("do_dwarf_phdr: %d\n", __LINE__);
+int do_phdr = 1;
         ehdr = (Elf64_Ehdr *) ptr;
         phdr = (Elf64_Phdr *) ((char *) ehdr + ehdr->e_phoff);
 
@@ -370,19 +373,76 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
 
 			addr = (char *) phdr->p_vaddr + phdr->p_memsz;
 #if defined(_KERNEL)
-			addr = ptr + (long) addr;
+			if (ehdr->e_type == ET_DYN) {
+				addr = ptr + (long) addr;
+			}
 #endif
 			if ((long) addr & 0x7)
 				addr = (char *) (((long) addr | 7) + 1);
 			dw->eh_frame_sec = &dw->eh_frame_s;
 			dw->eh_frame_s.sh_addr = (long) addr;
 			dw->eh_frame_s.sh_offset = (long) addr;
-			dw->eh_frame_s.sh_size = phdr->p_memsz  + 0x1f8;
+			dw->eh_frame_s.sh_size = phdr->p_memsz; //  + 0x2277c;
                         dw->eh_frame_data = addr;
-			}
+
+			found = 1;
+		}
                 phdr++;
         }
 
+	if (!found)
+		return -1;
+
+printk("do_dwarf_phdr: %d\n", __LINE__);
+	/***********************************************/
+	/*   Need   to   compute   the  size  of  the  */
+	/*   .eh_frame section. The strtab may not be  */
+	/*   loaded  into memory so we cannot rely on  */
+	/*   having  a  section  table  to  determine  */
+	/*   this.				       */
+	/***********************************************/
+	char *fp_start = (char *) ehdr + (int) dw->eh_frame_hdr_data;
+	if (ehdr->e_type == ET_EXEC) {
+		fp_start = dw->eh_frame_hdr_data;
+	}
+	char *fp = fp_start;
+
+printk("do_dwarf_phdr: %d ehdr=%p eh_frame_hdr_data=%p fp=%p\n", __LINE__, ehdr, dw->eh_frame_hdr_data, fp);
+	printf("EH.version: %02x\n", *fp++);
+	printf("EH.eh_frame_ptr_enc: %02x\n", *fp++);
+	printf("EH.fde_fount_enc: %02x\n", *fp++);
+	printf("EH.table_enc: %02x\n", *fp++);
+	printf("EH.eh_frame_ptr: %02x\n", *(uint32_t *) fp); fp += 4;
+	int fde_count = *(uint32_t *) fp; fp += 4;
+	printf("EH.fde_count: %02x\n", fde_count);
+	unsigned addr = 0;
+	for (i = 0; i < fde_count; i++) {
+		char *fp1 = fp + i * 2 * 4;
+		unsigned addr1 = *(uint32_t *) (fp1 + 4);
+//printk("%d addr1: %x\n", i, addr1);
+		addr = addr > addr1 ? addr : addr1;
+	}
+	/***********************************************/
+	/*   Bug  alert:  we  found  the last FDE/CIE  */
+	/*   entry  but  not its size, so we may fail  */
+	/*   to  map  on  the  last  entry  unless we  */
+	/*   compute the size here.		       */
+	/***********************************************/
+	printf("max addr=%x\n", addr);
+
+	dw->eh_frame_s.sh_size += addr;
+
+/*
+	Elf64_Shdr *strsec = (char *) ehdr + ehdr->e_shoff + ehdr->e_shstrndx * sizeof(Elf64_Shdr);
+	char *strtab = (char *) ehdr + strsec->sh_addr;
+printk("strtab=%p\n", strtab);
+return 0;
+        for (i = 0; i < ehdr->e_shnum; i++) {
+		Elf64_Shdr *scn = (char *) ehdr + ehdr->e_shoff + i * sizeof(Elf64_Shdr);
+		printk("sec %d: %p %p\n", i, strtab + 25, *(long *) scn);
+		break;
+	}
+*/
 	return 0;
 }
 
@@ -419,7 +479,7 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 
 	char	*aug = NULL;
 
-printk("here....1 fp=%p\n", fp);
+printk("dw_find_ret_addr: here....1\npc=%p fp=%p end=%p size=%x\n", pc, fp, eh_frame_end, dw->eh_frame_sec->sh_size);
 	/***********************************************/
 	/*   Walk  the  series of CIE/FDE entries til  */
 	/*   we  find  one  that  matches  the target  */
@@ -432,13 +492,13 @@ printk("here....1 fp=%p\n", fp);
 	        len = *(uint32_t *) fp; fp += 4;
 
 		if (len == 0) {
-//			printf("  Length is zero -- end\n");
+printf("  Length is zero -- end\n");
+continue;
 			return 0;
 		}
 		fp_start = fp;
 
 		cie = *(uint32_t *) fp; fp += 4;
-printk("here....%d\n", __LINE__);
 		if (cie == 0) {
 		        printf("\nCIE length=%08x\n", len);
 			version = *fp++;
@@ -464,7 +524,7 @@ printk("here....%d\n", __LINE__);
 				if (aug_len) {
 					printf("  Augmentation Length:   len=0x%02x ", aug_len);
 					for (i = 0; i < aug_len; i++) {
-						printf("%02x ", fp[i]);
+						printf("%02x ", fp[i] & 0xff);
 					}
 					printf("\n");
 				}
@@ -501,23 +561,22 @@ printf("R encoding %x (kernel)\n", *a);
 			dw->pc_end = get_encoded_value(&fp, dw->fde_encoding);
 //printf("pc_begin=%p vad=%p %p\n", pc_begin, p_eh->p_vaddr, fp-eh_frame_data);
 			if ((dw->fde_encoding & 0x70) == DW_EH_PE_pcrel) {
-printk("pc_begin1=%p\n", dw->pc_begin);
-printk("pc_begin2=%p\n", dw->eh_frame_sec->sh_addr);
-printk("pc_begin3=%p\n", fp - dw->eh_frame_data - 8);
-printk("looking 4 %p\n", pc);
+//printk("pc_begin1=%p pc_begin2=%p\n", dw->pc_begin, dw->eh_frame_sec->sh_addr);
+//printk("pc_begin3=%p looking 4 %p\n", fp - dw->eh_frame_data - 8, pc);
 				dw->pc_begin += dw->eh_frame_sec->sh_addr;
-				dw->pc_begin += fp - dw->eh_frame_data - 8;
+				dw->pc_begin += fp - dw->eh_frame_data - 8*0;
 			}
-		        printf("\nFDE length=%08x ptr=%04x pc=%08lx..%08lx\n", 
+if(0)
+		        printf("FDE len=%x cie=%04x pc=%lx..%lx tpc=%lx\n", 
 				len, cie,
-				dw->pc_begin, dw->pc_begin + dw->pc_end);
+				dw->pc_begin, dw->pc_begin + dw->pc_end, pc);
 //printf("fde_encoding=%d\n", fde_encoding);
 			if (*aug == 'z') {
 				int aug_len = *fp++;
 				if (aug_len) {
 					printf("  Augmentation Length: 0x%02x ", aug_len);
 					for (i = 0; i < aug_len; i++)
-						printf("%02x ", fp[i]);
+						printf("%02x ", fp[i] & 0xff);
 					printf("\n");
 				}
 				fp += aug_len;
@@ -532,6 +591,8 @@ printk("looking 4 %p\n", pc);
 		/***********************************************/
 		cfa_offset = 0;
 		if (pc < dw->pc_begin) {
+fp = fp_start + len;
+continue;
 			/***********************************************/
 			/*   Something  wrong  ..  we  didnt find the  */
 			/*   block.				       */
@@ -540,13 +601,14 @@ printk("looking 4 %p\n", pc);
 				(void *) pc, 
 				(void *) dw->pc_begin,
 				cfa_offset);
-			return 1;
+			*cfa_offsetp = 0;
+			return 0;
 		}
 		/***********************************************/
 		/*   Not reached the right block yet.	       */
 		/***********************************************/
 		if (pc >= dw->pc_begin + dw->pc_end) {
-printf("skip %p %p\n", (void *) pc, (void *) (dw->pc_begin + dw->pc_end));
+//printf("skip pc=%p pc_end=%p (diff=%p)\n", (void *) pc, (void *) (dw->pc_begin + dw->pc_end), (char *) pc - (char *) (dw->pc_begin + dw->pc_end));
 			fp = fp_start + len;
 			continue;
 		}
@@ -614,7 +676,7 @@ printf("found you, you little baby\n");
 	                  case DW_CFA_offset:
 				a = LEB(cp);
 				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw->data_factor);
-				cfa_offset = a * dw->data_factor;
+//				cfa_offset = a * dw->data_factor;
 	                        break;
 	                  case DW_CFA_set_loc:
 	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_set_loc: ");
@@ -638,12 +700,14 @@ printf("found you, you little baby\n");
 	        }
 		fp = cp;
 printf("got it....\n");
+*cfa_offsetp = cfa_offset;
 return 1;
 	}
 	/***********************************************/
 	/*   Nope - not here at all.		       */
 	/***********************************************/
 printf("not found at all....\n");
+printk("here....1 fp=%p end=%p size=%x\n", fp, eh_frame_end, dw->eh_frame_sec->sh_size);
 	return 0;
 }
 static char *

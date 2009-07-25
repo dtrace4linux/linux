@@ -269,10 +269,24 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	}
 #endif
 
+/*
+__asm("movq %%gs:24, %0\n"
+	"nop\n"
+	"nop\n"
+	"nop\n"
+	"nop\n"
+	"nop\n"
+	: "=a" (sp)
+	);
+bos = sp;
+*/
+
+dtrace_dump_mem64(sp, 128);
 	/***********************************************/
 	/*   Find  base  of  the  code  area  for ELF  */
 	/*   header.				       */
 	/***********************************************/
+int loop = 0;
         while (pcstack < pcstack_end &&                                       
                sp >= bos) {
 	       	struct vm_area_struct *vm = find_vma(current->mm, sp[0]);
@@ -281,15 +295,21 @@ char	dw[200];
 int do_dwarf_phdr(char *, char *);
 int dw_find_ret_addr(char *, unsigned long, int *);
 
-
-		if (vm == NULL)
+printk("loop=%d sp:%p %p\n", loop++, sp, sp[0]);
+		if (vm == NULL) {
+printk("no vm for sp: %p\n", sp[0]);
 			break;
+		}
+if (0 && !validate_ptr(sp[0])) {
+printk("sorry - not a vlaid ptr %p\n", sp[0]);
+break;
+}
 		/***********************************************/
 		/*   Work  out where the .eh_frame section is  */
 		/*   in memory.				       */
 		/***********************************************/
 char *ptr = vm->vm_start;
-printk("vmtart=%p elf=%02x %02x %02x %02x\n", vm->vm_start, ptr[0], ptr[1], ptr[2], ptr[3]);
+printk("sp=%p vmtart=%p elf=%02x %02x %02x %02x\n", sp[0], vm->vm_start, ptr[0], ptr[1], ptr[2], ptr[3]);
 		if (do_dwarf_phdr((char *) vm->vm_start, &dw) < 0) {
 			printk("sorry - no phdr\n");
 			break;
@@ -300,62 +320,22 @@ printk("vmtart=%p elf=%02x %02x %02x %02x\n", vm->vm_start, ptr[0], ptr[1], ptr[
 		/*   where  the next return address is on the  */
 		/*   stack (relative to where we are).	       */
 		/***********************************************/
-		if (dw_find_ret_addr(dw, *sp, &cfa_offset) < 0) {
+		if (dw_find_ret_addr(dw, *sp, &cfa_offset) == 0) {
 			printk("sorry..\n");
 			break;
 		}
-
-		printk("vm=%p %p: %p\n", vm, vm->vm_start, *(long *) vm->vm_start);
+//cfa_offset = cfa_offset+8;
+		printk("vm=%p %p: %p cfa_offset=%d\n", vm, vm->vm_start, *(long *) vm->vm_start, cfa_offset);
+		*pcstack++ = sp[0];                                   
 		sp = (char *) sp + cfa_offset;
-		break;
+		continue;
                 if (validate_ptr(sp))                                         
                         *pcstack++ = sp[0];                                   
                 sp++; 
 	}
-#if 0
-	int lvl = 0;
-	*pcstack++ = sp[0];
-	dwarf_stuff(sp);
-	while (pcstack < pcstack_end && sp >= bos) {
-//printk("probe1 %p\n", sp);
-//		if (!access_ok(VERIFY_READ, sp, sizeof(uintptr_t)))
-//			break;
-
-		if (!validate_ptr(sp))
-			break;
-
-//printk("probe2 %p %p %p %p %p %p\n", sp[1], sp[2], sp[3], sp[4], sp[5], sp[6]);
-//		if (!validate_ptr(sp[1]))
-//			break;
-//		if (!access_ok(VERIFY_READ, sp[1], sizeof(uintptr_t)))
-//			break;
-
-		if (lvl <4) {
-			int i;
-			for (i = 0; i < 51200; i++) {
-				if (!validate_ptr(sp))
-					goto do_end;
-//				printk("%p try %d %p\n", sp, i, sp[0]);
-				if (sp[0] > sp && sp[0] < sp + 10000)
-					goto do_ok;
-				sp++;
-			}
-			goto do_end;
-		}
-do_ok:
-		*pcstack++ = sp[1];
-if (sp[2])*pcstack++ = sp[2];
-if (sp[3])*pcstack++ = sp[3];
-		if (sp[0] < sp)
-			break;
-		sp = sp[0];
-//dtrace_printf("sp=%p limit=%d\n", sp, pcstack_limit);
-		lvl++;
-	}
-#endif
 # endif
 	}
-do_end:
+
 	while (pcstack < pcstack_end)
 		*pcstack++ = (pc_t) NULL;
 }

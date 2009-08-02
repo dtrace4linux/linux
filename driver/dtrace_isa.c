@@ -269,8 +269,8 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	}
 #endif
 
-/*
-__asm("movq %%gs:24, %0\n"
+
+/*__asm("movq %%gs:24, %0\n"
 	"nop\n"
 	"nop\n"
 	"nop\n"
@@ -278,10 +278,15 @@ __asm("movq %%gs:24, %0\n"
 	"nop\n"
 	: "=a" (sp)
 	);
-bos = sp;
-*/
-
+bos = sp;*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+bos = sp = current->thread.usersp;
+#else
+bos = sp = read_pda(oldrsp);
+#endif
+printk("rsp %p \n", sp);
 dtrace_dump_mem64(sp, 128);
+
 	/***********************************************/
 	/*   Find  base  of  the  code  area  for ELF  */
 	/*   header.				       */
@@ -310,6 +315,8 @@ break;
 		/***********************************************/
 char *ptr = vm->vm_start;
 printk("sp=%p vmtart=%p elf=%02x %02x %02x %02x\n", sp[0], vm->vm_start, ptr[0], ptr[1], ptr[2], ptr[3]);
+printk("sp[0] %p %p %p\n", sp[0], sp[1], sp[2]);
+printk("sp[3] %p %p %p\n", sp[3], sp[4], sp[5]);
 		if (do_dwarf_phdr((char *) vm->vm_start, &dw) < 0) {
 			printk("sorry - no phdr\n");
 			break;

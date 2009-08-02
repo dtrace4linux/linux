@@ -1,3 +1,7 @@
+Mon Aug  3 23:18:25 2009  fox
+
+     327* dtrace_isa.c: Fix for oldrsp in 2.6.30.4 kernel.
+
 Fri Jul 24 20:13:15 2009  fox
 
      326* Archive: 1.0100

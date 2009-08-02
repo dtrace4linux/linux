@@ -5,6 +5,8 @@ print "This is doit2 -- PID $$\n";
 $| = 1;
 my $x = 0;
 while (1) {
+	open(FH, "/etc/nothing");
+next;
         print ".";
         if ($x++ > 50) {
                 $x = 0;

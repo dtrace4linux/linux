@@ -84,6 +84,20 @@ encoded as part of the opcode (see section 7.23). The instructions are as follow
 18. DW_CFA_nop has no arguments and no required actions. It is used as padding to make the
     FDE an appropriate size.
 
+Extensions
+DW_CFA_expression	0x10	The DW_CFA_expression instruction takes two operands: an unsigned LEB128 value representing a register number, and a DW_FORM_block value representing a DWARF expression. The required action is to establish the DWARF expression as the means by which the address in which the given register contents are found may be computed. The value of the CFA is pushed on the DWARF evaluation stack prior to execution of the DWARF expression. The DW_OP_call2, DW_OP_call4, DW_OP_call_ref and DW_OP_push_object_address DWARF operators (see Section 2.4.1 of DWARF Debugging Information Format) cannot be used in such a DWARF expression.
+DW_CFA_offset_extended_sf	0x11	The DW_CFA_offset_extended_sf instruction takes two operands: an unsigned LEB128 value representing a register number and a signed LEB128 factored offset. This instruction is identical to DW_CFA_offset_extended except that the second operand is signed.
+DW_CFA_def_cfa_sf	0x12	The DW_CFA_def_cfa_sf instruction takes two 
+				operands: an unsigned LEB128 value 
+				representing a register number and a 
+				signed LEB128 factored offset. This 
+				instruction is identical to DW_CFA_def_cfa 
+				except that the second operand is signed and 
+				factored.
+DW_CFA_def_cfa_offset_sf	0x13	The DW_CFA_def_cfa_offset_sf instruction takes a signed LEB128 operand representing a factored offset. This instruction is identical to DW_CFA_def_cfa_offset except that the operand is signed and factored.
+DW_CFA_GNU_args_size	0x2e	The DW_CFA_def_cfa_offset_sf instruction takes an unsigned LEB128 operand representing an argument size.
+DW_CFA_GNU_negative_offset_extended	0x2f	The DW_CFA_def_cfa_sf instruction takes two operands: an unsigned LEB128 value representing a register number and an unsigned LEB128 which represents the magnitude of the offset. This instruction is identical to DW_CFA_offset_extended_sf except that the operand is subtracted to produce the offset. This instructions is obsoleted by DW_CFA_offset_extended_sf.
+
 6.4.3 Call Frame Instruction Usage
 To determine the virtual unwind rule set for a given location (L1), one searches through the FDE
 headers looking at the initial_location and address_range values to see if L1 is
@@ -163,6 +177,7 @@ The rules in the register set now apply to location L1.
 #define DW_CFA_def_cfa          0x0c
 #define DW_CFA_def_cfa_register 0x0d
 #define DW_CFA_def_cfa_offset   0x0e
+#define DW_CFA_def_cfa_sf       0x12
 
 /**********************************************************************/
 /*   For the fda_encoding/pc_begin/pc_end code.			      */
@@ -492,8 +507,7 @@ printk("dw_find_ret_addr: here....1\npc=%p fp=%p end=%p size=%x\n", pc, fp, eh_f
 	        len = *(uint32_t *) fp; fp += 4;
 
 		if (len == 0) {
-printf("  Length is zero -- end\n");
-continue;
+//printf("  Length is zero -- end\n");
 			return 0;
 		}
 		fp_start = fp;
@@ -566,7 +580,6 @@ printf("R encoding %x (kernel)\n", *a);
 				dw->pc_begin += dw->eh_frame_sec->sh_addr;
 				dw->pc_begin += fp - dw->eh_frame_data - 8*0;
 			}
-if(0)
 		        printf("FDE len=%x cie=%04x pc=%lx..%lx tpc=%lx\n", 
 				len, cie,
 				dw->pc_begin, dw->pc_begin + dw->pc_end, pc);

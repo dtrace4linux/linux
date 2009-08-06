@@ -168,16 +168,22 @@ The rules in the register set now apply to location L1.
 #if !defined(DW_CFA_advance_loc)
 #define DW_CFA_advance_loc      0x40
 #define DW_CFA_offset           0x80
+#define DW_CFA_restore		0xc0
 
-#define DW_CFA_nop              0x00
-#define DW_CFA_set_loc          0x01
-#define DW_CFA_advance_loc1     0x02
-#define DW_CFA_advance_loc2     0x03
-#define DW_CFA_advance_loc4     0x04
-#define DW_CFA_def_cfa          0x0c
-#define DW_CFA_def_cfa_register 0x0d
-#define DW_CFA_def_cfa_offset   0x0e
-#define DW_CFA_def_cfa_sf       0x12
+#define DW_CFA_nop              	0x00
+#define DW_CFA_set_loc          	0x01
+#define DW_CFA_advance_loc1     	0x02
+#define DW_CFA_advance_loc2     	0x03
+#define DW_CFA_advance_loc4     	0x04
+#define DW_CFA_def_cfa          	0x0c
+#define DW_CFA_def_cfa_register 	0x0d
+#define DW_CFA_def_cfa_offset   	0x0e
+#define DW_CFA_def_cfa_expression	0x0f
+#define DW_CFA_expression		0x10
+#define DW_CFA_def_cfa_sf       	0x12
+#define DW_CFA_def_cfa_offset_sf	0x13
+#define DW_CFA_val_offset_sf		0x15
+#define DW_CFA_val_expression		0x16
 
 /**********************************************************************/
 /*   For the fda_encoding/pc_begin/pc_end code.			      */
@@ -489,8 +495,8 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 	int	len;
 	int	version;
 	char *eh_frame_end = dw->eh_frame_data + dw->eh_frame_sec->sh_size;
+	int	dump_segments = pc == (unsigned long) -1;
 //	printf("=== .eh_frame\n");
-
 
 	char	*aug = NULL;
 
@@ -579,8 +585,10 @@ printf("R encoding %x (kernel)\n", *a);
 //printk("pc_begin3=%p looking 4 %p\n", fp - dw->eh_frame_data - 8, pc);
 				dw->pc_begin += dw->eh_frame_sec->sh_addr;
 				dw->pc_begin += fp - dw->eh_frame_data - 8*0;
+				dw->pc_begin -= 8; /* is this non-kernel only ? */
 			}
-		        printf("FDE len=%x cie=%04x pc=%lx..%lx tpc=%lx\n", 
+		        printf("\n%04x FDE len=%x cie=%04x pc=%lx..%lx tpc=%lx\n", 
+				fp_start - dw->eh_frame_data - 4,
 				len, cie,
 				dw->pc_begin, dw->pc_begin + dw->pc_end, pc);
 //printf("fde_encoding=%d\n", fde_encoding);
@@ -603,7 +611,7 @@ printf("R encoding %x (kernel)\n", *a);
 		/*   any interpretation.		       */
 		/***********************************************/
 		cfa_offset = 0;
-		if (pc < dw->pc_begin) {
+		if (!dump_segments && pc < dw->pc_begin) {
 fp = fp_start + len;
 continue;
 			/***********************************************/
@@ -620,7 +628,7 @@ continue;
 		/***********************************************/
 		/*   Not reached the right block yet.	       */
 		/***********************************************/
-		if (pc >= dw->pc_begin + dw->pc_end) {
+		if (!dump_segments && pc >= dw->pc_begin + dw->pc_end) {
 //printf("skip pc=%p pc_end=%p (diff=%p)\n", (void *) pc, (void *) (dw->pc_begin + dw->pc_end), (char *) pc - (char *) (dw->pc_begin + dw->pc_end));
 			fp = fp_start + len;
 			continue;
@@ -657,7 +665,45 @@ continue;
 					opa * dw->code_factor,
 					dw->pc_begin + opa * dw->code_factor);
 				dw->pc_begin += opa * dw->code_factor;
-				if (pc < dw->pc_begin) {
+				if (!dump_segments && pc < dw->pc_begin) {
+printf("found you, you little baby\n");
+					*cfa_offsetp = cfa_offset;
+					return 1;
+				}
+				break;
+	                  case DW_CFA_advance_loc1:
+			  	/***********************************************/
+			  	/*   As  we  advance the PC, we may jump past  */
+			  	/*   the  target  instruction. But we need to  */
+			  	/*   grab   the  DW_CFA_def_cfa_offset  which  */
+			  	/*   appears  here.  So, we can skip out once  */
+			  	/*   we get past the target area.	       */
+			  	/***********************************************/
+				a = *cp++;
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc1 %d to %08lx",
+					a * dw->code_factor,
+					dw->pc_begin + a * dw->code_factor);
+				dw->pc_begin += a * dw->code_factor;
+				if (!dump_segments && pc < dw->pc_begin) {
+printf("found you, you little baby\n");
+					*cfa_offsetp = cfa_offset;
+					return 1;
+				}
+				break;
+	                  case DW_CFA_advance_loc2:
+			  	/***********************************************/
+			  	/*   As  we  advance the PC, we may jump past  */
+			  	/*   the  target  instruction. But we need to  */
+			  	/*   grab   the  DW_CFA_def_cfa_offset  which  */
+			  	/*   appears  here.  So, we can skip out once  */
+			  	/*   we get past the target area.	       */
+			  	/***********************************************/
+				a = *(short *) cp; cp += 2;
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc2 %d to %08lx",
+					a * dw->code_factor,
+					dw->pc_begin + a * dw->code_factor);
+				dw->pc_begin += a * dw->code_factor;
+				if (!dump_segments && pc < dw->pc_begin) {
 printf("found you, you little baby\n");
 					*cfa_offsetp = cfa_offset;
 					return 1;
@@ -677,6 +723,11 @@ printf("found you, you little baby\n");
 				b = LEB(cp);
 				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
 	                        break;
+	                  case DW_CFA_def_cfa_expression:
+				a = LEB(cp);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_expression: pos += %d", a);
+				cp += a;
+	                        break;
 	                  case DW_CFA_def_cfa_offset:
 				a = LEB(cp);
 				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_offset: %d", a);
@@ -691,6 +742,9 @@ printf("found you, you little baby\n");
 				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw->data_factor);
 //				cfa_offset = a * dw->data_factor;
 	                        break;
+	                  case DW_CFA_restore:
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_restore: ");
+			  	break;
 	                  case DW_CFA_set_loc:
 	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_set_loc: ");
 	                        cp = dump_ptr(cp, msgbuf + strlen(msgbuf));
@@ -698,8 +752,39 @@ printf("found you, you little baby\n");
 			  case DW_CFA_nop:
 	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_nop");
 			  	break;
+			  case DW_CFA_def_cfa_sf:
+				a = LEB(cp);
+				b = LEB(cp);
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_sf reg%d off %d", a, b);
+			  	break;
+			  case DW_CFA_expression:
+			  	/***********************************************/
+			  	/*   Used   to  describe  x86_64  lockwaiting  */
+			  	/*   pads.				       */
+			  	/***********************************************/
+				a = LEB(cp);
+				b = LEB(cp);
+				cp += b;
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_expression reg%d start +=%d", a, b);
+			  	break;
+			  case DW_CFA_val_expression:
+			  	/***********************************************/
+			  	/*   Used   to  describe  x86_64  lockwaiting  */
+			  	/*   pads.				       */
+			  	/***********************************************/
+				a = LEB(cp);
+				b = LEB(cp);
+				cp += b;
+	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_val_expression reg%d start +=%d", a, b);
+			  	break;
+			  case DW_CFA_def_cfa_offset_sf:
+				a = LEB(cp);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_offset: %d", a * dw->data_factor);
+				cfa_offset = a * dw->data_factor;
+			  	break;
+
 			  default:
-			  	printf("unsupported DW entry %x\n", op);
+			  	printf("dwarf.c: unsupported DW entry 0x%x %x\n", op, DW_CFA_def_cfa_sf);
 				return 0;
 	                  }
 			for (a = 0, cp1 = cp_start; a < 4; cp1++, a++) {
@@ -712,6 +797,9 @@ printf("found you, you little baby\n");
 	                printf("%s\n", msgbuf);
 	        }
 		fp = cp;
+		if (dump_segments)
+			continue;
+
 printf("got it....\n");
 *cfa_offsetp = cfa_offset;
 return 1;
@@ -861,171 +949,8 @@ main(int argc, char **argv)
 	        }
 	}
 
-        char *fp = dw.eh_frame_data;
-	char *eh_frame_end = dw.eh_frame_data + dw.eh_frame_sec->sh_size;
-	printf("=== .eh_frame\n");
-
-
-	char	*aug = NULL;
-	while (fp < eh_frame_end) {
-	        int len = *(uint32_t *) fp; fp += 4;
-		if (len == 0) {
-			printf("  Length is zero -- end\n");
-			break;
-		}
-		char	*fp_start = fp;
-
-		int cie = *(uint32_t *) fp; fp += 4;
-		if (cie == 0) {
-		        printf("\nCIE length=%08x\n", len);
-			int	version = *fp++;
-		        printf("  Version:              %02x\n", version);
-			aug = fp;
-		        printf("  Augmentation:         \"");
-			while (*fp) {
-				printf("%c", *fp++);
-			}
-			printf("\"\n");
-			fp++;
-			dw.code_factor = LEB(fp);
-		        printf("  Code alignment factor: %d\n", dw.code_factor);
-			dw.data_factor = SLEB(fp);
-		        printf("  Data alignment factor: %d\n", dw.data_factor);
-			if (strchr(aug, 'z')) {
-				int ret_addr = version == 1 ? (int) *fp++ : (int) LEB(fp);
-			        printf("  Return address reg:    0x%02x\n", ret_addr);
-				int aug_len = LEB(fp);
-				if (aug_len) {
-					printf("  Augmentation Length:   len=0x%02x ", aug_len);
-					for (i = 0; i < aug_len; i++) {
-						printf("%02x ", fp[i]);
-					}
-					printf("\n");
-				}
-				char	*a = fp;
-				fp += aug_len;
-				char *p;
-				for (p = aug; ; p++) {
-					int	ok = 1;
-//printf("aug %x %c\n", *p, *p ? *p : 'x');
-					switch (*p) {
-					  case 'L':
-					  	a++;
-					  	break;
-					  case 'P':
-					  	a += 1 + size_of_encoded_value(*a);
-					  	break;
-					  case 'R':
-printf("R encoding %x\n", *a);
-					  	dw.fde_encoding = *a++;
-					  	break;
-					  case 'z':
-					  	break;
-					  default:
-					  	ok = 0;
-						break;
-					  }
-					if (!ok)
-						break;
-				}
-			}
-		} else {
-			dw.pc_begin = get_encoded_value(&fp, dw.fde_encoding);
-			dw.pc_end = get_encoded_value(&fp, dw.fde_encoding);
-//printf("pc_begin=%p vad=%p %p\n", pc_begin, p_eh->p_vaddr, fp-eh_frame_data);
-//printf("encoding=%x\n", dw.fde_encoding);
-			if ((dw.fde_encoding & 0x70) == DW_EH_PE_pcrel) {
-printf("+= %p\n", dw.eh_frame_sec->sh_addr);
-				dw.pc_begin += dw.eh_frame_sec->sh_addr;
-printf("+= %p - %p\n", fp, dw.eh_frame_data);
-				dw.pc_begin += fp - dw.eh_frame_data - 8;
-			}
-		        printf("\nFDE length=%08x ptr=%04x pc=%08lx..%08lx\n", 
-				len, cie,
-				dw.pc_begin, dw.pc_begin + dw.pc_end);
-//printf("fde_encoding=%d\n", fde_encoding);
-			if (strchr(aug, 'z')) {
-				int aug_len = *fp++;
-				if (aug_len) {
-					printf("  Augmentation Length: 0x%02x ", aug_len);
-					for (i = fp[-1]; i-- > 0; )
-						printf("%02x ", *fp++);
-					printf("\n");
-				}
-			}
-		}
-//		dump_mem(eh_frame_data, fp, fp +32);
-
-	        cp = fp; cpend = fp_start + len;
-	        while (cp < cpend) {
-			int	a, b;
-			int	offset;
-			int	op;
-			int	opa;
-			char	msgbuf[128];
-			char	*cp1;
-			char	*cp_start = cp;
-
-	                printf("%04lx: ", cp - fp);
-			op = *cp++;
-			opa = op & 0x3f;
-			if (op & 0xc0)
-				op &= 0xc0;
-
-	                switch (op) {
-	                  case DW_CFA_advance_loc:
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc %d to %08lx",
-					opa * dw.code_factor,
-					dw.pc_begin + opa * dw.code_factor);
-				dw.pc_begin += opa * dw.code_factor;
-				break;
-
-	                  case DW_CFA_advance_loc4:
-			  	offset = *(int32_t *) cp; cp += 4;
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_advance_loc4 %d to %08lx",
-					offset * dw.code_factor,
-					dw.pc_begin + offset * dw.code_factor);
-				dw.pc_begin += offset * dw.code_factor;
-				break;
-
-	                  case DW_CFA_def_cfa:
-				a = LEB(cp);
-				b = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
-	                        break;
-	                  case DW_CFA_def_cfa_offset:
-				a = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_offset: %d", a);
-	                        break;
-	                  case DW_CFA_def_cfa_register:
-				a = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_register: r%d", a);
-	                        break;
-	                  case DW_CFA_offset:
-				a = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw.data_factor);
-	                        break;
-	                  case DW_CFA_set_loc:
-	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_set_loc: ");
-	                        cp = dump_ptr(cp, msgbuf + strlen(msgbuf));
-	                        break;
-			  case DW_CFA_nop:
-	                        snprintf(msgbuf, sizeof msgbuf, "DW_CFA_nop");
-			  	break;
-			  default:
-			  	fprintf(stderr, "unsupported DW entry %x\n", op);
-				exit(1);
-	                  }
-			for (a = 0, cp1 = cp_start; a < 4; cp1++, a++) {
-				if (cp1 < cp)
-					printf("%02x ", *cp1 & 0xff);
-				else
-					printf("   ");
-			}
-	                printf("%s\n", msgbuf);
-	        }
-		fp = cp;
-	}
+	int cfa_offset;
+	dw_find_ret_addr(&dw, (unsigned long) -1, &cfa_offset);
 }
 static void
 dump_mem(char *start, char *mem, char *memend)

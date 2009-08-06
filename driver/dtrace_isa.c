@@ -286,7 +286,7 @@ bos = sp = read_pda(oldrsp);
 #endif
 printk("rsp %p \n", sp);
 dtrace_dump_mem64(sp, 128);
-
+sp++;
 	/***********************************************/
 	/*   Find  base  of  the  code  area  for ELF  */
 	/*   header.				       */

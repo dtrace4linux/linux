@@ -59,7 +59,7 @@ try_exec(const char *cwd, const char *path, char *buf,
 	else
 		(void) strcpy(buf, path);
 
-	dprintf("try_exec \"%s\"\n", buf);
+	p_dprintf("try_exec \"%s\"\n", buf);
 
 	if ((i = resolvepath(buf, buf, PATH_MAX)) > 0) {
 		buf[i] = '\0';
@@ -228,7 +228,7 @@ Pfindexec(struct ps_prochandle *P, const char *aout,
 
 found:
 	if ((P->execname = strdup(buf)) == NULL)
-		dprintf("failed to malloc; executable name is \"%s\"", buf);
+		p_dprintf("failed to malloc; executable name is \"%s\"", buf);
 
 	return (P->execname);
 }

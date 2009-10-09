@@ -222,11 +222,20 @@ typedef struct dw_info_t {
         char    *eh_frame_hdr_data;
 } dw_info_t;
 
+static const char *const regnames[] =
+{
+  "rax", "rdx", "rcx", "rbx", "rsi", "rdi", "rbp", "rsp",
+  "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15",
+  "rip",
+};
+
+
 #define LEB(cp) get_leb128(&cp, 0)
 #define SLEB(cp) get_leb128(&cp, 1)
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+static char * dwarf_regname(int reg);
 static char *dump_ptr(char *ptr, char *);
 void elferr(char *);
 static int size_of_encoded_value(int encoding);
@@ -483,6 +492,19 @@ dwarf_read_pointer(void **addr, void *dst, int fmt)
         }
 }
 /**********************************************************************/
+/*   Return prettified register name.				      */
+/**********************************************************************/
+static char *
+dwarf_regname(int reg)
+{	static char buf[32];
+
+	if (reg >= 0 && reg < (int) sizeof(regnames) / (int) sizeof(regnames[0]))
+		snprintf(buf, sizeof buf, "r%d (%s)", reg, regnames[reg]);
+	else
+		snprintf(buf, sizeof buf, "r%d (??)", reg);
+	return buf;
+}
+/**********************************************************************/
 /*   Find  where  the  return address is for a given function on the  */
 /*   stack.							      */
 /**********************************************************************/
@@ -587,6 +609,7 @@ printf("R encoding %x (kernel)\n", *a);
 				dw->pc_begin += fp - dw->eh_frame_data - 8*0;
 				dw->pc_begin -= 8; /* is this non-kernel only ? */
 			}
+
 		        printf("\n%04x FDE len=%x cie=%04x pc=%lx..%lx tpc=%lx\n", 
 				fp_start - dw->eh_frame_data - 4,
 				len, cie,
@@ -721,7 +744,7 @@ printf("found you, you little baby\n");
 	                  case DW_CFA_def_cfa:
 				a = LEB(cp);
 				b = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa: r%d ofs %d", a, b);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa: %s ofs %d", dwarf_regname(a), b);
 	                        break;
 	                  case DW_CFA_def_cfa_expression:
 				a = LEB(cp);
@@ -735,11 +758,11 @@ printf("found you, you little baby\n");
 	                        break;
 	                  case DW_CFA_def_cfa_register:
 				a = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_register: r%d", a);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_def_cfa_register: %s", dwarf_regname(a));
 	                        break;
 	                  case DW_CFA_offset:
 				a = LEB(cp);
-				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: r%d at cfa%+d", opa, a * dw->data_factor);
+				snprintf(msgbuf, sizeof msgbuf, "DW_CFA_offset: %s at cfa%+d", dwarf_regname(opa), a * dw->data_factor);
 //				cfa_offset = a * dw->data_factor;
 	                        break;
 	                  case DW_CFA_restore:

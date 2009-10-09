@@ -1,3 +1,10 @@
+Sat Oct 10 15:51:22 2009  fox
+
+     329* libproc/*: Rename dprintf to p_dprintf to avoid glibc issues.
+
+     328* dtrace_linux.c, dtrace_isa.c: Fixes for 2.6.31 (hopefully 2.6.32)
+          kernels. May have broken older kernels.
+
 Mon Aug  3 23:18:25 2009  fox
 
      327* dtrace_isa.c: Fix for oldrsp in 2.6.30.4 kernel.

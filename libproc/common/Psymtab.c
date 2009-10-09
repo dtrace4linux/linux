@@ -220,13 +220,13 @@ file_info_new(struct ps_prochandle *P, map_info_t *mptr)
 		} else {
 			/* This mapping overlaps the current section */
 			if (mp->map_file == NULL) {
-				dprintf("file_info_new: associating "
+				p_dprintf("file_info_new: associating "
 				    "segment at %p\n",
 				    (void *)mp->map_pmap.pr_vaddr);
 				mp->map_file = fptr;
 				fptr->file_ref++;
 			} else {
-				dprintf("file_info_new: segment at %p "
+				p_dprintf("file_info_new: segment at %p "
 				    "already associated with %s\n",
 				    (void *)mp->map_pmap.pr_vaddr,
 				    (mp == mptr ? "this file" :
@@ -326,22 +326,22 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 	map_info_t *mptr;
 	file_info_t *fptr;
 
-	dprintf("encountered rd object at %p\n", (void *)lop->rl_base);
+	p_dprintf("encountered rd object at %p\n", (void *)lop->rl_base);
 
 	if ((mptr = Paddr2mptr(P, lop->rl_base)) == NULL) {
-		dprintf("map_iter: base address doesn't match any mapping\n");
+		p_dprintf("map_iter: base address doesn't match any mapping\n");
 		return (1); /* Base address does not match any mapping */
 	}
 
 	if ((fptr = mptr->map_file) == NULL &&
 	    (fptr = file_info_new(P, mptr)) == NULL) {
-		dprintf("map_iter: failed to allocate a new file_info_t\n");
+		p_dprintf("map_iter: failed to allocate a new file_info_t\n");
 		return (1); /* Failed to allocate a new file_info_t */
 	}
 
 	if ((fptr->file_lo == NULL) &&
 	    (fptr->file_lo = malloc(sizeof (rd_loadobj_t))) == NULL) {
-		dprintf("map_iter: failed to allocate rd_loadobj_t\n");
+		p_dprintf("map_iter: failed to allocate rd_loadobj_t\n");
 		file_info_free(P, fptr);
 		return (1); /* Failed to allocate rd_loadobj_t */
 	}
@@ -365,12 +365,12 @@ printf("filename=%s\n", fptr->file_lname);
 		if ((fptr->file_lname = strdup(buf)) != NULL)
 			fptr->file_lbase = basename(fptr->file_lname);
 	} else {
-		dprintf("map_iter: failed to read string at %p\n",
+		p_dprintf("map_iter: failed to read string at %p\n",
 		    (void *)lop->rl_nameaddr);
 	}
 #endif
 
-	dprintf("loaded rd object %s lmid %lx\n",
+	p_dprintf("loaded rd object %s lmid %lx\n",
 	    fptr->file_lname ? fptr->file_lname : "<NULL>", lop->rl_lmident);
 	return (1);
 }
@@ -784,7 +784,7 @@ Pbuild_file_ctf(struct ps_prochandle *P, file_info_t *fptr)
 	if (fptr->file_ctf_buf == NULL) {
 		fptr->file_ctf_buf = malloc(fptr->file_ctf_size);
 		if (fptr->file_ctf_buf == NULL) {
-			dprintf("failed to allocate ctf buffer\n");
+			p_dprintf("failed to allocate ctf buffer\n");
 			return (NULL);
 		}
 
@@ -793,7 +793,7 @@ Pbuild_file_ctf(struct ps_prochandle *P, file_info_t *fptr)
 		    fptr->file_ctf_size) {
 			free(fptr->file_ctf_buf);
 			fptr->file_ctf_buf = NULL;
-			dprintf("failed to read ctf data\n");
+			p_dprintf("failed to read ctf data\n");
 			return (NULL);
 		}
 	}
@@ -829,7 +829,7 @@ Pbuild_file_ctf(struct ps_prochandle *P, file_info_t *fptr)
 		return (NULL);
 	}
 
-	dprintf("loaded %lu bytes of CTF data for %s\n",
+	p_dprintf("loaded %lu bytes of CTF data for %s\n",
 	    (ulong_t)fptr->file_ctf_size, fptr->file_pname);
 
 	return (fptr->file_ctfp);
@@ -1306,7 +1306,7 @@ found_shdr:
 
 found_cksum:
 	cksum = dyn.d_un.d_val;
-	dprintf("elf cksum value is %llx\n", (u_longlong_t)cksum);
+	p_dprintf("elf cksum value is %llx\n", (u_longlong_t)cksum);
 
 	/*
 	 * Get the base of the text mapping that corresponds to this file.
@@ -1344,7 +1344,7 @@ found_cksum:
 		if (dync.d_tag != DT_CHECKSUM)
 			return (0);
 
-		dprintf("image cksum value is %llx\n",
+		p_dprintf("image cksum value is %llx\n",
 		    (u_longlong_t)dync.d_un.d_val);
 		return (dync.d_un.d_val != cksum);
 #ifdef _LP64
@@ -1379,7 +1379,7 @@ found_cksum:
 		if (dync.d_tag != DT_CHECKSUM)
 			return (0);
 
-		dprintf("image cksum value is %llx\n",
+		p_dprintf("image cksum value is %llx\n",
 		    (u_longlong_t)dync.d_un.d_val);
 		return (dync.d_un.d_val != cksum);
 #endif	/* _LP64 */
@@ -1564,7 +1564,7 @@ optimize_symtab(sym_tbl_t *symtab)
 
 	symp = syms = malloc(sizeof (GElf_Sym) * symn);
 	if (symp == NULL) {
-		dprintf("optimize_symtab: failed to malloc symbol array");
+		p_dprintf("optimize_symtab: failed to malloc symbol array");
 		return;
 	}
 
@@ -1590,7 +1590,7 @@ optimize_symtab(sym_tbl_t *symtab)
 	indexa = symtab->sym_byaddr = calloc(sizeof (uint_t), count);
 	indexb = symtab->sym_byname = calloc(sizeof (uint_t), count);
 	if (indexa == NULL || indexb == NULL) {
-		dprintf(
+		p_dprintf(
 		    "optimize_symtab: failed to malloc symbol index arrays");
 		symtab->sym_count = 0;
 		if (indexa != NULL) {	/* First alloc succeeded. Free it */
@@ -1668,7 +1668,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	fptr->file_init = 1;
 
 	if (elf_version(EV_CURRENT) == EV_NONE) {
-		dprintf("libproc ELF version is more recent than libelf\n");
+		p_dprintf("libproc ELF version is more recent than libelf\n");
 		return;
 	}
 
@@ -1706,7 +1706,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	 */
 printf("Build symtab %s\n", objectfile);
 	if ((fptr->file_fd = open(objectfile, O_RDONLY)) < 0) {
-		dprintf("Pbuild_file_symtab: failed to open %s: %s\n",
+		p_dprintf("Pbuild_file_symtab: failed to open %s: %s\n",
 		    objectfile, strerror(errno));
 
 		if ((elf = fake_elf(P, fptr)) == NULL ||
@@ -1716,7 +1716,7 @@ printf("Build symtab %s\n", objectfile);
 		    elf_getshstrndx(elf, &shstrndx) == ELF_ERR ||
 		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
-			dprintf("failed to fake up ELF file\n");
+			p_dprintf("failed to fake up ELF file\n");
 			return;
 		}
 
@@ -1728,7 +1728,7 @@ printf("Build symtab %s\n", objectfile);
 	    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 	    (shdata = elf_getdata(scn, NULL)) == NULL) {
 		int err = elf_errno();
-		dprintf("failed to process ELF file %s: %s\n",
+		p_dprintf("failed to process ELF file %s: %s\n",
 		    objectfile, (err == 0) ? "<null>" : elf_errmsg(err));
 #if 0
 printf("bad elf_kind %x\n", elf_kind(elf));
@@ -1745,7 +1745,7 @@ printf("bad elf_getshstrndx:%d shstrndx=%d\n", elf_getshstrndx(elf, &shstrndx), 
 		    elf_getshstrndx(elf, &shstrndx) == ELF_ERR ||
 		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
-			dprintf("failed to fake up ELF file\n");
+			p_dprintf("failed to fake up ELF file\n");
 printf("%s(%d): fix me!\n", __func__, __LINE__);
 			goto bad;
 		}
@@ -1760,7 +1760,7 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		 * proceed with that instead.
 		 */
 
-		dprintf("ELF file %s (%lx) doesn't match in-core image\n",
+		p_dprintf("ELF file %s (%lx) doesn't match in-core image\n",
 		    fptr->file_pname,
 		    (ulong_t)fptr->file_map->map_pmap.pr_vaddr);
 
@@ -1771,21 +1771,21 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		    elf_getshstrndx(newelf, &shstrndx) == ELF_ERR ||
 		    (scn = elf_getscn(newelf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
-			dprintf("failed to fake up ELF file\n");
+			p_dprintf("failed to fake up ELF file\n");
 		} else {
 			(void) elf_end(elf);
 			elf = newelf;
 
-			dprintf("switched to faked up ELF file\n");
+			p_dprintf("switched to faked up ELF file\n");
 		}
 	}
 
 	if ((cache = malloc(nshdrs * sizeof (*cache))) == NULL) {
-		dprintf("failed to malloc section cache for %s\n", objectfile);
+		p_dprintf("failed to malloc section cache for %s\n", objectfile);
 		goto bad;
 	}
 
-	dprintf("processing ELF file %s\n", objectfile);
+	p_dprintf("processing ELF file %s\n", objectfile);
 	fptr->file_class = ehdr.e_ident[EI_CLASS];
 	fptr->file_etype = ehdr.e_type;
 	fptr->file_elf = elf;
@@ -1798,19 +1798,19 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 	 */
 	for (cp = cache + 1, scn = NULL; scn = elf_nextscn(elf, scn); cp++) {
 		if (gelf_getshdr(scn, &cp->c_shdr) == NULL) {
-			dprintf("Pbuild_file_symtab: Failed to get section "
+			p_dprintf("Pbuild_file_symtab: Failed to get section "
 			    "header\n");
 			goto bad; /* Failed to get section header */
 		}
 
 		if ((cp->c_data = elf_getdata(scn, NULL)) == NULL) {
-			dprintf("Pbuild_file_symtab: Failed to get section "
+			p_dprintf("Pbuild_file_symtab: Failed to get section "
 			    "data\n");
 			goto bad; /* Failed to get section data */
 		}
 
 		if (cp->c_shdr.sh_name >= shdata->d_size) {
-			dprintf("Pbuild_file_symtab: corrupt section name");
+			p_dprintf("Pbuild_file_symtab: corrupt section name");
 			goto bad; /* Corrupt section name */
 		}
 
@@ -1840,7 +1840,7 @@ printf("found section %s\n", cp->c_name);
 			 * check isn't essential, but it's a good idea.
 			 */
 			if (symp->sym_data_pri == NULL) {
-				dprintf("Symbol table found for %s\n",
+				p_dprintf("Symbol table found for %s\n",
 				    objectfile);
 				symp->sym_data_pri = cp->c_data;
 				symp->sym_symn +=
@@ -1852,13 +1852,13 @@ printf("found section %s\n", cp->c_name);
 				symp->sym_hdr_pri = cp->c_shdr;
 				symp->sym_strhdr = cache[shp->sh_link].c_shdr;
 			} else {
-				dprintf("Symbol table already there for %s\n",
+				p_dprintf("Symbol table already there for %s\n",
 				    objectfile);
 			}
 		} else if (shp->sh_type == SHT_SUNW_LDYNSYM) {
 			/* .SUNW_ldynsym section is auxiliary to .dynsym */
 			if (fptr->file_dynsym.sym_data_aux == NULL) {
-				dprintf(".SUNW_ldynsym symbol table"
+				p_dprintf(".SUNW_ldynsym symbol table"
 				    " found for %s\n", objectfile);
 				fptr->file_dynsym.sym_data_aux = cp->c_data;
 				fptr->file_dynsym.sym_symn_aux =
@@ -1867,7 +1867,7 @@ printf("found section %s\n", cp->c_name);
 				    fptr->file_dynsym.sym_symn_aux;
 				fptr->file_dynsym.sym_hdr_aux = cp->c_shdr;
 			} else {
-				dprintf(".SUNW_ldynsym symbol table already"
+				p_dprintf(".SUNW_ldynsym symbol table already"
 				    " there for %s\n", objectfile);
 			}
 		} else if (shp->sh_type == SHT_DYNAMIC) {
@@ -1883,7 +1883,7 @@ printf("found section %s\n", cp->c_name);
 			    shp->sh_link >= nshdrs ||
 			    (cache[shp->sh_link].c_shdr.sh_type != SHT_DYNSYM &&
 			    cache[shp->sh_link].c_shdr.sh_type != SHT_SYMTAB)) {
-				dprintf("Bad sh_link %d for "
+				p_dprintf("Bad sh_link %d for "
 				    "CTF\n", shp->sh_link);
 				continue;
 			}
@@ -1907,7 +1907,7 @@ printf("found section %s\n", cp->c_name);
 	if (fptr->file_etype == ET_DYN) {
 		fptr->file_dyn_base = fptr->file_map->map_pmap.pr_vaddr -
 		    fptr->file_map->map_pmap.pr_offset;
-		dprintf("setting file_dyn_base for %s to %lx\n",
+		p_dprintf("setting file_dyn_base for %s to %lx\n",
 		    objectfile, (long)fptr->file_dyn_base);
 	}
 
@@ -1931,7 +1931,7 @@ printf("found section %s\n", cp->c_name);
 	 */
 	if (fptr->file_etype == ET_DYN &&
 	    fptr->file_lo->rl_base != fptr->file_dyn_base) {
-		dprintf("resetting file_dyn_base for %s to %lx\n",
+		p_dprintf("resetting file_dyn_base for %s to %lx\n",
 		    objectfile, (long)fptr->file_lo->rl_base);
 		fptr->file_dyn_base = fptr->file_lo->rl_base;
 	}
@@ -1954,7 +1954,7 @@ printf("plt at %p\n", plt);
 		fptr->file_lo->rl_plt_base = fptr->file_plt_base;
 		fptr->file_lo->rl_plt_size = fptr->file_plt_size;
 
-		dprintf("PLT found at %p, size = %lu\n",
+		p_dprintf("PLT found at %p, size = %lu\n",
 		    (void *)fptr->file_plt_base, (ulong_t)fptr->file_plt_size);
 	}
 #if defined(linux)
@@ -1967,7 +1967,7 @@ printf("plt at %p\n", plt);
 		fptr->file_lo->rl_plt_base = plt->c_shdr.sh_offset;
 		fptr->file_lo->rl_plt_size = plt->c_shdr.sh_size;
 
-		dprintf("PLT found at %p, size = %lu\n",
+		p_dprintf("PLT found at %p, size = %lu\n",
 		    (void *)fptr->file_plt_base, (ulong_t)fptr->file_plt_size);
 	}
 #endif
@@ -1982,7 +1982,7 @@ printf("plt at %p\n", plt);
 		for (i = 0; i < ndyn; i++) {
 			if (gelf_getdyn(dyn->c_data, i, &d) != NULL &&
 			    d.d_tag == DT_JMPREL) {
-				dprintf("DT_JMPREL is %p\n",
+				p_dprintf("DT_JMPREL is %p\n",
 				    (void *)(uintptr_t)d.d_un.d_ptr);
 				fptr->file_jmp_rel =
 				    d.d_un.d_ptr + fptr->file_dyn_base;
@@ -1990,7 +1990,7 @@ printf("plt at %p\n", plt);
 			}
 		}
 
-		dprintf("_DYNAMIC found at %p, %lu entries, DT_JMPREL = %p\n",
+		p_dprintf("_DYNAMIC found at %p, %lu entries, DT_JMPREL = %p\n",
 		    (void *)dynaddr, (ulong_t)ndyn, (void *)fptr->file_jmp_rel);
 	}
 

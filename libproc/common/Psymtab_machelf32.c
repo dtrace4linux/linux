@@ -323,7 +323,7 @@ fake_elf32(struct ps_prochandle *P, file_info_t *fptr, uintptr_t addr,
 
 	/* Ensure all required entries were collected */
 	if ((di_mask & di_req_mask) != di_req_mask) {
-		dprintf("text section missing required dynamic entries\n");
+		p_dprintf("text section missing required dynamic entries\n");
 		goto bad;
 	}
 
@@ -379,7 +379,7 @@ fake_elf32(struct ps_prochandle *P, file_info_t *fptr, uintptr_t addr,
 		if (Pread(P, &nchain, sizeof (nchain),
 		    d[DI_HASH]->d_un.d_ptr + sizeof (nchain)) !=
 		    sizeof (nchain)) {
-			dprintf("Pread of .dynsym at %lx failed\n",
+			p_dprintf("Pread of .dynsym at %lx failed\n",
 			    (long)(d[DI_HASH]->d_un.d_val + sizeof (nchain)));
 			goto bad;
 		}
@@ -409,7 +409,7 @@ fake_elf32(struct ps_prochandle *P, file_info_t *fptr, uintptr_t addr,
 			Rela r[2];
 
 			if (entries < PLTREL_MIN_ENTRIES) {
-				dprintf("too few PLT relocation entries "
+				p_dprintf("too few PLT relocation entries "
 				    "(found %d, expected at least %d)\n",
 				    entries, PLTREL_MIN_ENTRIES);
 				goto bad;
@@ -419,7 +419,7 @@ fake_elf32(struct ps_prochandle *P, file_info_t *fptr, uintptr_t addr,
 
 			if (Pread(P, r, sizeof (r), jmprel + sizeof (r[0]) *
 			    entries - sizeof (r)) != sizeof (r)) {
-				dprintf("Pread of DT_RELA failed\n");
+				p_dprintf("Pread of DT_RELA failed\n");
 				goto bad;
 			}
 
@@ -431,7 +431,7 @@ fake_elf32(struct ps_prochandle *P, file_info_t *fptr, uintptr_t addr,
 			Rel r[2];
 
 			if (entries < PLTREL_MIN_ENTRIES) {
-				dprintf("too few PLT relocation entries "
+				p_dprintf("too few PLT relocation entries "
 				    "(found %d, expected at least %d)\n",
 				    entries, PLTREL_MIN_ENTRIES);
 				goto bad;
@@ -441,14 +441,14 @@ fake_elf32(struct ps_prochandle *P, file_info_t *fptr, uintptr_t addr,
 
 			if (Pread(P, r, sizeof (r), jmprel + sizeof (r[0]) *
 			    entries - sizeof (r)) != sizeof (r)) {
-				dprintf("Pread of DT_REL failed\n");
+				p_dprintf("Pread of DT_REL failed\n");
 				goto bad;
 			}
 
 			penult = r[0].r_offset;
 			ult = r[1].r_offset;
 		} else {
-			dprintf(".plt: unknown jmprel value\n");
+			p_dprintf(".plt: unknown jmprel value\n");
 			goto bad;
 		}
 
@@ -496,7 +496,7 @@ done_with_plt:
 	 */
 	if (Pread(P, &elfdata[ep->e_phoff], phnum * ep->e_phentsize,
 	    addr + ehdr->e_phoff) != phnum * ep->e_phentsize) {
-		dprintf("failed to read program headers\n");
+		p_dprintf("failed to read program headers\n");
 		goto bad;
 	}
 
@@ -543,7 +543,7 @@ done_with_plt:
 
 		if (Pread(P, &elfdata[off], sp->sh_size,
 		    d[DI_SUNW_SYMTAB]->d_un.d_ptr) != sp->sh_size) {
-			dprintf("failed to read .SUNW_ldynsym at %lx\n",
+			p_dprintf("failed to read .SUNW_ldynsym at %lx\n",
 			    (long)d[DI_SUNW_SYMTAB]->d_un.d_ptr);
 			goto bad;
 		}
@@ -570,7 +570,7 @@ done_with_plt:
 
 	if (Pread(P, &elfdata[off], sp->sh_size,
 	    d[DI_SYMTAB]->d_un.d_ptr) != sp->sh_size) {
-		dprintf("failed to read .dynsym at %lx\n",
+		p_dprintf("failed to read .dynsym at %lx\n",
 		    (long)d[DI_SYMTAB]->d_un.d_ptr);
 		goto bad;
 	}
@@ -596,7 +596,7 @@ done_with_plt:
 
 	if (Pread(P, &elfdata[off], sp->sh_size,
 	    d[DI_STRTAB]->d_un.d_ptr) != sp->sh_size) {
-		dprintf("failed to read .dynstr\n");
+		p_dprintf("failed to read .dynstr\n");
 		goto bad;
 	}
 	off += roundup(sp->sh_size, SH_ADDRALIGN);
@@ -641,7 +641,7 @@ done_with_plt:
 
 		if (Pread(P, &elfdata[off], sp->sh_size,
 		    d[DI_PLTGOT]->d_un.d_ptr) != sp->sh_size) {
-			dprintf("failed to read .plt\n");
+			p_dprintf("failed to read .plt\n");
 //			goto bad;
 		}
 		off += roundup(sp->sh_size, SH_ADDRALIGN);

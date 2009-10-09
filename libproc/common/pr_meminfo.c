@@ -70,7 +70,7 @@ pr_meminfo(struct ps_prochandle *Pr, const uint64_t *addrs,
 
 	if ((totalmap  = pr_zmap(Pr, 0, totalsize, PROT_READ | PROT_WRITE,
 		MAP_PRIVATE)) == MAP_FAILED) {
-		dprintf("pr_meminfo: mmap failed\n");
+		p_dprintf("pr_meminfo: mmap failed\n");
 		goto out;
 	}
 
@@ -83,13 +83,13 @@ pr_meminfo(struct ps_prochandle *Pr, const uint64_t *addrs,
 	validityaddr = infoaddr + infoarraysize;
 
 	if (Pwrite(Pr, addrs, inarraysize, inaddr) != inarraysize) {
-		dprintf("pr_meminfo: Pwrite inaddr failed \n");
+		p_dprintf("pr_meminfo: Pwrite inaddr failed \n");
 		goto out;
 	}
 
 	if (Pwrite(Pr, info, infoarraysize, infoaddr) !=
 	    infoarraysize) {
-		dprintf("pr_meminfo: Pwrite info failed \n");
+		p_dprintf("pr_meminfo: Pwrite info failed \n");
 		goto out;
 	}
 
@@ -163,13 +163,13 @@ pr_meminfo(struct ps_prochandle *Pr, const uint64_t *addrs,
 	/* syscall was successful, copy out the data */
 
 	if ((Pread(Pr, outdata, outarraysize, outaddr)) != outarraysize) {
-		dprintf("pr_meminfo: Pread of outarray failed\n");
+		p_dprintf("pr_meminfo: Pread of outarray failed\n");
 		goto out;
 	}
 
 	if (Pread(Pr, validity, validityarraysize, validityaddr)
 	    != validityarraysize) {
-		dprintf("pr_meminfo: Pread of validity array failed\n");
+		p_dprintf("pr_meminfo: Pread of validity array failed\n");
 		goto out;
 	}
 
@@ -179,7 +179,7 @@ out:
 
 	if (totalmap != MAP_FAILED &&
 	    pr_munmap(Pr, totalmap, totalsize) == -1) {
-			dprintf("pr_meminfo: munmap failed\n");
+			p_dprintf("pr_meminfo: munmap failed\n");
 			retval = -1;
 		}
 

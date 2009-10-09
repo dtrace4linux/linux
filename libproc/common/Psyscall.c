@@ -60,7 +60,7 @@ Pabort_agent(struct ps_prochandle *P)
 	int sysnum = P->status.pr_lwp.pr_syscall;
 	int stop;
 
-	dprintf("agent LWP is asleep in syscall %d\n", sysnum);
+	p_dprintf("agent LWP is asleep in syscall %d\n", sysnum);
 	(void) Pstop(P, 0);
 	stop = Psysexit(P, sysnum, TRUE);
 
@@ -68,7 +68,7 @@ Pabort_agent(struct ps_prochandle *P)
 		while (Pwait(P, 0) == -1 && errno == EINTR)
 			continue;
 		(void) Psysexit(P, sysnum, stop);
-		dprintf("agent LWP system call aborted\n");
+		p_dprintf("agent LWP system call aborted\n");
 	}
 }
 
@@ -150,7 +150,7 @@ Pcreate_agent(struct ps_prochandle *P)
 	 * to abort the system call so it's ready to serve.
 	 */
 	if (P->status.pr_lwp.pr_flags & PR_ASLEEP) {
-		dprintf("Pcreate_agent: aborting agent syscall\n");
+		p_dprintf("Pcreate_agent: aborting agent syscall\n");
 		Pabort_agent(P);
 	}
 
@@ -197,7 +197,7 @@ Pdestroy_agent(struct ps_prochandle *P)
 		 * to abort the system call so we can terminate the agent.
 		 */
 		if ((flags & (PR_AGENT|PR_ASLEEP)) == (PR_AGENT|PR_ASLEEP)) {
-			dprintf("Pdestroy_agent: aborting agent syscall\n");
+			p_dprintf("Pdestroy_agent: aborting agent syscall\n");
 			Pabort_agent(P);
 		}
 
@@ -405,7 +405,7 @@ Psyscall(struct ps_prochandle *P,
 	 */
 	ap = Psyscall_setup(P, nargs, sysindex, sp);
 	P->flags |= SETREGS;	/* set registers before continuing */
-	dprintf("Psyscall(): execute(sysindex = %d)\n", sysindex);
+	p_dprintf("Psyscall(): execute(sysindex = %d)\n", sysindex);
 
 	/*
 	 * Execute the syscall instruction and stop on syscall entry.
@@ -415,7 +415,7 @@ Psyscall(struct ps_prochandle *P,
 	    !Pissyscall_prev(P, P->status.pr_lwp.pr_reg[R_PC], NULL)))
 		goto bad10;
 
-	dprintf("Psyscall(): copying arguments\n");
+	p_dprintf("Psyscall(): copying arguments\n");
 
 	/*
 	 * The LWP is stopped at syscall entry.
@@ -439,7 +439,7 @@ Psyscall(struct ps_prochandle *P,
 	 * Complete the system call.
 	 * This moves the LWP to the stopped-on-syscall-exit state.
 	 */
-	dprintf("Psyscall(): set running at sysentry\n");
+	p_dprintf("Psyscall(): set running at sysentry\n");
 
 	sexit = Psysexit(P, sysindex, TRUE);	/* catch this syscall exit */
 	do {
@@ -455,7 +455,7 @@ Psyscall(struct ps_prochandle *P,
 	 * to Pwait() will yield ENOENT because the LWP no longer exists.
 	 */
 	if (sysindex == SYS_lwp_exit && errno == ENOENT) {
-		dprintf("Psyscall(): _lwp_exit successful\n");
+		p_dprintf("Psyscall(): _lwp_exit successful\n");
 		rval->sys_rval1 = rval->sys_rval2 = 0;
 		goto out;
 	}
@@ -467,11 +467,11 @@ Psyscall(struct ps_prochandle *P,
 		goto bad23;
 
 	if (!Pissyscall_prev(P, P->status.pr_lwp.pr_reg[R_PC], NULL)) {
-		dprintf("Pissyscall_prev() failed\n");
+		p_dprintf("Pissyscall_prev() failed\n");
 		goto bad24;
 	}
 
-	dprintf("Psyscall(): caught at sysexit\n");
+	p_dprintf("Psyscall(): caught at sysexit\n");
 
 	/*
 	 * For each argument.
@@ -497,12 +497,12 @@ Psyscall(struct ps_prochandle *P,
 		error = P->status.pr_lwp.pr_errno;
 		rval->sys_rval1 = -1L;
 		rval->sys_rval2 = -1L;
-		dprintf("Psyscall(%d) fails with errno %d\n",
+		p_dprintf("Psyscall(%d) fails with errno %d\n",
 		    sysindex, error);
 	} else {				/* normal return */
 		rval->sys_rval1 = P->status.pr_lwp.pr_rval1;
 		rval->sys_rval2 = P->status.pr_lwp.pr_rval2;
-		dprintf("Psyscall(%d) returns 0x%lx 0x%lx\n", sysindex,
+		p_dprintf("Psyscall(%d) returns 0x%lx 0x%lx\n", sysindex,
 		    P->status.pr_lwp.pr_rval1, P->status.pr_lwp.pr_rval2);
 	}
 
@@ -535,7 +535,7 @@ bad3:	Perr++;
 bad2:	Perr++;
 bad1:	Perr++;
 	error = -1;
-	dprintf("Psyscall(%d) fails with local error %d\n", sysindex, Perr);
+	p_dprintf("Psyscall(%d) fails with local error %d\n", sysindex, Perr);
 
 out:
 	/*

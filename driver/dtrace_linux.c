@@ -245,9 +245,7 @@ static void print_pte(pte_t *pte, int level);
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 void clflush(void *ptr);
-struct task_struct * find_task_by_vpid(int n);
 # endif
-
 
 /**********************************************************************/
 /*   Return  the credentials of the current process. Solaris assumes  */
@@ -866,12 +864,14 @@ static	char	tmp[40];
 static char digits[] = "0123456789abcdef";
 # define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
 
+# if 0
 	/***********************************************/
 	/*   Temp: dont wrap buffer - because we want  */
 	/*   to see first entries.		       */
 	/***********************************************/
 	if (dbuf_i >= LOG_BUFSIZ - 2048)
 		return;
+# endif
 	if (dtrace_printf_disable)
 		return;
 
@@ -2021,8 +2021,9 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 proc_t *
 prfind(int p)
 {	struct task_struct *tp;
-	
-	tp = find_task_by_vpid(p);
+	struct pid *pid;
+
+	tp = pid_task(p, PIDTYPE_PID);
 	if (!tp)
 		return (proc_t *) NULL;
 HERE();

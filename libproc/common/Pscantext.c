@@ -83,7 +83,7 @@ Pscantext(struct ps_prochandle *P)
 	(void) snprintf(mapfile, sizeof (mapfile), "%s/%d/map",
 	    procfs_path, (int)P->pid);
 	if ((mapfd = open(mapfile, O_RDONLY)) < 0) {
-		dprintf("failed to open %s: %s\n", mapfile, strerror(errno));
+		p_dprintf("failed to open %s: %s\n", mapfile, strerror(errno));
 		return (-1);
 	}
 
@@ -94,13 +94,13 @@ Pscantext(struct ps_prochandle *P)
 	for (;;) {
 		prbuf = malloc(nmap * sizeof (prmap_t));
 		if (prbuf == NULL) {
-			dprintf("Pscantext: failed to allocate buffer\n");
+			p_dprintf("Pscantext: failed to allocate buffer\n");
 			(void) close(mapfd);
 			return (-1);
 		}
 		nmappings = pread(mapfd, prbuf, nmap * sizeof (prmap_t), 0L);
 		if (nmappings < 0) {
-			dprintf("Pscantext: failed to read map file: %s\n",
+			p_dprintf("Pscantext: failed to read map file: %s\n",
 			    strerror(errno));
 			free(prbuf);
 			(void) close(mapfd);

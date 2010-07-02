@@ -55,7 +55,16 @@ extern "C" {
 #define	SIZE32	2
 #define	SIZE64	3
 
+/**********************************************************************/
+/*   30-Jun-2010  Keep the stack size small in instr_size.c, because  */
+/*   kernel doesnt like big interrupt stack frames.		      */
+/**********************************************************************/
+#ifdef DIS_TEXT
 #define	OPLEN	256
+#else
+#define OPLEN 16
+#endif
+
 #define	PFIXLEN	  8
 #define	NCPS	12	/* number of chars per symbol	*/
 

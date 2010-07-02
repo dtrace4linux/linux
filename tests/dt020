@@ -1,0 +1,13 @@
+/* Detect SIGSEGV - supplied by sling@rotateright.com */
+/* 2 Jul 2010 */
+
+typedef struct {
+    int foo;
+    int bar;
+} foobar_t;
+
+BEGIN
+{
+    printf("hello");
+    exit(0);
+}

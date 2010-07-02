@@ -79,7 +79,7 @@ sub main
 	#   Safely remove the old driver.	      #
 	###############################################
 	if ( -e "/dev/dtrace" ) {
-		spawn("$SUDO rmmod dtracedrv");
+		spawn("$SUDO /sbin/rmmod dtracedrv");
 		spawn("sync ; sync");
 		exit(0) if $opts{unload};
 	}
@@ -93,7 +93,7 @@ sub main
 	print time_string() . "Loading: $dtracedrv\n";
 	my $opc_len = $opts{opcodes};
 	$opc_len = 2 if $opts{opcodes2};
-	my $ret = spawn("$SUDO insmod $dtracedrv dtrace_here=$opts{here}" .
+	my $ret = spawn("$SUDO /sbin/insmod $dtracedrv dtrace_here=$opts{here}" .
 		" fbt_name_opcodes=$opc_len" .
 		" dtrace_unhandled=$opts{unhandled}" .
 		" dtrace_mem_alloc=$opts{mem_alloc}" .
@@ -180,7 +180,7 @@ sub main
 	# Symbols we used to need, but no longer:
 	# get_symbol_offset
 	foreach my $s (qw/
-		die_chain
+		die_chain:i386die_chain
 		access_process_vm
 		kallsyms_addresses:optional
 		kallsyms_lookup_name

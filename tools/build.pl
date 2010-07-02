@@ -113,7 +113,7 @@ sub find_binary
 		}
 	}
 	print "Sorry - but I cannot find " . join(" or ", @bins) . " on your system.\n";
-	print "You may need to install more packages. See utils/get-deps.pl\n";
+	print "You may need to install more packages. See tools/get-deps.pl\n";
 	print "for a script to semi-automate this for you.\n";
 	print "Continue ? [y/n] ";
 	my $ans = <STDIN>;

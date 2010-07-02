@@ -156,13 +156,13 @@ dt_pid_create_return_probe(struct ps_prochandle *P, dtrace_hdl_t *dtp,
 				ftp->ftps_offs[ftp->ftps_noffs++] = i + 1;
 				size = 3;
 			} else if (*(uint16_t *)&text[i] == DT_MOVL_EBP_ESP &&
-			    text[2] == DT_POPL_EBP && text[3] == DT_RET) {
+			    text[i+2] == DT_POPL_EBP && text[i+3] == DT_RET) {
 				dt_dprintf("movl/popl/ret at %lx\n", i + 3);
 				ftp->ftps_offs[ftp->ftps_noffs++] = i + 3;
 				size = 4;
 			} else if (*(uint16_t *)&text[i] == DT_MOVL_EBP_ESP &&
-			    text[2] == DT_POPL_EBP && text[3] == DT_REP &&
-			    text[4] == DT_RET) {
+			    text[i+2] == DT_POPL_EBP && text[i+3] == DT_REP &&
+			    text[i+4] == DT_RET) {
 				dt_dprintf("movl/popl/rep ret at %lx\n", i + 3);
 				ftp->ftps_offs[ftp->ftps_noffs++] = i + 3;
 				size = 5;

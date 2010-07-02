@@ -1450,7 +1450,19 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 //		printk("yy: pmd=%lx\n", *pmd);
 		return 0;
 	}
-	pte = pte_offset_kernel(pmd, addr);
+	/***********************************************/
+	/*   20091223  Soumendu  Sekhar Satapathy: If  */
+	/*   large  memory  system,  then use the pmd  */
+	/*   directly.				       */
+	/***********************************************/
+	if (pmd_large(*pmd)) {
+		pte = (pte_t *) pmd;
+	} else {
+		pte = pte_offset_kernel(pmd, addr);
+	}
+	if (pte_none(*pte))
+		return 0;
+
 	if (dump_tree) {
 		printk("yy -- begin\n");
 		print_pte((pte_t *) pgd, 0);

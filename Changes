@@ -1,3 +1,31 @@
+Sat Jul  3 22:03:17 2010  fox
+
+     335* common/ctf/ctf_create.c: Update from OpenSolaris. This fixes the
+          tests/dt020 bug.
+
+     334* load.pl, makefile: Add "/sbin" to insmod and rmmod. 
+          (slingn@rotateright.com)
+	   
+Wed Jun 30 23:16:29 2010  fox
+
+     333* driver/dis_tables.h: Set OPLEN to a teeny number if not disassembling
+          since we might break the interrupt stack frame.
+
+Fri Feb 12 22:10:46 2010  fox
+
+     332* libdtrace/i386/dt_isadep.c: Fix references to text[] array as
+          pointed our by Sanjay. (sanjay3000-at-gmail.com)
+
+Tue Jan  5 22:09:05 2010  fox
+
+     331* tools/load.pl: Allow i386die_chain as a synonym for die_chain for 2.6.16
+          kernels. <aacosta@gmv.com>
+
+Wed Dec 23 10:26:39 2009  fox
+
+     330* dtrace_linux.c: mem_set_writable: Patch from Soumendu to fix problem on
+          2.6.27.39.x86_64 kernel. satapathy.soumendu&at;gmail.com.
+
 Sat Oct 10 15:51:22 2009  fox
 
      329* libproc/*: Rename dprintf to p_dprintf to avoid glibc issues.

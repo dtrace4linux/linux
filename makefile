@@ -133,7 +133,7 @@ load:
 	tools/load.pl
 	 
 unl unload:
-	-$(SUDO) rmmod dtracedrv
+	-$(SUDO) /sbin/rmmod dtracedrv
 
 ######################################################################
 #   Validate compilation on the kernels on my system(s)		     #

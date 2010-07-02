@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-June 2009
+July 2010
 Paul D. Fox
 fox@crisp.demon.co.uk
 http://www.twitter.com/crispeditor
@@ -8,6 +8,7 @@ http://www.crisp.demon.co.uk
 
 Blog - latest news and stuff about the dtrace project:
 
+   http://crtags.blogspot.com/
    http://www.crisp.demon.co.uk/blog/
 
 Download dtrace tarballs for linux here:

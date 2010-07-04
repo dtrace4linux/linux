@@ -1256,9 +1256,8 @@ instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 
 	if (secname == NULL)
 		return FALSE;
-printk(""); // workaround for 2.6.18 kernel - without this we will GPF. Dont know why
+//printk(""); // workaround for 2.6.18 kernel - without this we will GPF. Dont know why
 //HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
-//printk("secname=%p (1)\n", secname);
 	if (!validate_ptr(secname))
 		return FALSE;
 //HERE();
@@ -1337,10 +1336,10 @@ lx_get_curthread_id()
 /*   Test if a pointer is vaid in kernel space.			      */
 /**********************************************************************/
 # if defined(__i386)
-#define __validate_ptr(ptr, ret)        \
+#define __validate_ptr(ptr, ret)      \
  __asm__ __volatile__(      	      \
   "  mov $1, %0\n" 		      \
-  "0: mov (%1), %1\n"                \
+  "0: mov (%1), %1\n"                 \
   "2:\n"       			      \
   ".section .fixup,\"ax\"\n"          \
   "3: mov $0, %0\n"    	              \
@@ -1350,14 +1349,14 @@ lx_get_curthread_id()
   " .align 4\n"     		      \
   " .long 0b,3b\n"     		      \
   ".previous"      		      \
-  : "=&a" (ret) 		      \
+  : "=a" (ret) 		              \
   : "c" (ptr) 	                      \
   )
 # else
-#define __validate_ptr(ptr, ret)        \
+#define __validate_ptr(ptr, ret)      \
  __asm__ __volatile__(      	      \
   "  mov $1, %0\n" 		      \
-  "0: mov (%1), %1\n"                \
+  "0: mov (%1), %1\n"                 \
   "2:\n"       			      \
   ".section .fixup,\"ax\"\n"          \
   "3: mov $0, %0\n"    	              \
@@ -1367,7 +1366,7 @@ lx_get_curthread_id()
   " .align 8\n"     		      \
   " .quad 0b,3b\n"     		      \
   ".previous"      		      \
-  : "=&a" (ret) 		      \
+  : "=a" (ret) 		      	      \
   : "c" (ptr) 	                      \
   )
 # endif

@@ -1,3 +1,15 @@
+Mon Jul  5 21:07:32 2010  fox
+
+     337* dtrace_isa.c: Uncomment dtrace_getarg() - but its not good for
+          now. This allows tests/dt021 to "run" (but not properly).
+
+Sun Jul  4 21:30:37 2010  fox
+
+     336* dtrace_linux.c: __validate_ptr, using "=a" instead of "=&a"
+          when calling this inline asm. Seems to cure the problem on
+	  line 1259 (instr_in_text_seg) where we GPF'd if we didnt
+	  have a print statement.
+
 Sat Jul  3 22:03:17 2010  fox
 
      335* common/ctf/ctf_create.c: Update from OpenSolaris. This fixes the

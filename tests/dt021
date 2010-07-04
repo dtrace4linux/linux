@@ -1,0 +1,11 @@
+/* Basic test for typedefs/structures. */
+typedef unsigned long my_dev_t;
+typedef struct {
+	my_dev_t dts_dev;			/* device */
+	int dts_necbs;				/* total number of ECBs */
+} my_dtrace_state_t;
+
+BEGIN
+{
+	trace(((my_dtrace_state_t *)arg0)->dts_necbs);
+}

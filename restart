@@ -1,0 +1,5 @@
+VBoxManage controlvm  "Ubuntu 10.04-64bit"   poweroff
+sleep 1
+VBoxManage snapshot  "Ubuntu 10.04-64bit"  restore "Snapshot 1"
+sleep 1
+VBoxManage startvm  "Ubuntu 10.04-64bit"

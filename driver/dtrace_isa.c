@@ -37,6 +37,7 @@
 #include <linux/thread_info.h>
 #include <sys/privregs.h>
 #include "../port.h"
+# define regs pt_regs
 # endif
 
 #include <sys/dtrace_impl.h>
@@ -504,21 +505,37 @@ printk("need to do this dtrace_getufpstack\n");
 # endif
 }
 
+/**********************************************************************/
+/*   20100705  This  is  a  hack  for now to satisfy dtrace_getarg()  */
+/*   below.  This  is needed so that we can walk from kernel back to  */
+/*   user space.						      */
+/*
+http://www.opensource.apple.com/source/xnu/xnu-1456.1.26/bsd/dev/i386/fbt_x86.c
+*/
+/**********************************************************************/
+void
+dtrace_invop_callsite()
+{
+}
+
 /*ARGSUSED*/
 uint64_t
 dtrace_getarg(int arg, int aframes)
 {
-# if 1
-	TODO();
-	return 0;
-# else
 	uintptr_t val;
 	struct frame *fp = (struct frame *)dtrace_getfp();
 	uintptr_t *stack;
 	int i;
 #if defined(__amd64)
-	int inreg = offsetof(struct regs, r_r9) / sizeof (greg_t);
+	/***********************************************/
+	/*   First 6 args in a register.	       */
+	/***********************************************/
+	int inreg = 5;
+	/*int inreg = offsetof(struct regs, r_r9) / sizeof (greg_t);*/
 #endif
+
+	TODO();
+printk("arg=%d aframes=%d\n", arg, aframes);
 
 	for (i = 1; i <= aframes; i++) {
 		fp = (struct frame *)(fp->fr_savfp);
@@ -594,7 +611,6 @@ load:
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
 
 	return (val);
-# endif
 }
 
 /*ARGSUSED*/

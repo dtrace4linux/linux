@@ -456,6 +456,8 @@ if (yypcb->pcb_token != 0) {
 			BEGIN(S3);
 		}
 
+<S0>"//.*\n"     ; /* C++ comments */
+
 <S0>"/"		{
 			int c, tok;
 

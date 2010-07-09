@@ -534,8 +534,7 @@ dtrace_getarg(int arg, int aframes)
 	/*int inreg = offsetof(struct regs, r_r9) / sizeof (greg_t);*/
 #endif
 
-	TODO();
-printk("arg=%d aframes=%d\n", arg, aframes);
+//printk("arg=%d aframes=%d\n", arg, aframes);
 
 	for (i = 1; i <= aframes; i++) {
 		fp = (struct frame *)(fp->fr_savfp);
@@ -569,7 +568,7 @@ printk("arg=%d aframes=%d\n", arg, aframes);
 			    sizeof (uintptr_t));
 
 			if (arg <= inreg) {
-				stack = (uintptr_t *)rp;
+				stack = (uintptr_t *)&rp->r_rdi;
 			} else {
 				stack = (uintptr_t *)(rp->r_rsp);
 				arg -= inreg;
@@ -609,7 +608,6 @@ load:
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	val = stack[arg];
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
-
 	return (val);
 }
 
@@ -618,6 +616,7 @@ int
 dtrace_getstackdepth(int aframes)
 {
 # if 1
+	TODO();
 	return 0;
 # else
 	struct frame *fp = (struct frame *)dtrace_getfp();

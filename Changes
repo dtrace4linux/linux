@@ -1,3 +1,22 @@
+Sat Jul 10 21:40:00 2010  fox
+
+     343* Archive: 1.0101
+
+     342* Release: 20100710
+
+     341* ctl.c, dtrace_linux.c: Changes for Centos 5.5 (
+          (Nathan Slingerland at RotateRight, LLC)
+
+     340* dt_lex.l: Add support for C++ // comments.
+
+     339* dtrace_linux.c: When doing an ioctl, pass down CRED() so we can
+          probe memory if we are root.
+
+Tue Jul  6 11:56:02 2010  fox
+
+     338* libdtrace/dt_dis.c: Fix typo where we get a double "0x" in the output
+          for "-S -s" switches.
+
 Mon Jul  5 21:07:32 2010  fox
 
      337* dtrace_isa.c: Uncomment dtrace_getarg() - but its not good for

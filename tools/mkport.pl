@@ -8,6 +8,7 @@
 #
 # 27-Jun-2009 PDF Add support for HAVE_STACKTRACE_OPS
 # 24-Jul-2009 PDF Add support for FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS
+# 06-Jul-2010 PDF Add 'nonatomic' as a way to autodetect FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS on Centos 5.5
 
 use strict;
 use warnings;
@@ -117,7 +118,7 @@ sub smp_call_function_single
 		while (<$fh>) {
 			next if !/smp_call_function_single/;
 			my $line = <$fh>;
-			if ($line =~ /retry/) {
+			if ($line =~ /retry|nonatomic/) {
 				$inc .= "# define FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS 1\n";
 			} else {
 				$inc .= "# define FUNC_SMP_CALL_FUNCTION_SINGLE_4_ARGS 1\n";

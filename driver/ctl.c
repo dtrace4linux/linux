@@ -31,7 +31,7 @@ present.
 /*   start,  but  not  complete to use as a Solaris compatible /proc  */
 /*   interface for Linux.					      */
 /*   								      */
-/*   $Header: Last edited: 22-Mar-2009 1.1 $			      */
+/*   $Header: Last edited: 10-Jul-2010 1.2 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -81,7 +81,8 @@ present.
 #define PCSZONE  30L    /* set zoneid from zoneid_t argument */
 #define PCSCREDX 31L    /* as PCSCRED but with supplemental groups */
 
-static void *(*fn_get_pid_task)(void *, int);
+void *(*fn_pid_task)(void *, int);                                                      
+void *(*fn_get_pid_task)(void *, int); 
 
 /**********************************************************************/
 /*   Structure for patching the kernel.				      */
@@ -188,6 +189,7 @@ return;
 
 	proc_pident_lookup = get_proc_addr("proc_pident_lookup");
 	proc_pident_readdir = get_proc_addr("proc_pident_readdir");
+	fn_pid_task = get_proc_addr("pid_task");
 	fn_get_pid_task = get_proc_addr("get_pid_task");
 	if ((ptr_proc_info_file_operations = get_proc_addr("proc_info_file_operations")) == NULL) {
 		printk("ctl.c: Cannot locate proc_info_file_operations\n");

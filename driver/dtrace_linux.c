@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 08-Jun-2009 1.5 $ 			      */
+/*   $Header: Last edited: 10-Jul-2010 1.7 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -2029,12 +2029,14 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 /**********************************************************************/
 /*   Lookup process by proc id.					      */
 /**********************************************************************/
+extern void *(*fn_pid_task)(void *, int);
+
 proc_t *
 prfind(int p)
 {	struct task_struct *tp;
 	struct pid *pid;
 
-	tp = pid_task(p, PIDTYPE_PID);
+	tp = fn_pid_task(p, PIDTYPE_PID);
 	if (!tp)
 		return (proc_t *) NULL;
 HERE();
@@ -2692,7 +2694,13 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 {	int	ret;
 	int	rv = 0;
 
-	ret = dtrace_ioctl(file, cmd, arg, 0, NULL, &rv);
+	/***********************************************/
+	/*   Make    sure   ioctl   has   the   users  */
+	/*   credentials since many parts of the code  */
+	/*   will  check if we have DTRACE_CRV access  */
+	/*   (we default to root==all).		       */
+	/***********************************************/
+	ret = dtrace_ioctl(file, cmd, arg, 0, CRED(), &rv);
 //HERE();
 //if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;

@@ -64,7 +64,7 @@
 #define	uprintf		printk
 #define	vuprintf	vprintk
 
-# define PRINT_CASE(x) do { if (dtrace_here) printk("%s(%d):%s: %s\n", __FILE__, __LINE__, __func__, #x); } while (0)
+# define PRINT_CASE(x) do { if (dtrace_here) printk("%s:%s:%d: %s\n", dtrace_basename(__FILE__), __func__, __LINE__, #x); } while (0)
 
 # define crhold(x)
 # define priv_isequalset(a, b) 1

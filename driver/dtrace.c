@@ -629,12 +629,14 @@ dtrace_canstore_statvar(uint64_t addr, size_t sz,
 {
 	int i;
 
+printk("nsvars=%d\n", nsvars);
 	for (i = 0; i < nsvars; i++) {
 		dtrace_statvar_t *svar = svars[i];
 
 		if (svar == NULL || svar->dtsv_size == 0)
 			continue;
 
+printk("nsvars=%d addr=%p, sz=%d %p %d\n", nsvars, addr, sz, svar->dtsv_data, svar->dtsv_size);
 		if (DTRACE_INRANGE(addr, sz, svar->dtsv_data, svar->dtsv_size))
 			return (1);
 	}
@@ -655,9 +657,12 @@ dtrace_canstore(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
 	/*
 	 * First, check to see if the address is in scratch space...
 	 */
+HERE();
+printk("addr=%p, sz=%d %p %d\n", addr, sz, mstate->dtms_scratch_base, mstate->dtms_scratch_size);
 	if (DTRACE_INRANGE(addr, sz, mstate->dtms_scratch_base,
 	    mstate->dtms_scratch_size))
 		return (1);
+HERE();
 
 	/*
 	 * Now check to see if it's a dynamic variable.  This check will pick
@@ -687,6 +692,7 @@ dtrace_canstore(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
 		 *	(3) Not span a chunk boundary
 		 *
 		 */
+HERE();
 		if (addr < base)
 			return (0);
 
@@ -708,10 +714,12 @@ dtrace_canstore(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
 	if (dtrace_canstore_statvar(addr, sz,
 	    vstate->dtvs_locals, vstate->dtvs_nlocals))
 		return (1);
+HERE();
 
 	if (dtrace_canstore_statvar(addr, sz,
 	    vstate->dtvs_globals, vstate->dtvs_nglobals))
 		return (1);
+HERE();
 
 	return (0);
 }
@@ -2671,12 +2679,12 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 	switch (v) {
 	case DIF_VAR_ARGS:
 		ASSERT(mstate->dtms_present & DTRACE_MSTATE_ARGS);
+//printk("DIF_VAR_ARGS: ndx=%d %d %d\n", ndx, sizeof(mstate->dtms_arg), sizeof(mstate->dtms_arg[0]));
 		if (ndx >= sizeof (mstate->dtms_arg) /
 		    sizeof (mstate->dtms_arg[0])) {
 			int aframes = mstate->dtms_probe->dtpr_aframes + 2;
 			dtrace_provider_t *pv;
 			uint64_t val;
-
 			pv = mstate->dtms_probe->dtpr_provider;
 			if (pv->dtpv_pops.dtps_getargval != NULL)
 				val = pv->dtpv_pops.dtps_getargval(pv->dtpv_arg,
@@ -4617,16 +4625,22 @@ HERE();
 
 	regs[DIF_REG_R0] = 0; 		/* %r0 is fixed at zero */
 HERE();
+{uint_t p = 0;
+for (p = 0; p < textlen; p++) {
+printk("DIS %p %x: %x\n", &text[p], p, text[p]);
+}}
 
 	while (pc < textlen && !(*flags & CPU_DTRACE_FAULT)) {
 		opc = pc;
 
 		instr = text[pc++];
+/*if (instr == 0x49010001) instr = 0x1e010001;*/
 		r1 = DIF_INSTR_R1(instr);
 		r2 = DIF_INSTR_R2(instr);
 		rd = DIF_INSTR_RD(instr);
 
 HERE();
+printk("opcode=%x instr=%x\n", DIF_INSTR_OP(instr), instr);
 		switch (DIF_INSTR_OP(instr)) {
 		case DIF_OP_OR:
 PRINT_CASE(DIF_OP_OR);
@@ -4654,6 +4668,7 @@ PRINT_CASE(DIF_OP_SUB);
 			break;
 		case DIF_OP_ADD:
 PRINT_CASE(DIF_OP_ADD);
+printk("reg r%d = r%d + r%d (%p + %p)\n", rd, r1, r2, regs[r1], regs[r2]);
 			regs[rd] = regs[r1] + regs[r2];
 			break;
 		case DIF_OP_MUL:
@@ -4949,9 +4964,10 @@ PRINT_CASE(DIF_OP_LDGA);
 PRINT_CASE(DIF_OP_LDGS);
 			id = DIF_INSTR_VAR(instr);
 
+printk("id=%d\n", id);
 			if (id >= DIF_VAR_OTHER_UBASE) {
 				uintptr_t a;
-
+HERE();
 				id -= DIF_VAR_OTHER_UBASE;
 				svar = vstate->dtvs_globals[id];
 				ASSERT(svar != NULL);
@@ -4971,14 +4987,17 @@ PRINT_CASE(DIF_OP_LDGS);
 					 * reference to a NULL variable.
 					 */
 					regs[rd] = NULL;
+printk("regs[%d]=%llx\n", rd, regs[rd]);
 				} else {
 					regs[rd] = a + sizeof (uint64_t);
+printk("regs[%d]2=%llx\n", rd, regs[rd]);
 				}
 
 				break;
 			}
 
 			regs[rd] = dtrace_dif_variable(mstate, state, id, 0);
+printk("regs[%d]3=%llx\n", rd, regs[rd]);
 			break;
 
 		case DIF_OP_STGS:
@@ -7264,7 +7283,6 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 		dtrace_provider = provider;
 	}
 
-HERE();
 	if (dtrace_retained != NULL) {
 		dtrace_enabling_provide(provider);
 
@@ -12132,6 +12150,7 @@ dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr,
 	dtrace_enabling_t *enab;
 	uint_t i;
 
+printk("cr=%p\n", cr);
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(dof->dofh_loadsz >= sizeof (dof_hdr_t));
 	/*
@@ -12152,15 +12171,12 @@ dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr,
 	}
 
 	if (dof->dofh_ident[DOF_ID_ENCODING] != DOF_ENCODE_NATIVE) {
-HERE();
 		dtrace_dof_error(dof, "DOF encoding mismatch");
 		return (-1);
 	}
 
 	if (dof->dofh_ident[DOF_ID_VERSION] != DOF_VERSION_1 &&
             dof->dofh_ident[DOF_ID_VERSION] != DOF_VERSION_2) {
-HERE();
-//printk("version: %x %x\n", dof->dofh_ident[DOF_ID_VERSION], DOF_VERSION_1);
 		dtrace_dof_error(dof, "DOF version mismatch");
 		return (-1);
 	}
@@ -12316,7 +12332,6 @@ HERE();
 			return (-1);
 		}
 
-HERE();
 		dtrace_enabling_add(enab, ep);
 HERE();
 	}
@@ -12795,7 +12810,6 @@ dtrace_state_buffer(dtrace_state_t *state, dtrace_buffer_t *buf, int which)
 	processorid_t cpu = 0;
 	int flags = 0, rval;
 
-HERE();
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(MUTEX_HELD(&cpu_lock));
 	ASSERT(which < DTRACEOPT_MAX);
@@ -13113,7 +13127,6 @@ HERE();
 	when.cyt_when = 0;
 	when.cyt_interval = opt[DTRACEOPT_CLEANRATE];
 
-HERE();
 	state->dts_cleaner = cyclic_add(&hdlr, &when);
 HERE();
 
@@ -13143,6 +13156,7 @@ HERE();
 	state->dts_buffer[*cpu].dtb_flags &= ~DTRACEBUF_INACTIVE;
 
 HERE();
+printk("dtrace_probeid_begin=%p %p\n", dtrace_probeid_begin, state);
 	dtrace_probe(dtrace_probeid_begin,
 	    (uint64_t)(uintptr_t)state, 0, 0, 0, 0);
 	dtrace_interrupt_enable(cookie);
@@ -13374,11 +13388,8 @@ HERE();
 					continue;
 			}
 
-HERE();
 			dtrace_ecb_disable(ecb);
-HERE();
 			dtrace_ecb_destroy(ecb);
-HERE();
 		}
 
 		if (!match)
@@ -14316,6 +14327,7 @@ HERE();
 # endif
 	vstate = &help->dthps_vstate;
 
+printk("helper slurp\n");
 	if ((rv = dtrace_dof_slurp(dof, vstate, NULL, &enab,
 	    dhp != NULL ? dhp->dofhp_addr : 0, B_FALSE)) != 0) {
 		dtrace_dof_destroy(dof);

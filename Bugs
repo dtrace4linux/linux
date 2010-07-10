@@ -80,3 +80,6 @@ x 20090204 23. Linux 2.6.9 (AS4) issues
 
   20090222 26. syscall:sigreturn wants to do things to the stack and
                wants a real stack frame. Need to handle that.
+
+  20100711 27. syscall::c*: seg fault in kernel
+  20100711 28. dtrace_xcall: not irq_disable correct.

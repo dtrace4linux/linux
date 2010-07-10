@@ -1,3 +1,8 @@
+Sun Jul 11 21:40:15 2010  fox
+
+     344* dtrace_linux.c: dtrace_xcall: Dont call on_each_cpu as its not
+          interrupt safe.
+
 Sat Jul 10 21:40:00 2010  fox
 
      343* Archive: 1.0101

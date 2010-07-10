@@ -1035,14 +1035,14 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {
 	if (cpu == DTRACE_CPUALL) {
 		/***********************************************/
-		/*   Dont   call  smp_call_function  as  this  */
-		/*   doesnt work.			       */
+		/*   Avoid  calling  local_irq_disable, since  */
+		/*   we   will  likely  be  called  from  the  */
+		/*   hrtimer callback.			       */
 		/***********************************************/
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
-		on_each_cpu(func, arg, 0, TRUE);
-#else
-		on_each_cpu(func, arg, TRUE);
-#endif
+		preempt_disable();
+		smp_call_function(func, arg, TRUE);
+		func(arg);
+		preempt_enable();
 	} else {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
 		/***********************************************/

@@ -197,6 +197,7 @@ static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint
 
 static char *int_ret_from_sys_call_ptr;
 static char *ptregscall_common_ptr;
+static char *save_rest_ptr;
 
 /**********************************************************************/
 /*   Following  definitions are non-static to allow the assembler to  */
@@ -332,6 +333,13 @@ systrace_assembler_dummy(void)
 		/*   cannot be C code yet.		       */
 		/***********************************************/
 		FUNCTION(systrace_part1_sys_clone)
+/*
+"subq 6*8, %rsp\n"
+"call *save_rest_ptr\n"
+"leaq 8(%rsp), %r8\n"
+"mov $dtrace_systrace_syscall_clone,%rax\n"
+"jmp *ptregscall_common_ptr\n"
+*/
 		"lea    -0x28(%rsp),%r8\n"
 		"mov $dtrace_systrace_syscall_clone,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
@@ -1002,6 +1010,8 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
 	if (ptregscall_common_ptr == NULL)
 		ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
+	if (save_rest_ptr == NULL)
+		save_rest_ptr = (char *) get_proc_addr("save_rest");
 #endif
 
 	systrace_do_init(sysent, &systrace_sysent);

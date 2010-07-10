@@ -4624,11 +4624,6 @@ HERE();
 	mstate->dtms_difo = difo;
 
 	regs[DIF_REG_R0] = 0; 		/* %r0 is fixed at zero */
-HERE();
-{uint_t p = 0;
-for (p = 0; p < textlen; p++) {
-printk("DIS %p %x: %x\n", &text[p], p, text[p]);
-}}
 
 	while (pc < textlen && !(*flags & CPU_DTRACE_FAULT)) {
 		opc = pc;
@@ -4639,8 +4634,6 @@ printk("DIS %p %x: %x\n", &text[p], p, text[p]);
 		r2 = DIF_INSTR_R2(instr);
 		rd = DIF_INSTR_RD(instr);
 
-HERE();
-printk("opcode=%x instr=%x\n", DIF_INSTR_OP(instr), instr);
 		switch (DIF_INSTR_OP(instr)) {
 		case DIF_OP_OR:
 PRINT_CASE(DIF_OP_OR);
@@ -4964,7 +4957,6 @@ PRINT_CASE(DIF_OP_LDGA);
 PRINT_CASE(DIF_OP_LDGS);
 			id = DIF_INSTR_VAR(instr);
 
-printk("id=%d\n", id);
 			if (id >= DIF_VAR_OTHER_UBASE) {
 				uintptr_t a;
 HERE();
@@ -4987,17 +4979,14 @@ HERE();
 					 * reference to a NULL variable.
 					 */
 					regs[rd] = NULL;
-printk("regs[%d]=%llx\n", rd, regs[rd]);
 				} else {
 					regs[rd] = a + sizeof (uint64_t);
-printk("regs[%d]2=%llx\n", rd, regs[rd]);
 				}
 
 				break;
 			}
 
 			regs[rd] = dtrace_dif_variable(mstate, state, id, 0);
-printk("regs[%d]3=%llx\n", rd, regs[rd]);
 			break;
 
 		case DIF_OP_STGS:
@@ -12150,7 +12139,6 @@ dtrace_dof_slurp(dof_hdr_t *dof, dtrace_vstate_t *vstate, cred_t *cr,
 	dtrace_enabling_t *enab;
 	uint_t i;
 
-printk("cr=%p\n", cr);
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(dof->dofh_loadsz >= sizeof (dof_hdr_t));
 	/*

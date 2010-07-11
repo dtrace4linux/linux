@@ -24,7 +24,7 @@
  */
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 07-Apr-2009 1.2 $ 			      */
+/* $Header: Last edited: 12-Jul-2010 1.3 $ 			      */
 
 #include <linux/mm.h>
 # undef zone
@@ -198,6 +198,7 @@ static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint
 static char *int_ret_from_sys_call_ptr;
 static char *ptregscall_common_ptr;
 static char *save_rest_ptr;
+static long (*do_fork_ptr)(unsigned long, unsigned long, struct pt_regs *, unsigned long, int __user *, int __user *);
 
 /**********************************************************************/
 /*   Following  definitions are non-static to allow the assembler to  */
@@ -332,17 +333,34 @@ systrace_assembler_dummy(void)
 		/*   mustnt  leave  a RBP on the stack, so we  */
 		/*   cannot be C code yet.		       */
 		/***********************************************/
+
 		FUNCTION(systrace_part1_sys_clone)
-/*
-"subq 6*8, %rsp\n"
-"call *save_rest_ptr\n"
-"leaq 8(%rsp), %r8\n"
-"mov $dtrace_systrace_syscall_clone,%rax\n"
-"jmp *ptregscall_common_ptr\n"
-*/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		/***********************************************/
+		/*   For   kernel  2.6.32  and  above  (maybe  */
+		/*   before),  the  clone  hack  we do doesnt  */
+		/*   work  for  the older kernels. This seems  */
+		/*   to  work  for  my system - we have to be  */
+		/*   careful how the new child returns direct  */
+		/*   to  user  space  that  we  preserve  the  */
+		/*   expected pt_regs sitting on the stack.    */
+		/*   					       */
+		/*   The     main    difference    is    that  */
+		/*   ptregscall_common doesnt call the target  */
+		/*   function  via  %rax, so we have to do it  */
+		/*   ourselves.  I  guess this preserves %rax  */
+		/*   to the called function.		       */
+		/***********************************************/
+		"subq $6*8, %rsp\n"
+		"call *save_rest_ptr\n"
+		"leaq 8(%rsp), %r8\n"
+		"call dtrace_systrace_syscall_clone\n"
+		"jmp *ptregscall_common_ptr\n"
+# else
 		"lea    -0x28(%rsp),%r8\n"
 		"mov $dtrace_systrace_syscall_clone,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
+# endif
 		END_FUNCTION(systrace_part1_sys_clone)
 
 		FUNCTION(systrace_part1_sys_fork)
@@ -427,10 +445,12 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
-/*   2nd  part  of  the  clone()  syscall, called from the assembler  */
-/*   trampoline  (ptregscall_common)  after  the registers are saved  */
-/*   properly.  Note,  that  for clone/fork, we never get to see the  */
-/*   child since it is scheduled independently.			      */
+/*   2nd  part of the clone() syscall, called from the assembler. We  */
+/*   have a couple of scenarios to handle - pre 2.6.32 kernels where  */
+/*   we  use  the ptregscall_common redirection and 2.6.32 or above,  */
+/*   where that doesnt happen.					      */
+/*   Note,  that for clone/fork, we never get to see the child since  */
+/*   it is scheduled independently. 				      */
 /**********************************************************************/
 # if defined(__amd64)
 
@@ -447,10 +467,53 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #   define EXECVE_COPY_FRAME	TRUE
 # endif
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+asmlinkage int64_t
+dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
+	void __user *parent_tid, void __user *child_tid, struct pt_regs *regs)
+{
+	systrace_sysent_t *sy;
+	dtrace_id_t id;
+	int	ret;
+
+	sy = &systrace_sysent[__NR_clone];
+        if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
+		cpu_core_t *this_cpu = cpu_get_this();
+		this_cpu->cpuc_regs = regs;
+
+                (*systrace_probe)(id, clone_flags, newsp, 
+			(uintptr_t) parent_tid, (uintptr_t) child_tid, 
+			(uintptr_t) regs, 0);
+	}
+
+	/***********************************************/
+	/*   Cant call sys_clone directly because the  */
+	/*   stack  confuses  sys_clone  in  the  new  */
+	/*   child,  as  it  tries  to return to user  */
+	/*   space. This seems to work.		       */
+	/***********************************************/
+	if (newsp == 0)
+		newsp = regs->r_sp;
+
+        ret = do_fork_ptr(clone_flags, newsp, regs, 0, parent_tid, child_tid);
+        if ((id = sy->stsy_return) != DTRACE_IDNONE) {
+		/***********************************************/
+		/*   Map   Linux   style   syscall  codes  to  */
+		/*   standard Unix format.		       */
+		/***********************************************/
+		(*systrace_probe)(id, (uintptr_t) (ret < 0 ? -1 : ret), 
+		    (uintptr_t)(int64_t) ret,
+                    (uintptr_t)((int64_t)ret >> 32), 0, 0, 0);
+		}
+
+	return ret;
+}
+# else /* <= 2.6.31 */
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	systrace_sysent_t s;
+{
+	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_clone];
 //	s.stsy_underlying = 0xffffffff80210330;
@@ -459,6 +522,8 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		FALSE, ARG0_PTR, 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 }
+# endif
+
 asmlinkage int64_t
 dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -1012,6 +1077,8 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
 	if (save_rest_ptr == NULL)
 		save_rest_ptr = (char *) get_proc_addr("save_rest");
+	if (do_fork_ptr == NULL)
+		do_fork_ptr = (void *) get_proc_addr("do_fork");
 #endif
 
 	systrace_do_init(sysent, &systrace_sysent);

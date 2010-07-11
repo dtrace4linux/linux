@@ -629,14 +629,14 @@ dtrace_canstore_statvar(uint64_t addr, size_t sz,
 {
 	int i;
 
-printk("nsvars=%d\n", nsvars);
+//printk("nsvars=%d\n", nsvars);
 	for (i = 0; i < nsvars; i++) {
 		dtrace_statvar_t *svar = svars[i];
 
 		if (svar == NULL || svar->dtsv_size == 0)
 			continue;
 
-printk("nsvars=%d addr=%p, sz=%d %p %d\n", nsvars, addr, sz, svar->dtsv_data, svar->dtsv_size);
+//printk("nsvars=%d addr=%p, sz=%d %p %d\n", nsvars, addr, sz, svar->dtsv_data, svar->dtsv_size);
 		if (DTRACE_INRANGE(addr, sz, svar->dtsv_data, svar->dtsv_size))
 			return (1);
 	}
@@ -658,7 +658,7 @@ dtrace_canstore(uint64_t addr, size_t sz, dtrace_mstate_t *mstate,
 	 * First, check to see if the address is in scratch space...
 	 */
 HERE();
-printk("addr=%p, sz=%d %p %d\n", addr, sz, mstate->dtms_scratch_base, mstate->dtms_scratch_size);
+//printk("addr=%p, sz=%d %p %d\n", addr, sz, mstate->dtms_scratch_base, mstate->dtms_scratch_size);
 	if (DTRACE_INRANGE(addr, sz, mstate->dtms_scratch_base,
 	    mstate->dtms_scratch_size))
 		return (1);
@@ -4661,7 +4661,6 @@ PRINT_CASE(DIF_OP_SUB);
 			break;
 		case DIF_OP_ADD:
 PRINT_CASE(DIF_OP_ADD);
-printk("reg r%d = r%d + r%d (%p + %p)\n", rd, r1, r2, regs[r1], regs[r2]);
 			regs[rd] = regs[r1] + regs[r2];
 			break;
 		case DIF_OP_MUL:
@@ -13144,7 +13143,6 @@ HERE();
 	state->dts_buffer[*cpu].dtb_flags &= ~DTRACEBUF_INACTIVE;
 
 HERE();
-printk("dtrace_probeid_begin=%p %p\n", dtrace_probeid_begin, state);
 	dtrace_probe(dtrace_probeid_begin,
 	    (uint64_t)(uintptr_t)state, 0, 0, 0, 0);
 	dtrace_interrupt_enable(cookie);

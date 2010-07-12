@@ -1,3 +1,16 @@
+Tue Jul 13 20:57:56 2010  fox
+
+     350* driver/systrace.c: Fix sigaltstack for 2.6.32/64 bit kernel.
+
+     349* driver/systrace.c: Fix fork/vfork() for 2.6.32/64 bit kernel.
+          scripts/fork.d is crashing the kernel on the copyinstr.
+
+     348* driver/systrace.c: Fix iopl() syscall for 2.6.32/64 bit kernel.
+
+     347* driver/systrace.c: Fix rt_sigreturn() for 2.6.32/64 bit kernel.
+
+     346* driver/systrace.c: Fix execve() for 2.6.32/64 bit kernel.
+
 Mon Jul 12 22:24:58 2010  fox
 
      345* systrace.c: Fix clone() syscall for 2.6.32/64 bit kernel.

@@ -23,6 +23,28 @@
  * Use is subject to license terms.
  */
 
+/**********************************************************************/
+/*   The  code  in  this  file  handles syscall tracing. A number of  */
+/*   things complicate the world, for example, some syscalls such as  */
+/*   fork  are  not  used. Linux uses clone() instead. So need to be  */
+/*   careful  if  you  monitor for fork() as it will likely never be  */
+/*   called.							      */
+/*   								      */
+/*   Also we have issues with syscalls that affect the return to the  */
+/*   caller  -  calls  like clone, execve come back with a different  */
+/*   stack,  so we have to patch carefully the assembler hanging off  */
+/*   the interrupt vectors.					      */
+/*   								      */
+/*   This all becomes kernel dependent and version dependent, making  */
+/*   life a lot of fun.						      */
+/*   								      */
+/*   rt_sigreturn  modifies  all  registers, according to the kernel  */
+/*   and so the way it returns to the user process has to be careful  */
+/*   not to take the SYSRET route (due to register dependencies). So  */
+/*   we  need  to leverage the code in the kernel, and try to get us  */
+/*   into C land where we can.					      */
+/**********************************************************************/
+
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
 /* $Header: Last edited: 12-Jul-2010 1.3 $ 			      */
 
@@ -363,22 +385,57 @@ systrace_assembler_dummy(void)
 # endif
 		END_FUNCTION(systrace_part1_sys_clone)
 
+		/***********************************************/
+		/*   Handle  fork()  -  normally  rare, since  */
+		/*   glibc invokes clone() instead.	       */
+		/***********************************************/
 		FUNCTION(systrace_part1_sys_fork)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		"subq $6*8, %rsp\n"
+		"call *save_rest_ptr\n"
+		"leaq 8(%rsp), %rdi\n"
+		"call dtrace_systrace_syscall_fork\n"
+		"jmp *ptregscall_common_ptr\n"
+# else
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_fork,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
+# endif
 		END_FUNCTION(systrace_part1_sys_fork)
 
+		/***********************************************/
+		/*   iopl(int    level)    affect   the   i/o  */
+		/*   priviledge level.			       */
+		/***********************************************/
 		FUNCTION(systrace_part1_sys_iopl)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		"subq $6*8, %rsp\n"
+		"call *save_rest_ptr\n"
+		"leaq 8(%rsp), %rsi\n"
+		"call dtrace_systrace_syscall_iopl\n"
+		"jmp *ptregscall_common_ptr\n"
+# else
 		"lea    -0x28(%rsp),%rsi\n"
 		"mov $dtrace_systrace_syscall_iopl,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
+# endif
 		END_FUNCTION(systrace_part1_sys_iopl)
 
+		/***********************************************/
+		/*   sigaltstack.			       */
+		/***********************************************/
 		FUNCTION(systrace_part1_sys_sigaltstack)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		"subq $6*8, %rsp\n"
+		"call *save_rest_ptr\n"
+		"leaq 8(%rsp), %rdx\n"
+		"call dtrace_systrace_syscall_sigaltstack\n"
+		"jmp *ptregscall_common_ptr\n"
+# else
 		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_sigaltstack,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
+# endif
 		END_FUNCTION(systrace_part1_sys_sigaltstack)
 
 		FUNCTION(systrace_part1_sys_rt_sigsuspend)
@@ -387,10 +444,23 @@ systrace_assembler_dummy(void)
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_rt_sigsuspend)
 
+		/***********************************************/
+		/*   Normal  Unix  code calls vfork() because  */
+		/*   it  should  be faster than fork, but may  */
+		/*   not be.				       */
+		/***********************************************/
 		FUNCTION(systrace_part1_sys_vfork)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		"subq $6*8, %rsp\n"
+		"call *save_rest_ptr\n"
+		"leaq 8(%rsp), %rdi\n"
+		"call dtrace_systrace_syscall_vfork\n"
+		"jmp *ptregscall_common_ptr\n"
+# else
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_vfork,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
+# endif
 		END_FUNCTION(systrace_part1_sys_vfork)
 
 		/***********************************************/
@@ -467,24 +537,35 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 #   define EXECVE_COPY_FRAME	TRUE
 # endif
 
+# define TRACE_BEFORE(call, arg0, arg1, arg2, arg3, arg4, arg5) \
+        if ((id = systrace_sysent[call].stsy_entry) != DTRACE_IDNONE) { \
+		cpu_core_t *this_cpu = cpu_get_this();			\
+		this_cpu->cpuc_regs = (struct pt_regs *) regs;		\
+									\
+                (*systrace_probe)(id, (uintptr_t) (arg0), arg1, 	\
+			(uintptr_t) arg2, (uintptr_t) arg3,  		\
+			(uintptr_t) arg4, arg5);			\
+	}
+
+# define TRACE_AFTER(call, a, b, c, d, e, f) \
+        if ((id = systrace_sysent[call].stsy_return) != DTRACE_IDNONE) { \
+		/***********************************************/	\
+		/*   Map   Linux   style   syscall returns to  */	\
+		/*   standard Unix format.		       */	\
+		/***********************************************/	\
+		(*systrace_probe)(id, (uintptr_t) (a),			\
+		    (uintptr_t) (b),					\
+                    (uintptr_t) (c), d, e, f);				\
+	}
+
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 	void __user *parent_tid, void __user *child_tid, struct pt_regs *regs)
-{
-	systrace_sysent_t *sy;
-	dtrace_id_t id;
+{	dtrace_id_t id;
 	int	ret;
 
-	sy = &systrace_sysent[__NR_clone];
-        if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
-		cpu_core_t *this_cpu = cpu_get_this();
-		this_cpu->cpuc_regs = regs;
-
-                (*systrace_probe)(id, clone_flags, newsp, 
-			(uintptr_t) parent_tid, (uintptr_t) child_tid, 
-			(uintptr_t) regs, 0);
-	}
+	TRACE_BEFORE(__NR_clone, clone_flags, newsp, parent_tid, child_tid, regs, 0);
 
 	/***********************************************/
 	/*   Cant call sys_clone directly because the  */
@@ -496,15 +577,8 @@ dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 		newsp = regs->r_sp;
 
         ret = do_fork_ptr(clone_flags, newsp, regs, 0, parent_tid, child_tid);
-        if ((id = sy->stsy_return) != DTRACE_IDNONE) {
-		/***********************************************/
-		/*   Map   Linux   style   syscall  codes  to  */
-		/*   standard Unix format.		       */
-		/***********************************************/
-		(*systrace_probe)(id, (uintptr_t) (ret < 0 ? -1 : ret), 
-		    (uintptr_t)(int64_t) ret,
-                    (uintptr_t)((int64_t)ret >> 32), 0, 0, 0);
-		}
+
+	TRACE_AFTER(__NR_clone, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
 
 	return ret;
 }
@@ -512,11 +586,9 @@ dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{
-	systrace_sysent_t s;
+{	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_clone];
-//	s.stsy_underlying = 0xffffffff80210330;
 	s.stsy_underlying = sys_clone_ptr;
 	return dtrace_systrace_syscall2(__NR_clone, &s,
 		FALSE, ARG0_PTR, 
@@ -524,6 +596,22 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 }
 # endif
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+asmlinkage int64_t
+dtrace_systrace_syscall_execve(uintptr_t name, uintptr_t argv, uintptr_t envp,
+    uintptr_t regs, uintptr_t arg4, uintptr_t arg5)
+{	dtrace_id_t id;
+	long	ret;
+
+	TRACE_BEFORE(__NR_execve, name, argv, envp, regs, arg4, arg5);
+
+        ret = sys_execve_ptr(name, argv, envp, regs, 0, 0);
+
+	TRACE_AFTER(__NR_execve, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+}
+# else /* <= 2.6.31 */
 asmlinkage int64_t
 dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -535,6 +623,8 @@ dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		EXECVE_COPY_FRAME, ARG0_PTR,
 		arg0, arg1, arg2, arg3, arg4, arg5);
 }
+# endif
+
 /**********************************************************************/
 /*   2nd  part  of  the  fork()  syscall (but note, this is a legacy  */
 /*   call,  since  clone()  is the main call which fork() translates  */
@@ -543,13 +633,28 @@ dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 asmlinkage int64_t
 dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	systrace_sysent_t s;
+{
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	long	ret;
+	dtrace_id_t id;
+	struct pt_regs *regs = (struct pt_regs *) arg0;
+
+	TRACE_BEFORE(__NR_fork, arg0, arg1, arg2, arg3, arg4, arg5);
+
+	ret = sys_fork_ptr(arg0, arg1, arg2, arg3, arg4, arg5);
+
+	TRACE_AFTER(__NR_fork, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+# else /* <= 2.6.31 */
+	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_fork];
 	s.stsy_underlying = sys_fork_ptr;
 	return dtrace_systrace_syscall2(__NR_fork, &s,
 		FALSE, ARG0_PTR, 
 		arg0, arg1, arg2, arg3, arg4, arg5);
+# endif
 }
 /**********************************************************************/
 /*   2nd part of the iopl() syscall.				      */
@@ -557,27 +662,59 @@ dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 asmlinkage int64_t
 dtrace_systrace_syscall_iopl(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	systrace_sysent_t s;
+{
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	long	ret;
+	dtrace_id_t id;
+	struct pt_regs *regs = (struct pt_regs *) arg1;
+
+	TRACE_BEFORE(__NR_iopl, arg0, arg1, arg2, arg3, arg4, arg5);
+
+	ret = sys_iopl_ptr(arg0, arg1, arg2, arg3, arg4, arg5);
+
+	TRACE_AFTER(__NR_iopl, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+# else /* <= 2.6.31 */
+	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_iopl];
 	s.stsy_underlying = sys_iopl_ptr;
 	return dtrace_systrace_syscall2(__NR_iopl, &s,
 		FALSE, ARG0_PTR, 
 		arg0, arg1, arg2, arg3, arg4, arg5);
+# endif
 }
 /**********************************************************************/
-/*   2nd part of the sig_rt_sigreturn() syscall.		      */
+/*   2nd  part  of  the  sig_rt_sigreturn()  syscall.  This  syscall  */
+/*   appears  to  be  used  by "xinit" (i.e. if we dont emulate this  */
+/*   properly, a raw "xinit" may fail to launch or hang).	      */
 /**********************************************************************/
 asmlinkage int64_t
-dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+dtrace_systrace_syscall_rt_sigreturn(uintptr_t regs, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	systrace_sysent_t s;
+{
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	long	ret;
+	dtrace_id_t id;
+
+	TRACE_BEFORE(__NR_rt_sigreturn, regs, arg1, arg2, arg3, arg4, arg5);
+
+	ret = sys_rt_sigreturn_ptr(regs, arg1, arg2, arg3, arg4, arg5);
+
+	TRACE_AFTER(__NR_rt_sigreturn, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+
+# else /* <= 2.6.31 */
+	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_rt_sigreturn];
 	s.stsy_underlying = sys_rt_sigreturn_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigreturn, &s,
 		FALSE, ARG0_PTR, 
-		arg0, arg1, arg2, arg3, arg4, arg5);
+		regs, arg1, arg2, arg3, arg4, arg5);
+# endif
 }
 /**********************************************************************/
 /*   2nd part of the sig_rt_sigsuspend() syscall.		      */
@@ -599,13 +736,28 @@ dtrace_systrace_syscall_rt_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t 
 asmlinkage int64_t
 dtrace_systrace_syscall_sigaltstack(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	systrace_sysent_t s;
+{
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	long	ret;
+	dtrace_id_t id;
+	struct pt_regs *regs = (struct pt_regs *) arg0;
+
+	TRACE_BEFORE(__NR_sigaltstack, arg0, arg1, arg2, arg3, arg4, arg5);
+
+	ret = sys_sigaltstack_ptr(arg0, arg1, arg2, arg3, arg4, arg5);
+
+	TRACE_AFTER(__NR_sigaltstack, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+# else
+	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_sigaltstack];
 	s.stsy_underlying = sys_sigaltstack_ptr;
 	return dtrace_systrace_syscall2(__NR_sigaltstack, &s,
 		FALSE, ARG0_PTR, 
 		arg0, arg1, arg2, arg3, arg4, arg5);
+# endif
 }
 /**********************************************************************/
 /*   2nd part of the sigaltstack() syscall.				      */
@@ -627,15 +779,31 @@ dtrace_systrace_syscall_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t arg
 asmlinkage int64_t
 dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	systrace_sysent_t s;
+{
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	long	ret;
+	dtrace_id_t id;
+	struct pt_regs *regs = (struct pt_regs *) arg0;
+
+	TRACE_BEFORE(__NR_vfork, arg0, arg1, arg2, arg3, arg4, arg5);
+
+	ret = sys_vfork_ptr(arg0, arg1, arg2, arg3, arg4, arg5);
+
+	TRACE_AFTER(__NR_vfork, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+# else /* <= 2.6.31 */
+	systrace_sysent_t s;
 
 	s = systrace_sysent[__NR_vfork];
 	s.stsy_underlying = sys_vfork_ptr;
 	return dtrace_systrace_syscall2(__NR_vfork, &s,
 		FALSE, ARG0_PTR, 
 		arg0, arg1, arg2, arg3, arg4, arg5);
-}
 # endif
+}
+# endif /* defined(__amd64) */
+
 /**********************************************************************/
 /*   This  handles  the  syscall  traps,  but  may  be called by the  */
 /*   specialised  handlers,  like  stub_clone(),  where  we know the  */

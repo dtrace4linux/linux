@@ -339,9 +339,11 @@ int	is_kernel_text(unsigned long);
 #if defined(FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS)
 int smp_call_function_single(int cpuid, void (*func)(void *), void *info, int retry, int wait);
 #define SMP_CALL_FUNCTION_SINGLE(a, b, c, d) smp_call_function_single(a, b, c, 0, d)
+#define SMP_CALL_FUNCTION(a, b, c) smp_call_function(a, b, 0, c)
 #else
 int smp_call_function_single(int cpuid, void (*func)(void *), void *info, int wait);
 #define SMP_CALL_FUNCTION_SINGLE(a, b, c, d) smp_call_function_single(a, b, c, d)
+#define SMP_CALL_FUNCTION(a, b, c) smp_call_function(a, b, c)
 #endif
 
 # endif

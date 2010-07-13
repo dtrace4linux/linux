@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 10-Jul-2010 1.7 $ 			      */
+/*   $Header: Last edited: 14-Jul-2010 1.8 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -598,7 +598,8 @@ static	gate_t s;
 #  error "set_idt_entry: please help me"
 #endif
 
-printk("set_idt_entry %p %p sz=%d %p %p\n", &idt_table[intr], &s, sizeof s, ((long *) &idt_table[intr])[0], ((long *) &idt_table[intr])[1]);
+	if (dtrace_here)
+		printk("set_idt_entry %p %p sz=%d %p %p\n", &idt_table[intr], &s, sizeof s, ((long *) &idt_table[intr])[0], ((long *) &idt_table[intr])[1]);
 
 	idt_table[intr] = s;
 }
@@ -1040,7 +1041,7 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 		/*   hrtimer callback.			       */
 		/***********************************************/
 		preempt_disable();
-		smp_call_function(func, arg, TRUE);
+		SMP_CALL_FUNCTION(func, arg, TRUE);
 		func(arg);
 		preempt_enable();
 	} else {
@@ -1970,14 +1971,41 @@ preempt_enable_no_resched();
 /*   and  a hung kernel. If we trace something incorrectly, this can  */
 /*   happen.  If it does, just disable as much of us as we can so we  */
 /*   can diagnose. If its not our GPF, then let the kernel have it.   */
+/*   								      */
+/*   Additionally, dtrace.c will tell this code that we are about to  */
+/*   do  a dangerous probe, e.g. "copyinstr()" from an unvalidatable  */
+/*   address.   This   is   allowed   to  trigger  a  GPF,  but  the  */
+/*   DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT)  avoids  this  become  a  */
+/*   user  core  dump  or  kernel  panic.  Honor  this  bit  setting  */
+/*   appropriately for a safe journey through dtrace.		      */
 /**********************************************************************/
 int 
 dtrace_int13_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 
+	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
+		/***********************************************/
+		/*   Bad user/D script - set the flag so that  */
+		/*   the   invoking   code   can   know  what  */
+		/*   happened,  and  propagate  back  to user  */
+		/*   space, dismissing the interrupt here.     */
+		/***********************************************/
+        	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2();
+		return NOTIFY_DONE;
+		}
+
+	/***********************************************/
+	/*   If we are idle, it couldnt have been us.  */
+	/***********************************************/
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
 		return NOTIFY_KERNEL;
 
+	/***********************************************/
+	/*   Hmm...it  was  us.  Flag  something  bad  */
+	/*   happened  and try and avoid a cascade of  */
+	/*   errors.				       */
+	/***********************************************/
 	this_cpu->cpuc_regs_old = this_cpu->cpuc_regs;
 	this_cpu->cpuc_regs = regs;
 	

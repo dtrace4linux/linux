@@ -1,3 +1,12 @@
+Wed Jul 14 20:51:58 2010  fox
+
+     352* dtrace_linux.c: dtrace_int13_handler: Annotate a dtrace induced
+          segmentation violation so that the error can be propagated to
+	  the user.
+
+     351* dtrace_linux.h, dtrace_linux.c: Try and handle smp_call_function()
+          with 3 or 4 args depending on kernel version.
+
 Tue Jul 13 20:57:56 2010  fox
 
      350* driver/systrace.c: Fix sigaltstack for 2.6.32/64 bit kernel.

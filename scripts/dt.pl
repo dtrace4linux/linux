@@ -2,6 +2,15 @@
 
 # $Header:$
 
+# Author: Paul D. Fox
+#
+# Tool to wrap dtrace and provide convenience high level access
+# to some system probes (mostly syscalls)
+#
+# Avoids need to find a script when you dont know the name of the thing.
+# Designed to allow extensions to add higher level D scripts.
+#
+
 use strict;
 use warnings;
 
@@ -17,13 +26,15 @@ use POSIX;
 my %calls = (
 	chdir 	=> "chdir",
 	connect => "connect accept listen bind",
+	dir	=> "getdents",
 	exec 	=> "exec*",
 	fbt     => "",
-	file 	=> "chdir chmod chown mkdir open* rmdir remove symlink unlink",
+	file 	=> "chdir chmod chown mkdir open* rmdir symlink unlink",
 	fork 	=> "fork* vfork* clone*",
 	mkdir 	=> "mkdir",
+	mmap  	=> "mmap munmap",
 	open 	=> "open*",
-	remove 	=> "unlink* rmdir remove*",
+	remove 	=> "unlink* rmdir ",
 	socket  => "socket connect accept listen bind shutdown setsockopt getsockopt",
 	stat 	=> "lstat* stat*",
 	symlink => "symlink",
@@ -43,6 +54,7 @@ sub main
 		'help',
 		'l',
 		'secs=s',
+		'v',
 		);
 
 	usage() if ($opts{help});
@@ -51,7 +63,7 @@ sub main
 	my $mode = shift @ARGV || "scroll";
 	usage() if !$cmd;
 	usage() if !defined($calls{$cmd});
-	my $d = "#pragma D option quiet\n";
+	my $d = ""; #"#pragma D option quiet\n";
 
 	my $comma = "";
 	my $width = 16;
@@ -82,25 +94,31 @@ sub main
 	} elsif ($mode eq 'count2') {
 		print "DTrace $cmd $mode: list probes every $opts{secs}s.\n";
 		print "Ctrl-C to exit.\n";
-		$d .= "\t\@num[probefunc] = count();\n";
-		$d .= "\t\@tot[probefunc] = count();\n";
-		$d .= "}\n";
-		$d .= "tick-$opts{secs}sec {\n";
-		$d .= "\tprinta(\"%-${width}s %-32s %\@d\\n\", \@num);\n";
-		$d .= "\tclear(\@num);\n";
-		$d .= "}\n";
-		$d .= "END {\n";
-		$d .= "\tprintf(\"Grand summary:\\n\");\n";
-		$d .= "\tprinta(\"%\@-${width}s %\@-32s %\@d\\n\", \@num);\n";
+		$d .= <<EOF;
+	\@num[probefunc, execname] = count();
+	\@tot[probefunc, execname] = count();
+}
+tick-$opts{secs}sec {
+	printf("\\n");
+	printa("%-${width}s %-32s %\@d\\n", \@num);
+	clear(\@num);
+}
+END {
+	printf("Grand summary:\\n");
+	printa("%-${width}s %-32s %\@d\\n", \@tot);
+EOF
 	}
 	$d .= "}\n";
 
 	$d = "dtrace -n '$d'";
 
-	if ($opts{l}) {
+	if ($opts{v} || $opts{l}) {
+		print "### Script:\n";
 		print $d, "\n";
-		exit(0);
+		print "### End of script\n";
 	}
+	exit(0) if $opts{l};
+
 	return system($d);
 }
 #######################################################################
@@ -125,10 +143,12 @@ Commands:
   chdir   => chdir
   connect => connect accept listen bind
   exec    => exec*
+  dir     => getdents
   fbt     =>  not-applicable
   file    => chdir chmod chown mkdir open* rmdir remove symlink unlink
   fork    => fork* vfork* clone*
   mkdir   => mkdir
+  mmap    => mmap
   open    => open*
   remove  => unlink* rmdir remove*
   stat    => lstat* stat*
@@ -147,6 +167,8 @@ Mode:
 Switches:
 
   -l         List the D program without executing.
+  -secs NN   When dumping periodically, dump after NN seconds.
+  -v         List program but continue executing.
 
 Examples:
 

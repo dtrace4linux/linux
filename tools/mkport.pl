@@ -118,12 +118,20 @@ sub smp_call_function_single
 		while (<$fh>) {
 			next if !/smp_call_function_single/;
 			my $line = <$fh>;
+			###############################################
+			#   Assume   both   smp_call_function()  and  #
+			#   smp_call_function_single()     can    be  #
+			#   handled with the same 'extra' parameter.  #
+			#   Handles AS4.0 kernels.		      #
+			###############################################
 			if ($line =~ /retry|nonatomic/) {
+				$inc .= "# define FUNC_SMP_CALL_FUNCTION_4_ARGS 1\n";
 				$inc .= "# define FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS 1\n";
 			} else {
+				$inc .= "# define FUNC_SMP_CALL_FUNCTION_3_ARGS 1\n";
 				$inc .= "# define FUNC_SMP_CALL_FUNCTION_SINGLE_4_ARGS 1\n";
 			}
-print "returning $inc";
+#print "returning $inc";
 			return $inc;
 		}
 	}

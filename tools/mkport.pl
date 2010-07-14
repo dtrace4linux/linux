@@ -9,6 +9,7 @@
 # 27-Jun-2009 PDF Add support for HAVE_STACKTRACE_OPS
 # 24-Jul-2009 PDF Add support for FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS
 # 06-Jul-2010 PDF Add 'nonatomic' as a way to autodetect FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS on Centos 5.5
+# 15-Jul-2010 PDF Better parsing for SMP_CALL_FUNCTION_SINGLE_ARGS and SMP_CALL_FUNCTION_ARGS
 
 use strict;
 use warnings;
@@ -111,31 +112,44 @@ sub smp_call_function_single
 {
 	my $inc = "";
 
+	my %hash;
+
 	foreach my $smp_h ("asm/smp.h", "linux/smp.h") {
 #print "opening ... $kern/include/$smp_h\n";
 		my $fh = new FileHandle("$kern/include/$smp_h");
 		next if !$fh;
 		while (<$fh>) {
-			next if !/smp_call_function_single/;
-			my $line = <$fh>;
-			###############################################
-			#   Assume   both   smp_call_function()  and  #
-			#   smp_call_function_single()     can    be  #
-			#   handled with the same 'extra' parameter.  #
-			#   Handles AS4.0 kernels.		      #
-			###############################################
-			if ($line =~ /retry|nonatomic/) {
-				$inc .= "# define FUNC_SMP_CALL_FUNCTION_4_ARGS 1\n";
-				$inc .= "# define FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS 1\n";
-			} else {
-				$inc .= "# define FUNC_SMP_CALL_FUNCTION_3_ARGS 1\n";
-				$inc .= "# define FUNC_SMP_CALL_FUNCTION_SINGLE_4_ARGS 1\n";
+			if (/smp_call_function_single/) {
+				my $line = <$fh>;
+				###############################################
+				#   Assume   both   smp_call_function()  and  #
+				#   smp_call_function_single()     can    be  #
+				#   handled with the same 'extra' parameter.  #
+				#   Handles AS4.0 kernels.		      #
+				###############################################
+				if ($line =~ /retry|nonatomic/) {
+					$hash{SMP_CALL_FUNCTION_SINGLE_ARGS} = 5;
+				} else {
+					$hash{SMP_CALL_FUNCTION_SINGLE_ARGS} = 4;
+				}
+				next;
 			}
-#print "returning $inc";
-			return $inc;
+			if (/int\s+smp_call_function\(/) {
+				chomp;
+				$_ =~ s/[^,]//g;
+				$hash{SMP_CALL_FUNCTION_ARGS} = length($_) + 1;
+				next;
+			}
+
 		}
 	}
-	return "# define FUNC_SMP_CALL_FUNCTION_SINGLE_MISSING 1\n";
+	if (scalar(keys(%hash)) == 0) {
+		return "# define FUNC_SMP_CALL_FUNCTION_SINGLE_MISSING 1\n";
+	}
+	foreach my $k (sort(keys(%hash))) {
+		$inc .= "# define $k $hash{$k}\n";
+	}
+	return $inc;
 }
 #######################################################################
 #   Print out command line usage.				      #

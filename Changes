@@ -1,3 +1,10 @@
+Thu Jul 15 21:00:35 2010  fox
+
+     354* Better parsing for SMP_CALL_FUNCTION_SINGLE_ARGS and SMP_CALL_FUNCTION_ARGS
+
+     353* toxic.c: Add ia32_sysenter_target for x86-64 kernels when 32 bit
+          apps invoke a i386 SYSENTER syscall.
+
 Wed Jul 14 20:51:58 2010  fox
 
      352* dtrace_linux.c: dtrace_int13_handler: Annotate a dtrace induced

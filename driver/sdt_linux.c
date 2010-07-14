@@ -49,6 +49,20 @@ static sdt_probe_t		**sdt_probetab;
 static int			sdt_probetab_size;
 static int			sdt_probetab_mask;
 
+/**********************************************************************/
+/*   Easy handles to the specific providers we want to process.	      */
+/**********************************************************************/
+static sdt_provider_t *io_prov;
+
+/**********************************************************************/
+/*   Go hunting for the static io:: provider slots.		      */
+/**********************************************************************/
+static void
+io_prov_init()
+{	void *func = get_proc_addr("do_sync_read");
+
+}
+
 /*ARGSUSED*/
 static int
 sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
@@ -440,7 +454,13 @@ sdt_attach(void)
 			cmn_err(CE_WARN, "failed to register sdt provider %s",
 			    prov->sdtp_name);
 		}
+
+		if (strcmp(prov->sdtp_name, "io") == 0) {
+			io_prov = prov;
+		}
 	}
+
+	io_prov_init();
 
 	return (DDI_SUCCESS);
 }

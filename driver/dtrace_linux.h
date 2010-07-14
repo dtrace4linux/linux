@@ -336,14 +336,18 @@ int	is_kernel_text(unsigned long);
 /*   2.6.18  kernels we have 4 args and 5 on others so we cannot use  */
 /*   the KERNEL_VERSION macro to help us.			      */
 /**********************************************************************/
-#if defined(FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS)
+#if SMP_CALL_FUNCTION_SINGLE_ARGS == 5
 int smp_call_function_single(int cpuid, void (*func)(void *), void *info, int retry, int wait);
 #define SMP_CALL_FUNCTION_SINGLE(a, b, c, d) smp_call_function_single(a, b, c, 0, d)
-#define SMP_CALL_FUNCTION(a, b, c) smp_call_function(a, b, 0, c)
 #else
 int smp_call_function_single(int cpuid, void (*func)(void *), void *info, int wait);
 #define SMP_CALL_FUNCTION_SINGLE(a, b, c, d) smp_call_function_single(a, b, c, d)
+# endif
+
+#if SMP_CALL_FUNCTION_ARGS == 3
 #define SMP_CALL_FUNCTION(a, b, c) smp_call_function(a, b, c)
+#else
+#define SMP_CALL_FUNCTION(a, b, c) smp_call_function(a, b, 0, c)
 #endif
 
 # endif

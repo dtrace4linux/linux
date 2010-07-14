@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*  $Header: Last edited: 14-Jul-2009 1.1 $ 			      */
+/*  $Header: Last edited: 15-Jul-2010 1.2 $ 			      */
 /**********************************************************************/
 
 /**********************************************************************/
@@ -82,6 +82,7 @@ char toxic_probe_tbl[] = {
 	"find_task_by_vpid "
 	"get_debugreg "
 	"get_kprobe "
+	"ia32_sysenter_target "	// In x86-64 kernel, entry point for ia32 SYSENTER
 	"init_timer "
 	"int3 "
 	"iret_exc "

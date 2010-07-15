@@ -1,4 +1,11 @@
+Fri Jul 16 23:56:16 2010  fox
+
+     356* fbt_linux.c, prov_common.c: Migrate the function parser code
+          to a reusable function so we can share it with other providers.
+
 Thu Jul 15 21:00:35 2010  fox
+
+     355* archive: 1.0102
 
      354* Better parsing for SMP_CALL_FUNCTION_SINGLE_ARGS and SMP_CALL_FUNCTION_ARGS
 

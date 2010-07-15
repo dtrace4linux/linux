@@ -27,6 +27,7 @@ dtracedrv-objs := \
 	linux_pure.o \
 	missing.o \
 	profile.o \
+	prov_common.o \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \

@@ -311,6 +311,24 @@ typedef struct dsec_item_t {
 	} dsec_item_t;
 
 /**********************************************************************/
+/*   The  following  is  common for fbt/sdt so we can parse function  */
+/*   entry/return functions using shared code.			      */
+/**********************************************************************/
+typedef struct pf_info_t {
+	struct modctl	*mp;
+	par_module_t	*pmp;
+	char		*modname;
+	char		*name;
+	int		symndx;
+	int		do_print;
+	uint8_t		*st_value;
+	int		(*func_entry)(struct pf_info_t *, uint8_t *, int, int);
+	int		(*func_return)(struct pf_info_t *, uint8_t *, int);
+	void		*retptr;
+	} pf_info_t;
+void dtrace_parse_function(pf_info_t *, uint8_t *, uint8_t *);
+
+/**********************************************************************/
 /*   Stats   counters   -  for  seeing  where  we  got  to:  ad  hoc  */
 /*   debugging/performance monitoring.				      */
 /**********************************************************************/

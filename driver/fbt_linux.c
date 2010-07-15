@@ -538,201 +538,21 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 		}
 }
 
-/**********************************************************************/
-/*   Common code to handle module and kernel functions.		      */
-/**********************************************************************/
-static void
-fbt_provide_function(struct modctl *mp, par_module_t *pmp,
-	char *modname, char *name, uint8_t *st_value,
-	uint8_t *instr, uint8_t *limit, int symndx)
+static int
+fbt_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
 {
-	int	do_print = FALSE;
-	int	invop = 0;
-	fbt_probe_t *fbt, *retfbt;
-	int	size;
-	int	modrm;
-
-	/***********************************************/
-	/*   Dont  let  us  register  anything on the  */
-	/*   notifier list(s) we are on, else we will  */
-	/*   have recursion trouble.		       */
-	/***********************************************/
-	if (on_notifier_list(instr)) {
-		printk("fbt_provide_function: Skip %s:%s - on notifier_chain\n",
-			modname, name);
-		return;
-	}
-
-# define UNHANDLED_FBT() if (do_print || dtrace_unhandled) { \
-		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
-			name, instr, instr[0], instr[1], instr[2], instr[3]); \
-			}
-
-	/***********************************************/
-	/*   Make sure we dont try and handle data or  */
-	/*   bad instructions.			       */
-	/***********************************************/
-	if ((size = dtrace_instr_size_modrm(instr, &modrm)) <= 0)
-		return;
-
-	/***********************************************/
-	/*   Allow  us  to  work on a single function  */
-	/*   for  debugging/tracing  else we generate  */
-	/*   too  much  printk() output and swamp the  */
-	/*   log daemon.			       */
-	/***********************************************/
-//	do_print = strncmp(name, "update_process", 9) == NULL;
-
-#ifdef __amd64
-// am not happy with 0xe8 CALLR instructions, so disable them for now.
-if (*instr == 0xe8) return;
-	invop = DTRACE_INVOP_ANY;
-	switch (instr[0] & 0xf0) {
-	  case 0x00:
-	  case 0x10:
-	  case 0x20:
-	  case 0x30:
-	  	break;
-
-	  case 0x40:
-	  	if (instr[0] == 0x48 && instr[1] == 0xcf)
-			return;
-	  	break;
-
-	  case 0x50:
-	  case 0x60:
-	  case 0x70:
-	  case 0x80:
-	  case 0x90:
-	  case 0xa0:
-	  case 0xb0:
-		break;
-	  case 0xc0:
-	  	/***********************************************/
-	  	/*   We  cannot  single step an IRET for now,  */
-	  	/*   so just ditch them as potential probes.   */
-	  	/***********************************************/
-	  	if (instr[0] == 0xcf)
-			return;
-		break;
-	  case 0xd0:
-	  case 0xe0:
-		break;
-	  case 0xf0:
-	  	/***********************************************/
-	  	/*   This  doesnt  work - if we single step a  */
-	  	/*   HLT, well, the kernel doesnt really like  */
-	  	/*   it.				       */
-	  	/***********************************************/
-	  	if (instr[0] == 0xf4)
-			return;
-
-//		printk("fbt:F instr %s:%p size=%d %02x %02x %02x %02x %02x %02x\n", name, instr, size, instr[0], instr[1], instr[2], instr[3], instr[4], instr[5]);
-		break;
-	  }
-#else
-	/***********************************************/
-	/*   GCC    generates   lots   of   different  */
-	/*   assembler  functions plus we have inline  */
-	/*   assembler  to  deal  with.  We break the  */
-	/*   opcodes  down  into groups, which helped  */
-	/*   during  debugging,  or  if  we  need  to  */
-	/*   single  out  specific  opcodes,  but for  */
-	/*   now,   we  can  pretty  much  allow  all  */
-	/*   opcodes.  (Apart  from HLT - which I may  */
-	/*   get around to fixing).		       */
-	/***********************************************/
-	invop = DTRACE_INVOP_ANY;
-	switch (instr[0] & 0xf0) {
-	  case 0x00:
-	  case 0x10:
-	  case 0x20:
-	  case 0x30:
-	  case 0x40:
-	  case 0x50:
-	  case 0x60:
-	  case 0x70:
-	  case 0x80:
-	  case 0x90:
-	  case 0xa0:
-	  case 0xb0:
-		break;
-	  case 0xc0:
-	  	/***********************************************/
-	  	/*   We  cannot  single step an IRET for now,  */
-	  	/*   so just ditch them as potential probes.   */
-	  	/***********************************************/
-	  	if (instr[0] == 0xcf)
-			return;
-		break;
-	  case 0xd0:
-	  case 0xe0:
-		break;
-	  case 0xf0:
-	  	/***********************************************/
-	  	/*   This  doesnt  work - if we single step a  */
-	  	/*   HLT, well, the kernel doesnt really like  */
-	  	/*   it.				       */
-	  	/***********************************************/
-	  	if (instr[0] == 0xf4)
-			return;
-
-//		printk("fbt:F instr %s:%p size=%d %02x %02x %02x %02x %02x %02x\n", name, instr, size, instr[0], instr[1], instr[2], instr[3], instr[4], instr[5]);
-		break;
-	  }
-#endif
-	/***********************************************/
-	/*   Handle  fact we may not be ready to cope  */
-	/*   with this instruction yet.		       */
-	/***********************************************/
-	if (invop == 0) {
-		UNHANDLED_FBT();
-		return;
-	}
-
-	/***********************************************/
-	/*   Make  sure  this  doesnt overlap another  */
-	/*   sym. We are in trouble when this happens  */
-	/*   - eg we will mistaken what the emulation  */
-	/*   is  for,  but  also,  it means something  */
-	/*   strange  happens, like kernel is reusing  */
-	/*   a  page  (eg  for init/exit section of a  */
-	/*   module).				       */
-	/***********************************************/
-	if (fbt_is_patched(name, instr))
-		return;
-/*if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) {
-static char buf[128];
-sprintf(buf, "MODRM_%s", name);
-name = buf;
-}
-*/
-	/***********************************************/
-	/*   Special code here for debugging - we can  */
-	/*   make  the  name of a probe a function of  */
-	/*   the  instruction, so we can validate and  */
-	/*   binary search to find faulty instruction  */
-	/*   stepping code in cpu_x86.c		       */
-	/***********************************************/
-	if (fbt_name_opcodes) {
-		static char buf[128];
-		if (fbt_name_opcodes == 2)
-			snprintf(buf, sizeof buf, "x%02x%02x_%s", *instr, instr[1], name);
-		else
-			snprintf(buf, sizeof buf, "x%02x_%s", *instr, name);
-		name = buf;
-	}
+	fbt_probe_t *fbt;
 
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-	fbt->fbtp_name = name;
+	fbt->fbtp_name = infp->name;
 
-	fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
-	    name, FBT_ENTRY, 3, fbt);
+	fbt->fbtp_id = dtrace_probe_create(fbt_id, infp->modname,
+	    infp->name, FBT_ENTRY, 3, fbt);
 	num_probes++;
 	fbt->fbtp_patchpoint = instr;
-	fbt->fbtp_ctl = mp; // ctl;
-	fbt->fbtp_loadcnt = get_refcount(mp);
-	fbt->fbtp_rval = invop;
+	fbt->fbtp_ctl = infp->mp; // ctl;
+	fbt->fbtp_loadcnt = get_refcount(infp->mp);
+	fbt->fbtp_rval = DTRACE_INVOP_ANY;
 	/***********************************************/
 	/*   Save  potential overwrite of instruction  */
 	/*   and  length,  because  we  will need the  */
@@ -746,128 +566,60 @@ name = buf;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
-	fbt->fbtp_symndx = symndx;
+	fbt->fbtp_symndx = infp->symndx;
 	fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
-	if (do_print)
-		printk("%d:alloc entry-patchpoint: %s %p invop=%x sz=%d %02x %02x %02x\n", 
-			__LINE__, 
-			name, 
-			fbt->fbtp_patchpoint, 
-			fbt->fbtp_rval, 
-			fbt->fbtp_inslen,
-			instr[0], instr[1], instr[2]);
+	infp->pmp->fbt_nentries++;
+	infp->retptr = NULL;
 
-	pmp->fbt_nentries++;
-
-	retfbt = NULL;
-
-	/***********************************************/
-	/*   This   point   is   part   of   a   loop  */
-	/*   (implemented  with goto) to find the end  */
-	/*   part  of  a  function.  Original Solaris  */
-	/*   code assumes a single exit, via RET, for  */
-	/*   amd64,  but  is more accepting for i386.  */
-	/*   However,  with  GCC  as a compiler a lot  */
-	/*   more    things   can   happen   -   very  */
-	/*   specifically,  we can have multiple exit  */
-	/*   points in a function. So we need to find  */
-	/*   each of those.			       */
-	/***********************************************/
-again:
-	if (instr >= limit) {
-		return;
-	}
-
-	/*
-	 * If this disassembly fails, then we've likely walked off into
-	 * a jump table or some other unsuitable area.  Bail out of the
-	 * disassembly now.
-	 */
-	if ((size = dtrace_instr_size(instr)) <= 0)
-		return;
-
-//HERE();
-#ifdef __amd64
-	/*
-	 * We only instrument "ret" on amd64 -- we don't yet instrument
-	 * ret imm16, largely because the compiler doesn't seem to
-	 * (yet) emit them in the kernel...
-	 */
-	switch (*instr) {
-	  case FBT_RET:
-		invop = DTRACE_INVOP_RET;
-		break;
-	  default:
-		instr += size;
-		goto again;
-	  }
-#else
-	switch (*instr) {
-/*		  case FBT_POPL_EBP:
-		invop = DTRACE_INVOP_POPL_EBP;
-		break;
-	  case FBT_LEAVE:
-		invop = DTRACE_INVOP_LEAVE;
-		break;
-*/
-	  case FBT_RET:
-		invop = DTRACE_INVOP_RET;
-		break;
-	  case FBT_RET_IMM16:
-		invop = DTRACE_INVOP_RET_IMM16;
-		break;
-	  /***********************************************/
-	  /*   Some  functions  can end in a jump, e.g.	 */
-	  /*   security_file_permission has an indirect	 */
-	  /*   jmp.  Dont  think we care too much about	 */
-	  /*   this,  but  we  could  handle direct and	 */
-	  /*   indirect jumps out of the function body.	 */
-	  /***********************************************/
-	  default:
-		instr += size;
-		goto again;
-	  }
-#endif
+	return 1;
+}
+/**********************************************************************/
+/*   Create  a  new  entry  for  a  function  entry,  possible daisy  */
+/*   chaining  the  multiple exits together (so that the probe names  */
+/*   represent the entire suite).				      */
+/**********************************************************************/
+static int
+fbt_prov_return(pf_info_t *infp, uint8_t *instr, int size)
+{
+	fbt_probe_t *fbt;
+	fbt_probe_t *retfbt = infp->retptr;
 
 	/***********************************************/
 	/*   Sanity check for bad things happening.    */
 	/***********************************************/
-	if (fbt_is_patched(name, instr)) {
-		instr += size;
-		goto again;
+	if (fbt_is_patched(infp->name, instr)) {
+		return 0;
 	}
-	/*
-	 * We have a winner!
-	 */
+
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
-	fbt->fbtp_name = name;
+	fbt->fbtp_name = infp->name;
 
 	if (retfbt == NULL) {
-		fbt->fbtp_id = dtrace_probe_create(fbt_id, modname,
-		    name, FBT_RETURN, 3, fbt);
+		fbt->fbtp_id = dtrace_probe_create(fbt_id, infp->modname,
+		    infp->name, FBT_RETURN, 3, fbt);
 		num_probes++;
 	} else {
 		retfbt->fbtp_next = fbt;
 		fbt->fbtp_id = retfbt->fbtp_id;
 	}
-	retfbt = fbt;
+	infp->retptr = fbt;
 	fbt->fbtp_patchpoint = instr;
-	fbt->fbtp_ctl = mp; //ctl;
-	fbt->fbtp_loadcnt = get_refcount(mp);
+	fbt->fbtp_ctl = infp->mp; //ctl;
+	fbt->fbtp_loadcnt = get_refcount(infp->mp);
 
 	/***********************************************/
 	/*   Swapped  sense  of  the  following ifdef  */
 	/*   around so we are consistent.	       */
 	/***********************************************/
-	fbt->fbtp_rval = invop;
+	fbt->fbtp_rval = DTRACE_INVOP_ANY;
 #ifdef __amd64
 	ASSERT(*instr == FBT_RET);
 	fbt->fbtp_roffset =
-	    (uintptr_t)(instr - (uint8_t *)st_value);
+	    (uintptr_t)(instr - (uint8_t *)infp->st_value);
 #else
 	fbt->fbtp_roffset =
-	    (uintptr_t)(instr - (uint8_t *)st_value) + 1;
+	    (uintptr_t)(instr - (uint8_t *)infp->st_value) + 1;
 
 #endif
 
@@ -882,18 +634,35 @@ again:
 	fbt->fbtp_modrm = -1;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
-	fbt->fbtp_symndx = symndx;
-
-	if (do_print) {
-		printk("%d:alloc return-patchpoint: %s %p: %02x %02x invop=%d\n", __LINE__, name, instr, instr[0], instr[1], invop);
-	}
+	fbt->fbtp_symndx = infp->symndx;
 
 	fbt_probetab[FBT_ADDR2NDX(instr)] = fbt;
 
-	pmp->fbt_nentries++;
+	infp->pmp->fbt_nentries++;
+	return 1;
+}
+/**********************************************************************/
+/*   Common code to handle module and kernel functions.		      */
+/**********************************************************************/
+static void
+fbt_provide_function(struct modctl *mp, par_module_t *pmp,
+	char *modname, char *name, uint8_t *st_value,
+	uint8_t *instr, uint8_t *limit, int symndx)
+{
+	pf_info_t	inf;
 
-	instr += size;
-	goto again;
+	inf.mp = mp;
+	inf.pmp = pmp;
+	inf.modname = modname;
+	inf.name = name;
+	inf.symndx = symndx;
+	inf.st_value = st_value;
+	inf.do_print = FALSE;
+
+	inf.func_entry = fbt_prov_entry;
+	inf.func_return = fbt_prov_return;
+
+	dtrace_parse_function(&inf, instr, limit);
 }
 /*ARGSUSED*/
 static void

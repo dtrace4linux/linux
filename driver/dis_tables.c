@@ -28,8 +28,9 @@
 /*	  All Rights Reserved  	*/
 
 
-//#pragma ident	"@(#)dis_tables.c	1.17	08/02/25 SMI"
+//#pragma ident	"@(#)dis_tables.c	1.18	08/05/24 SMI"
 
+#if defined(linux)
 typedef unsigned int uint_t;
 typedef unsigned long long uint64_t;
 typedef unsigned char uchar_t;
@@ -37,8 +38,8 @@ typedef unsigned int size_t;
 typedef unsigned char uint8_t;
 # define uintptr_t unsigned long
 # define NULL 0
+#endif
 
-//#include	<linux_types.h>
 #include	"dis_tables.h"
 
 /* BEGIN CSTYLED */
@@ -998,7 +999,12 @@ const instable_t dis_op0F[16][16] = {
 /*  [10]  */	TNSZ("movups",XMMO,16),	TNSZ("movups",XMMOS,16),TNSZ("movlps",XMMO,8),	TNSZ("movlps",XMMOS,8),
 /*  [14]  */	TNSZ("unpcklps",XMMO,16),TNSZ("unpckhps",XMMO,16),TNSZ("movhps",XMMOM,8),TNSZ("movhps",XMMOMS,8),
 /*  [18]  */	IND(dis_op0F18),	INVALID,		INVALID,		INVALID,
+#if defined(__APPLE__) || defined(linux)
+/* Need to handle multi-byte NOP */
+/*  [1C]  */	INVALID,		INVALID,		INVALID,		TS("nop",Mw),
+#else
 /*  [1C]  */	INVALID,		INVALID,		INVALID,		INVALID,
+#endif
 }, {
 /*  [20]  */	TSy("mov",SREG),	TSy("mov",SREG),	TSy("mov",SREG),	TSy("mov",SREG),
 /*  [24]  */	TSx("mov",SREG),	INVALID,		TSx("mov",SREG),	INVALID,
@@ -1329,14 +1335,30 @@ const instable_t dis_distable[16][16] = {
 /* [1,C] */	TNS("sbbb",IA),		TS("sbb",IA),		TSx("push",SEG),	TSx("pop",SEG),
 }, {
 /* [2,0] */	TNS("andb",RMw),	TS("and",RMw),		TNS("andb",MRw),	TS("and",MRw),
+#if defined(__APPLE__) || defined(linux)
+/* [2,4] */	TNS("andb",IA),		TS("and",IA),		TNS("%es:",OVERRIDE),	TNSx("daa",NORM),
+#else
 /* [2,4] */	TNS("andb",IA),		TS("and",IA),		TNSx("%es:",OVERRIDE),	TNSx("daa",NORM),
+#endif
 /* [2,8] */	TNS("subb",RMw),	TS("sub",RMw),		TNS("subb",MRw),	TS("sub",MRw),
+#if defined(__APPLE__) || defined(linux)
+/* [2,C] */	TNS("subb",IA),		TS("sub",IA),		TNS("%cs:",OVERRIDE),	TNSx("das",NORM),
+#else
 /* [2,C] */	TNS("subb",IA),		TS("sub",IA),		TNSx("%cs:",OVERRIDE),	TNSx("das",NORM),
+#endif
 }, {
 /* [3,0] */	TNS("xorb",RMw),	TS("xor",RMw),		TNS("xorb",MRw),	TS("xor",MRw),
+#if defined(__APPLE__) || defined(linux)
+/* [3,4] */	TNS("xorb",IA),		TS("xor",IA),		TNS("%ss:",OVERRIDE),	TNSx("aaa",NORM),
+#else
 /* [3,4] */	TNS("xorb",IA),		TS("xor",IA),		TNSx("%ss:",OVERRIDE),	TNSx("aaa",NORM),
+#endif
 /* [3,8] */	TNS("cmpb",RMw),	TS("cmp",RMw),		TNS("cmpb",MRw),	TS("cmp",MRw),
+#if defined(__APPLE__) || defined(linux)
+/* [3,C] */	TNS("cmpb",IA),		TS("cmp",IA),		TNS("%ds:",OVERRIDE),	TNSx("aas",NORM),
+#else
 /* [3,C] */	TNS("cmpb",IA),		TS("cmp",IA),		TNSx("%ds:",OVERRIDE),	TNSx("aas",NORM),
+#endif
 }, {
 /* [4,0] */	TSx("inc",R),		TSx("inc",R),		TSx("inc",R),		TSx("inc",R),
 /* [4,4] */	TSx("inc",R),		TSx("inc",R),		TSx("inc",R),		TSx("inc",R),
@@ -1421,9 +1443,6 @@ const instable_t dis_distable[16][16] = {
 #define	REX_R 0x04	/* high order bit extension of ModRM reg field */
 #define	REX_X 0x02	/* high order bit extension of SIB index field */
 #define	REX_B 0x01	/* extends ModRM r_m, SIB base, or opcode reg */
-
-static uint_t opnd_size;	/* SIZE16, SIZE32 or SIZE64 */
-static uint_t addr_size;	/* SIZE16, SIZE32 or SIZE64 */
 
 /*
  * Even in 64 bit mode, usually only 4 byte immediate operands are supported.
@@ -1917,6 +1936,8 @@ dtrace_disx86(dis86_t *x, uint_t cpu_mode)
 #else
 #define	NOMEM	/* nothing */
 #endif
+	uint_t opnd_size;	/* SIZE16, SIZE32 or SIZE64 */
+	uint_t addr_size;	/* SIZE16, SIZE32 or SIZE64 */
 	uint_t wbit = 0;	/* opcode wbit, 0 is 8 bit, !0 for opnd_size */
 	uint_t w2;		/* wbit value for second operand */
 	uint_t vbit;

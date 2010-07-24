@@ -319,6 +319,7 @@ typedef struct pf_info_t {
 	par_module_t	*pmp;
 	char		*modname;
 	char		*name;
+	char		*name2;	/* Name of the 'return' part of the probes. */
 	int		symndx;
 	int		do_print;
 	uint8_t		*st_value;
@@ -327,6 +328,7 @@ typedef struct pf_info_t {
 	void		*retptr;
 	} pf_info_t;
 void dtrace_parse_function(pf_info_t *, uint8_t *, uint8_t *);
+int dtrace_function_size(char *name, uintptr_t *start, int *size);
 
 /**********************************************************************/
 /*   Stats   counters   -  for  seeing  where  we  got  to:  ad  hoc  */

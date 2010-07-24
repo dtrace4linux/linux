@@ -38,7 +38,20 @@
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
 
-#define	SDT_PATCHVAL	0xf0
+# define regs pt_regs
+#include <sys/stack.h>
+#include <sys/frame.h>
+#include <sys/privregs.h>
+
+/**********************************************************************/
+/*   Make the Linux patch an INT3 instruction.			      */
+/**********************************************************************/
+#if defined(linux)
+#  define	SDT_PATCHVAL	0xcc
+#else
+#  define	SDT_PATCHVAL	0xf0
+#endif
+
 #define	SDT_ADDR2NDX(addr)	((((uintptr_t)(addr)) >> 4) & sdt_probetab_mask)
 #define	SDT_PROBETAB_SIZE	0x1000		/* 4k entries -- 16K total */
 
@@ -57,9 +70,103 @@ static sdt_provider_t *io_prov;
 /**********************************************************************/
 /*   Go hunting for the static io:: provider slots.		      */
 /**********************************************************************/
-static void
-io_prov_init()
-{	void *func = get_proc_addr("do_sync_read");
+static int
+io_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
+{
+	sdt_probe_t *sdp;
+	sdt_provider_t *prov;
+	uint8_t *offset;
+	char	*name;
+
+printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
+
+	for (prov = sdt_providers; prov->sdtp_prefix != NULL; prov++) {
+		if (strcmp(prov->sdtp_name, infp->modname) == 0)
+			break;
+	}
+	name = kstrdup(infp->name, KM_SLEEP);
+	sdp = kmem_zalloc(sizeof (sdt_probe_t), KM_SLEEP);
+	sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
+			    NULL, name, NULL, 3, sdp);
+	sdp->sdp_name = name;
+	sdp->sdp_namelen = strlen(name);
+	sdp->sdp_inslen = size;
+	sdp->sdp_modrm = modrm;
+
+	/***********************************************/
+	/*   Add the entry to the hash table.	       */
+	/***********************************************/
+	offset = instr;
+	sdp->sdp_hashnext =
+	    sdt_probetab[SDT_ADDR2NDX(offset)];
+	sdt_probetab[SDT_ADDR2NDX(offset)] = sdp;
+
+	sdp->sdp_patchval = SDT_PATCHVAL;
+	sdp->sdp_patchpoint = (uint8_t *)offset;
+	sdp->sdp_savedval = *sdp->sdp_patchpoint;
+	return 1;
+}
+static int
+io_prov_return(pf_info_t *infp, uint8_t *instr, int size)
+{
+	sdt_probe_t *sdp;
+	sdt_provider_t *prov;
+	uint8_t *offset;
+	char	*name;
+
+printk("io_prov_return called %s:%s\n", infp->modname, infp->name);
+
+	for (prov = sdt_providers; prov->sdtp_prefix != NULL; prov++) {
+		if (strcmp(prov->sdtp_name, infp->modname) == 0)
+			break;
+	}
+	name = kstrdup(infp->name2, KM_SLEEP);
+	sdp = kmem_zalloc(sizeof (sdt_probe_t), KM_SLEEP);
+	sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
+			    NULL, name, NULL, 3, sdp);
+	sdp->sdp_name = name;
+	sdp->sdp_namelen = strlen(name);
+	sdp->sdp_inslen = size;
+
+	/***********************************************/
+	/*   Add the entry to the hash table.	       */
+	/***********************************************/
+	offset = instr;
+	sdp->sdp_hashnext =
+	    sdt_probetab[SDT_ADDR2NDX(offset)];
+	sdt_probetab[SDT_ADDR2NDX(offset)] = sdp;
+
+	sdp->sdp_patchval = SDT_PATCHVAL;
+	sdp->sdp_patchpoint = (uint8_t *)offset;
+	sdp->sdp_savedval = *sdp->sdp_patchpoint;
+	return 1;
+}
+/**********************************************************************/
+/*   Function called from dtrace_linux.c:dtrace_linux_init after the  */
+/*   various  symtab hooks are setup so we can find the functions we  */
+/*   are after.							      */
+/**********************************************************************/
+void
+io_prov_init(void)
+{	char *func = "do_sync_read";
+	pf_info_t	inf;
+	uintptr_t	*start;
+	int		size;
+
+	if (dtrace_function_size(func, &start, &size) == 0) {
+		printk("sdt_linux: cannot locate %s\n", func);
+		return;
+	}
+
+	memset(&inf, 0, sizeof inf);
+	inf.modname = "io";
+	inf.name = "start";
+	inf.name2 = "done";
+
+	inf.func_entry = io_prov_entry;
+	inf.func_return = io_prov_return;
+
+	dtrace_parse_function(&inf, start, start + size);
 
 }
 
@@ -81,7 +188,11 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 #endif
 
 	for (; sdt != NULL; sdt = sdt->sdp_hashnext) {
+//printk("sdt_invop %p %p\n", sdt->sdp_patchpoint, addr);
 		if ((uintptr_t)sdt->sdp_patchpoint == addr) {
+			tinfo->t_opcode = sdt->sdp_savedval;
+			tinfo->t_inslen = sdt->sdp_inslen;
+			tinfo->t_modrm = sdt->sdp_modrm;
 			/***********************************************/
 			/*   Dont fire probe if this is unsafe.	       */
 			/***********************************************/
@@ -289,10 +400,14 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	while (sdp != NULL) {
-		*sdp->sdp_patchpoint = sdp->sdp_patchval;
+		/***********************************************/
+		/*   Kernel  code  wil be write protected, so  */
+		/*   try and unprotect it.		       */
+		/***********************************************/
+		if (memory_set_rw(sdp->sdp_patchpoint, 1, TRUE))
+			*sdp->sdp_patchpoint = sdp->sdp_patchval;
 		sdp = sdp->sdp_next;
 	}
-
 	return 0;
 }
 
@@ -312,7 +427,16 @@ sdt_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	while (sdp != NULL) {
-		*sdp->sdp_patchpoint = sdp->sdp_savedval;
+		/***********************************************/
+		/*   Memory  should  be  writable,  but if we  */
+		/*   failed  in  the  sdt_enable  code,  e.g.  */
+		/*   because   we  failed  to  unprotect  the  */
+		/*   memory  page,  then dont try and unpatch  */
+		/*   something we didnt patch.		       */
+		/***********************************************/
+		if (*sdp->sdp_patchpoint == sdp->sdp_patchval) {
+			*sdp->sdp_patchpoint = sdp->sdp_savedval;
+		}
 		sdp = sdp->sdp_next;
 	}
 }
@@ -322,21 +446,28 @@ uint64_t
 sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 {
 	uintptr_t val;
-//	struct frame *fp = (struct frame *)dtrace_getfp();
+	struct frame *fp = (struct frame *)dtrace_getfp();
 	uintptr_t *stack = NULL;
-//	int i;
+	int i;
 #if defined(__amd64)
 	/*
 	 * A total of 6 arguments are passed via registers; any argument with
 	 * index of 5 or lower is therefore in a register.
 	 */
-//	int inreg = 5;
+	int inreg = 5;
 #endif
 
-# if defined(TODOxxx)
-	// TODO ... we dont have the struct frame in scope... disable for now
 	for (i = 1; i <= aframes; i++) {
+printk("i=%d fp=%p aframes=%d\n", i, fp, aframes);
 		fp = (struct frame *)(fp->fr_savfp);
+#if defined(linux)
+		/***********************************************/
+		/*   Temporary hack - not sure which stack we  */
+		/*   have here and it is faultiing us.	       */
+		/***********************************************/
+		if (fp == NULL)
+			return 0;
+#endif
 
 		if (fp->fr_savpc == (pc_t)dtrace_invop_callsite) {
 #if !defined(__amd64)
@@ -400,7 +531,6 @@ sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 	stack = (uintptr_t *)&fp[1];
 
 load:
-#endif /* TODOxxx*/
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	val = stack[argno];
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
@@ -459,8 +589,6 @@ sdt_attach(void)
 			io_prov = prov;
 		}
 	}
-
-	io_prov_init();
 
 	return (DDI_SUCCESS);
 }

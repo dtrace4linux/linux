@@ -63,6 +63,10 @@ typedef struct sdt_probe {
 	sdt_instr_t	sdp_savedval;		/* saved instruction value */
 	struct sdt_probe *sdp_next;		/* next probe */
 	struct sdt_probe *sdp_hashnext;		/* next on hash */
+#if defined(linux)
+	char		sdp_modrm;
+	uint8_t		sdp_inslen;	/* Length of instr we are patching */
+#endif
 } sdt_probe_t;
 
 typedef struct sdt_argdesc {

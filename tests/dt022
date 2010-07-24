@@ -1,0 +1,14 @@
+/* Script to investigate a kernel panic 
+Author: John Blanchard <yantom56 at hotmail dot com>
+*/
+
+*::*socket*:entry
+
+/pid == 23738/
+
+{
+
+    /* if we use *socket*, it will cause kernel crash */
+
+}
+

@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 14-Jul-2010 1.8 $ 			      */
+/*   $Header: Last edited: 24-Jul-2010 1.9 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -241,6 +241,7 @@ int	sdt_init(void);
 void	sdt_exit(void);
 int	systrace_init(void);
 void	systrace_exit(void);
+void	io_prov_init(void);
 static void print_pte(pte_t *pte, int level);
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -710,6 +711,11 @@ static int first_time = TRUE;
 		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
 //		set_idt_entry(14, (unsigned long) dtrace_page_fault);
 	}
+
+	/***********************************************/
+	/*   Initialise the io provider.	       */
+	/***********************************************/
+	io_prov_init();
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */

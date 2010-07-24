@@ -6,17 +6,49 @@
 /*   								      */
 /*   License: GPL3						      */
 /*   								      */
-/*   $Header: Last edited: 16-Jul-2010 1.9 $ 			      */
+/*   $Header: Last edited: 25-Jul-2010 1.10 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <dtrace_proto.h>
+#include <linux/kallsyms.h>
 
 extern int dtrace_unhandled;
 extern int fbt_name_opcodes;
 
+static	const char *(*my_kallsyms_lookup)(unsigned long addr,
+                        unsigned long *symbolsize,
+                        unsigned long *offset,
+                        char **modname, char *namebuf);
+
+/**********************************************************************/
+/*   Find a function and compute the size of the function, so we can  */
+/*   disassemble it.						      */
+/**********************************************************************/
+int
+dtrace_function_size(char *name, uintptr_t *start, int *size)
+{
+	unsigned long addr;
+	unsigned long symsize = 0;
+	unsigned long offset;
+	char	*modname = NULL;
+	char	namebuf[KSYM_NAME_LEN];
+
+	if ((addr = get_proc_addr(name)) == 0)
+		return 0;
+
+	if (my_kallsyms_lookup == NULL) {
+		my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
+		}
+
+	my_kallsyms_lookup(addr, &symsize, &offset, &modname, namebuf);
+	printk("dtrace_function_size: %s %p size=%d\n", name, addr, symsize);
+	*size = symsize;
+	*start = addr;
+	return 1;
+}
 /**********************************************************************/
 /*   Function  to  parse a function - so we can create the probes on  */
 /*   the  start  and  (multiple) return exits. We call this from FBT  */
@@ -62,7 +94,7 @@ dtrace_parse_function(pf_info_t *infp, uint8_t *instr, uint8_t *limit)
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-//	do_print = strncmp(name, "update_process", 9) == NULL;
+//	do_print = strncmp(infp->name, "start", 9) == NULL;
 
 #ifdef __amd64
 // am not happy with 0xe8 CALLR instructions, so disable them for now.
@@ -215,7 +247,9 @@ if (*instr == 0xe8) return;
 		 * a jump table or some other unsuitable area.  Bail out of the
 		 * disassembly now.
 		 */
-		if ((size = dtrace_instr_size(instr)) <= 0)
+		size = dtrace_instr_size(instr);
+if (do_print) {printk("%p: sz=%d %02x %02x %02x %02x %02x\n", instr, size, instr[0], instr[1], instr[2], instr[3], instr[4]);}
+		if (size <= 0)
 			return;
 
 #define	FBT_RET			0xc3

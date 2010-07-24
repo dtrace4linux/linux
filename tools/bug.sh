@@ -23,6 +23,7 @@ cat <<EOF | tee $file
 == Latest news and blog updates on dtrace available here. Please
 == check for latest problem reports.
 ==
+== http://crtags.blogspot.com
 == http://www.crisp.demon.co.uk/blog/
 ==
 == Latest downloads available from here:
@@ -36,9 +37,11 @@ EOF
 cat .release
 pwd
 date
-uname -a
-gcc -v
-ld -v
+echo "\$ uname -a:" ; uname -a
+echo "\$ cat /etc/lsb-release" ; cat /etc/lsb-release
+echo "\$cat /etc/motd" ; cat /etc/motd
+echo "\$ gcc -v" ; gcc -v
+echo "\$ ld -v" ; ld -v
 flex --version
 bison --version
 cat /proc/cpuinfo | grep processor

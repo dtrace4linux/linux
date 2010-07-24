@@ -31,6 +31,7 @@ my %calls = (
 	fbt     => "",
 	file 	=> "chdir chmod chown mkdir open* rmdir symlink unlink",
 	fork 	=> "fork* vfork* clone*",
+	io      => "",
 	mkdir 	=> "mkdir",
 	mmap  	=> "mmap munmap",
 	open 	=> "open*",
@@ -69,6 +70,9 @@ sub main
 	my $width = 16;
 	if ($cmd eq 'fbt') {
 		$d .= "fbt:::entry";
+		$width = 25;
+	} elsif ($cmd eq 'io') {
+		$d .= "io:::start";
 		$width = 25;
 	} else {
 		foreach my $call (split(" ", $calls{$cmd})) {

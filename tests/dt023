@@ -1,0 +1,20 @@
+/*
+*/
+
+#pragma options quiet
+typedef struct buf_t {
+	int	a1, a2, a3, a4, a5, a6;
+	} buf_t;
+
+io::start:
+{
+
+	printf("%s\narg0=%p %p %p %p %p\n", execname, arg0, arg1, arg2, arg3, arg4);
+	printf("x=%x %x %x %x\n", 
+		((buf_t *) arg0)->a1,
+		((buf_t *) arg0)->a2,
+		((buf_t *) arg0)->a3,
+		((buf_t *) arg0)->a4);
+
+}
+

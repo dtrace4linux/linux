@@ -1,3 +1,13 @@
+Mon Jul 26 15:38:00 2010  fox
+
+     363* uncompress.c, mkport.pl: Allow us to not have zlib functions in 
+          kernel. Dtrace mostly works without this, but may affect the 
+	  ctf functions.
+
+     362* tools/mkport.pl: Fix for Debian 4-i386 kernel (smp_call_function_single)
+
+     361* dtrace_isa.c: Fix for Debian 4-i386 kernel (2.6.24)
+
 Sun Jul 25 20:18:41 2010  fox
 
      360* archive: 1.0103

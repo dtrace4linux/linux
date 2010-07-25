@@ -55,6 +55,12 @@ sub main
 	usage() if ($opts{help});
 	if (! -f "$ENV{HOME}/bin/setuid" ) {
 		$SUDO = "sudo";
+		if (! -f "/usr/bin/sudo" && ! -f "/usr/sbin/sudo") {
+			$SUDO = "";
+		}
+	}
+	if (getuid() == 0) {
+		$SUDO = "";
 	}
 	my $tstart = time();
 	print time_string() . "Syncing...\n";

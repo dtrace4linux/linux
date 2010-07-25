@@ -2,6 +2,7 @@
 
 	# include <linux_types.h>
 	# include <linux/zlib.h>
+	# include "../port.h"
 
 # else
 
@@ -16,6 +17,9 @@ static char *last_err;
 
 int ctf_uncompress (char *dest, int *destLen, char *source, int sourceLen)
 {
+#if defined(DO_NOT_HAVE_ZLIB_IN_KERNEL)
+	return Z_BUF_ERROR;
+#else
 	z_stream stream;
 	int err;
 
@@ -45,6 +49,7 @@ int ctf_uncompress (char *dest, int *destLen, char *source, int sourceLen)
 
 	err = zlib_inflateEnd(&stream);
 	return err;
+#endif
 }
 char *
 ctf_zstrerror(void)

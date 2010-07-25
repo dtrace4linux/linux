@@ -35,15 +35,22 @@ sub main
 	if ($str !~ /zlib/i) {
 		$dirty = 1;
 		print <<EOF;
-Your kernel does not have the zlib compression routines 
-available, and you will likely have problems loading
-the dtrace driver into your kernel. You may want to fix that
-or try another kernel/distribution (Debian 5 appears to be
-one such known distro).
+ =================================================================
+ === NOTE:
+ === Your kernel does not have the zlib compression routines 
+ === available, and you will likely have problems loading
+ === the dtrace driver into your kernel. You may want to fix that
+ === or try another kernel/distribution (Debian 5 appears to be
+ === one such known distro).
+ =================================================================
 EOF
 	}
 
-	if ($dirty) {
+	###############################################
+	#   I     dont    like    this    kind    of  #
+	#   wait-and-prompt, so disable for now.      #
+	###############################################
+	if (0 && $dirty) {
 		print "Press <Enter> to continue...";
 		my $ans = <>;
 	}

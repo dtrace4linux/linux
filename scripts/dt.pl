@@ -72,8 +72,12 @@ sub main
 		$d .= "fbt:::entry";
 		$width = 25;
 	} elsif ($cmd eq 'io') {
-		$d .= "io:::start";
-		$width = 25;
+		$d .= "#pragma options quiet\n";
+		$d .= "io::: /execname != \"dtrace\"/ {\n";
+		$d .= "printf(\"%-8s %5d %s\\n\", probename, pid, execname);\n";
+		$d .= "}\n";
+		do_dtrace($d);
+		return;
 	} else {
 		foreach my $call (split(" ", $calls{$cmd})) {
 			$d .= "${comma}syscall::$call:entry";
@@ -113,6 +117,11 @@ END {
 EOF
 	}
 	$d .= "}\n";
+
+	do_dtrace($d);
+}
+sub do_dtrace
+{	my $d = shift;
 
 	$d = "dtrace -n '$d'";
 

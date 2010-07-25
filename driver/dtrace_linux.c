@@ -600,7 +600,10 @@ static	gate_t s;
 #endif
 
 	if (dtrace_here)
-		printk("set_idt_entry %p %p sz=%d %p %p\n", &idt_table[intr], &s, sizeof s, ((long *) &idt_table[intr])[0], ((long *) &idt_table[intr])[1]);
+		printk("set_idt_entry %p %p sz=%d %lx %lx\n", 
+			&idt_table[intr], &s, sizeof s, 
+			((long *) &idt_table[intr])[0], 
+			((long *) &idt_table[intr])[1]);
 
 	idt_table[intr] = s;
 }
@@ -760,6 +763,17 @@ dtrace_mach_aframes(void)
 	return 1;
 }
 
+/**********************************************************************/
+/*   Make    this    a   function,   since   on   earlier   kernels,  */
+/*   mutex_is_locked() is an inline complex function which cannot be  */
+/*   used   in   an   expression  context  (ASSERT(MUTEX_HELD())  in  */
+/*   dtrace.c)							      */
+/**********************************************************************/
+int
+dtrace_mutex_is_locked(mutex_t *mp)
+{
+	return mutex_is_locked(mp);
+}
 /**********************************************************************/
 /*   Avoid reentrancy issues, by defining our own bzero.	      */
 /**********************************************************************/
@@ -1547,7 +1561,6 @@ memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
 	pte_t *pte;
 
 static pte_t *(*lookup_address)(void *, int *);
-//static void (*flush_tlb_all)(void);
 
 	if (lookup_address == NULL)
 		lookup_address = get_proc_addr("lookup_address");
@@ -1566,11 +1579,18 @@ static pte_t *(*lookup_address)(void *, int *);
 
 		/***********************************************/
 		/*   If  we  touch  the page mappings, ensure  */
-		/*   cpu  and  cpu  caches  no what happened,  */
+		/*   cpu  and  cpu caches know what happened,  */
 		/*   else we may have random GPFs as we go to  */
 		/*   do   a  write.  If  this  function  isnt  */
 		/*   available,   we   are   pretty  much  in  */
 		/*   trouble.				       */
+		/*   20100726   This   function  calls  other  */
+		/*   functions  which  we  may be probing. We  */
+		/*   may   have   a  random  race  condition,  */
+		/*   dependent on the order of symbols in the  */
+		/*   kernel,  and  crash. I have seen this on  */
+		/*   2.6.24/i386  kernel.  Need  to make this  */
+		/*   safe as the probes are armed.	       */
 		/***********************************************/
 		__flush_tlb_all();
 	}

@@ -56,6 +56,15 @@ sub main
 		$inc .= "# define HAVE_$name $val\n";
 	}
 
+	###############################################
+	#   Check for zlib functions in the kernel.   #
+	###############################################
+	my $str = `grep zlib /proc/kallsyms`;
+	chomp($str);
+	if ($str eq '') {
+		$inc .= "# define DO_NOT_HAVE_ZLIB_IN_KERNEL 1\n";
+	}
+
 	if (have("stacktrace_ops", "include/asm/stacktrace.h")) {
 		$inc .= "# define HAVE_STACKTRACE_OPS \n";
 	}
@@ -97,7 +106,7 @@ sub have
 {	my $name = shift;
 	my $file = shift;
 
-print "opening .... $kern/$file\n";
+#print "opening .... $kern/$file\n";
 	my $fh = new FileHandle("$kern/$file");
 	return if !$fh;
 	while (<$fh>) {
@@ -119,6 +128,7 @@ sub smp_call_function_single
 		my $fh = new FileHandle("$kern/include/$smp_h");
 		next if !$fh;
 		while (<$fh>) {
+			next if /^#define/;
 			if (/smp_call_function_single/) {
 				my $line = <$fh>;
 				###############################################

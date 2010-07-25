@@ -530,10 +530,10 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	/*   pointer to pt_regs.		       */
 	/***********************************************/
 # if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
-#   define ARG0_PTR		&arg0 
+#   define ARG0_PTR(arg0)	&arg0 
 #   define EXECVE_COPY_FRAME	FALSE
 # else /* 2.6.9 */
-#   define ARG0_PTR		(char *) (&s + 1) + 8 + 8
+#   define ARG0_PTR(arg0)	(char *) (&s + 1) + 8 + 8
 #   define EXECVE_COPY_FRAME	TRUE
 # endif
 
@@ -591,7 +591,7 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_clone];
 	s.stsy_underlying = sys_clone_ptr;
 	return dtrace_systrace_syscall2(__NR_clone, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 # endif
@@ -620,7 +620,7 @@ dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_execve];
 	s.stsy_underlying = sys_execve_ptr;
 	return dtrace_systrace_syscall2(__NR_execve, &s,
-		EXECVE_COPY_FRAME, ARG0_PTR,
+		EXECVE_COPY_FRAME, ARG0_PTR(arg0),
 		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 # endif
@@ -652,7 +652,7 @@ dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_fork];
 	s.stsy_underlying = sys_fork_ptr;
 	return dtrace_systrace_syscall2(__NR_fork, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 # endif
 }
@@ -681,7 +681,7 @@ dtrace_systrace_syscall_iopl(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_iopl];
 	s.stsy_underlying = sys_iopl_ptr;
 	return dtrace_systrace_syscall2(__NR_iopl, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 # endif
 }
@@ -712,7 +712,7 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t regs, uintptr_t arg1, uintptr_t a
 	s = systrace_sysent[__NR_rt_sigreturn];
 	s.stsy_underlying = sys_rt_sigreturn_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigreturn, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(regs), 
 		regs, arg1, arg2, arg3, arg4, arg5);
 # endif
 }
@@ -727,7 +727,7 @@ dtrace_systrace_syscall_rt_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t 
 	s = systrace_sysent[__NR_rt_sigsuspend];
 	s.stsy_underlying = sys_rt_sigsuspend_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigsuspend, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
@@ -755,7 +755,7 @@ dtrace_systrace_syscall_sigaltstack(uintptr_t arg0, uintptr_t arg1, uintptr_t ar
 	s = systrace_sysent[__NR_sigaltstack];
 	s.stsy_underlying = sys_sigaltstack_ptr;
 	return dtrace_systrace_syscall2(__NR_sigaltstack, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 # endif
 }
@@ -770,7 +770,7 @@ dtrace_systrace_syscall_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t arg
 	s = systrace_sysent[__NR_rt_sigsuspend];
 	s.stsy_underlying = sys_rt_sigsuspend_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigsuspend, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
@@ -798,7 +798,7 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	s = systrace_sysent[__NR_vfork];
 	s.stsy_underlying = sys_vfork_ptr;
 	return dtrace_systrace_syscall2(__NR_vfork, &s,
-		FALSE, ARG0_PTR, 
+		FALSE, ARG0_PTR(arg0), 
 		arg0, arg1, arg2, arg3, arg4, arg5);
 # endif
 }

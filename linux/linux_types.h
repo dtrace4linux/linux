@@ -95,7 +95,7 @@ struct modctl;
 	#   include	<asm/stacktrace.h>
 	# endif
 
-	#define MUTEX_NOT_HELD(x)	!mutex_is_locked(x)
+	#define MUTEX_NOT_HELD(x)	!dtrace_mutex_is_locked(x)
 
 	#define PS_VM 0x00020000 /* CPU in v8086 mode */
 

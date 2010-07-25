@@ -76,7 +76,7 @@ EXTRA_CFLAGS += $(shell test -f include/asm/stacktrace.h && echo -DHAVE_INCLUDE_
 EXTRA_CFLAGS += $(shell test -f include/linux/semaphore.h && echo -DHAVE_INCLUDE_LINUX_SEMAPHORE_H)
 EXTRA_CFLAGS += $(shell test -f include/asm/semaphore.h && echo -DHAVE_INCLUDE_ASM_SEMAPHORE_H)
 EXTRA_CFLAGS += $(shell test -f include/asm/msr-index.h && echo -DHAVE_INCLUDE_ASM_MSR_INDEX_H)
-EXTRA_CFLAGS += $(shell grep -s atomic.*count include/*/semaphore.h >/dev/null && echo -DHAVE_SEMAPHORE_ATOMIC_COUNT)
+EXTRA_CFLAGS += $(shell grep -s atomic.*count include/*/semaphore*.h >/dev/null && echo -DHAVE_SEMAPHORE_ATOMIC_COUNT)
 
 clean:
 	rm -rf .tmp_versions *.a *.o *.ko *.bak .*.d .*.cmd *.mod.c Module.* modules.order

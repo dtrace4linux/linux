@@ -114,7 +114,7 @@ io_prov_return(pf_info_t *infp, uint8_t *instr, int size)
 	uint8_t *offset;
 	char	*name;
 
-printk("io_prov_return called %s:%s\n", infp->modname, infp->name);
+printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, instr, size);
 
 	for (prov = sdt_providers; prov->sdtp_prefix != NULL; prov++) {
 		if (strcmp(prov->sdtp_name, infp->modname) == 0)

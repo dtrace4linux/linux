@@ -3,6 +3,8 @@
 # $Header:$
 
 # extract vmlinux ELF image from vmlinuz - so we can poke at it.
+# dd if=/boot/vmlinuz skip=`grep -a -b -o -m 1 -e $'\x1f\x8b\x08\x00' /boot/vmlinuz | cut -d: -f 1` bs=1 | zcat > /tmp/vmlinux
+# 
 
 use strict;
 use warnings;

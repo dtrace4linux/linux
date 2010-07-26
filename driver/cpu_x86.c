@@ -16,7 +16,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 17-May-2009 1.4 $ 			      */
+/*   $Header: Last edited: 27-Jul-2010 1.5 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -232,6 +232,11 @@ void
 cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 {
 
+/*dtrace_printf("cpu_copy_instr: inslen=%d %02x %02x %02x %02x\n", tp->ct_tinfo.t_inslen,
+tp->ct_tinfo.t_opcode,
+((unsigned char *) regs->r_pc)[0],
+((unsigned char *) regs->r_pc)[1],
+((unsigned char *) regs->r_pc)[2]);*/
 	/***********************************************/
 	/*   Emulate  delicate  instructions. Without  */
 	/*   this   we   can   hit  problems  in  the  */
@@ -256,6 +261,17 @@ cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	dtrace_memcpy(&tp->ct_instr_buf[1], 
 		(void *) regs->r_pc, 
 		tp->ct_tinfo.t_inslen - 1);
+	/***********************************************/
+	/*   Put   a   NOP   instruction   after  the  */
+	/*   instruction we are going to single step.  */
+	/*   Some  instructions, like "MOV %CR3,%EAX"  */
+	/*   will  step the next instruction also. By  */
+	/*   doing  this,  we  regain control even if  */
+	/*   this  happens. 0x90 is a NOP in i386 and  */
+	/*   amd64.				       */
+	/***********************************************/
+	tp->ct_instr_buf[tp->ct_tinfo.t_inslen] = 0x90;
+
 //printk("step..len=%d %2x %2x\n", this_cpu->cpuc_tinfo.t_inslen, this_cpu->cpuc_instr_buf[0], this_cpu->cpuc_instr_buf[1]);
 
 	/***********************************************/

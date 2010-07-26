@@ -1884,6 +1884,7 @@ dtrace_printf("int1 PC:%p regs:%p CPU:%d\n", (void *) regs->r_pc-1, regs, smp_pr
 /*   not,  let  kernel  use  the normal notifier chain so kprobes or  */
 /*   user land debuggers can have a go.				      */
 /**********************************************************************/
+static unsigned int3_cnt;
 int dtrace_int_disable;
 int 
 dtrace_int3_handler(int type, struct pt_regs *regs)
@@ -1892,7 +1893,7 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	int	ret;
 static unsigned long cnt;
 
-dtrace_printf("INT3 PC:%p REGS:%p CPU:%d\n", regs->r_pc-1, regs, cpu_get_id());
+dtrace_printf("#%u INT3 PC:%p REGS:%p CPU:%d mode:%d\n", int3_cnt++, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
 preempt_disable();
 
 	/***********************************************/
@@ -1934,7 +1935,7 @@ preempt_disable();
 			/***********************************************/
 			cpu_copy_instr(this_cpu, tp, regs);
 preempt_enable_no_resched();
-dtrace_printf("INT3 %p called CPU:%d good finish\n", regs->r_pc-1, cpu_get_id());
+dtrace_printf("INT3 %p called CPU:%d good finish flags:%x\n", regs->r_pc-1, cpu_get_id(), regs->r_rfl);
 			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 			return NOTIFY_DONE;
 		}
@@ -1952,7 +1953,7 @@ preempt_enable_no_resched();
 		}
 
 		/***********************************************/
-		/*   Not outs, so let the kernel have it.      */
+		/*   Not ours, so let the kernel have it.      */
 		/***********************************************/
 dtrace_printf("INT3 %p called CPU:%d hand over\n", regs->r_pc-1, cpu_get_id());
 		this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;

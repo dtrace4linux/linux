@@ -1,3 +1,10 @@
+Tue Jul 27 19:47:26 2010  fox
+
+     364* cpu_x86.c: Add a NOP instruction after the instruction we are
+          going to single step, since some instructions may execute
+	  that even if the single-step trap flag is set. E.g.
+	  "MOV %CR3,%EAX".
+
 Mon Jul 26 15:38:00 2010  fox
 
      363* uncompress.c, mkport.pl: Allow us to not have zlib functions in 

@@ -93,7 +93,7 @@ dtrace_int1:
 	jne user_int1
 
 	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
+	/*   dtrace_int1_handler(1, regs)	       */
 	/***********************************************/
 	mov %esp,%edx
 	mov $2,%eax

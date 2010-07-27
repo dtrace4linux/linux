@@ -318,6 +318,7 @@ typedef struct pf_info_t {
 	struct modctl	*mp;
 	par_module_t	*pmp;
 	char		*modname;
+	char		*func;
 	char		*name;
 	char		*name2;	/* Name of the 'return' part of the probes. */
 	int		symndx;

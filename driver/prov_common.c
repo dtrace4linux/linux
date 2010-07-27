@@ -94,7 +94,7 @@ dtrace_parse_function(pf_info_t *infp, uint8_t *instr, uint8_t *limit)
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-//	do_print = strncmp(infp->name, "start", 9) == NULL;
+	do_print = strncmp(infp->name, "vfs_read", 9) == NULL;
 
 #ifdef __amd64
 // am not happy with 0xe8 CALLR instructions, so disable them for now.
@@ -248,7 +248,14 @@ if (*instr == 0xe8) return;
 		 * disassembly now.
 		 */
 		size = dtrace_instr_size(instr);
-if (do_print) {printk("%p: sz=%d %02x %02x %02x %02x %02x\n", instr, size, instr[0], instr[1], instr[2], instr[3], instr[4]);}
+		if (do_print) {
+			int i;
+			printk("%p: sz=%2d ", instr, size);
+			for (i = 0; i < size; i++) {
+				printk(" %02x", instr[i] & 0xff);
+			}
+			printk("\n");
+		}
 		if (size <= 0)
 			return;
 

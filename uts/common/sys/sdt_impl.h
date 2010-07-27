@@ -66,6 +66,7 @@ typedef struct sdt_probe {
 #if defined(linux)
 	char		sdp_modrm;
 	uint8_t		sdp_inslen;	/* Length of instr we are patching */
+	char		sdp_enabled;
 #endif
 } sdt_probe_t;
 

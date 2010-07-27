@@ -11,7 +11,7 @@
 /*   Date: April 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   $Header: Last edited: 07-Jun-2009 1.2 $ 			      */
+/*   $Header: Last edited: 28-Jul-2010 1.3 $ 			      */
 /*
 07-Jun-2009 PDF Add /proc/dtrace/fbt support to view the probe data
 */
@@ -92,6 +92,7 @@ typedef struct fbt_probe {
 	struct fbt_probe *fbtp_hashnext;
 	uint8_t		*fbtp_patchpoint;
 	int8_t		fbtp_rval;
+	char		fbtp_enabled;
 	uint8_t		fbtp_patchval;
 	uint8_t		fbtp_savedval;
 	uint8_t		fbtp_inslen;	/* Length of instr we are patching */
@@ -153,10 +154,11 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinfo)
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
 
 //HERE();
+//int dtrace_here = 1;
 if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
-		if ((uintptr_t)fbt->fbtp_patchpoint == addr) {
+		if (fbt->fbtp_enabled && (uintptr_t)fbt->fbtp_patchpoint == addr) {
 			tinfo->t_opcode = fbt->fbtp_savedval;
 			tinfo->t_inslen = fbt->fbtp_inslen;
 			tinfo->t_modrm = fbt->fbtp_modrm;
@@ -179,7 +181,6 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 				stack4 = stack[5];
 				DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 				    CPU_DTRACE_BADADDR);
-
 				dtrace_probe(fbt->fbtp_id, stack0, stack1,
 				    stack2, stack3, stack4);
 
@@ -746,6 +747,7 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 	}
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
+		fbt->fbtp_enabled = TRUE;
 		if (dtrace_here) 
 			printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
 		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
@@ -775,6 +777,7 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
+		fbt->fbtp_enabled = TRUE;
 		if (dtrace_here) {
 			printk("%s:%d: Disable %p:%s:%s\n", 
 				__func__, __LINE__, 

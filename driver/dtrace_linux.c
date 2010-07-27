@@ -601,7 +601,7 @@ static	gate_t s;
 
 	if (dtrace_here)
 		printk("set_idt_entry %p %p sz=%d %lx %lx\n", 
-			&idt_table[intr], &s, sizeof s, 
+			&idt_table[intr], &s, (int) sizeof s, 
 			((long *) &idt_table[intr])[0], 
 			((long *) &idt_table[intr])[1]);
 
@@ -1296,9 +1296,9 @@ extern caddr_t ketext;
 int
 is_kernel_text(unsigned long p)
 {
-	int (*func)(unsigned long) = syms[OFFSET_kernel_text_address].m_ptr;
+	int (*func)(unsigned long) = (int (*)(unsigned long)) syms[OFFSET_kernel_text_address].m_ptr;
 
-	if (ktext <= p && p < ketext)
+	if (ktext <= (caddr_t) p && (caddr_t) p < ketext)
 		return 1;
 
 	if (func) {
@@ -2089,7 +2089,6 @@ extern void *(*fn_pid_task)(void *, int);
 proc_t *
 prfind(int p)
 {	struct task_struct *tp;
-	struct pid *pid;
 
 	tp = fn_pid_task(p, PIDTYPE_PID);
 	if (!tp)

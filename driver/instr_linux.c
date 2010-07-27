@@ -73,6 +73,7 @@ typedef struct instr_probe {
 	uint8_t		insp_savedval;
 	uint8_t		insp_inslen;	/* Length of instr we are patching */
 	char		insp_modrm;	/* Offset to modrm byte of instruction */
+	char		insp_enabled;
 	uintptr_t	insp_roffset;
 	dtrace_id_t	insp_id;
 	char		*insp_name;
@@ -129,7 +130,7 @@ instr_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinf
 
 //HERE();
 	for (; fbt != NULL; fbt = fbt->insp_hashnext) {
-		if ((uintptr_t)fbt->insp_patchpoint == addr) {
+		if (fbt->insp_enabled && (uintptr_t)fbt->insp_patchpoint == addr) {
 			tinfo->t_opcode = fbt->insp_savedval;
 			tinfo->t_inslen = fbt->insp_inslen;
 			tinfo->t_modrm = fbt->insp_modrm;
@@ -643,6 +644,7 @@ instr_enable(void *arg, dtrace_id_t id, void *parg)
 	}
 
 	for (; fbt != NULL; fbt = fbt->insp_next) {
+		fbt->insp_enabled = TRUE;
 		if (dtrace_here) 
 			printk("instr_enable:patch %p p:%02x\n", fbt->insp_patchpoint, fbt->insp_patchval);
 		if (memory_set_rw(fbt->insp_patchpoint, 1, TRUE)) {
@@ -673,6 +675,7 @@ instr_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	for (; fbt != NULL; fbt = fbt->insp_next) {
+		fbt->insp_enabled = FALSE;
 		if (dtrace_here) {
 			printk("%s:%d: Disable %p:%s:%s\n", 
 				__func__, __LINE__, 

@@ -1,5 +1,11 @@
-// most of this code commented out for now...til we work out how to
-// integrate it. --pdf
+/**********************************************************************/
+/*   This file contains code for static probes. Under Linux, we take  */
+/*   a  different  strategy  to Solaris/Apple - since we dont molest  */
+/*   the kernel code directly. (This is still supported - sort of).   */
+/*   								      */
+/*   Author: Paul D. Fox					      */
+/*   $Header: Last edited: 28-Jul-2010 1.1 $ 			      */
+/**********************************************************************/
 
 /*
  * CDDL HEADER START
@@ -87,7 +93,7 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	name = kstrdup(infp->name, KM_SLEEP);
 	sdp = kmem_zalloc(sizeof (sdt_probe_t), KM_SLEEP);
 	sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
-			    NULL, name, NULL, 3, sdp);
+			    infp->func, NULL, name, 3, sdp);
 	sdp->sdp_name = name;
 	sdp->sdp_namelen = strlen(name);
 	sdp->sdp_inslen = size;
@@ -104,6 +110,8 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	sdp->sdp_patchval = SDT_PATCHVAL;
 	sdp->sdp_patchpoint = (uint8_t *)offset;
 	sdp->sdp_savedval = *sdp->sdp_patchpoint;
+
+	infp->retptr = NULL;
 	return 1;
 }
 static int
@@ -113,6 +121,7 @@ io_prov_return(pf_info_t *infp, uint8_t *instr, int size)
 	sdt_provider_t *prov;
 	uint8_t *offset;
 	char	*name;
+	sdt_probe_t *retsdt = infp->retptr;
 
 printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, instr, size);
 
@@ -122,8 +131,19 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	}
 	name = kstrdup(infp->name2, KM_SLEEP);
 	sdp = kmem_zalloc(sizeof (sdt_probe_t), KM_SLEEP);
-	sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
-			    NULL, name, NULL, 3, sdp);
+	/***********************************************/
+	/*   Daisy chain the return exit points so we  */
+	/*   dont  end  up firing all of them when we  */
+	/*   return from the probe.		       */
+	/***********************************************/
+	if (retsdt == NULL) {
+		sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
+			    infp->func, NULL, name, 3, sdp);
+		infp->retptr = sdp;
+	} else {
+		retsdt->sdp_next = sdp;
+		sdp->sdp_id = retsdt->sdp_id;
+	}
 	sdp->sdp_name = name;
 	sdp->sdp_namelen = strlen(name);
 	sdp->sdp_inslen = size;
@@ -141,14 +161,9 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	sdp->sdp_savedval = *sdp->sdp_patchpoint;
 	return 1;
 }
-/**********************************************************************/
-/*   Function called from dtrace_linux.c:dtrace_linux_init after the  */
-/*   various  symtab hooks are setup so we can find the functions we  */
-/*   are after.							      */
-/**********************************************************************/
-void
-io_prov_init(void)
-{	char *func = "do_sync_read";
+static void
+io_prov_create(char *func, char *name)
+{
 	pf_info_t	inf;
 	uintptr_t	*start;
 	int		size;
@@ -160,7 +175,8 @@ io_prov_init(void)
 
 	memset(&inf, 0, sizeof inf);
 	inf.modname = "io";
-	inf.name = "start";
+	inf.func = func;
+	inf.name = name;
 	inf.name2 = "done";
 
 	inf.func_entry = io_prov_entry;
@@ -168,6 +184,17 @@ io_prov_init(void)
 
 	dtrace_parse_function(&inf, start, start + size);
 
+}
+/**********************************************************************/
+/*   Function called from dtrace_linux.c:dtrace_linux_init after the  */
+/*   various  symtab hooks are setup so we can find the functions we  */
+/*   are after.							      */
+/**********************************************************************/
+void
+io_prov_init(void)
+{
+	io_prov_create("do_sync_read", "start");
+	io_prov_create("do_sync_write", "start");
 }
 
 /*ARGSUSED*/
@@ -189,7 +216,7 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 
 	for (; sdt != NULL; sdt = sdt->sdp_hashnext) {
 //printk("sdt_invop %p %p\n", sdt->sdp_patchpoint, addr);
-		if ((uintptr_t)sdt->sdp_patchpoint == addr) {
+		if (sdt->sdp_enabled && (uintptr_t)sdt->sdp_patchpoint == addr) {
 			tinfo->t_opcode = sdt->sdp_savedval;
 			tinfo->t_inslen = sdt->sdp_inslen;
 			tinfo->t_modrm = sdt->sdp_modrm;
@@ -219,6 +246,7 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			return (DTRACE_INVOP_NOP);
 		}
 	}
+//printk("none in invop for dsdt\n");
 
 	return (0);
 }
@@ -404,6 +432,7 @@ sdt_enable(void *arg, dtrace_id_t id, void *parg)
 		/*   Kernel  code  wil be write protected, so  */
 		/*   try and unprotect it.		       */
 		/***********************************************/
+		sdp->sdp_enabled = TRUE;
 		if (memory_set_rw(sdp->sdp_patchpoint, 1, TRUE))
 			*sdp->sdp_patchpoint = sdp->sdp_patchval;
 		sdp = sdp->sdp_next;
@@ -427,6 +456,7 @@ sdt_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	while (sdp != NULL) {
+		sdp->sdp_enabled = FALSE;
 		/***********************************************/
 		/*   Memory  should  be  writable,  but if we  */
 		/*   failed  in  the  sdt_enable  code,  e.g.  */

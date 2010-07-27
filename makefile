@@ -113,6 +113,8 @@ install: build/dtrace build/config.sh
 	if [ ! -f /etc/dtrace.conf ] ; then \
 		install -m 644 -o root etc/dtrace.conf /etc/dtrace.conf ; \
 	fi
+	install -m 644 -o root libdtrace/unistd.d /usr/lib/dtrace
+	scripts/mkinstall.pl
 
 newf:
 	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \
@@ -144,3 +146,8 @@ unl unload:
 ######################################################################
 kernels:
 	tools/make_kernels.pl
+
+x:
+	mkupdate -m delly ; \
+	make all
+	tools/load.pl

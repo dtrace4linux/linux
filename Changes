@@ -1,3 +1,23 @@
+Wed Jul 28 08:42:55 2010  fox
+
+     370* libdtrace/dt_lex.l: Better // handling.
+
+     369* libdtrace/dt_lex.l: #define ECHO as nothing to avoid writing to
+          stdout.
+
+     368* scripts/mkinstall.pl: Install /usr/lib/dtrace/ regs.d, signal.d,
+          unistd.d
+
+     367* instr_linux.c: Same as #366 - avoid aliasing issues.
+          These changes fixed an issue where a fbt::do_sync_read:return
+	  would never fire, because the SDT provider was stealing the probe
+	  despite it not having been enabled.
+
+     366* sdt_implh, sdt_linux.c: Mark a probe as enabled or not so
+          we avoid aliasing issues if fbt is probing the same instruction.
+
+     365* archive: 1.0104 (build.pl was missing)
+
 Tue Jul 27 19:47:26 2010  fox
 
      364* cpu_x86.c: Add a NOP instruction after the instruction we are

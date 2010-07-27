@@ -47,6 +47,8 @@
 
 void unput(int c);
 # else
+# define ECHO /* 20100728 nothing - avoid spewing to stdout */
+
 /* 
  * Define YY_INPUT for flex since input() can't be re-defined.
  */
@@ -472,6 +474,14 @@ if (yypcb->pcb_token != 0) {
 			 */
 
 			while ((c = input()) != 0) {
+				if (c == '/') {
+					while ((c = input()) != 0) {
+						if (c == '\n')
+							break;
+					}
+					goto do_break;
+				}
+
 				if (strchr("\f\n\r\t\v ", c) == NULL)
 					break;
 			}
@@ -491,6 +501,7 @@ if (yypcb->pcb_token != 0) {
 
 			unput(c);
 			return (tok);
+		do_break: ;
 		}
 
 <S0>"("		{

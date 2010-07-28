@@ -262,4 +262,24 @@ struct regs {
 
 #endif
 
+/**********************************************************************/
+/*   Following  needed  for  the  invop()  functions  to  find the C  */
+/*   arguments.							      */
+/**********************************************************************/
+#if defined(__amd64)
+#  define c_arg0 r_rdi
+#  define c_arg1 r_rsi
+#  define c_arg2 r_rdx
+#  define c_arg3 r_rcx
+#  define c_arg4 r_r8
+#  define c_arg5 r_r9
+#else /* i386 */
+#  define c_arg0 r_ebx
+#  define c_arg1 r_ecx
+#  define c_arg2 r_edx
+#  define c_arg3 r_esi
+#  define c_arg4 r_edi
+#  define c_arg5 r_ebp
+#endif
+
 # endif /* !defined(SYS_PRIVREGS_H) */

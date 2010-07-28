@@ -864,17 +864,10 @@ sdt_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
 
 	for (i = 0; sdt_args[i].sda_provider != NULL; i++) {
 		sdt_argdesc_t *a = &sdt_args[i];
-printk("sdt_getargdesc: i=%d sdp=%p\n", i, sdp);
-printk("sdp_provider=%p\n", sdp->sdp_provider);
-if (sdp->sdp_provider == NULL)
-break;
-printk("sdtp_name=%s\n", sdp->sdp_provider->sdtp_name);
-printk("sda_provider=%s\n", a->sda_provider);
 
 		if (strcmp(sdp->sdp_provider->sdtp_name, a->sda_provider) != 0)
 			continue;
 
-printk("here %d\n", __LINE__);
 		if (a->sda_name != NULL &&
 		    strcmp(sdp->sdp_name, a->sda_name) != 0)
 			continue;
@@ -888,6 +881,8 @@ printk("here %d\n", __LINE__);
 		if (a->sda_xlate != NULL)
 			(void) strcpy(desc->dtargd_xlate, a->sda_xlate);
 
+printk("sdp_provider=%p [%d] sdtp_name=%s native=%s xlate=%s\n", sdp->sdp_provider, a->sda_ndx, sdp->sdp_provider->sdtp_name,
+desc->dtargd_native, desc->dtargd_xlate);
 		desc->dtargd_mapping = a->sda_mapping;
 		return;
 	}

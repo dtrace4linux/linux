@@ -98,6 +98,7 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	sdp->sdp_namelen = strlen(name);
 	sdp->sdp_inslen = size;
 	sdp->sdp_modrm = modrm;
+	sdp->sdp_provider = prov;
 
 	/***********************************************/
 	/*   Add the entry to the hash table.	       */
@@ -147,6 +148,7 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	sdp->sdp_name = name;
 	sdp->sdp_namelen = strlen(name);
 	sdp->sdp_inslen = size;
+	sdp->sdp_provider = prov;
 
 	/***********************************************/
 	/*   Add the entry to the hash table.	       */
@@ -165,7 +167,7 @@ static void
 io_prov_create(char *func, char *name)
 {
 	pf_info_t	inf;
-	uintptr_t	*start;
+	uint8_t		*start;
 	int		size;
 
 	if (dtrace_function_size(func, &start, &size) == 0) {
@@ -202,17 +204,8 @@ static int
 sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 {
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
-	int i = 0;
 	sdt_probe_t *sdt = sdt_probetab[SDT_ADDR2NDX(addr)];
-
-#ifdef __amd64
-	/*
-	 * On amd64, stack[0] contains the dereferenced stack pointer,
-	 * stack[1] contains savfp, stack[2] contains savpc.  We want
-	 * to step over these entries.
-	 */
-	i += 3;
-#endif
+	struct pt_regs *regs = (struct pt_regs *) stack;
 
 	for (; sdt != NULL; sdt = sdt->sdp_hashnext) {
 //printk("sdt_invop %p %p\n", sdt->sdp_patchpoint, addr);
@@ -232,11 +225,11 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			 * are already disabled.
 			 */
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
-			stack0 = stack[i++];
-			stack1 = stack[i++];
-			stack2 = stack[i++];
-			stack3 = stack[i++];
-			stack4 = stack[i++];
+			stack0 = regs->c_arg0;
+			stack1 = regs->c_arg1;
+			stack2 = regs->c_arg2;
+			stack3 = regs->c_arg3;
+			stack4 = regs->c_arg4;
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);
 
@@ -488,7 +481,7 @@ sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 #endif
 
 	for (i = 1; i <= aframes; i++) {
-printk("i=%d fp=%p aframes=%d\n", i, fp, aframes);
+//printk("i=%d fp=%p aframes=%d pc:%p\n", i, fp, aframes, fp->fr_savpc);
 		fp = (struct frame *)(fp->fr_savfp);
 #if defined(linux)
 		/***********************************************/
@@ -564,6 +557,7 @@ load:
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	val = stack[argno];
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
+printk("sdt_getarg#%d: %lx\n", argno, val);
 
 	return (val);
 }

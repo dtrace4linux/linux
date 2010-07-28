@@ -28,7 +28,7 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
 /*   disassemble it.						      */
 /**********************************************************************/
 int
-dtrace_function_size(char *name, uintptr_t *start, int *size)
+dtrace_function_size(char *name, uint8_t **start, int *size)
 {
 	unsigned long addr;
 	unsigned long symsize = 0;
@@ -36,7 +36,7 @@ dtrace_function_size(char *name, uintptr_t *start, int *size)
 	char	*modname = NULL;
 	char	namebuf[KSYM_NAME_LEN];
 
-	if ((addr = get_proc_addr(name)) == 0)
+	if ((addr = (unsigned long) get_proc_addr(name)) == 0)
 		return 0;
 
 	if (my_kallsyms_lookup == NULL) {
@@ -44,9 +44,9 @@ dtrace_function_size(char *name, uintptr_t *start, int *size)
 		}
 
 	my_kallsyms_lookup(addr, &symsize, &offset, &modname, namebuf);
-	printk("dtrace_function_size: %s %p size=%d\n", name, addr, symsize);
+	printk("dtrace_function_size: %s %p size=%lu\n", name, (void *) addr, symsize);
 	*size = symsize;
-	*start = addr;
+	*start = (uint8_t *) addr;
 	return 1;
 }
 /**********************************************************************/
@@ -94,7 +94,7 @@ dtrace_parse_function(pf_info_t *infp, uint8_t *instr, uint8_t *limit)
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-	do_print = strncmp(infp->name, "vfs_read", 9) == NULL;
+//	do_print = strncmp(infp->name, "vfs_read", 9) == 0;
 
 #ifdef __amd64
 // am not happy with 0xe8 CALLR instructions, so disable them for now.

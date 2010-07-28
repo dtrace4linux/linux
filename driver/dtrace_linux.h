@@ -329,7 +329,7 @@ typedef struct pf_info_t {
 	void		*retptr;
 	} pf_info_t;
 void dtrace_parse_function(pf_info_t *, uint8_t *, uint8_t *);
-int dtrace_function_size(char *name, uintptr_t *start, int *size);
+int dtrace_function_size(char *name, uint8_t **start, int *size);
 
 /**********************************************************************/
 /*   Stats   counters   -  for  seeing  where  we  got  to:  ad  hoc  */

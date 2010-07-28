@@ -15773,9 +15773,7 @@ PRINT_CASE(DTRACEIOC_PROBEARG);
 		processorid_t cpuid;
 
 PRINT_CASE(DTRACEIOC_GO);
-HERE();
 		rval = dtrace_state_go(state, &cpuid);
-HERE();
 
 		if (rval != 0)
 			return (rval);

@@ -45,6 +45,16 @@ inline int B_WRITE = 0x0020;
 inline int B_ASYNC = 0x0040;
 #pragma D binding "1.0" B_ASYNC
 
+/* Placeholder until we get proper CTF or CTF-like support in the driver. */
+typedef char *caddr_t;
+typedef int dev_t;
+typedef struct buf {                                                                     
+        int     dev_statname;
+	int	b_flags;
+	int	b_bcount;
+	int	b_resid;
+        } buf_t;   
+
 typedef struct bufinfo {
 	int b_flags;			/* buffer status */
 	size_t b_bcount;		/* number of bytes */

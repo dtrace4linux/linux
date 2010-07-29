@@ -1,3 +1,7 @@
+Fri Jul 30 09:07:10 2010  fox
+
+     374* privregs.h: Fix register names for sdt_linux.c (32-bit kernels).
+
 Thu Jul 29 00:10:39 2010  fox
 
      373* dtrace_isa.c: Fix dtrace_copyin: Had args reversed in copy_from_user.

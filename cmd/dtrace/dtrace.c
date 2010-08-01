@@ -514,7 +514,12 @@ print_probe_info(const dtrace_probeinfo_t *p)
 	oprintf("\n\tArgument Types\n");
 
 	for (i = 0; i < p->dtp_argc; i++) {
-		if (ctf_type_name(p->dtp_argv[i].dtt_ctfp,
+		/***********************************************/
+		/*   Avoid  core dump if we dont have the CTF  */
+		/*   data for this arg.			       */
+		/***********************************************/
+		if (p->dtp_argv[i].dtt_ctfp == NULL ||
+		    ctf_type_name(p->dtp_argv[i].dtt_ctfp,
 		    p->dtp_argv[i].dtt_type, buf, sizeof (buf)) == NULL)
 			(void) strlcpy(buf, "(unknown)", sizeof (buf));
 		oprintf("\t\targs[%d]: %s\n", i, buf);

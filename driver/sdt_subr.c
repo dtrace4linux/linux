@@ -154,7 +154,7 @@ sdt_argdesc_t sdt_args[] = {
 
 	{ "io", "start", 0, 0, "buf_t *", "bufinfo_t *" },
 	{ "io", "start", 1, 0, "buf_t *", "devinfo_t *" },
-	{ "io", "start", 2, 0, "buf_t *", "fileinfo_t *" },
+	{ "io", "start", 2, 0, "fred_t *", "fileinfo_t *" },
 	{ "io", "done", 0, 0, "buf_t *", "bufinfo_t *" },
 	{ "io", "done", 1, 0, "buf_t *", "devinfo_t *" },
 	{ "io", "done", 2, 0, "buf_t *", "fileinfo_t *" },

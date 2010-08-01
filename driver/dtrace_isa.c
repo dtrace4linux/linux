@@ -170,6 +170,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 /*   pointer/no frame pointer. We use the DWARF code to walk the CFA  */
 /*   frames to tell us where we can find the return address.	      */
 /**********************************************************************/
+static int x;
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {	uint64_t *pcstack_end = pcstack + pcstack_limit;
@@ -182,10 +183,13 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	if (pcstack_limit <= 0)
 		return;
 
+if ((x++ % 10000) == 0)
+printk("%d pcstack=%p limit=%d\n", x, pcstack, pcstack_limit);
 	*pcstack++ = (uint64_t)current->pid;
 
 	if (pcstack >= pcstack_end)
 		return;
+return;
 
 	/***********************************************/
 	/*   Linux provides a built in function which  */
@@ -251,6 +255,8 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 		sp = sp[0];
 	}
 # else
+// avoid panicing kernel til we debug this.
+return 0;
 	/***********************************************/
 	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
 	/*   set to -1).			       */

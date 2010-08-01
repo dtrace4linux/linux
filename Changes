@@ -1,3 +1,13 @@
+Mon Aug  2 20:13:02 2010  fox
+
+     376* dtrace_linux.c, dtrace_linux.h: Create our own read_cr2_register()
+          function to avoid OS dependencies.
+
+Sun Aug  1 22:23:22 2010  fox
+
+     375* cmd/dtrace/dtrace.c: Avoid core dump if doing "dtrace -S -v -s script"
+          and no CTF data for the internal SDT probe.
+
 Fri Jul 30 09:07:10 2010  fox
 
      374* privregs.h: Fix register names for sdt_linux.c (32-bit kernels).

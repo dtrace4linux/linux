@@ -2018,7 +2018,8 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 		/*   space, dismissing the interrupt here.     */
 		/***********************************************/
         	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
-	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2();
+	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
+//printk("int13 - gpf - %p\n", read_cr2_register());
 		return NOTIFY_DONE;
 		}
 
@@ -2029,9 +2030,10 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 		return NOTIFY_KERNEL;
 
 	/***********************************************/
-	/*   Hmm...it  was  us.  Flag  something  bad  */
-	/*   happened  and try and avoid a cascade of  */
-	/*   errors.				       */
+	/*   This could be due to a page fault whilst  */
+	/*   single stepping. We need to let the real  */
+	/*   page fault handler have a chance (but we  */
+	/*   prey it wont fire a probe, but it can).   */
 	/***********************************************/
 	this_cpu->cpuc_regs_old = this_cpu->cpuc_regs;
 	this_cpu->cpuc_regs = regs;

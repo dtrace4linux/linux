@@ -199,13 +199,26 @@ io_prov_init(void)
 	io_prov_create("do_sync_write", "start");
 }
 
+/**********************************************************************/
+/*   This is called when we hit an SDT breakpoint.		      */
+/**********************************************************************/
+typedef struct fileinfo_t {
+	char	*fi_name;
+	char	*fi_dirname;
+	char	*fi_pathname;
+	long long fi_offset;
+	char *fi_fs;
+	char *fi_mount;
+} fileinfo_t;
+
+static fileinfo_t finfo;
 /*ARGSUSED*/
 static int
 sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 {
 	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	sdt_probe_t *sdt = sdt_probetab[SDT_ADDR2NDX(addr)];
-	struct pt_regs *regs = (struct pt_regs *) stack;
+	struct pt_regs *regs;
 
 	for (; sdt != NULL; sdt = sdt->sdp_hashnext) {
 //printk("sdt_invop %p %p\n", sdt->sdp_patchpoint, addr);
@@ -224,10 +237,21 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			 * safely set NOFAULT here -- we know that interrupts
 			 * are already disabled.
 			 */
+			regs = (struct pt_regs *) stack;
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 			stack0 = regs->c_arg0;
 			stack1 = regs->c_arg1;
 			stack2 = regs->c_arg2;
+{
+struct file *file = stack0;
+memset(&finfo, 0, sizeof finfo);
+stack2 = &finfo;
+//printk("stack2=%p\n", stack2);
+finfo.fi_offset = 0x12345;
+finfo.fi_name = "this/is/fi_pathname";
+finfo.fi_pathname = "hello/world";
+//printk("fi_name=%p offset=%llx\n", finfo.fi_name, finfo.fi_offset);
+}
 			stack3 = regs->c_arg3;
 			stack4 = regs->c_arg4;
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |

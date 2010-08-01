@@ -157,6 +157,17 @@ int priv_policy(const cred_t *, int, int, int, const char *);
 int priv_policy_only(const cred_t *, int, int);
 //int priv_policy_choice(const cred_t *, int, int);
 
+/**********************************************************************/
+/*   Some  kernels dont have read_cr2(), so inline it here and avoid  */
+/*   a naming conflict.						      */
+/**********************************************************************/
+static inline unsigned long read_cr2_register(void)
+{	unsigned long val;
+
+	asm volatile("mov %%cr2,%0\n" : "=r" (val));
+	return val;
+}
+
 /*
  * Test privilege. Audit success or failure, allow privilege debugging.
  * Returns 0 for success, err for failure.

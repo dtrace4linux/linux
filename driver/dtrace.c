@@ -2930,7 +2930,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		 * (This is true because threads don't clean up their own
 		 * state -- they leave that task to whomever reaps them.)
 		 */
-		return ((uint64_t)curthread->t_procp->p_ppid);
+		return get_current()->parent->pid;
 
 	case DIF_VAR_TID:
 # if defined(sun)

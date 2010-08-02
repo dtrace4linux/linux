@@ -36,9 +36,11 @@ my %calls = (
 	mmap  	=> "mmap munmap",
 	open 	=> "open*",
 	remove 	=> "unlink* rmdir ",
+	signal  => "",
 	socket  => "socket connect accept listen bind shutdown setsockopt getsockopt",
 	stat 	=> "lstat* stat*",
 	symlink => "symlink",
+	time    => "adjtimex settimeofday clock_settime",
 	);
 
 #######################################################################
@@ -71,6 +73,15 @@ sub main
 	if ($cmd eq 'fbt') {
 		$d .= "fbt:::entry";
 		$width = 25;
+	} elsif ($cmd eq 'signal') {
+		$d = <<EOF;
+fbt::send_signal:entry
+{
+	printf("%Y %d %s sig=%d\\n", timestamp, pid, execname, arg0);
+}
+EOF
+		do_dtrace($d);
+		return;
 	} elsif ($cmd eq 'io') {
 		$d .= "#pragma options quiet\n";
 		$d .= "io::: /execname != \"dtrace\"/ {\n";
@@ -115,7 +126,14 @@ END {
 	printf("Grand summary:\\n");
 	printa("%-${width}s %-32s %\@d\\n", \@tot);
 EOF
+	} elsif ($mode eq 'scroll') {
+		if ($cmd eq 'file') {
+			$d .= 'printf("%Y %5d %s %s %s", timestamp, pid, execname, probefunc, copyinstr(arg0));';
+		} else {
+			$d .= 'printf("%5d %s", pid, execname);';
+		}
 	}
+	$d .= "printf(\"\\n\");\n";
 	$d .= "}\n";
 
 	do_dtrace($d);
@@ -123,7 +141,7 @@ EOF
 sub do_dtrace
 {	my $d = shift;
 
-	$d = "dtrace -n '$d'";
+	$d = "dtrace -q -n '$d'";
 
 	if ($opts{v} || $opts{l}) {
 		print "### Script:\n";
@@ -153,20 +171,12 @@ Commands:
   The following commands are available, and expand into traces against
   the listed system calls.
 
-  chdir   => chdir
-  connect => connect accept listen bind
-  exec    => exec*
-  dir     => getdents
-  fbt     =>  not-applicable
-  file    => chdir chmod chown mkdir open* rmdir remove symlink unlink
-  fork    => fork* vfork* clone*
-  mkdir   => mkdir
-  mmap    => mmap
-  open    => open*
-  remove  => unlink* rmdir remove*
-  stat    => lstat* stat*
-  socket  => socket connect accept listen bind shutdown setsockopt getsockopt
-  symlink => symlink
+EOF
+	foreach my $s (sort(keys(%calls))) {
+		printf "  %-10s => %s\n", $s, $calls{$s} || " (n/a)";
+	}
+
+	print <<EOF;
 
 Mode:
 

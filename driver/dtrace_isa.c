@@ -183,13 +183,10 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	if (pcstack_limit <= 0)
 		return;
 
-if ((x++ % 10000) == 0)
-printk("%d pcstack=%p limit=%d\n", x, pcstack, pcstack_limit);
 	*pcstack++ = (uint64_t)current->pid;
 
 	if (pcstack >= pcstack_end)
 		return;
-return;
 
 	/***********************************************/
 	/*   Linux provides a built in function which  */

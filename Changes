@@ -1,3 +1,10 @@
+Tue Aug  3 20:54:35 2010  fox
+
+     378* scripts/dt.pl: Add timestamps, support for signals and show
+          filenames in "files" subsystem.
+
+     377* dtrace.c: Fix handling of DIF_VAR_PPID to avoid GPF.
+
 Mon Aug  2 20:13:02 2010  fox
 
      376* dtrace_linux.c, dtrace_linux.h: Create our own read_cr2_register()

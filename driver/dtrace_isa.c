@@ -802,14 +802,12 @@ if (dtrace_here) {
 printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, (int) size);
 }
 	if (!__addr_ok(uaddr) || !__addr_ok(uaddr + size)) {
-HERE2();
 //printk("uaddr=%p size=%d\n", uaddr, size);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = uaddr;
 		return (0);
 	}
 
-HERE();
 	return (1);
 }
 

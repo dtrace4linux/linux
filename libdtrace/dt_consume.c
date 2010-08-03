@@ -867,7 +867,12 @@ dt_print_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 		if (dt_printf(dtp, fp, "%*s", indent, "") < 0)
 			return (-1);
 
-		if (dtrace_lookup_by_addr(dtp, pc, &sym, &dts) == 0) {
+#if defined(__APPLE__) || defined(linux)
+		if ((dtp->dt_options[DTRACEOPT_STACKSYMBOLS] != DTRACEOPT_UNSET) && dtrace_lookup_by_addr(dtp, pc, &sym, &dts) == 0) 
+#else
+		if (dtrace_lookup_by_addr(dtp, pc, &sym, &dts) == 0) 
+#endif
+		{
 			if (pc > sym.st_value) {
 				(void) snprintf(c, sizeof (c), "%s`%s+0x%llx",
 				    dts.dts_object, dts.dts_name,
@@ -882,7 +887,12 @@ dt_print_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 			 * a NULL GElf_Sym -- indicating that we're only
 			 * interested in the containing module.
 			 */
-			if (dtrace_lookup_by_addr(dtp, pc, NULL, &dts) == 0) {
+#if defined(__APPLE__)
+			if ((dtp->dt_options[DTRACEOPT_STACKSYMBOLS] != DTRACEOPT_UNSET) && dtrace_lookup_by_addr(dtp, pc, NULL, &dts) == 0) 
+#else
+			if (dtrace_lookup_by_addr(dtp, pc, NULL, &dts) == 0) 
+#endif
+			{
 				(void) snprintf(c, sizeof (c), "%s`0x%llx",
 				    dts.dts_object, pc);
 			} else {
@@ -939,7 +949,11 @@ dt_print_ustack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 	 * determining <symbol, offset> from <pid, address>.  For now, if
 	 * this is a vector open, we just print the raw address or string.
 	 */
+#if defined(__APPLE__)
+	if ((dtp->dt_options[DTRACEOPT_STACKSYMBOLS] != DTRACEOPT_UNSET) && dtp->dt_vector == NULL)
+#else
 	if (dtp->dt_vector == NULL)
+#endif
 		P = dt_proc_grab(dtp, pid, PGRAB_RDONLY | PGRAB_FORCE, 0);
 	else
 		P = NULL;

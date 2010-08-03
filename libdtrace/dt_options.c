@@ -953,7 +953,9 @@ static const dt_option_t _dtrace_drtoptions[] = {
 	{ "rawbytes", dt_opt_runtime, DTRACEOPT_RAWBYTES },
 	{ "stackindent", dt_opt_runtime, DTRACEOPT_STACKINDENT },
 	{ "switchrate", dt_opt_rate, DTRACEOPT_SWITCHRATE },
-	{ NULL }
+#if defined(__APPLE__) || defined(linux)
+        { "stacksymbols", dt_opt_runtime, DTRACEOPT_STACKSYMBOLS },
+#endif	{ NULL }
 };
 
 int

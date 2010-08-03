@@ -146,37 +146,7 @@ void
 dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
 	 volatile uint16_t *flags) 
 {
-
-#if defined(__amd64)
-	__asm(
-"0:\n"
-		"movb	(%rdi), %al\n"		/* load from source */
-		"movb	%al, (%rsi)\n"		/* store to destination */
-		"addq	$1, %rdi\n"		/* increment source pointer */
-		"addq	$1, %rsi\n"		/* increment destination pointer */
-		"subq	$1, %rdx\n"		/* decrement remaining count */
-		"cmpb	$0, %al\n"
-		"je	2f\n"
-	        "testq   $0xfff, %rdx\n"        /* test if count is 4k-aligned */
-                "jnz     1f\n"                  /* if not, continue with copying */
-		// CPU_DTRACE_BADADDR == 0x04
-		"testq   $0x04, (%rcx)\n" /* load and test dtrace flags */  
-	        "jnz     2f\n"
-"1:\n"
-		"cmpq	$0, %rdx\n"
-		"jne	0b\n"
-"2:\n"
-		);
-
-#elif defined(__i386)
-	char *src = (char *) uaddr;
-	char *dst = (char *) kaddr;
-	while (size > 0) {
-		if ((*dst++ = *src++) == 0)
-			break;
-		size--;
-	}
-#endif	/* __i386 */
+	copy_from_user(kaddr, uaddr, size);
 }
 
 /*ARGSUSED*/

@@ -1009,7 +1009,13 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	P->pid = pid;
 
 #if defined(linux)
-	if (do_ptrace(__func__, PTRACE_ATTACH, pid, 0, 0) == -1) {
+	/***********************************************/
+	/*   Dont  stop  or  attach to the proc if we  */
+	/*   are  in  readonly mode (eg a ustack() is  */
+	/*   happening).			       */
+	/***********************************************/
+	if ((flags & PGRAB_RDONLY) == 0 &&
+	    do_ptrace(__func__, PTRACE_ATTACH, pid, 0, 0) == -1) {
 		rc = G_PERM;
 		GOTO(err);
 	}

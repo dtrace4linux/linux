@@ -1,3 +1,15 @@
+Wed Aug  4 23:10:26 2010  fox
+
+     381* libproc/Pcontrol.c: Dont ptrace(ATTACH) to a proc if we want readonly
+          mode. (Avoid ustack() hanging procs).
+
+     380* dtrace.h, dt_consume.c: Add stacksymbols option from Apple to turn
+          off symbolic stack traces. (Debugging or speed up).
+
+     379* dtrace_asm.c: Avoid kernel GPF if given a bad user addr to copy.
+          Not perfect as we should generate a DTRACE fault - but cannot
+	  simulate this just yet.
+
 Tue Aug  3 20:54:35 2010  fox
 
      378* scripts/dt.pl: Add timestamps, support for signals and show

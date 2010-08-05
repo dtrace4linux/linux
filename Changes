@@ -1,3 +1,8 @@
+Thu Aug  5 23:53:55 2010  fox
+
+     382* dtrace_isa.c: Change the copyin/out functions to handle
+          user level segmentation violations and report back to the user.
+
 Wed Aug  4 23:10:26 2010  fox
 
      381* libproc/Pcontrol.c: Dont ptrace(ATTACH) to a proc if we want readonly

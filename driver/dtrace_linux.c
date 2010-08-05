@@ -116,8 +116,6 @@ static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void **xsys_call_table;
 
-uintptr_t	_userlimit = 0x7fffffff;
-
 /**********************************************************************/
 /*   Stats counters for ad hoc debugging; exposed via /dev/dtrace.    */
 /**********************************************************************/

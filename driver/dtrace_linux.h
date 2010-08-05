@@ -222,7 +222,6 @@ void *vmem_create(const char *name, void *base, size_t size, size_t quantum,
 //void	*kmem_zalloc(size_t size, int kmflags);
 
 extern int panic_quiesce;
-extern uintptr_t	_userlimit;
 # define	dtrace_panic	panic
 
 # if linux
@@ -362,6 +361,7 @@ int instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym);
 cpu_core_t	*cpu_get_this(void);
 int	is_kernel_text(unsigned long);
 int	dtrace_mutex_is_locked(struct mutex *);
+int dtrace_memcpy_with_error(void *, void *, int);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

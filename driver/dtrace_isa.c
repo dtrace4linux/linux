@@ -315,7 +315,7 @@ int dw_find_ret_addr(char *, unsigned long, int *);
 
 printk("loop=%d sp:%p pc=%p\n", loop++, sp, pc);
 		if (vm == NULL) {
-printk("no vm for sp: %p pc=%p\n", pc);
+/*printk("no vm for sp: %p pc=%p\n", pc);*/
 			break;
 		}
 
@@ -789,6 +789,45 @@ dtrace_getreg(struct pt_regs *rp, uint_t reg)
 #endif
 }
 
+/*
+int dtrace_isa_asm(void)
+{
+# if defined(__i386)
+	int __d0, __d1, __d2;						\
+	__asm__ __volatile__(						\
+		"	cmp  $7,%0\n"					\
+		"	jbe  1f\n"					\
+		"	movl %1,%0\n"					\
+		"	negl %0\n"					\
+		"	andl $7,%0\n"					\
+		"	subl %0,%3\n"					\
+		"4:	rep; movsb\n"					\
+		"	movl %3,%0\n"					\
+		"	shrl $2,%0\n"					\
+		"	andl $3,%3\n"					\
+		"	.align 2,0x90\n"				\
+		"0:	rep; movsl\n"					\
+		"	movl %3,%0\n"					\
+		"1:	rep; movsb\n"					\
+		"	clr %0\n"					\
+		"2:\n"							\
+		".section .fixup,\"ax\"\n"				\
+		"5:	mov $0,%0\n"					\
+		"	jmp 2b\n"					\
+		".previous\n"						\
+		".section __ex_table,\"a\"\n"				\
+		"	.align 4\n"					\
+		"	.long 4b,5b\n"					\
+		"	.long 0b,5b\n"					\
+		"	.long 1b,5b\n"					\
+		".previous"						\
+		: "=&c"(size), "=&D" (__d0), "=&S" (__d1), "=r"(__d2)	\
+		: "3"(size), "0"(size), "1"(dst), "2"(src)		\
+		: "memory");
+*/
+
+# define addr_valid(addr) __addr_ok((addr))
+
 static int
 dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 {
@@ -801,50 +840,54 @@ dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 if (dtrace_here) {
 printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, (int) size);
 }
-	if (!__addr_ok(uaddr) || !__addr_ok(uaddr + size)) {
+	if (__range_not_ok(uaddr, size)) {
 //printk("uaddr=%p size=%d\n", uaddr, size);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = uaddr;
 		return (0);
 	}
-
 	return (1);
 }
+
 
 void
 dtrace_copyin(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
-# if 1
-	copy_from_user((void *) kaddr, (void *) uaddr, size);
-# else
-	if (dtrace_copycheck(uaddr, kaddr, size))
-		dtrace_copy(uaddr, kaddr, size);
-# endif
+	if (dtrace_memcpy_with_error(kaddr, uaddr, size) == 0) {
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+		return;
+		}
 }
 
 void
 dtrace_copyout(uintptr_t kaddr, uintptr_t uaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_copycheck(uaddr, kaddr, size))
-		dtrace_copy(kaddr, uaddr, size);
+	if (dtrace_memcpy_with_error(uaddr, kaddr, size) == 0) {
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+		return;
+		}
 }
 
 void
 dtrace_copyinstr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_copycheck(uaddr, kaddr, size))
-		dtrace_copystr(uaddr, kaddr, size, flags);
+	if (dtrace_memcpy_with_error(uaddr, kaddr, size) == 0) {
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+		return;
+		}
 }
 
 void
 dtrace_copyoutstr(uintptr_t kaddr, uintptr_t uaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_copycheck(uaddr, kaddr, size))
-		dtrace_copystr(kaddr, uaddr, size, flags);
+	if (dtrace_memcpy_with_error(kaddr, uaddr, size) == 0) {
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+		return;
+		}
 }
 
 uint8_t
@@ -877,7 +920,7 @@ uint32_t
 dtrace_fuword32(void *uaddr)
 {
 	extern uint32_t dtrace_fuword32_nocheck(void *);
-	if ((uintptr_t)uaddr >= _userlimit) {
+	if (!addr_valid(uaddr)) {
 HERE2();
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = (uintptr_t)uaddr;
@@ -890,7 +933,7 @@ uint64_t
 dtrace_fuword64(void *uaddr)
 {
 	extern uint64_t dtrace_fuword64_nocheck(void *);
-	if ((uintptr_t)uaddr >= _userlimit) {
+	if (!addr_valid(uaddr)) {
 HERE2();
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = (uintptr_t)uaddr;

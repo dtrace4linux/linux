@@ -277,4 +277,19 @@ user_page_fault:
 mcount:
 	retq
 
+	FUNCTION dtrace_memcpy_with_error
+
+dtrace_memcpy_with_error:
+	movq %rdx,%rcx
+0:	rep; movsb
+	movq $1, %rax
+	retq
+
+1:	mov $0, %rax
+2: 	retq
+.section __ex_table,"a"
+	.align 8
+	.quad 0b,1b
+	.previous
+
 # endif

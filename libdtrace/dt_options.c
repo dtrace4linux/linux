@@ -932,7 +932,6 @@ static const dt_option_t _dtrace_rtoptions[] = {
 	{ "jstackstrsize", dt_opt_size, DTRACEOPT_JSTACKSTRSIZE },
 	{ "nspec", dt_opt_runtime, DTRACEOPT_NSPEC },
 	{ "specsize", dt_opt_size, DTRACEOPT_SPECSIZE },
-	{ "stackframes", dt_opt_runtime, DTRACEOPT_STACKFRAMES },
 	{ "statusrate", dt_opt_rate, DTRACEOPT_STATUSRATE },
 	{ "strsize", dt_opt_strsize, DTRACEOPT_STRSIZE },
 	{ "ustackframes", dt_opt_runtime, DTRACEOPT_USTACKFRAMES },
@@ -952,12 +951,28 @@ static const dt_option_t _dtrace_drtoptions[] = {
 	{ "quiet", dt_opt_runtime, DTRACEOPT_QUIET },
 	{ "rawbytes", dt_opt_runtime, DTRACEOPT_RAWBYTES },
 	{ "stackindent", dt_opt_runtime, DTRACEOPT_STACKINDENT },
-	{ "switchrate", dt_opt_rate, DTRACEOPT_SWITCHRATE },
 #if defined(__APPLE__) || defined(linux)
         { "stacksymbols", dt_opt_runtime, DTRACEOPT_STACKSYMBOLS },
-#endif	{ NULL }
+#endif
+	{ "switchrate", dt_opt_rate, DTRACEOPT_SWITCHRATE },
+	{ NULL }
 };
 
+void
+dtrace_list_options()
+{	const dt_option_t *dp;
+
+	printf("\n");
+	printf("Compile time options:\n");
+	for (dp = _dtrace_ctoptions; dp->o_name; dp++) {
+		printf("  %s\n", dp->o_name);
+	}
+	printf("\n");
+	printf("Dynamic run-time options:\n");
+	for (dp = _dtrace_drtoptions; dp->o_name; dp++) {
+		printf("  %s\n", dp->o_name);
+	}
+}
 int
 dtrace_getopt(dtrace_hdl_t *dtp, const char *opt, dtrace_optval_t *val)
 {

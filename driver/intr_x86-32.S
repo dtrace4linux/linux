@@ -206,4 +206,30 @@ user_page_fault:
 mcount:
 	ret
 
+/**********************************************************************/
+/*   Do  a  memcpy, but let caller know if a fault occurred, so this  */
+/*   can  be propagated to the user space app as an invalid address.  */
+/*   Ideally  we  want  exactly  the  faulting  address, rather than  */
+/*   assuming  the  first byte of the target is the area of problem.  */
+/*   Additionally,    we    should   use   an   optimised   memcpy()  */
+/*   implementation  using movsb/movsl/movsb to do wide transfers on  */
+/*   word aligned entities. We will worry about this another day.     */
+/**********************************************************************/
+	FUNCTION dtrace_memcpy_with_error
+
+dtrace_memcpy_with_error:
+	mov 12(%esp),%ecx
+	mov 8(%esp),%esi
+	mov 4(%esp),%edi
+	mov %edx,%ecx
+0:	rep; movsb
+	mov $1, %eax
+	ret
+
+1:	mov $0, %eax
+2: 	ret
+.section __ex_table,"a"
+	.align 4
+	.long 0b,1b
+	.previous
 # endif

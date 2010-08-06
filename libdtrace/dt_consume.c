@@ -867,6 +867,8 @@ dt_print_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 		if (dt_printf(dtp, fp, "%*s", indent, "") < 0)
 			return (-1);
 
+// temp hack: we want to allow customisation of this and be on by default. but where?
+dtp->dt_options[DTRACEOPT_STACKSYMBOLS] =1;
 #if defined(__APPLE__) || defined(linux)
 		if ((dtp->dt_options[DTRACEOPT_STACKSYMBOLS] != DTRACEOPT_UNSET) && dtrace_lookup_by_addr(dtp, pc, &sym, &dts) == 0) 
 #else
@@ -876,7 +878,7 @@ dt_print_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 			if (pc > sym.st_value) {
 				(void) snprintf(c, sizeof (c), "%s`%s+0x%llx",
 				    dts.dts_object, dts.dts_name,
-				    pc - sym.st_value);
+				    (long long) (pc - sym.st_value));
 			} else {
 				(void) snprintf(c, sizeof (c), "%s`%s",
 				    dts.dts_object, dts.dts_name);

@@ -279,6 +279,16 @@ mcount:
 
 	FUNCTION dtrace_memcpy_with_error
 
+/**********************************************************************/
+/*   Do  a  memcpy, but let caller know if a fault occurred, so this  */
+/*   can  be propagated to the user space app as an invalid address.  */
+/*   Ideally  we  want  exactly  the  faulting  address, rather than  */
+/*   assuming  the  first byte of the target is the area of problem.  */
+/*   Additionally,    we    should   use   an   optimised   memcpy()  */
+/*   implementation  using movsb/movsl/movsb to do wide transfers on  */
+/*   word aligned entities. We will worry about this another day.     */
+/**********************************************************************/
+
 dtrace_memcpy_with_error:
 	movq %rdx,%rcx
 0:	rep; movsb

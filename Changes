@@ -1,3 +1,26 @@
+Sat Aug  7 10:38:52 2010  fox
+
+     389* archive: 1.0107
+
+     388* intr_x86-32.S: Fix assembler sillyisms for dtrace_memcpy_with_error.
+
+     387* dtrace_isa.c: Use same logic for 32-bit kernels as 64-bit when
+          doing dtrace_getupcstack.
+
+     386* libdtrace/dt_module.c: Fix the way we load /proc/kallsyms to 
+          get the correct symbol sizes, to help ustack().
+
+     385* dtrace_isa.c: Remove the dwarf test code and use a different algorithm
+     	  for 64-bit stacks - more in line with what the kernel does on stack dumps.
+	  (stack() function).
+
+Fri Aug  6 21:55:59 2010  fox
+
+     384* intr_x86-32.S/intr_x86-64.S: Add dtrace_memcpy_with_error to
+          detect GPF in D programs.
+
+     383* etc/linux.d: Add uid_t type so we can access "uid" function.
+
 Thu Aug  5 23:53:55 2010  fox
 
      382* dtrace_isa.c: Change the copyin/out functions to handle

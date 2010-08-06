@@ -100,6 +100,8 @@ static char *g_etcfile = "/etc/system";
 static const char *g_etcbegin = "* vvvv Added by DTrace";
 static const char *g_etcend = "* ^^^^ Added by DTrace";
 
+void dtrace_list_options(void);
+
 extern int yydebug;
 
 static const char *g_etc[] =  {
@@ -166,6 +168,8 @@ usage(FILE *fp)
 	    "\t-x  enable or modify compiler and tracing options\n"
 	    "\t-X  specify ISO C conformance settings for preprocessor\n"
 	    "\t-Z  permit probe descriptions that match zero probes\n");
+
+	dtrace_list_options();
 
 	return (E_USAGE);
 }

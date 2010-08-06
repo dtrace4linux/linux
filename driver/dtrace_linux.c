@@ -115,6 +115,7 @@ static struct map {
 static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void **xsys_call_table;
+int (*kernel_text_address_fn)(unsigned long);
 
 /**********************************************************************/
 /*   Stats counters for ad hoc debugging; exposed via /dev/dtrace.    */
@@ -656,6 +657,12 @@ static int first_time = TRUE;
 	kernel_int13_handler = get_proc_addr("general_protection");
 	kernel_double_fault_handler = get_proc_addr("double_fault");
 	kernel_page_fault_handler = get_proc_addr("page_fault");
+
+	/***********************************************/
+	/*   Needed  for  stack  walking  to validate  */
+	/*   addresses on the stack.		       */
+	/***********************************************/
+	kernel_text_address_fn = get_proc_addr("kernel_text_address_fn");
 
 	/***********************************************/
 	/*   Register proc exit hook.		       */

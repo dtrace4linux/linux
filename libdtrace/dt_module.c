@@ -779,6 +779,16 @@ dt_module_modelname(dt_module_t *dmp)
 		return ("32-bit");
 }
 
+static int
+sort_64(Elf64_Sym **p1, Elf64_Sym **p2)
+{
+	return (*p1)->st_value - (*p2)->st_value;
+}
+static int
+sort_32(Elf32_Sym **p1, Elf32_Sym **p2)
+{
+	return (*p1)->st_value - (*p2)->st_value;
+}
 /**********************************************************************/
 /*   For Linux: add in entries from /proc/kallsyms.		      */
 /**********************************************************************/
@@ -794,6 +804,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	FILE	*fp;
 	dt_module_t *dmp;
 	int	bits = 0;
+	int	i;
 	struct utsname u;
 
 	if ((dmp = dt_module_create(dtp, "/kernel")) == NULL) {
@@ -823,9 +834,9 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 		char	*strtab = malloc(str_size);
 
 		if (bits == 64) 
-			asmap64 = (Elf64_Sym *) malloc(sizeof(asmap64[0]));
+			asmap64 = (Elf64_Sym **) malloc(sizeof(asmap64[0]));
 		else
-			asmap = (Elf32_Sym *) malloc(sizeof(asmap[0]));
+			asmap = (Elf32_Sym **) malloc(sizeof(asmap[0]));
 
 		while (fgets(buf, sizeof buf, fp)) {
 			if (sscanf(buf, "%llx %s %s", &addr, type, name) != 3)
@@ -865,8 +876,24 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 			}
 		}
 		fclose(fp);
-		dmp->dm_asmap = bits == 64 ? asmap64 : asmap;
-		dmp->dm_symtab.cts_data = bits == 64 ? asmap64 : asmap;
+
+		/***********************************************/
+		/*   Sort   syms  into  order,  then  we  can  */
+		/*   correct the size of the syms.	       */
+		/***********************************************/
+		if (bits == 64) {
+			qsort(asmap64, dmp->dm_aslen, sizeof(Elf64_Sym *), sort_64);
+			for (i = 0; i < dmp->dm_aslen-1; i++) {
+				asmap64[i]->st_size = asmap64[i+1]->st_value - asmap64[i]->st_value;
+			}
+		} else {
+			qsort(asmap, dmp->dm_aslen, sizeof(Elf32_Sym *), sort_32);
+			for (i = 0; i < dmp->dm_aslen-1; i++) {
+				asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
+			}
+		}
+		dmp->dm_asmap = bits == 64 ? (void *) asmap64 : (void *) asmap;
+		dmp->dm_symtab.cts_data = bits == 64 ? (void *) asmap64 : (void *) asmap;
 		dmp->dm_strtab.cts_data = strtab;
 		dmp->dm_strtab.cts_size = str_index;
 	}

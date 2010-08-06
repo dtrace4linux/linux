@@ -95,8 +95,9 @@ static void print_trace_address(void *data, unsigned long addr, int reliable)
 }
 
 /**********************************************************************/
-/*   Linux  kernel  stacktrace  arrangements  are  brain  dead - its  */
-/*   difficult to get the compile right here, so lets turn it off.    */
+/*   Linux  kernel stacktrace arrangements are painful to use across  */
+/*   the  kernel  releases,  its  difficult to get the compile right  */
+/*   here, so lets turn it off. 				      */
 /**********************************************************************/
 # if defined(HAVE_STACKTRACE_OPS)
 static const struct stacktrace_ops print_trace_ops = {
@@ -176,6 +177,8 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {	uint64_t *pcstack_end = pcstack + pcstack_limit;
 	volatile uint8_t *flags =
 	    (volatile uint8_t *)&cpu_core[cpu_get_id()].cpuc_dtrace_flags;
+	unsigned long *sp;
+	unsigned long *bos;
 
 	if (*flags & CPU_DTRACE_FAULT)
 		return;
@@ -201,9 +204,6 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   Whats worse is that we might be compiled  */
 	/*   with a frame pointer (only on x86-32) so  */
 	/*   we have three scenarios to handle.	       */
-	/*   					       */
-	/*   Following  simple code will work so long  */
-	/*   as we have a framepointer.		       */
 	/***********************************************/
 
 	/***********************************************/
@@ -232,28 +232,11 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   which  are  limited  to a few K (4 or 8K  */
 	/*   typically).			       */
 	/***********************************************/
-	{
-	unsigned long *sp;
-	unsigned long *bos;
 
 //	sp = current->thread.rsp;
 # if defined(__i386)
 	bos = sp = KSTK_ESP(current);
-//printk("sp=%p limit=%d esp0=%p stack=%p\n", sp, pcstack_limit, current->thread.rsp, current->stack);
-//{int i; for (i = 0; i < 64; i++) printk("  [%d] %p %p\n", i, sp + i, sp[i]);}
-	while (pcstack < pcstack_end &&
-	       sp >= bos) {
-		if (!validate_ptr(sp))
-			break;
-		*pcstack++ = sp[1];
-//printk("sp=%p limit=%d\n", sp, pcstack_limit);
-		if (sp[0] < sp)
-			break;
-		sp = sp[0];
-	}
 # else
-// avoid panicing kernel til we debug this.
-return 0;
 	/***********************************************/
 	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
 	/*   set to -1).			       */
@@ -263,100 +246,41 @@ return 0;
 #else
 	bos = sp = task_pt_regs(current)->rsp;
 #endif
-
-#if 0
-        while (pcstack < pcstack_end &&                                       
-               sp >= bos) {                                                   
-                if (validate_ptr(sp))                                         
-                        *pcstack++ = sp[0];                                   
-                sp++; 
-	}
 #endif
 
-
-/*__asm("movq %%gs:24, %0\n"
-	"nop\n"
-	"nop\n"
-	"nop\n"
-	"nop\n"
-	"nop\n"
-	: "=a" (sp)
-	);
-bos = sp;*/
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
-# define read_pda(x) percpu_read(x)
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-bos = sp = current->thread.usersp;
-#else
-bos = sp = read_pda(oldrsp);
-#endif
-//bos = sp = (unsigned long *) task_pt_regs(current)->sp;
-//bos = sp = read_pda(oldrsp);
-//unsigned long pc = ((unsigned long *) read_pda(kernelstack))[0];
-unsigned long pc = ((unsigned long *) sp)[0];
-printk("rsp %p pc=%p\n", sp, pc);
-
-//dtrace_dump_mem64(&current->thread, 64);
-//dtrace_dump_mem64(sp, 128);
 	/***********************************************/
-	/*   Find  base  of  the  code  area  for ELF  */
-	/*   header.				       */
+	/*   Walk  the  stack.  We  cannot  rely on a  */
+	/*   frame  pointer  at  each  level,  and we  */
+	/*   really  want to avoid probing every word  */
+	/*   in  the  stack  - a large stack will eat  */
+	/*   cpu  looking at thousands of entries. So  */
+	/*   try  and  heuristically see if we have a  */
+	/*   likely  frame  pointer  to jump over the  */
+	/*   frame,  but, if not, just go one word at  */
+	/*   a time.				       */
+	/*   					       */
+	/*   Try  and be careful we dont walk outside  */
+	/*   the  stack  or  walk  backwards  in  the  */
+	/*   stack, too.			       */
 	/***********************************************/
-int loop = 0;
-        while (pcstack < pcstack_end &&                                       
+	{uintptr_t *spend = sp + THREAD_SIZE;
+	extern int (*kernel_text_address_fn)(unsigned long);
+        while (pcstack < pcstack_end &&
                sp >= bos) {
-	       	struct vm_area_struct *vm = find_vma(current->mm, pc);
-		int	cfa_offset;
-char	dw[200];
-int do_dwarf_phdr(char *, char *);
-int dw_find_ret_addr(char *, unsigned long, int *);
-
-printk("loop=%d sp:%p pc=%p\n", loop++, sp, pc);
-		if (vm == NULL) {
-/*printk("no vm for sp: %p pc=%p\n", pc);*/
-			break;
+                if (validate_ptr(sp) && (kernel_text_address_fn == NULL || kernel_text_address_fn(sp[0]))) {
+			uintptr_t p = sp[-1];
+			*pcstack++ = sp[0];
+			if (p > sp && p < spend)
+				sp = p;
 		}
-
-		/***********************************************/
-		/*   Work  out where the .eh_frame section is  */
-		/*   in memory.				       */
-		/***********************************************/
-char *ptr = vm->vm_start;
-printk("pc=%p sp=%p vmtart=%p elf=%02x %02x %02x %02x\n", pc, sp[0], vm->vm_start, ptr[0], ptr[1], ptr[2], ptr[3]);
-printk("sp[0] %p %p %p\n", sp[0], sp[1], sp[2]);
-printk("sp[3] %p %p %p\n", sp[3], sp[4], sp[5]);
-		if (do_dwarf_phdr((char *) vm->vm_start, &dw) < 0) {
-			printk("sorry - no phdr\n");
-			break;
-		}
-
-		/***********************************************/
-		/*   Now  process  the  CFA machinery to find  */
-		/*   where  the next return address is on the  */
-		/*   stack (relative to where we are).	       */
-		/***********************************************/
-		if (dw_find_ret_addr(dw, pc, &cfa_offset) == 0) {
-			printk("sorry..\n");
-			break;
-		}
-//cfa_offset = cfa_offset+8;
-		printk("vm=%p %p: %p cfa_offset=%d\n", vm, vm->vm_start, *(long *) vm->vm_start, cfa_offset);
-		*pcstack++ = sp[0];                                   
-		sp = (char *) sp + cfa_offset - 8;
-		if (*sp < 4096)
-			sp++;
-printk("CHECK: %p %p %p\n", sp[0], sp[1], sp[2]);
-		pc = *sp;
-		continue;
-                if (validate_ptr(sp))                                         
-                        *pcstack++ = sp[0];                                   
-                sp++; 
+                sp++;
 	}
-# endif
 	}
 
+	/***********************************************/
+	/*   Erase  anything  else  in  the buffer to  */
+	/*   avoid confusion.			       */
+	/***********************************************/
 	while (pcstack < pcstack_end)
 		*pcstack++ = (pc_t) NULL;
 }

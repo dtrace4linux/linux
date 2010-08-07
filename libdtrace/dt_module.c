@@ -779,7 +779,7 @@ dt_module_modelname(dt_module_t *dmp)
 		return ("32-bit");
 }
 
-static int
+/*static int
 sort_64(Elf64_Sym **p1, Elf64_Sym **p2)
 {
 	return (*p1)->st_value - (*p2)->st_value;
@@ -788,7 +788,7 @@ static int
 sort_32(Elf32_Sym **p1, Elf32_Sym **p2)
 {
 	return (*p1)->st_value - (*p2)->st_value;
-}
+}*/
 /**********************************************************************/
 /*   For Linux: add in entries from /proc/kallsyms.		      */
 /**********************************************************************/
@@ -877,21 +877,6 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 		}
 		fclose(fp);
 
-		/***********************************************/
-		/*   Sort   syms  into  order,  then  we  can  */
-		/*   correct the size of the syms.	       */
-		/***********************************************/
-		if (bits == 64) {
-			qsort(asmap64, dmp->dm_aslen, sizeof(Elf64_Sym *), sort_64);
-			for (i = 0; i < dmp->dm_aslen-1; i++) {
-				asmap64[i]->st_size = asmap64[i+1]->st_value - asmap64[i]->st_value;
-			}
-		} else {
-			qsort(asmap, dmp->dm_aslen, sizeof(Elf32_Sym *), sort_32);
-			for (i = 0; i < dmp->dm_aslen-1; i++) {
-				asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
-			}
-		}
 		dmp->dm_asmap = bits == 64 ? (void *) asmap64 : (void *) asmap;
 		dmp->dm_symtab.cts_data = bits == 64 ? (void *) asmap64 : (void *) asmap;
 		dmp->dm_strtab.cts_data = strtab;
@@ -929,6 +914,21 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 
 	dmp->dm_text_va = text_start;
 	dmp->dm_text_size = -text_start;
+
+	/***********************************************/
+	/*   Compute sizes now items are in order      */
+	/***********************************************/
+	if (bits == 64) {
+		Elf64_Sym **asmap = dmp->dm_asmap;
+		for (i = 0; i < dmp->dm_aslen-1; i++) {
+			asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
+		}
+	} else {
+		Elf32_Sym **asmap = dmp->dm_asmap;
+		for (i = 0; i < dmp->dm_aslen-1; i++) {
+			asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
+		}
+	}
 	/***********************************************/
 	/*   HACK:   might   want   to  refresh  from  */
 	/*   /proc/kallsyms as modules get loaded.     */

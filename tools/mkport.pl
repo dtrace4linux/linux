@@ -32,6 +32,7 @@ sub main
 	Getopt::Long::Configure('no_ignore_case');
 	usage() unless GetOptions(\%opts,
 		'help',
+		'v',
 		);
 
 	usage() if ($opts{help});
@@ -65,7 +66,8 @@ sub main
 		$inc .= "# define DO_NOT_HAVE_ZLIB_IN_KERNEL 1\n";
 	}
 
-	if (have("stacktrace_ops", "include/asm/stacktrace.h")) {
+	if (have("stacktrace_ops", "include/asm/stacktrace.h") ||
+	    have("stacktrace_ops", "arch/x86/include/asm/stacktrace.h")) {
 		$inc .= "# define HAVE_STACKTRACE_OPS \n";
 	}
 
@@ -108,6 +110,9 @@ sub have
 
 #print "opening .... $kern/$file\n";
 	my $fh = new FileHandle("$kern/$file");
+	if (!$fh && $opts{v}) {
+		print "Cannot open $kern/$file\n";
+	}
 	return if !$fh;
 	while (<$fh>) {
 		return 1 if /$name/;

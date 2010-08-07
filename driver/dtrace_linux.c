@@ -662,7 +662,7 @@ static int first_time = TRUE;
 	/*   Needed  for  stack  walking  to validate  */
 	/*   addresses on the stack.		       */
 	/***********************************************/
-	kernel_text_address_fn = get_proc_addr("kernel_text_address_fn");
+	kernel_text_address_fn = get_proc_addr("kernel_text_address");
 
 	/***********************************************/
 	/*   Register proc exit hook.		       */

@@ -1,3 +1,7 @@
+Sun Aug  8 10:46:01 2010  fox
+
+     390* mkport.pl: Wasnt picking up stacktrace.h properly from later kernels.
+
 Sat Aug  7 10:38:52 2010  fox
 
      389* archive: 1.0107

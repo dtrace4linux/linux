@@ -95,7 +95,7 @@ sub main
 		print $fh "export CPU_BITS=$ENV{CPU_BITS}\n";
 		spawn("tools/mksyscall.pl x86");
 	} else {
-		die "Unuspport cpu architecture: $uname_m\n";
+		die "Unsupported cpu architecture: $uname_m\n";
 	}
 	$fh->close();
 	my $ret = spawn("make all0", 0);

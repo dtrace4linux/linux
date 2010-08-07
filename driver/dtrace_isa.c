@@ -46,6 +46,7 @@
 #include <sys/cmn_err.h>
 #include <sys/privregs.h>
 #include <sys/sysmacros.h>
+#include <asm/stacktrace.h>
 #include "dtrace_proto.h"
 
 typedef struct ucontext ucontext_t;
@@ -69,6 +70,7 @@ extern size_t _allsyscalls_size;
 /*   architecture and frame pointer.				      */
 /**********************************************************************/
 MUTEX_DEFINE(dtrace_stack_mutex);
+# if defined(HAVE_STACKTRACE_OPS)
 static pc_t	*g_pcstack;
 static int	g_pcstack_limit;
 static int	g_depth;
@@ -93,6 +95,7 @@ static void print_trace_address(void *data, unsigned long addr, int reliable)
 	if (g_depth < g_pcstack_limit)
 		g_pcstack[g_depth++] = addr;
 }
+#endif
 
 /**********************************************************************/
 /*   Linux  kernel stacktrace arrangements are painful to use across  */
@@ -135,7 +138,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	uintptr_t *spend;
 	
 	if (regs == NULL)
-		sp = &depth;
+		sp = (uintptr_t *) &depth;
 
 	spend = sp + THREAD_SIZE / sizeof(uintptr_t);
 
@@ -171,7 +174,6 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 /*   pointer/no frame pointer. We use the DWARF code to walk the CFA  */
 /*   frames to tell us where we can find the return address.	      */
 /**********************************************************************/
-static int x;
 void
 dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 {	uint64_t *pcstack_end = pcstack + pcstack_limit;
@@ -236,6 +238,7 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 //	sp = current->thread.rsp;
 # if defined(__i386)
 	bos = sp = KSTK_ESP(current);
+#	define	ALIGN_MASK	3
 # else
 	/***********************************************/
 	/*   KSTK_ESP()  doesnt exist for x86_64 (its  */
@@ -246,6 +249,7 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 #else
 	bos = sp = task_pt_regs(current)->rsp;
 #endif
+#	define	ALIGN_MASK	7
 #endif
 
 	/***********************************************/
@@ -263,15 +267,23 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   the  stack  or  walk  backwards  in  the  */
 	/*   stack, too.			       */
 	/***********************************************/
-	{uintptr_t *spend = sp + THREAD_SIZE;
-	extern int (*kernel_text_address_fn)(unsigned long);
-        while (pcstack < pcstack_end &&
-               sp >= bos) {
-                if (validate_ptr(sp) && (kernel_text_address_fn == NULL || kernel_text_address_fn(sp[0]))) {
+	{uintptr_t *spend = sp + 1024;
+	struct vm_area_struct *vma = find_vma(current->mm, sp);
+	if (vma)
+		spend = vma->vm_end - sizeof(int *);
+
+printk("xbos=%p %p\n", bos, spend);
+
+        while (sp >= bos && sp < spend && validate_ptr(sp)) {
+printk("  %p %d: %p %d\n", sp, validate_ptr(sp), sp[0], validate_ptr(sp[0]));
+		if (validate_ptr(sp[0])) {
 			uintptr_t p = sp[-1];
+printk("  %p: %p sp[-1]=%p\n", sp, sp[0], p);
 			*pcstack++ = sp[0];
-			if (p > sp && p < spend)
-				sp = p;
+			if (pcstack >= pcstack_end)
+				break;
+			if (((int) p & ALIGN_MASK) == 0 && p > (uintptr_t) sp && p < (uintptr_t) spend)
+				sp = (unsigned long *) p;
 		}
                 sp++;
 	}
@@ -281,6 +293,7 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   Erase  anything  else  in  the buffer to  */
 	/*   avoid confusion.			       */
 	/***********************************************/
+printk("3\n");
 	while (pcstack < pcstack_end)
 		*pcstack++ = (pc_t) NULL;
 }
@@ -778,7 +791,7 @@ void
 dtrace_copyin(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_memcpy_with_error(kaddr, uaddr, size) == 0) {
+	if (dtrace_memcpy_with_error((void *) kaddr, (void *) uaddr, size) == 0) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		return;
 		}
@@ -788,7 +801,7 @@ void
 dtrace_copyout(uintptr_t kaddr, uintptr_t uaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_memcpy_with_error(uaddr, kaddr, size) == 0) {
+	if (dtrace_memcpy_with_error((void *) uaddr, (void *) kaddr, size) == 0) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		return;
 		}
@@ -798,7 +811,7 @@ void
 dtrace_copyinstr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_memcpy_with_error(uaddr, kaddr, size) == 0) {
+	if (dtrace_memcpy_with_error((void *) uaddr, (void *) kaddr, size) == 0) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		return;
 		}
@@ -808,7 +821,7 @@ void
 dtrace_copyoutstr(uintptr_t kaddr, uintptr_t uaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_memcpy_with_error(kaddr, uaddr, size) == 0) {
+	if (dtrace_memcpy_with_error((void *) kaddr, (void *) uaddr, size) == 0) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		return;
 		}

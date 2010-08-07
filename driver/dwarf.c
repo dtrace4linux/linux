@@ -431,7 +431,7 @@ printk("do_dwarf_phdr: %d\n", __LINE__);
 	/*   having  a  section  table  to  determine  */
 	/*   this.				       */
 	/***********************************************/
-	char *fp_start = (char *) ehdr + (int) dw->eh_frame_hdr_data;
+	char *fp_start = (char *) ehdr + (long) dw->eh_frame_hdr_data;
 	if (ehdr->e_type == ET_EXEC) {
 		fp_start = dw->eh_frame_hdr_data;
 	}
@@ -501,7 +501,7 @@ dwarf_regname(int reg)
 	if (reg >= 0 && reg < (int) sizeof(regnames) / (int) sizeof(regnames[0]))
 		snprintf(buf, sizeof buf, "r%d (%s)", reg, regnames[reg]);
 	else
-		snprintf(buf, sizeof buf, "r%d (??)", reg);
+		snprintf(buf, sizeof buf, "r%d (? )", reg);
 	return buf;
 }
 /**********************************************************************/

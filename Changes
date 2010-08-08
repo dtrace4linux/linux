@@ -1,3 +1,11 @@
+Mon Aug  9 23:27:04 2010  fox
+
+     392* dtrace_isa.c: Better ustack handling - try and walk the stack
+          better to avoid false positives.
+
+     391* Psymtab.c: Dont use a.out for the app name in stack dumps, use
+          /proc/pid/exe. 
+
 Sun Aug  8 10:46:01 2010  fox
 
      390* mkport.pl: Wasnt picking up stacktrace.h properly from later kernels.

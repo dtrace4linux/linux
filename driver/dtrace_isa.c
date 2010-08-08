@@ -272,16 +272,38 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	if (vma)
 		spend = vma->vm_end - sizeof(int *);
 
-printk("xbos=%p %p\n", bos, spend);
+/*printk("xbos=%p %p\n", bos, spend);*/
 
+	/***********************************************/
+	/*   Have  you ever looked at the output from  */
+	/*   GCC in amd64 mode? Things like:	       */
+	/*   					       */
+	/*   push %r12				       */
+	/*   push %rbp				       */
+	/*   					       */
+	/*   will make you come out in a cold sweat -  */
+	/*   no   way  to  find  the  frame  pointer,  */
+	/*   without doing what GDB does (ie read the  */
+	/*   DWARF  stack  unwind info). So, for now,  */
+	/*   you  get  some  false  positives  in the  */
+	/*   output - but we try to be conservative.   */
+	/***********************************************/
         while (sp >= bos && sp < spend && validate_ptr(sp)) {
-printk("  %p %d: %p %d\n", sp, validate_ptr(sp), sp[0], validate_ptr(sp[0]));
+/*printk("  %p %d: %p %d\n", sp, validate_ptr(sp), sp[0], validate_ptr(sp[0]));*/
 		if (validate_ptr(sp[0])) {
 			uintptr_t p = sp[-1];
-printk("  %p: %p sp[-1]=%p\n", sp, sp[0], p);
-			*pcstack++ = sp[0];
-			if (pcstack >= pcstack_end)
-				break;
+			/***********************************************/
+			/*   Try  and  avoid false positives in stack  */
+			/*   entries   -   we  want  this  to  be  an  */
+			/*   executable instruction.		       */
+			/***********************************************/
+		 	if ((sp[0] < bos || sp[0] > spend) &&
+			    (vma = find_vma(current->mm, sp[0])) != NULL &&
+			    vma->vm_flags & VM_EXEC) {
+				*pcstack++ = sp[0];
+				if (pcstack >= pcstack_end)
+					break;
+			}
 			if (((int) p & ALIGN_MASK) == 0 && p > (uintptr_t) sp && p < (uintptr_t) spend)
 				sp = (unsigned long *) p;
 		}
@@ -293,7 +315,6 @@ printk("  %p: %p sp[-1]=%p\n", sp, sp[0], p);
 	/*   Erase  anything  else  in  the buffer to  */
 	/*   avoid confusion.			       */
 	/***********************************************/
-printk("3\n");
 	while (pcstack < pcstack_end)
 		*pcstack++ = (pc_t) NULL;
 }

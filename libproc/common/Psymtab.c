@@ -413,8 +413,17 @@ load_static_maps(struct ps_prochandle *P)
 	/*
 	 * Construct the map for the a.out.
 	 */
-	if ((mptr = object_name_to_map(P, PR_LMID_EVERY, PR_OBJ_EXEC)) != NULL)
-		map_set(P, mptr, "a.out");
+	if ((mptr = object_name_to_map(P, PR_LMID_EVERY, PR_OBJ_EXEC)) != NULL) {
+		char buf[128];
+		char buf2[BUFSIZ];
+		int	n;
+		snprintf(buf, sizeof buf, "/proc/%d/exe", P->pid);
+		if ((n = readlink(buf, buf2, sizeof buf2 - 1)) != 0) {
+			buf2[n] = '\0';
+			map_set(P, mptr, buf2);
+		} else
+			map_set(P, mptr, "a.out");
+	}
 
 	/*
 	 * If the dynamic linker exists for this process,

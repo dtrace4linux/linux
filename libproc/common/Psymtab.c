@@ -267,8 +267,10 @@ file_info_free(struct ps_prochandle *P, file_info_t *fptr)
 
 		if (fptr->file_lo)
 			free(fptr->file_lo);
-		if (fptr->file_lname)
+		if (fptr->file_lname) {
 			free(fptr->file_lname);
+			fptr->file_lname = NULL;
+		}
 		if (fptr->file_elf)
 			(void) elf_end(fptr->file_elf);
 		if (fptr->file_elfmem != NULL)
@@ -358,7 +360,7 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 	}
 
 #if defined(linux)
-	fptr->file_lname = lop->rl_nameaddr;
+	fptr->file_lname = strdup(lop->rl_nameaddr);
 printf("filename=%s\n", fptr->file_lname);
 #else
 	if (Pread_string(P, buf, sizeof (buf), lop->rl_nameaddr) > 0) {
@@ -2715,7 +2717,7 @@ Pobjname(struct ps_prochandle *P, uintptr_t addr,
 #if defined(linux)
 	// temp hack - but seems to work
 	if (fptr)
-		fptr->file_lname = fptr->file_pname;
+		fptr->file_lname = strdup(fptr->file_pname);
 #endif
 	return (NULL);
 }

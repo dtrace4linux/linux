@@ -1,4 +1,10 @@
+Tue Aug 10 21:58:37 2010  fox
+
+     394* Psymtab.c: avoid core dump when ^C-ing dtrace after dumping ustack().
+
 Mon Aug  9 23:27:04 2010  fox
+
+     393* Archive: 1.0108
 
      392* dtrace_isa.c: Better ustack handling - try and walk the stack
           better to avoid false positives.

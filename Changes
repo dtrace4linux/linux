@@ -1,3 +1,8 @@
+Sun Aug 15 09:31:16 2010  fox
+
+     395* driver/dtrace_isa.c: Fix invocation of call to __range_not_ok 
+          which was born in 2.6.31 kernels.
+
 Tue Aug 10 21:58:37 2010  fox
 
      394* Psymtab.c: avoid core dump when ^C-ing dtrace after dumping ustack().

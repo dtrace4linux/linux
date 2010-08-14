@@ -268,9 +268,9 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   stack, too.			       */
 	/***********************************************/
 	{uintptr_t *spend = sp + 1024;
-	struct vm_area_struct *vma = find_vma(current->mm, sp);
+	struct vm_area_struct *vma = find_vma(current->mm, (unsigned long) sp);
 	if (vma)
-		spend = vma->vm_end - sizeof(int *);
+		spend = (uintptr_t *) (vma->vm_end - sizeof(int *));
 
 /*printk("xbos=%p %p\n", bos, spend);*/
 
@@ -290,14 +290,14 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/***********************************************/
         while (sp >= bos && sp < spend && validate_ptr(sp)) {
 /*printk("  %p %d: %p %d\n", sp, validate_ptr(sp), sp[0], validate_ptr(sp[0]));*/
-		if (validate_ptr(sp[0])) {
+		if (validate_ptr((void *) sp[0])) {
 			uintptr_t p = sp[-1];
 			/***********************************************/
 			/*   Try  and  avoid false positives in stack  */
 			/*   entries   -   we  want  this  to  be  an  */
 			/*   executable instruction.		       */
 			/***********************************************/
-		 	if ((sp[0] < bos || sp[0] > spend) &&
+		 	if (((unsigned long *) sp[0] < bos || (unsigned long *) sp[0] > spend) &&
 			    (vma = find_vma(current->mm, sp[0])) != NULL &&
 			    vma->vm_flags & VM_EXEC) {
 				*pcstack++ = sp[0];
@@ -786,19 +786,19 @@ int dtrace_isa_asm(void)
 
 # define addr_valid(addr) __addr_ok((addr))
 
+# if 0
 static int
 dtrace_copycheck(uintptr_t uaddr, uintptr_t kaddr, size_t size)
 {
 
-	/***********************************************/
-	/*   Spot the Sun bug in the line below.       */
-	/***********************************************/
-//	ASSERT(kaddr >= kernelbase && kaddr + size >= kaddr);
-
 if (dtrace_here) {
 printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, (int) size);
 }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 	if (__range_not_ok(uaddr, size)) {
+#else
+	if (!addr_valid(uaddr) || !addr_valid(uaddr + size)) {
+#endif
 //printk("uaddr=%p size=%d\n", uaddr, size);
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = uaddr;
@@ -806,7 +806,7 @@ printk("copycheck: uaddr=%p kaddr=%p size=%d\n", (void *) uaddr, (void*) kaddr, 
 	}
 	return (1);
 }
-
+# endif
 
 void
 dtrace_copyin(uintptr_t uaddr, uintptr_t kaddr, size_t size,

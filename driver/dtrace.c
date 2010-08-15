@@ -420,6 +420,28 @@ static MUTEX_DEFINE(dtrace_errlock);
 	((mstate)->dtms_scratch_base + (mstate)->dtms_scratch_size - \
 	(mstate)->dtms_scratch_ptr >= (alloc_sz))
 
+#if defined(linux)
+#define	DTRACE_LOADFUNC(bits)						\
+/*CSTYLED*/								\
+uint##bits##_t								\
+dtrace_load##bits(uintptr_t addr)					\
+{									\
+	/*CSTYLED*/							\
+	uint##bits##_t rval = 0;					\
+	volatile uint16_t *flags = (volatile uint16_t *)		\
+	    &cpu_core[cpu_get_id()].cpuc_dtrace_flags;			\
+	                                                                \
+	if (dtrace_memcpy_with_error(&rval, (void *) addr, sizeof(rval)) == 0) { \
+		*flags |= CPU_DTRACE_BADADDR;				\
+		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
+		return (0);						\
+	}								\
+									\
+	*flags &= ~CPU_DTRACE_NOFAULT;					\
+									\
+	return (!(*flags & CPU_DTRACE_FAULT) ? rval : 0);		\
+}
+#else
 #define	DTRACE_LOADFUNC(bits)						\
 /*CSTYLED*/								\
 uint##bits##_t								\
@@ -456,6 +478,7 @@ dtrace_load##bits(uintptr_t addr)					\
 									\
 	return (!(*flags & CPU_DTRACE_FAULT) ? rval : 0);		\
 }
+#endif
 
 #ifdef _LP64
 #define	dtrace_loadptr	dtrace_load64
@@ -4583,6 +4606,18 @@ inetout:	regs[rd] = (uintptr_t)end + 1;
 
 	}
 }
+
+# if 0
+static void
+dump_dtrace_regs(char *msg, uint64_t *regs)
+{	int i; 
+
+	printk("%s\n", msg);
+	for (i = 0; i < DIF_DIR_NREGS; i++) {
+		printk("reg%d: %p\n", i, regs[i]);
+	}
+}
+# endif
 
 /*
  * Emulate the execution of DTrace IR instructions specified by the given

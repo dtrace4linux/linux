@@ -93,7 +93,7 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	name = kstrdup(infp->name, KM_SLEEP);
 	sdp = kmem_zalloc(sizeof (sdt_probe_t), KM_SLEEP);
 	sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
-			    infp->func, NULL, name, 3, sdp);
+			    infp->func, NULL, name, 0, sdp);
 	sdp->sdp_name = name;
 	sdp->sdp_namelen = strlen(name);
 	sdp->sdp_inslen = size;
@@ -139,7 +139,7 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	/***********************************************/
 	if (retsdt == NULL) {
 		sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
-			    infp->func, NULL, name, 3, sdp);
+			    infp->func, NULL, name, 0, sdp);
 		infp->retptr = sdp;
 	} else {
 		retsdt->sdp_next = sdp;
@@ -202,6 +202,28 @@ io_prov_init(void)
 /**********************************************************************/
 /*   This is called when we hit an SDT breakpoint.		      */
 /**********************************************************************/
+typedef struct buf_t {
+        int b_flags;                    /* flags */
+        size_t b_bcount;                /* number of bytes */
+        caddr_t b_addr;                 /* buffer address */
+        uint64_t b_blkno;               /* expanded block # on device */
+        uint64_t b_lblkno;              /* block # on device */
+        size_t b_resid;                 /* # of bytes not transferred */
+        size_t b_bufsize;               /* size of allocated buffer */ 
+        caddr_t b_iodone;               /* I/O completion routine */
+        int b_error;                    /* expanded error field */
+        dev_t b_edev;                   /* extended device */
+	} buf_t;
+
+typedef struct devinfo {
+        int dev_major;                  /* major number */
+        int dev_minor;                  /* minor number */
+        int dev_instance;               /* instance number */
+        char *dev_name;                /* name of device */
+        char *dev_statname;            /* name of device + instance/minor */
+        char *dev_pathname;            /* pathname of device */
+} devinfo_t;
+
 typedef struct fileinfo_t {
 	char	*fi_name;
 	char	*fi_dirname;
@@ -242,21 +264,23 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			stack0 = regs->c_arg0;
 			stack1 = regs->c_arg1;
 			stack2 = regs->c_arg2;
-{
-struct file *file = stack0;
-memset(&finfo, 0, sizeof finfo);
-stack2 = &finfo;
-//printk("stack2=%p\n", stack2);
-finfo.fi_offset = 0x12345;
-finfo.fi_name = "this/is/fi_pathname";
-finfo.fi_pathname = "hello/world";
-//printk("fi_name=%p offset=%llx\n", finfo.fi_name, finfo.fi_offset);
-}
 			stack3 = regs->c_arg3;
 			stack4 = regs->c_arg4;
+if (1) {
+struct file *file = stack0;
+memset(&finfo, 0, sizeof finfo);
+//printk("orig-stack2=%p\n", stack2);
+//printk("stack2=%p\n", stack2);
+finfo.fi_offset = stack3;
+finfo.fi_name = "this/is/fi_pathname";
+finfo.fi_pathname = "hello/world";
+stack0 = &finfo;
+stack2 = &finfo;
+//printk("fi_name=%p offset=%llx\n", finfo.fi_name, finfo.fi_offset);
+}
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);
-
+//printk("probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);
 			dtrace_probe(sdt->sdp_id, stack0, stack1,
 			    stack2, stack3, stack4);
 
@@ -504,6 +528,18 @@ sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 	int inreg = 5;
 #endif
 
+/*	for (i = 1; i <= aframes+2; i++) {
+		fp = (struct frame *)(fp->fr_savfp);
+printk("stk %d: %p: %p %p %p %p\n%p %p %p\n", i, fp, ((long *) fp)[0], ((long *) fp)[1], ((long *) fp)[2], ((long *) fp)[3], 
+((long *) fp)[4],
+((long *) fp)[5],
+((long *) fp)[6],
+((long *) fp)[7]
+);
+	}
+fp = dtrace_getfp();
+*/
+
 	for (i = 1; i <= aframes; i++) {
 //printk("i=%d fp=%p aframes=%d pc:%p\n", i, fp, aframes, fp->fr_savpc);
 		fp = (struct frame *)(fp->fr_savfp);
@@ -551,6 +587,7 @@ sdt_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 			goto load;
 		}
 	}
+//printk("stack %d: %p %p %p %p\n", i, ((long *) fp)[0], ((long *) fp)[1], ((long *) fp)[2], ((long *) fp)[3], ((long *) fp)[4]);
 
 	/*
 	 * We know that we did not come through a trap to get into
@@ -581,7 +618,7 @@ load:
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	val = stack[argno];
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
-printk("sdt_getarg#%d: %lx\n", argno, val);
+printk("sdt_getarg#%d: %lx aframes=%d\n", argno, val, aframes);
 
 	return (val);
 }

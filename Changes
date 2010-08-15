@@ -1,3 +1,15 @@
+Mon Aug 16 21:48:52 2010  fox
+
+     396* dtrace.c: Rework the dtrace_loadNNbits functions to avoid taking
+          a segmentation violation if user is being nasty (or a bug
+	  in a translator), by using the Linux validation framework.
+	  This gives us a win over Solaris as we dont have to check toxic
+	  ranges. Could optimise further for the 8/16/32 bit case to avoid
+	  the call to dtrace_memcpy_with_error(), but probably
+	  most of the time its a 64-bit move (on a 64b kernel) so not
+	  a big loss. Maybe we will optimise one day when we can profile
+	  if it is a real rather than an imaginary problem.
+
 Sun Aug 15 09:31:16 2010  fox
 
      395* driver/dtrace_isa.c: Fix invocation of call to __range_not_ok 

@@ -122,7 +122,7 @@ rd_ctl(int cmd, void *arg)
 void
 rd_delete(rd_agent_t *rap)
 {
-	printf("rd_delete:%s\n", __func__);
+/*	printf("rd_delete:%s\n", __func__);*/
 	free(rap);
 }
 

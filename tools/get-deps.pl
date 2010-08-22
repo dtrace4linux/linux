@@ -21,7 +21,7 @@ ftp://crisp.dynalias.com/pub/release/website/dtrace/${DISTRIBUTION}.tar.bz2
 install_dependencies()
 {
    sudo apt-get install zlib1g-dev flex bison \
-   		elfutils libelf-dev libc6-dev linux-libc-dev
+   		elfutils libdwarf-dev libelf-dev libc6-dev linux-libc-dev
 }
 
 build()

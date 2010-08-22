@@ -1,3 +1,13 @@
+Mon Aug 23 21:52:56 2010  fox
+
+     399* cmd/ctfconvert: Add 'ctfdump' utility to list out the CTF sections.
+
+     398* Archive: 1.0109
+
+     397* cmd/ctfconvert: New binary to support CTF/.SUNW_ctf sections.
+          You need the libdwarf-dev and binutils-dev package for this to
+	  work.
+
 Mon Aug 16 21:48:52 2010  fox
 
      396* dtrace.c: Rework the dtrace_loadNNbits functions to avoid taking

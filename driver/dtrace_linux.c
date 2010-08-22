@@ -116,6 +116,7 @@ static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void **xsys_call_table;
 int (*kernel_text_address_fn)(unsigned long);
+char *(*dentry_path_fn)(struct dentry *, char *, int);
 
 /**********************************************************************/
 /*   Stats counters for ad hoc debugging; exposed via /dev/dtrace.    */
@@ -663,6 +664,11 @@ static int first_time = TRUE;
 	/*   addresses on the stack.		       */
 	/***********************************************/
 	kernel_text_address_fn = get_proc_addr("kernel_text_address");
+
+	/***********************************************/
+	/*   Needed by sdt probes.		       */
+	/***********************************************/
+	dentry_path_fn = get_proc_addr("dentry_path");
 
 	/***********************************************/
 	/*   Register proc exit hook.		       */

@@ -337,6 +337,7 @@ typedef struct pf_info_t {
 	int		(*func_entry)(struct pf_info_t *, uint8_t *, int, int);
 	int		(*func_return)(struct pf_info_t *, uint8_t *, int);
 	void		*retptr;
+	int		flags;
 	} pf_info_t;
 void dtrace_parse_function(pf_info_t *, uint8_t *, uint8_t *);
 int dtrace_function_size(char *name, uint8_t **start, int *size);

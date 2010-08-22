@@ -91,6 +91,7 @@ all0:
 	cd libproc/common ; $(MAKE) $(NOPWD)
 	cd librtld ; $(MAKE) $(NOPWD)
 	cd cmd/dtrace ; $(MAKE) $(NOPWD)
+	cd cmd/ctfconvert ; $(MAKE) $(NOPWD)
 	cd usdt/c ; $(MAKE) $(NOPWD)
 	tools/mkdriver.pl all
 

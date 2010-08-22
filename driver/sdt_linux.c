@@ -43,6 +43,7 @@
 #include <sys/sdt_impl.h>
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
+#include <linux/mount.h>
 
 # define regs pt_regs
 #include <sys/stack.h>
@@ -74,6 +75,11 @@ static int			sdt_probetab_mask;
 static sdt_provider_t *io_prov;
 
 /**********************************************************************/
+/*   Needed to map a mountpoint to a printable name.		      */
+/**********************************************************************/
+extern char *(*dentry_path_fn)(struct dentry *, char *, int);
+
+/**********************************************************************/
 /*   Go hunting for the static io:: provider slots.		      */
 /**********************************************************************/
 static int
@@ -99,6 +105,7 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	sdp->sdp_inslen = size;
 	sdp->sdp_modrm = modrm;
 	sdp->sdp_provider = prov;
+	sdp->sdp_flags = infp->flags;
 
 	/***********************************************/
 	/*   Add the entry to the hash table.	       */
@@ -149,6 +156,7 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	sdp->sdp_namelen = strlen(name);
 	sdp->sdp_inslen = size;
 	sdp->sdp_provider = prov;
+	sdp->sdp_flags = infp->flags;
 
 	/***********************************************/
 	/*   Add the entry to the hash table.	       */
@@ -164,7 +172,7 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	return 1;
 }
 static void
-io_prov_create(char *func, char *name)
+io_prov_create(char *func, char *name, int flags)
 {
 	pf_info_t	inf;
 	uint8_t		*start;
@@ -183,6 +191,7 @@ io_prov_create(char *func, char *name)
 
 	inf.func_entry = io_prov_entry;
 	inf.func_return = io_prov_return;
+	inf.flags = flags;
 
 	dtrace_parse_function(&inf, start, start + size);
 
@@ -195,12 +204,17 @@ io_prov_create(char *func, char *name)
 void
 io_prov_init(void)
 {
-	io_prov_create("do_sync_read", "start");
-	io_prov_create("do_sync_write", "start");
+	io_prov_create("do_sync_read", "start", 1);
+	io_prov_create("do_sync_write", "start", 0);
 }
 
 /**********************************************************************/
 /*   This is called when we hit an SDT breakpoint.		      */
+/**********************************************************************/
+
+/**********************************************************************/
+/*   Following  structures  are  the public interface for io:::start  */
+/*   and io:::done.						      */
 /**********************************************************************/
 typedef struct buf_t {
         int b_flags;                    /* flags */
@@ -233,7 +247,52 @@ typedef struct fileinfo_t {
 	char *fi_mount;
 } fileinfo_t;
 
-static fileinfo_t finfo;
+typedef struct public_buf_t {
+	buf_t		b;
+	devinfo_t	d;
+	fileinfo_t	f;
+	} public_buf_t;
+
+/**********************************************************************/
+/*   Convert the args do do_sync_read/do_sync_write to an exportable  */
+/*   structure so that D scripts can access the buf_t structure.      */
+/**********************************************************************/
+static public_buf_t *
+create_public_buf_t(struct file *file, long long offset)
+{
+	/***********************************************/
+	/*   BUG ALERT! We need per-cpu copies of the  */
+	/*   static's  below  -  will fix this later.  */
+	/*   Without  this,  one  cpu  may  overwrite  */
+	/*   anothers version of the data.	       */
+	/***********************************************/
+static public_buf_t finfo;
+static char buf[1024];
+static char buf2[1024];
+static char buf3[1024];
+	char *name;
+	char *fname;
+	char *mntname;
+
+	memset(&finfo, 0, sizeof finfo);
+	finfo.f.fi_offset = offset;
+	fname = d_path(&file->f_path, buf, sizeof buf);
+	name = strrchr(fname, '/');
+	memcpy(buf2, "<unknown>", 10);
+	if (fname && name) {
+		memcpy(buf2, fname, name - fname);
+		buf2[name - fname] = '\0';
+	}
+	mntname = dentry_path_fn(file->f_vfsmnt->mnt_mountpoint, buf3, sizeof buf3);
+
+	finfo.f.fi_dirname = buf2;
+	finfo.f.fi_name = name ? name + 1 : "<none>";
+	finfo.f.fi_pathname = fname ? fname : "<unknown>";
+	finfo.f.fi_fs = file->f_vfsmnt->mnt_devname;
+	finfo.f.fi_mount = mntname ? mntname : "<unknown>";
+
+	return &finfo;
+}
 /*ARGSUSED*/
 static int
 sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
@@ -266,18 +325,7 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			stack2 = regs->c_arg2;
 			stack3 = regs->c_arg3;
 			stack4 = regs->c_arg4;
-if (1) {
-struct file *file = stack0;
-memset(&finfo, 0, sizeof finfo);
-//printk("orig-stack2=%p\n", stack2);
-//printk("stack2=%p\n", stack2);
-finfo.fi_offset = stack3;
-finfo.fi_name = "this/is/fi_pathname";
-finfo.fi_pathname = "hello/world";
-stack0 = &finfo;
-stack2 = &finfo;
-//printk("fi_name=%p offset=%llx\n", finfo.fi_name, finfo.fi_offset);
-}
+stack0 = create_public_buf_t(stack0, stack3);
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);
 //printk("probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);

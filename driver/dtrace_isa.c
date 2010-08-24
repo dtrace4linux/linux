@@ -46,7 +46,9 @@
 #include <sys/cmn_err.h>
 #include <sys/privregs.h>
 #include <sys/sysmacros.h>
-#include <asm/stacktrace.h>
+# if defined(HAVE_STACKTRACE_OPS)
+#	include <asm/stacktrace.h>
+# endif
 #include "dtrace_proto.h"
 
 typedef struct ucontext ucontext_t;

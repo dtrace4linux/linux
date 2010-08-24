@@ -1122,7 +1122,14 @@ die_sou_resolve(tdesc_t *tdp, tdesc_t **tdpp, void *private)
 				continue;
 			if (mt->t_type == ARRAY && mt->t_ardef->ad_nelems == 0)
 				continue;
-
+#if defined(linux)
+			/***********************************************/
+			/*   Some kernel structures looking this:      */
+			/*   struct zone_padding { char x[0]; };       */
+			/***********************************************/
+			if (getenv("GCC_WORKAROUND") == NULL)
+				continue;
+#endif
 			dw->dw_nunres++;
 			return (1);
 		}
@@ -1725,7 +1732,7 @@ static const die_creator_t die_creators[] = {
 	{ DW_TAG_variable,		DW_F_NOTDP,	die_variable_create },
 	{ DW_TAG_volatile_type,		0,		die_volatile_create },
 	{ DW_TAG_restrict_type,		0,		die_restrict_create },
-	{ 0, NULL }
+	{ 0, 0, NULL }
 };
 
 static const die_creator_t *

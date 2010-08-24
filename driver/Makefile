@@ -53,7 +53,7 @@ endif
 obj-m := dtracedrv.o
 
 H	= dtrace_linux.h dtrace_proto.h
-EXTRA_CFLAGS += \
+EXTRA_CFLAGS += -g \
 	-I$(M) \
 	-I$(M)/../.. \
 	-I$(M)/../../include \

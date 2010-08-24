@@ -1,3 +1,18 @@
+Tue Aug 24 23:08:48 2010  fox
+
+     400* cmd/ctfconvert/dwarf.c: Workaround for pathological GCC 
+          structure members which would cause us to abort.
+	  (Set GCC_WORKAROUND to a non-blank value to see the errors you 
+	  might get). If you compile the driver with -g (edit driver/Makefile),
+	  then you can do this:
+
+	  build/ctfconvert -L lab1 -o /tmp/ctf build/driver/cpu_x86.o
+
+	  to get a file to play with. (Use ctfdump to see whats in it).
+
+	  Next up is to have a compile-only file with debug symbols
+	  so we can generate a kernel CTF image, to store in /usr/lib/dtrace.
+
 Mon Aug 23 21:52:56 2010  fox
 
      399* cmd/ctfconvert: Add 'ctfdump' utility to list out the CTF sections.

@@ -276,7 +276,11 @@ static char buf3[1024];
 
 	memset(&finfo, 0, sizeof finfo);
 	finfo.f.fi_offset = offset;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
 	fname = d_path(&file->f_path, buf, sizeof buf);
+#else
+        fname = d_path(&file->f_dentry, file->f_vfsmnt, buf, sizeof buf);
+#endif
 	name = strrchr(fname, '/');
 	memcpy(buf2, "<unknown>", 10);
 	if (fname && name) {

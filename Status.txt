@@ -1,0 +1,91 @@
+A dtrace spectator asked me for a "status" of dtrace (Edward Peschko) -
+a very good suggestion, so that people dont have to figure out from my
+titbits in the blog, what works/doesnt. So this is my attempt
+to catalog working features and in-progress or broken features.
+
+So here goes - feel free to feedback to me where I am not answering
+a question, or am vague, or wrong, or .. whatever you like!
+
+I will attempt to keep this succinct and update periodically.
+
+Working Features
+
+  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 10.xx (32-bit and 64-bit).
+    Not every kernel version tested, but should build on at least 2.6.12
+    onwards.
+  o Tested up to 2.6.32 kernels, but not proven/tested under later kernels.
+  o FBT Provider: fully functional, except argument types are not presently
+    supported. You can access arg0, arg1, ... as values or pointers but
+    no type info to support structure accessing. Should be safe to probe
+    all functions in the kernel. (DTrace keeps a toxic list of functions
+    we mustnt touch)
+  o INSTR Provider: example provider for instruction level tracing - works
+    on 32/64 bit kernels.
+  o SYSCALL provider: fully implemented - can trace all syscalls.
+  o SDT Provider: first provider io:::start/io:::done "works" but debugging
+    the typed arguments (args[0], args[1], args[2])
+  o dtrace.conf permissioning model to avoid need for root access
+  o stack()/ustack(): implemented, but at the mercy of code which doesnt
+    have frame pointers (in kernel or user space - stacks may have bogus
+    entries). 
+  o Kernel GPF protection: all D scripts and pointer accesses are protected
+    from panicing the kernel.
+  o D scripts should work, except where they rely on providers/features 
+    not yet ready in Linux/dtrace (eg cannot run standard scripts like
+    iosnoop.d or other scripts out there).
+
+Partially Working / Not yet quality controlled:
+
+  o USDT Basic C/C++ works - demo program supplied, but not fully
+    quality controlled that all D functions work.
+  o CTF framework for the kernel: Since we dont build the kernel, the
+    kernel lacks the .SUNW_ctf symbol table needed by dtrace to allow
+    D scripts to use struct/union pointers to view data structures.
+    This is currently work in progress to provide an alternate mechanism.
+
+Not really working / not yet implemented
+
+  o PID provider: can trace specific pids, but the process control
+    leverages disruptive ptrace() syscall and if dtrace is killed, the
+    target process may be left in a STOPPed state. (Not good for system
+    daemons, e.g. if a bug strikes or session abruptly disconnected)
+  o Java, Python, Ruby, etc: No attempt to test the other languages in
+    a USDT context. For non-java, it should be possible to build
+    instrumented apps (drti.o is provided to link with). I havent
+    reviewed what the jstack() code does not tested to see if it
+    works/not-works. Shouldnt be an issue technically in getting this
+    to work assuming the process control issues in the PID provider are
+    resolved.
+  o Most of the SDT probes (NFS, VM, etc) are not yet implemented.
+    Will require special work because we do not modify kernel source and
+    kernel build is not in our control.
+
+FAQ
+
+Q Can this be used in a production context?
+A Dont know. I believe so but please do not take my word for it. If your
+  kernel is a recent release (2.6.28+) then it should work out of the box,
+  and certainly syscall tracing appears to work. (I have dtraced an X server
+  with GNOME starting up without issue).
+
+Q Why are you doing this?
+A Because its relaxing and a challenge and I want dtrace to be available
+  everywhere so that when I want it, I know its there. If distros could
+  bundle it - superb. If I have to build it myself, less so.
+
+Q What can I do ?
+A You can use it, report issues, track progress, submit patches or suggestions
+
+Q What about Oracle, the CDDL license, GPL?
+A What about them? Nobody has told me this is breaking any license, and I
+  have no qualms with Oracle.
+
+Q What about systemtap?
+A Super! Competition. dtrace can be used around systemtap - trace systemtap
+  executing. I dont know much about systemtap, and it may do more clever
+  things than dtrace. In which case Dtrace/linux will evolve to try and
+  be a better systemtap than systemtap
+
+Q Is this real?
+A Yes
+

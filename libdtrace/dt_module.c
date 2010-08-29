@@ -469,7 +469,7 @@ dt_module_load_sect(dtrace_hdl_t *dtp, dt_module_t *dmp, ctf_sect_t *ctsp)
 	Elf_Data *dp;
 	Elf_Scn *sp;
 
-	if (elf_getshstrndx(dmp->dm_elf, &shstrs) == 0)
+	if (elf_getshdrstrndx(dmp->dm_elf, &shstrs) == -1)
 		return (dt_set_errno(dtp, EDT_NOTLOADED));
 
 	for (sp = NULL; (sp = elf_nextscn(dmp->dm_elf, sp)) != NULL; ) {
@@ -933,7 +933,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	/*   HACK:   might   want   to  refresh  from  */
 	/*   /proc/kallsyms as modules get loaded.     */
 	/***********************************************/
-	dmp->dm_flags |= DT_DM_KERNEL | DT_DM_LOADED;
+	dmp->dm_flags |= DT_DM_KERNEL; // | DT_DM_LOADED;
 
 	dt_dprintf("opened %d-bit /proc/kallsyms (syms=%d)\n",
 	    bits, dmp->dm_aslen, dmp->dm_modid);
@@ -958,13 +958,24 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 	Elf_Scn *sp;
 
 	if (name == NULL) {
+# if linux
+		struct utsname	u;
+		uname(&u);
+
 		dt_module_add_kernel(dtp);
+		(void) snprintf(fname, sizeof (fname), "/usr/lib/dtrace/linux-%s.ctf", u.release);
+		dt_dprintf("reading kernel .ctf: %s\n", fname);
+		name = fname;
+		goto load_obj;
+# else
 		return;
+# endif
 	}
 
 	(void) snprintf(fname, sizeof (fname),
 	    "%s/%s/object", OBJFS_ROOT, name);
 
+load_obj:
 	if ((fd = open(fname, O_RDONLY)) == -1 || fstat64(fd, &st) == -1 ||
 	    (dmp = dt_module_create(dtp, name)) == NULL) {
 		dt_dprintf("failed to open %s: %s\n", fname, strerror(errno));
@@ -980,10 +991,11 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 	 */
 	dmp->dm_elf = elf_begin(fd, ELF_C_READ, NULL);
 	err = elf_cntl(dmp->dm_elf, ELF_C_FDREAD);
+/*printf("fixme: elf_cntl -- %s(%d) err=%d\n", __FILE__, __LINE__, err);*/
 	(void) close(fd);
 
 	if (dmp->dm_elf == NULL || err == -1 ||
-	    elf_getshstrndx(dmp->dm_elf, &shstrs) == 0) {
+	    elf_getshdrstrndx(dmp->dm_elf, &shstrs) == -1) {
 		dt_dprintf("failed to load %s: %s\n",
 		    fname, elf_errmsg(elf_errno()));
 		dt_module_destroy(dtp, dmp);

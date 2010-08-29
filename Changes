@@ -1,3 +1,16 @@
+Mon Aug 30 19:52:32 2010  fox
+
+     404* Archive: 1.0110
+
+     403* driver/ctf_struct.c: Add more structs so that io.d will work
+          properly.
+
+     402* makefile: Add /usr/lib/dtrace/linux-`uname -r`.ctf and remove
+          types.d; fix issues with io.d
+
+     401* libdtrace/dt_module.c: Load /usr/lib/dtrace/linux-`uname -r`.ctf on
+          startup to get the CTF symbols for the kernel.
+
 Tue Aug 24 23:08:48 2010  fox
 
      400* cmd/ctfconvert/dwarf.c: Workaround for pathological GCC 

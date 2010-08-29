@@ -9,10 +9,11 @@ int	_libproc_debug;		/* set non-zero to enable debugging printfs */
 int	blockable_sigs;	/* signals to block when we need to be safe */
 
 getzonenamebyid() { printf("%s\n", __func__); }
+
+int
 OBJFS_MODID(int x) 
 {
-	printf("proc-stub:%s\n", __func__);
-	return 0;
+	return x;
 }
 __priv_free_info() { printf("proc-stub:%s\n", __func__); }
 _rw_read_held() { printf("proc-stub:%s\n", __func__); }

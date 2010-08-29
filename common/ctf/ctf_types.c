@@ -663,6 +663,7 @@ ctf_member_info(ctf_file_t *fp, ctf_id_t type, const char *name,
 		    ((uintptr_t)tp + increment);
 
 		for (n = LCTF_INFO_VLEN(fp, tp->ctt_info); n != 0; n--, mp++) {
+/*printf("member %s\n", (ctf_strptr(fp, mp->ctm_name)));*/
 			if (strcmp(ctf_strptr(fp, mp->ctm_name), name) == 0) {
 				mip->ctm_type = mp->ctm_type;
 				mip->ctm_offset = mp->ctm_offset;

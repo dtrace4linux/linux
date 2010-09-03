@@ -1,3 +1,23 @@
+Sat Sep  4 21:29:24 2010  fox
+
+     409* dt_module.c: Fix loading of /proc/kallsyms so that "stack()"
+          prints out all symbols. (We werent sorting the data from
+	  /proc/kallsyms so we lost some of the stack names).
+
+     408* Archive: 1.0111
+
+     407* libdtrace/dt_link.c: Dont use 'linux' to enable my code changes;
+          usdt/c doesnt seem to want this anymore. Why? No idea. Could be
+	  my build environment was impure before, but is sane now. Or maybe
+	  vice-versa.
+
+Tue Aug 31 21:18:28 2010  fox
+
+     406* dt_module.c: Some performance optimisations.
+
+     405* driver/ctf_struct.c, ctf_struct.h, sdt_linux.c: Refactor the public
+          structures.
+
 Mon Aug 30 19:52:32 2010  fox
 
      404* Archive: 1.0110

@@ -859,7 +859,7 @@ dt_print_stack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 			return (dt_set_errno(dtp, EDT_BADSTACKPC));
 		}
 
-		if (pc == NULL)
+		if (pc == (uint64_t) NULL)
 			break;
 
 		addr += size;

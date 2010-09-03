@@ -1,13 +1,18 @@
+/**********************************************************************/
+/*   $Header: Last edited: 31-Aug-2010 1.1 $ 			      */
+/**********************************************************************/
 # if !defined(SYS_IN_H)
 # define SYS_IN_H
 
 #define AF_INET         2               /* internetwork: UDP, TCP, etc. */
 #define AF_INET6        26              /* Internet Protocol, Version 6 */
 
+#if 0
 #define	INET_ADDRSTRLEN		16	/* max len IPv4 addr in ascii dotted */
 					/* decimal notation. */
 #define	INET6_ADDRSTRLEN	46	/* max len of IPv6 addr in ascii */
 					/* standard colon-hex notation. */
+#endif
 
 struct in6_addr {
         union {

@@ -965,12 +965,19 @@ dtrace_list_options()
 	printf("\n");
 	printf("Compile time options:\n");
 	for (dp = _dtrace_ctoptions; dp->o_name; dp++) {
-		printf("  %s\n", dp->o_name);
+		printf("  %s=0x%llx\n", dp->o_name, (unsigned long long) dp->o_option);
 	}
+
 	printf("\n");
 	printf("Dynamic run-time options:\n");
 	for (dp = _dtrace_drtoptions; dp->o_name; dp++) {
-		printf("  %s\n", dp->o_name);
+		printf("  %s=0x%llx\n", dp->o_name, (unsigned long long) dp->o_option);
+	}
+
+	printf("\n");
+	printf("Run-time options:\n");
+	for (dp = _dtrace_rtoptions; dp->o_name; dp++) {
+		printf("  %s=0x%llx\n", dp->o_name, (unsigned long long) dp->o_option);
 	}
 }
 int

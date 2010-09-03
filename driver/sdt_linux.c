@@ -50,6 +50,8 @@
 #include <sys/frame.h>
 #include <sys/privregs.h>
 
+#include "ctf_struct.h"
+
 /**********************************************************************/
 /*   Make the Linux patch an INT3 instruction.			      */
 /**********************************************************************/
@@ -213,47 +215,6 @@ io_prov_init(void)
 /**********************************************************************/
 
 /**********************************************************************/
-/*   Following  structures  are  the public interface for io:::start  */
-/*   and io:::done.						      */
-/**********************************************************************/
-typedef struct buf_t {
-        int b_flags;                    /* flags */
-        size_t b_bcount;                /* number of bytes */
-        caddr_t b_addr;                 /* buffer address */
-        uint64_t b_blkno;               /* expanded block # on device */
-        uint64_t b_lblkno;              /* block # on device */
-        size_t b_resid;                 /* # of bytes not transferred */
-        size_t b_bufsize;               /* size of allocated buffer */ 
-        caddr_t b_iodone;               /* I/O completion routine */
-        int b_error;                    /* expanded error field */
-        dev_t b_edev;                   /* extended device */
-	} buf_t;
-
-typedef struct devinfo {
-        int dev_major;                  /* major number */
-        int dev_minor;                  /* minor number */
-        int dev_instance;               /* instance number */
-        char *dev_name;                /* name of device */
-        char *dev_statname;            /* name of device + instance/minor */
-        char *dev_pathname;            /* pathname of device */
-} devinfo_t;
-
-typedef struct fileinfo_t {
-	char	*fi_name;
-	char	*fi_dirname;
-	char	*fi_pathname;
-	long long fi_offset;
-	char *fi_fs;
-	char *fi_mount;
-} fileinfo_t;
-
-typedef struct public_buf_t {
-	buf_t		b;
-	devinfo_t	d;
-	fileinfo_t	f;
-	} public_buf_t;
-
-/**********************************************************************/
 /*   Convert the args do do_sync_read/do_sync_write to an exportable  */
 /*   structure so that D scripts can access the buf_t structure.      */
 /**********************************************************************/
@@ -329,7 +290,14 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			stack2 = regs->c_arg2;
 			stack3 = regs->c_arg3;
 			stack4 = regs->c_arg4;
-stack0 = create_public_buf_t(stack0, stack3);
+
+			/***********************************************/
+			/*   Not  sure  if  this  is re-entrant safe.  */
+			/*   Might   need   a   per-cpu   buffer   to  */
+			/*   write/read from.			       */
+			/***********************************************/
+			stack0 = (uintptr_t) create_public_buf_t((struct file *) stack0, stack3);
+
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);
 //printk("probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);

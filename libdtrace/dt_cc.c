@@ -2056,7 +2056,7 @@ dt_compile(dtrace_hdl_t *dtp, int context, dtrace_probespec_t pspec, void *arg,
 	dt_node_t *dnp;
 	dt_decl_t *ddp;
 	dt_pcb_t pcb;
-	void *rv;
+	void *rv = NULL;
 	int err;
 
 	if ((fp == NULL && s == NULL) || (cflags & ~DTRACE_C_MASK) != 0) {

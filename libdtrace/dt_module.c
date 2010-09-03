@@ -102,6 +102,7 @@ dt_module_syminit64(dt_module_t *dmp)
 	uint_t i, n = dmp->dm_nsymelems;
 	uint_t asrsv = 0;
 
+/*printf("syminit64 n=%d\n", n);*/
 	for (i = 0; i < n; i++, sym++) {
 		const char *name = base + sym->st_name;
 		uchar_t type = ELF64_ST_TYPE(sym->st_info);
@@ -825,18 +826,19 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	}
 
 	if ((fp = fopen("/proc/kallsyms", "r")) != NULL) {
-		Elf32_Sym **asmap = NULL;
+		Elf32_Sym *asmap = NULL;
 		Elf32_Sym *sp = NULL;
-		Elf64_Sym **asmap64 = NULL;
+		Elf64_Sym *asmap64 = NULL;
 		Elf64_Sym *sp64 = NULL;
-		int	str_size = 1024;
+		int	asmap_size = 16384;
+		int	str_size = 64 * 1024;
 		int	str_index = 1; // Dont let st_name be zero
 		char	*strtab = malloc(str_size);
 
 		if (bits == 64) 
-			asmap64 = (Elf64_Sym **) malloc(sizeof(asmap64[0]));
+			asmap64 = (Elf64_Sym *) malloc(asmap_size * sizeof(asmap64[0]));
 		else
-			asmap = (Elf32_Sym **) malloc(sizeof(asmap[0]));
+			asmap = (Elf32_Sym *) malloc(asmap_size * sizeof(asmap[0]));
 
 		while (fgets(buf, sizeof buf, fp)) {
 			if (sscanf(buf, "%llx %s %s", &addr, type, name) != 3)
@@ -848,37 +850,58 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 			if (addr && addr < text_start)
 				text_start = addr;
 			if (strlen(name) + 1 + str_index > str_size) {
-				str_size += 4096;
+				str_size += 16384;
 				strtab = realloc(strtab, str_size);
 			}
 			dmp->dm_aslen++;
 
 			if (bits == 64) {
-				asmap64 = (Elf64_Sym **) realloc(asmap64,
-					sizeof(*sp64) * dmp->dm_aslen);
-				sp64 = calloc(sizeof *sp64, 1);
-				asmap64[dmp->dm_aslen-1] = sp64;
+				if (dmp->dm_aslen >= asmap_size) {
+					asmap_size += 8192;
+					asmap64 = (Elf64_Sym *) realloc(asmap64,
+						sizeof(*sp64) * asmap_size);
+				}
+				sp64 = &asmap64[dmp->dm_aslen-1];
+				memset(sp64, 0, sizeof *sp64);
 				sp64->st_name = str_index;
-				strcpy(strtab + str_index, name);
-				str_index += strlen(name) + 1;
 				sp64->st_value = addr;
 				sp64->st_size = 1024; // hack
 			} else {
-				asmap = (Elf32_Sym **) realloc(asmap,
-					sizeof(*sp) * dmp->dm_aslen);
-				sp = calloc(sizeof *sp, 1);
-				asmap[dmp->dm_aslen-1] = sp;
+				if (dmp->dm_aslen >= asmap_size) {
+					asmap_size += 8192;
+					asmap = (Elf32_Sym *) realloc(asmap,
+						sizeof(*sp) * asmap_size);
+				}
+				sp = &asmap[dmp->dm_aslen-1];
+				memset(sp, 0, sizeof *sp);
 				sp->st_name = str_index;
-				strcpy(strtab + str_index, name);
-				str_index += strlen(name) + 1;
 				sp->st_value = addr;
 				sp->st_size = 1024; // hack
 			}
+			strcpy(strtab + str_index, name);
+			str_index += strlen(name) + 1;
 		}
 		fclose(fp);
 
-		dmp->dm_asmap = bits == 64 ? (void *) asmap64 : (void *) asmap;
-		dmp->dm_symtab.cts_data = bits == 64 ? (void *) asmap64 : (void *) asmap;
+		/***********************************************/
+		/*   Compile up the pointers.		       */
+		/***********************************************/
+		if (bits == 64) {
+			Elf64_Sym **ptrs = malloc(dmp->dm_aslen * sizeof(Elf64_Sym *));
+			for (i = 0; i < dmp->dm_aslen; i++) {
+				ptrs[i] = &asmap64[i];
+			}
+			dmp->dm_asmap = (void *) ptrs;
+			dmp->dm_symtab.cts_data = (void *) asmap64;
+		} else {
+			Elf32_Sym **ptrs = malloc(dmp->dm_aslen * sizeof(Elf32_Sym *));
+			for (i = 0; i < dmp->dm_aslen; i++) {
+				ptrs[i] = &asmap[i];
+			}
+			dmp->dm_asmap = (void *) ptrs;
+			dmp->dm_symtab.cts_data = (void *) asmap;
+		}
+
 		dmp->dm_strtab.cts_data = strtab;
 		dmp->dm_strtab.cts_size = str_index;
 	}
@@ -894,7 +917,11 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	dmp->dm_symfree = 1;		/* first free element is index 1 */
 
 	dmp->dm_symbuckets = malloc(sizeof (uint_t) * dmp->dm_nsymbuckets);
+#if linux
+	dmp->dm_symchains = malloc(sizeof (dt_sym_t) * (dmp->dm_nsymelems + 1));
+#else
 	dmp->dm_symchains = malloc(sizeof (dt_sym_t) * dmp->dm_nsymelems + 1);
+#endif
 
 	if (dmp->dm_symbuckets == NULL || dmp->dm_symchains == NULL) {
 		dt_module_unload(dtp, dmp);
@@ -910,7 +937,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	 * allocate the address map, fill it in, and sort it.
 	 */
 	dmp->dm_asrsv = dmp->dm_ops->do_syminit(dmp);
-/*	dmp->dm_ops->do_symsort(dmp);*/
+	dmp->dm_ops->do_symsort(dmp);
 
 	dmp->dm_text_va = text_start;
 	dmp->dm_text_size = -text_start;
@@ -933,7 +960,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	/*   HACK:   might   want   to  refresh  from  */
 	/*   /proc/kallsyms as modules get loaded.     */
 	/***********************************************/
-	dmp->dm_flags |= DT_DM_KERNEL; // | DT_DM_LOADED;
+	dmp->dm_flags |= DT_DM_KERNEL | DT_DM_LOADED;
 
 	dt_dprintf("opened %d-bit /proc/kallsyms (syms=%d)\n",
 	    bits, dmp->dm_aslen, dmp->dm_modid);
@@ -1116,10 +1143,17 @@ dtrace_update(dtrace_hdl_t *dtp)
 	 * x86 krtld is folded into unix, so if we don't find it, use unix
 	 * instead.
 	 */
+#if linux
+	dtp->dt_exec = dt_module_lookup_by_name(dtp, "kernel");
+	dtp->dt_rtld = dt_module_lookup_by_name(dtp, "krtld");
+	if (dtp->dt_rtld == NULL)
+		dtp->dt_rtld = dt_module_lookup_by_name(dtp, "kernel");
+#else
 	dtp->dt_exec = dt_module_lookup_by_name(dtp, "genunix");
 	dtp->dt_rtld = dt_module_lookup_by_name(dtp, "krtld");
 	if (dtp->dt_rtld == NULL)
 		dtp->dt_rtld = dt_module_lookup_by_name(dtp, "unix");
+#endif
 
 	/*
 	 * If this is the first time we are initializing the module list,

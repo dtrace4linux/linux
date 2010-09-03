@@ -110,7 +110,7 @@ clean:
 install: build/dtrace build/config.sh
 	. build/config.sh ; \
 	mkdir -p /usr/lib/dtrace/$$CPU_BITS ; \
-	rm -f /usr/lib/dtrace/types.h ; \
+	rm -f /usr/lib/dtrace/types.d ; \
 	install -m 4755 -o root build/dtrace /usr/sbin/dtrace ; \
 	install -m 644 -o root build/drti.o /usr/lib/dtrace/$$CPU_BITS/drti.o
 	if [ ! -f /etc/dtrace.conf ] ; then \

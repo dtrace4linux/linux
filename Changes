@@ -1,3 +1,10 @@
+Wed Sep 15 23:20:31 2010  fox
+
+     410* dt_module.c: Changes so that we can refer to "kernel`symbol" in
+          D scripts. At present, we fake all symbols in /proc/kallsyms
+	  to look like functions. (Not a good move, but sufficient for
+	  now).
+
 Sat Sep  4 21:29:24 2010  fox
 
      409* dt_module.c: Fix loading of /proc/kallsyms so that "stack()"

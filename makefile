@@ -83,8 +83,12 @@ beta:
 
 all:
 	BUILD_DIR=$(BUILD_DIR) tools/build.pl $(BUILD_DIR) $(UNAME_M)
+cmds:
+	BUILD_DIR=$(BUILD_DIR) tools/build.pl -make do_cmds $(BUILD_DIR) $(UNAME_M)
 
-all0:
+all0:	do_cmds kernel
+
+do_cmds:
 	cd libctf ; $(MAKE) $(NOPWD)
 	cd libdtrace ; $(MAKE) $(NOPWD)
 	cd liblinux ; $(MAKE) $(NOPWD)
@@ -93,6 +97,7 @@ all0:
 	cd cmd/dtrace ; $(MAKE) $(NOPWD)
 	cd cmd/ctfconvert ; $(MAKE) $(NOPWD)
 	cd usdt/c ; $(MAKE) $(NOPWD)
+kernel:
 	tools/mkdriver.pl all
 	tools/mkctf.sh
 

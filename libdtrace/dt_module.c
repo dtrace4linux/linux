@@ -808,7 +808,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	int	i;
 	struct utsname u;
 
-	if ((dmp = dt_module_create(dtp, "/kernel")) == NULL) {
+	if ((dmp = dt_module_create(dtp, "kernel")) == NULL) {
 		return;
 	}
 
@@ -840,15 +840,25 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 		else
 			asmap = (Elf32_Sym *) malloc(asmap_size * sizeof(asmap[0]));
 
+//int err;
+//ctf_file_t *ctfp = ctf_create(&err);
 		while (fgets(buf, sizeof buf, fp)) {
 			if (sscanf(buf, "%llx %s %s", &addr, type, name) != 3)
 				continue;
-			if (*type != 'T' && *type != 't')
-				continue;
-			if (text_start == 0)
+//			if (*type != 'T' && *type != 't')
+//				continue;
+			if (text_start == 0 && (*type == 'T' || *type == 't'))
 				text_start = addr;
 			if (addr && addr < text_start)
 				text_start = addr;
+
+/*ctf_encoding_t enc;
+enc.cte_format = CTF_INT_SIGNED;
+enc.cte_offset = addr;
+enc.cte_bits = sizeof(int *) * 8;
+ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
+*/
+
 			if (strlen(name) + 1 + str_index > str_size) {
 				str_size += 16384;
 				strtab = realloc(strtab, str_size);
@@ -866,6 +876,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 				sp64->st_name = str_index;
 				sp64->st_value = addr;
 				sp64->st_size = 1024; // hack
+				sp64->st_info = STT_FUNC;
 			} else {
 				if (dmp->dm_aslen >= asmap_size) {
 					asmap_size += 8192;
@@ -877,6 +888,7 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 				sp->st_name = str_index;
 				sp->st_value = addr;
 				sp->st_size = 1024; // hack
+				sp->st_info = STT_FUNC;
 			}
 			strcpy(strtab + str_index, name);
 			str_index += strlen(name) + 1;
@@ -970,6 +982,43 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
  * Update our module cache by adding an entry for the specified module 'name'.
  * We create the dt_module_t and populate it using /system/object/<name>/.
  */
+struct Elf
+{
+  /* Address to which the file was mapped.  NULL if not mapped.  */
+  void *map_address;
+
+  /* When created for an archive member this points to the descriptor
+     for the archive. */
+  Elf *parent;
+  Elf *next;             /* Used in list of archive descriptors.  */
+
+  /* What kind of file is underneath (ELF file, archive...).  */
+  Elf_Kind kind;
+
+  /* Command used to create this descriptor.  */
+  Elf_Cmd cmd;
+
+  /* The binary class.  */
+  unsigned int class;
+
+  /* The used file descriptor.  -1 if not available anymore.  */
+  int fildes;
+
+  /* Offset in the archive this file starts or zero.  */
+  off_t start_offset;
+
+  /* Size of the file in the archive or the entire file size, or ~0
+     for an (yet) unknown size.  */
+  size_t maximum_size;
+
+  /* Describes the way the memory was allocated and if the dirty bit is
+     signalled it means that the whole file has to be rewritten since
+     the layout changed.  */
+  int flags;
+
+  /* Reference counting for the descriptor.  */
+  int ref_count;
+};
 static void
 dt_module_update(dtrace_hdl_t *dtp, const char *name)
 {
@@ -993,6 +1042,7 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 		(void) snprintf(fname, sizeof (fname), "/usr/lib/dtrace/linux-%s.ctf", u.release);
 		dt_dprintf("reading kernel .ctf: %s\n", fname);
 		name = fname;
+name = "xkernel"; // xxx
 		goto load_obj;
 # else
 		return;
@@ -1016,9 +1066,22 @@ load_obj:
 	 * then close the underlying file descriptor immediately.  If this
 	 * succeeds, we know that we can continue safely using dmp->dm_elf.
 	 */
+#if linux
+	/***********************************************/
+	/*   elf_begin(ELF_C_READ) is broken - we hit  */
+	/*   an error in elf_cntl because it tries to  */
+	/*   malloc(~0)  bytes  which  isnt good. The  */
+	/*   code  in  elf_begin.c doesnt fstat() the  */
+	/*   fd  to  see  how  big the file is. Using  */
+	/*   ELF_C_READ_MMAP works fine to workaround  */
+	/*   this   issue  (and  is  probably  better  */
+	/*   anyhow).				       */
+	/***********************************************/
+	dmp->dm_elf = elf_begin(fd, ELF_C_READ_MMAP, NULL);
+#else
 	dmp->dm_elf = elf_begin(fd, ELF_C_READ, NULL);
+#endif
 	err = elf_cntl(dmp->dm_elf, ELF_C_FDREAD);
-/*printf("fixme: elf_cntl -- %s(%d) err=%d\n", __FILE__, __LINE__, err);*/
 	(void) close(fd);
 
 	if (dmp->dm_elf == NULL || err == -1 ||
@@ -1102,7 +1165,9 @@ dtrace_update(dtrace_hdl_t *dtp)
 	/*   We  will use /proc/kallsyms for ustack()  */
 	/*   calls which need kernel addresses.	       */
 	/***********************************************/
-	dt_module_update(dtp, NULL);
+        if (!(dtp->dt_oflags & DTRACE_O_NOSYS)) {
+		dt_module_update(dtp, NULL);
+	}
 # else
 	/*
 	 * Open /system/object and attempt to create a libdtrace module for

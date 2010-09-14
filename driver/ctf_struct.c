@@ -37,3 +37,6 @@
 #include <asm/desc.h>
 
 # include "ctf_struct.h"
+
+psinfo_t p;
+thread_t t;

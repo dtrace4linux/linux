@@ -191,10 +191,17 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "void(char *, uintptr_t, size_t)" },
 { "count", DT_IDENT_AGGFUNC, 0, DTRACEAGG_COUNT, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void()" },
+#if linux
+{ "curthread", DT_IDENT_SCALAR, 0, DIF_VAR_CURTHREAD,
+	{ DTRACE_STABILITY_STABLE, DTRACE_STABILITY_PRIVATE,
+	DTRACE_CLASS_COMMON }, DT_VERS_1_0,
+	&dt_idops_type, "kernel`thread_t *" },
+#else
 { "curthread", DT_IDENT_SCALAR, 0, DIF_VAR_CURTHREAD,
 	{ DTRACE_STABILITY_STABLE, DTRACE_STABILITY_PRIVATE,
 	DTRACE_CLASS_COMMON }, DT_VERS_1_0,
 	&dt_idops_type, "genunix`kthread_t *" },
+#endif
 { "ddi_pathname", DT_IDENT_FUNC, 0, DIF_SUBR_DDI_PATHNAME,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
 	&dt_idops_func, "string(void *, int64_t)" },

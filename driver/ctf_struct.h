@@ -41,3 +41,18 @@ typedef struct public_buf_t {
 	} public_buf_t;
 
 
+/**********************************************************************/
+/*   For procfs support.					      */
+/**********************************************************************/
+typedef struct psinfo_t {
+	int	pr_nlwp;
+	int	pr_pid;
+	int	pr_ppid;
+	int	pr_pgid;
+	char	*pr_psargs;
+	} psinfo_t;
+typedef struct thread_t {
+	int	pr_projid;
+	int	xxx;
+	} thread_t;
+

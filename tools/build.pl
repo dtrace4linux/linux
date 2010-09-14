@@ -25,9 +25,12 @@ sub main
 	Getopt::Long::Configure('no_ignore_case');
 	usage() unless GetOptions(\%opts,
 		'help',
+		'make=s',
 		);
 
 	usage() if ($opts{help});
+
+	my $make_cmd = $opts{make} || "all0";
 
 	###############################################
 	#   Look for the tools we are going to need.  #
@@ -98,7 +101,7 @@ sub main
 		die "Unsupported cpu architecture: $uname_m\n";
 	}
 	$fh->close();
-	my $ret = spawn("make all0", 0);
+	my $ret = spawn("make $make_cmd", 0);
 	if ($ret) {
 		spawn("tools/bug.sh") if !$ENV{MAKE_KERNELS};
 		exit(1);

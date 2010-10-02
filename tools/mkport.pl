@@ -58,6 +58,15 @@ sub main
 	}
 
 	###############################################
+	#   Some   versions   of   elf   dont   have  #
+	#   elf_getshdrstrndx()			      #
+	###############################################
+	my $ret = system(" objdump -T /usr/lib/libelf.so 2>/dev/null | grep elf_getshstrndx >/dev/null");
+	if ($ret == 0) {
+		$inc .= "# define HAVE_ELF_GETSHDRSTRNDX 1\n";
+	}
+
+	###############################################
 	#   Check for zlib functions in the kernel.   #
 	###############################################
 	my $str = `grep zlib /proc/kallsyms`;

@@ -1,3 +1,13 @@
+Sun Oct  3 19:24:38 2010  fox
+
+     412* mkport.pl, dt_module.c: Allow for elf_getshstrndx if 
+          elf_getshdrstrndx is not available.
+
+Sat Sep 18 21:24:49 2010  fox
+
+     411* dt_grammar.y: Try and avoid enum names in bison error messages
+          (such as DT_TOK_IDENT).
+
 Wed Sep 15 23:20:31 2010  fox
 
      410* dt_module.c: Changes so that we can refer to "kernel`symbol" in

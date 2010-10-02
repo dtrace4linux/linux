@@ -470,7 +470,11 @@ dt_module_load_sect(dtrace_hdl_t *dtp, dt_module_t *dmp, ctf_sect_t *ctsp)
 	Elf_Data *dp;
 	Elf_Scn *sp;
 
+# if HAVE_ELF_GETSHDRSTRNDX
 	if (elf_getshdrstrndx(dmp->dm_elf, &shstrs) == -1)
+# else
+	if (elf_getshstrndx(dmp->dm_elf, &shstrs) == 0)
+# endif
 		return (dt_set_errno(dtp, EDT_NOTLOADED));
 
 	for (sp = NULL; (sp = elf_nextscn(dmp->dm_elf, sp)) != NULL; ) {
@@ -1085,7 +1089,12 @@ load_obj:
 	(void) close(fd);
 
 	if (dmp->dm_elf == NULL || err == -1 ||
-	    elf_getshdrstrndx(dmp->dm_elf, &shstrs) == -1) {
+# if HAVE_ELF_GETSHDRSTRNDX
+	    elf_getshdrstrndx(dmp->dm_elf, &shstrs) == -1) 
+# else
+	    elf_getshstrndx(dmp->dm_elf, &shstrs) == 0) 
+# endif
+	        {
 		dt_dprintf("failed to load %s: %s\n",
 		    fname, elf_errmsg(elf_errno()));
 		dt_module_destroy(dtp, dmp);

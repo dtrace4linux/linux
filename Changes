@@ -1,3 +1,7 @@
+Thu Oct 14 23:59:33 2010  fox
+
+     413* scripts/bkl.d: Simple big kernel log script.
+
 Sun Oct  3 19:24:38 2010  fox
 
      412* mkport.pl, dt_module.c: Allow for elf_getshstrndx if 

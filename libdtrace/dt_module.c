@@ -1060,7 +1060,8 @@ load_obj:
 	if ((fd = open(fname, O_RDONLY)) == -1 || fstat64(fd, &st) == -1 ||
 	    (dmp = dt_module_create(dtp, name)) == NULL) {
 		dt_dprintf("failed to open %s: %s\n", fname, strerror(errno));
-		(void) close(fd);
+		if (fd >= 0)
+			(void) close(fd);
 		return;
 	}
 
@@ -1070,7 +1071,7 @@ load_obj:
 	 * then close the underlying file descriptor immediately.  If this
 	 * succeeds, we know that we can continue safely using dmp->dm_elf.
 	 */
-#if linux
+#if linux && defined(HAVE_ELF_C_READ_MMAP)
 	/***********************************************/
 	/*   elf_begin(ELF_C_READ) is broken - we hit  */
 	/*   an error in elf_cntl because it tries to  */
@@ -1080,6 +1081,9 @@ load_obj:
 	/*   ELF_C_READ_MMAP works fine to workaround  */
 	/*   this   issue  (and  is  probably  better  */
 	/*   anyhow).				       */
+	/*   20110117 Watch out as ELF_C_READ_MMAP is  */
+	/*   elfutils  and  an  enum,  so  we need to  */
+	/*   determine if it exists at build time.     */
 	/***********************************************/
 	dmp->dm_elf = elf_begin(fd, ELF_C_READ_MMAP, NULL);
 #else

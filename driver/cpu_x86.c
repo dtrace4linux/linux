@@ -96,8 +96,8 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	  case 0xce: //into -- hope we dont do this in kernel space.
 	  	break;
 	  case 0xcf: { //iret
-	  	greg_t *flp = &regs->r_rfl + 3 * sizeof(greg_t);
-dtrace_printf("rfl=%p\n", regs->r_rfl);
+	  	greg_t *flp = (greg_t *) (&regs->r_rfl + 3 * sizeof(greg_t));
+//dtrace_printf("rfl=%p\n", regs->r_rfl);
 		regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF));
 		*flp = (*flp & ~X86_EFLAGS_IF) | X86_EFLAGS_TF;
 	  	break;

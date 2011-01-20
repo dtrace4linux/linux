@@ -8,14 +8,6 @@
 # include	<linux_types.h>
 # include	"/usr/include/sys/stat.h"
 
-//#  ifndef __USE_FILE_OFFSET64
-//typedef __blkcnt_t blkcnt_t;
-//#  else
-//typedef __blkcnt64_t blkcnt_t;
-//#  endif
-typedef __blksize_t blksize_t;
-
-
 #if _LONG_LONG_ALIGNMENT == 8 && _LONG_LONG_ALIGNMENT_32 == 4
 #pragma pack(4)
 #endif

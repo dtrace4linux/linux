@@ -63,6 +63,7 @@
 #include <asm/pgalloc.h>
 #include <asm/segment.h>
 #include <linux/miscdevice.h>
+#undef comm /* For 2.6.36 and above - conflict with perf_event.h */
 #include <linux/syscalls.h>
 #include <sys/dtrace.h>
 #include <sys/systrace.h>

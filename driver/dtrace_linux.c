@@ -2322,7 +2322,7 @@ uwrite(proc_t *p, void *src, size_t len, uintptr_t addr)
 /*   Need to implement this or use the unr code from FreeBSD.	      */
 /**********************************************************************/
 typedef struct seq_t {
-	struct mutex seq_mutex;
+	mutex_t seq_mutex;
 	int	seq_id;
 	} seq_t;
 
@@ -2465,7 +2465,7 @@ helper_read_proc(char *page, char **start, off_t off, int count, int *eof, void 
 /*   provide user space dtrace probes.				      */
 /**********************************************************************/
 static int 
-helper_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+helper_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {	int	ret;
 	int	rv = 0;
 
@@ -2474,6 +2474,14 @@ helper_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned 
 //if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }
+#ifdef COMPAT_IOCTL
+static int 
+helper_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return helper_unlocked_ioctl(file, cmd, arg);
+}
+#endif
+
 /**********************************************************************/
 /*   Module interface for /dev/dtrace - the main driver.	      */
 /**********************************************************************/
@@ -2756,8 +2764,8 @@ static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
 	*start = page;
 	return n;
 }
-static int dtracedrv_ioctl(struct inode *inode, struct file *file,
-                     unsigned int cmd, unsigned long arg)
+
+static int dtracedrv_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {	int	ret;
 	int	rv = 0;
 
@@ -2772,10 +2780,21 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file,
 //if (dtrace_here && ret) printk("ioctl-returns: ret=%d rv=%d\n", ret, rv);
         return ret ? -ret : rv;
 }
+
+#ifdef COMPAT_IOCTL
+static int dtracedrv_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return dtracedrv_compat_ioctl(file, cmd, arg);
+}
+#endif
+
 static const struct file_operations dtracedrv_fops = {
         .read = dtracedrv_read,
         .write = dtracedrv_write,
-        .ioctl = dtracedrv_ioctl,
+        .unlocked_ioctl = dtracedrv_unlocked_ioctl,
+#ifdef COMPAT_IOCTL
+        .ioctl = dtracedrv_compat_ioctl,
+#endif
         .open = dtracedrv_open,
         .release = dtracedrv_release,
 };
@@ -2787,7 +2806,10 @@ static struct miscdevice dtracedrv_dev = {
 };
 static const struct file_operations helper_fops = {
         .read = helper_read,
-        .ioctl = helper_ioctl,
+        .unlocked_ioctl = helper_unlocked_ioctl,
+#ifdef COMPAT_IOCTL
+        .compat_ioctl = helper_compat_ioctl,
+#endif
         .open = helper_open,
         .release = helper_release,
 };

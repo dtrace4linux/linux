@@ -1104,11 +1104,13 @@ static struct dev_ops fbt_ops = {
 /**********************************************************************/
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
+#if 0
 static int fbt_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
 {
 	return -EIO;
 }
+#endif
 static int
 fbt_open(struct inode *inode, struct file *file)
 {
@@ -1224,10 +1226,10 @@ static const struct file_operations fbt_proc_fops = {
 /*   Main starting interface for the driver.			      */
 /**********************************************************************/
 static const struct file_operations fbt_fops = {
-        .ioctl = fbt_ioctl,
-        .open = fbt_open,
-        .read = fbt_read,
-        .write = fbt_write,
+//	.ioctl = fbt_ioctl,
+	.open = fbt_open,
+	.read = fbt_read,
+	.write = fbt_write,
 };
 
 static struct miscdevice fbt_dev = {

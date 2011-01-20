@@ -14,12 +14,19 @@ COMPILE = $(CC) $(CFLAGS) -o $(BINDIR)/dtrace \
 all:	$(BINDIR)/dtrace $(BINDIR)/dwarf
 	@/bin/true
 
+######################################################################
+#   Bit  of  a  mess below - we want libelf, but some older distros  #
+#   may  not have it or we are on 64b kernel wanting to cross build  #
+#   or vice versa.						     #
+######################################################################
 $(BINDIR)/dtrace: $(BINDIR)/dtrace.o $(LIBS)
 	@libelf=$(LIBELF) ; \
 	if [ "x$(BUILD_BITS)" = "x-m32" ]; then \
 		LIB32=-L/usr/lib32 ; \
 	fi ; \
-	if [ -f /usr/lib64/libelf.so.1 ]; then \
+	if [ -f /usr/lib/libelf.so ]; then \
+		libelf=-lelf ; \
+	elif [ -f /usr/lib64/libelf.so.1 ]; then \
 		libelf=/usr/lib64/libelf.so.1 ; \
 	elif [ -f /usr/local/lib/libelf.a ]; then \
 		libelf=/usr/local/lib/libelf.a ; \

@@ -49,7 +49,7 @@ all:
 		echo "=== You need /usr/lib/libdwarf.a and /usr/lib/libbfd.a installed to build." ; \
 		echo "=== " ; \
 		echo "=== apt-get install binutils-dev" ; \
-		echo "=== apt-get install libdwarf-dev" ; \
+		echo "=== apt-get install libdw-dev" ; \
 		echo "=== " ; \
 		echo "=== Without these, we will not build ctfconvert (needed for "; \
 		echo "=== SDT structure definitions)." ; \

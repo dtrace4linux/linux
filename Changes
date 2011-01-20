@@ -1,3 +1,51 @@
+Thu Jan 20 22:18:52 2011  fox
+
+     427* Archive: 1.0112
+
+     426* various: fixes for Linux 2.6.37 - rejig some mutex/semaphore
+          defines, fix ioctl/unlocked_ioctls, comment out unneeded ioctls,
+	  fix some driver warnings.
+
+Wed Jan 19 22:10:14 2011  fox
+
+     425* dt_link.c: Avoid the '#undef linux' as this can cause a bad
+          i386 simple.o being generated, and stopping the build process.
+	  May want to investigate further if I break amd64 support.
+
+Mon Jan 17 21:43:03 2011  fox
+
+     424* cmd/dtrace/makefile: Fix invocation of "-lelf" so we pick up the
+          right library.
+
+     423* linux_types.h: Change MUTEX_DEFINE to be optionally DEFINE_MUTEX
+          instead of DECLARE_MUTEX.
+
+     422* instr_linux.c: Remove redundant ioctl/compile error.
+
+     421* ctf_impl.h: Include linux/slab.h if we have it, for kmalloc.
+
+     420* mkport.pl: Add support for linux/slab.h
+
+     419* driver/ctf_mod.c: Remove redundant ioctl (compile issues).
+
+     418* dt_module.c, tools/mkport.c: Handle not having ELF_C_READ_MMAP.
+
+Sat Oct 16 21:36:01 2010  fox
+
+     417* linux_types.h: Some cleanups due to Ubuntu 10.10
+
+     416* libproc/common/pr_stat.c: Similar to the below - handle
+          missing blksize_t typedef.
+
+     415* libproc/common/Pcore.c: Horrible hack because the glibc
+          in Ubuntu 10.10 is broken (or maybe correct) compared to Ubuntu
+	  10.04. We cannot get things to compile on both systems without
+	  the "extern size_t pread64();" hacks you will see in there.
+
+Fri Oct 15 23:11:15 2010  fox
+
+     414* dt_grammar.y: Add more aliases for token idents.
+
 Thu Oct 14 23:59:33 2010  fox
 
      413* scripts/bkl.d: Simple big kernel log script.

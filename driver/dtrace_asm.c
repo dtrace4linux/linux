@@ -146,7 +146,7 @@ void
 dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
 	 volatile uint16_t *flags) 
 {
-	copy_from_user(kaddr, uaddr, size);
+	copy_from_user((void *) kaddr, (void *) uaddr, size);
 }
 
 /*ARGSUSED*/

@@ -44,6 +44,8 @@
 #include "P32ton.h"
 #include "Putil.h"
 
+extern ssize_t pread64(int, void *, size_t, off64_t); /* Hack around horrible glibc */
+
 /*
  * Pcore.c - Code to initialize a ps_prochandle from a core dump.  We
  * allocate an additional structure to hold information from the core
@@ -59,8 +61,8 @@
 static ssize_t
 core_rw(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr,
     ssize_t (*prw)(int, void *, size_t, off64_t))
-{
-	ssize_t resid = n;
+{	ssize_t resid = n;
+extern ssize_t pread64(int, void *, size_t, off64_t); /* Hack around horrible glibc */
 
 	while (resid != 0) {
 		map_info_t *mp = Paddr2mptr(P, addr);
@@ -109,12 +111,14 @@ core_rw(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr,
 static ssize_t
 Pread_core(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr)
 {
+extern ssize_t pread64(int, void *, size_t, off64_t); /* Hack around horrible glibc */
 	return (core_rw(P, buf, n, addr, pread64));
 }
 
 static ssize_t
 Pwrite_core(struct ps_prochandle *P, const void *buf, size_t n, uintptr_t addr)
 {
+extern ssize_t pwrite64(int, const void *, size_t, off64_t); /* Hack around horrible glibc */
 	return (core_rw(P, (void *)buf, n, addr,
 	    (ssize_t (*)(int, void *, size_t, off64_t)) pwrite64));
 }
@@ -726,6 +730,7 @@ core_add_mapping(struct ps_prochandle *P, GElf_Phdr *php)
 	 * PF_SUNW_FAILURE in the Phdr and try to stash away the errno for us.
 	 */
 	if (php->p_flags & PF_SUNW_FAILURE) {
+		extern ssize_t pread64(int, void *, size_t, off64_t); /* Hack around horrible glibc */
 		(void) pread64(P->asfd, &err,
 		    sizeof (err), (off64_t)php->p_offset);
 

@@ -881,11 +881,14 @@ instr_cleanup(dev_info_t *devi)
 /**********************************************************************/
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
+# if 0
 static int instr_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
 {
 	return -EIO;
 }
+# endif
+
 static int
 instr_open(struct inode *inode, struct file *file)
 {
@@ -985,8 +988,8 @@ static const struct file_operations instr_proc_fops = {
 /*   Main starting interface for the driver.			      */
 /**********************************************************************/
 static const struct file_operations instr_fops = {
-        .ioctl = instr_ioctl,
-        .open = instr_open,
+//	.ioctl = instr_ioctl,
+	.open = instr_open,
 };
 
 static struct miscdevice instr_dev = {

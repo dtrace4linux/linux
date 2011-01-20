@@ -85,11 +85,13 @@ ctf_version(int version)
 	return (_libctf_version);
 }
 
+# if 0
 static int ctf_ioctl(struct inode *inode, struct file *file,
                      unsigned int cmd, unsigned long arg)
 {
         return -EINVAL;
 }
+# endif
 /*ARGSUSED*/
 int
 ctf_open(struct inode *ip, struct file *fp)
@@ -156,7 +158,7 @@ ctf_open(struct inode *ip, struct file *fp)
 }
 static const struct file_operations ctf_fops = {
         .write = ctf_write,
-        .ioctl = ctf_ioctl,
+/*	.ioctl = ctf_ioctl,*/
         .open = ctf_open,
 };
 

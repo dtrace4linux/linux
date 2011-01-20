@@ -158,12 +158,6 @@ struct modctl;
 
 #define P2ROUNDUP(x, align)             (-(-(x) & -(align)))
 
-/* fix this */
-extern int pread(int, void *, int, unsigned long long);
-extern int pwrite(int, void *, int, unsigned long long);
-#define	pread64	pread
-#define	pwrite64 pwrite
-
 #define FPS_TOP 0x00003800      /* top of stack pointer                 */
 
 
@@ -176,6 +170,7 @@ typedef unsigned long long hrtime_t;
 /**********************************************************************/
 # if __KERNEL__
 
+	# include "../port.h"
 	# include <asm/signal.h>
 	# include <linux/sched.h>
 	#define	SNOCD	0
@@ -191,7 +186,9 @@ typedef unsigned long long hrtime_t;
 
 	#define        MIN(a,b) (((a)<(b))?(a):(b))
 	#define UINT8_MAX       (255U)
-	#define	USHRT_MAX	0xffff
+	#if !defined(USHRT_MAX)
+	#  define	USHRT_MAX	0xffff
+	#endif
 	#define	UINT16_MAX	0xffff
 	#define	INT32_MAX	0x7fffffff
 	#define	UINT32_MAX	0xffffffff
@@ -233,23 +230,35 @@ typedef unsigned long long hrtime_t;
 	#define	bcopy(a, b, c) dtrace_memcpy(b, a, c)
 	#define	bzero(a, b) dtrace_bzero(a, b)
 
+	# if defined(HAVE_INCLUDE_LINUX_SEMAPHORE_H)
+	#   include	<linux/semaphore.h>
+	# endif
+	# if defined(HAVE_INCLUDE_ASM_SEMAPHORE_H)
+	#   include	<asm/semaphore.h>
+	# endif
+	# if defined(HAVE_INCLUDE_LINUX_SLAB_H)
+	#     include <linux/slab.h>
+	# endif
+
 	/***********************************************/
 	/*   Dtrace  mutexes are semaphores on Linux,  */
 	/*   since  linux mutexes can sleep but we do  */
 	/*   this in interrupt context, which mutexes  */
-	/*   do not allow.			       */
+	/*   do not allow.                             */
 	/***********************************************/
-# if 0
-	typedef struct mutex mutex_t;
-	#define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
-	#define	mutex_enter(x)	mutex_lock(x)
-	#define	mutex_exit(x)	mutex_unlock(x)
-	#define kmutex_t struct mutex
-	#define mutex_is_locked(x) (atomic_read(&(x)->count) != 1)
-# else
-	#define mutex semaphore
 	typedef struct semaphore mutex_t;
-	#define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
+	#if defined(DEFINE_SEMAPHORE)
+	   /***********************************************/
+	   /*   New kernels have a distinction.		  */
+	   /***********************************************/
+	#  define MUTEX_DEFINE(name) DEFINE_SEMAPHORE(name)
+	#else
+	   /***********************************************/
+	   /*   Old  kernels have semaphores as mutexes.  */
+	   /*   These are IRQ friendly.			  */
+	   /***********************************************/
+	#  define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
+	#endif
 	#undef mutex_init
 
 	# if defined(HAVE_SEMAPHORE_ATOMIC_COUNT)
@@ -257,22 +266,34 @@ typedef unsigned long long hrtime_t;
 	# else
 	#  define mutex_is_locked(x) ((x)->count == 0)
 	#endif
-	#define	mutex_init(x)	init_MUTEX(x)
-	#define	mutex_enter(x)	down(x)
-	#define	mutex_exit(x)	up(x)
+	#define mutex_init(x)   sema_init(x, 1)
+	#define mutex_enter(x)  down(x)
+	#define mutex_exit(x)   up(x)
 	#define kmutex_t mutex_t
 
+# if defined(cant_use_pure_mutexes)
+	/***********************************************/
+	/*   We   revamped   to   use  direct  kernel  */
+	/*   mutexes.  We  use  to use semaphores for  */
+	/*   compatibility  with  old kernels, but we  */
+	/*   give  up  now, as supporting the old and  */
+	/*   new  style  leads  to  horrible  compile  */
+	/*   complications.			       */
+	/*   We  need  to  be  careful  of  interrupt  */
+	/*   context  mutex  trying  to  suspend  the  */
+	/*   calling   code,   because  this  is  not  */
+	/*   possible.				       */
+	/***********************************************/
+	typedef struct mutex mutex_t;
+	#define MUTEX_DEFINE(name) DEFINE_MUTEX(name)
+	#define mutex_is_locked(x) (atomic_read(&(x)->count) == 0)
+	#define	mutex_enter(x)	mutex_lock(x)
+	#define	mutex_exit(x)	mutex_unlock(x)
+	#define kmutex_t mutex_t
 # endif
-
-	# if defined(HAVE_INCLUDE_LINUX_SEMAPHORE_H)
-	#   include	<linux/semaphore.h>
-	# endif
-	# if defined(HAVE_INCLUDE_ASM_SEMAPHORE_H)
-	#   include	<asm/semaphore.h>
-	# endif
+	
 	# include	<sys/cpuvar_defs.h>
 	# include	<sys/cpuvar.h>
-	
 # endif /* __KERNEL__ */
 
 /**********************************************************************/

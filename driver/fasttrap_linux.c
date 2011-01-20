@@ -38,16 +38,18 @@ fasttrap_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 TODO();
 	return -EIO;
 }
+#if 0
 static int 
 fasttrap_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 TODO();
 	return -EIO;
 }
+#endif
 static const struct file_operations fasttrap_fops = {
-        .read = fasttrap_read,
-        .ioctl = fasttrap_ioctl,
-        .open = fasttrap_open,
+	.read = fasttrap_read,
+//	.ioctl = fasttrap_ioctl,
+	.open = fasttrap_open,
 };
 
 static struct miscdevice fasttrap_dev = {

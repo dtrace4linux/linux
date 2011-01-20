@@ -38,6 +38,12 @@
 #include "libproc.h"
 
 #ifdef _LP64
+
+# ifndef __blksize_t_defined
+typedef __blksize_t blksize_t;
+#  define __blksize_t_defined
+# endif
+
 /*
  * in case of 64-bit *stat() and *stat64 library call and 32-bit subject
  * process convert 64-bit struct stat/stat64 into 32-bit struct stat64

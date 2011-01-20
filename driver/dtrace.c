@@ -109,6 +109,7 @@
 #include <sys/socket.h>
 # endif
 #include <netinet/in.h>
+#include <linux/inet.h>
 #include <sys/privregs.h>
 
 # if linux

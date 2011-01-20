@@ -1044,9 +1044,13 @@ dt_link_error(dtrace_hdl_t *dtp, Elf *elf, int fd, dt_link_pair_t *bufs,
 }
 
 /**********************************************************************/
-/*   Strange - we used to want this, but now we seem not to want it.  */
+/*   We  do  some  special Linux stuff here. I am not happy with the  */
+/*   ELF  library, but it may not be at fault. Under Linux/binutils,  */
+/*   we dont have the Sun specific ignore section, so we work around  */
+/*   that and attempt to do the right thing when we mark the dtraced  */
+/*   patch areas.						      */
 /**********************************************************************/
-#undef linux
+/*#undef linux might need this for ELF64 */
 
 static int
 process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
@@ -1086,6 +1090,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 	}
 
 	if ((elf = elf_begin(fd, ELF_C_RDWR, NULL)) == NULL) {
+		printf("dt_link:process_obj: elf error - %s\n", elf_errmsg(elf_errno()));
 		return (dt_link_error(dtp, elf, fd, bufs,
 		    "failed to process %s: %s", obj, elf_errmsg(elf_errno())));
 	}
@@ -1139,7 +1144,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 	/*
 	 * We use this token as a relatively unique handle for this file on the
 	 * system in order to disambiguate potential conflicts between files of
-	 * the same name which contain identially named local symbols.
+	 * the same name which contain identically named local symbols.
 	 */
 	if ((objkey = ftok(obj, 0)) == (key_t)-1) {
 		return (dt_link_error(dtp, elf, fd, bufs,
@@ -1165,12 +1170,12 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 	if ((data_str = elf_getdata(strscn, NULL)) == NULL)
 		GOTO(err);
 	scn_rel = NULL;
-	for (i = 0; (scn_rel = elf_nextscn(elf, scn_rel)) != NULL; i++) {
+	for (i = 1; (scn_rel = elf_nextscn(elf, scn_rel)) != NULL; i++) {
 		if (gelf_getshdr(scn_rel, &shdr_rel) == NULL)
 			GOTO(err);
 		s = (char *)data_str->d_buf + shdr_rel.sh_name;
 		if (strcmp(s, ".text") == 0) {
-			sh_text = i + 1; /* Not sure about the +1, but it works for now */
+			sh_text = i + 1;
 			break;
 		}
 	}

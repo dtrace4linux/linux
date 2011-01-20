@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# $Header: Last edited: 27-Jun-2009 1.1 $ 
+# $Header: Last edited: 17-Jan-2011 1.2 $ 
 #
 # Script to poke around the kernel to see what files or structs are
 # available that we really want. Usually there in a later kernel, but
@@ -45,6 +45,7 @@ sub main
 	$kern = "/lib/modules/$build/build";
 	foreach my $f (qw{
 		include/linux/cred.h
+		include/linux/slab.h
 		}) {
 		my $val = 0;
 		if (-f "$kern/$f") {
@@ -78,6 +79,15 @@ sub main
 	if (have("stacktrace_ops", "include/asm/stacktrace.h") ||
 	    have("stacktrace_ops", "arch/x86/include/asm/stacktrace.h")) {
 		$inc .= "# define HAVE_STACKTRACE_OPS \n";
+	}
+
+	###############################################
+	#   Check for ELF_C_READ_MMAP		      #
+	###############################################
+	$str = `grep ELF_C_READ_MMAP /usr/include/libelf/libelf.h`;
+	chomp($str);
+	if ($str ne '') {
+		$inc .= "# define HAVE_ELF_C_READ_MMAP 1\n";
 	}
 
 	###############################################

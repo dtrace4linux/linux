@@ -38,6 +38,10 @@
 #include <linux/notifier.h>
 #include <asm/uaccess.h>
 
+# if HAVE_INCLUDE_LINUX_SLAB_H
+#     include <linux/slab.h>
+# endif
+
 #if defined(HAVE_INCLUDE_ASM_KDEBUG_H)
 #  include <asm/kdebug.h>
 #endif
@@ -128,8 +132,8 @@ typedef struct	sol_proc_t {
 	void            *p_dtrace_helpers; /* DTrace helpers, if any */
 	struct sol_proc_t *t_procp;
         struct  cred    *p_cred;        /* process credentials */
-	struct mutex	p_lock;
-	struct mutex	p_crlock;
+	mutex_t		p_lock;
+	mutex_t		p_crlock;
 	int             p_dtrace_probes; /* are there probes for this proc? */
 	uint64_t        p_dtrace_count; /* number of DTrace tracepoints */
                                         /* (protected by P_PR_LOCK) */
@@ -361,7 +365,7 @@ int sulword(const void *addr, ulong_t value);
 int instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym);
 cpu_core_t	*cpu_get_this(void);
 int	is_kernel_text(unsigned long);
-int	dtrace_mutex_is_locked(struct mutex *);
+int	dtrace_mutex_is_locked(mutex_t *);
 int dtrace_memcpy_with_error(void *, void *, size_t);
 
 /**********************************************************************/

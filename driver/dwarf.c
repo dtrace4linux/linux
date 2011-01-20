@@ -372,6 +372,9 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
         Elf64_Phdr *phdr;
 	int	i;
 	int	found = 0;
+	char *fp_start;
+	char *fp;
+int do_phdr = 1;
 
 	/***********************************************/
 	/*   Check for ELF magic header.	       */
@@ -380,7 +383,6 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
 		return -1;
 
 printk("do_dwarf_phdr: %d\n", __LINE__);
-int do_phdr = 1;
         ehdr = (Elf64_Ehdr *) ptr;
         phdr = (Elf64_Phdr *) ((char *) ehdr + ehdr->e_phoff);
 
@@ -431,11 +433,11 @@ printk("do_dwarf_phdr: %d\n", __LINE__);
 	/*   having  a  section  table  to  determine  */
 	/*   this.				       */
 	/***********************************************/
-	char *fp_start = (char *) ehdr + (long) dw->eh_frame_hdr_data;
+	fp_start = (char *) ehdr + (long) dw->eh_frame_hdr_data;
 	if (ehdr->e_type == ET_EXEC) {
 		fp_start = dw->eh_frame_hdr_data;
 	}
-	char *fp = fp_start;
+	fp = fp_start;
 
 printk("do_dwarf_phdr: %d ehdr=%p eh_frame_hdr_data=%p fp=%p\n", __LINE__, ehdr, dw->eh_frame_hdr_data, fp);
 	printf("EH.version: %02x\n", *fp++);

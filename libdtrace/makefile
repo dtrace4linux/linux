@@ -82,7 +82,7 @@ dt_names.c: mknames.sh
 	mknames.sh <../../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
 
 $(BINDIR)/dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H) 
-	$(YACC) -d dt_grammar.y
+	../tools/yacc.pl -d dt_grammar.y
 	mv y.tab.h $(BINDIR)/dt_grammar.h
 	mv y.tab.c dt_grammar.c
 	$(CC) -DYYDEBUG=1 -DYYERROR_VERBOSE $(CPPFLAGS) -c dt_grammar.c

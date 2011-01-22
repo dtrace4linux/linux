@@ -48,32 +48,7 @@ notice:
 	@echo "make test       - run cmd/dtrace regression tests."
 
 release:
-	eval `grep build= .release` ; \
-	build=`expr $$build + 1` ; \
-	(echo date=`date` ; echo release=dtrace-$(rel) ; echo build=$$build ) > .release
-	find . -name checksum.lst | xargs rm -f
-	cd .. ; mv dtrace dtrace-$(rel) ; \
-	tar cvf - --exclude=*.o \
-		--exclude=.*.cmd \
-		--exclude=*.so \
-		--exclude=*.mod.c \
-		--exclude=build/ \
-		--exclude=build-* \
-		--exclude=dt_grammar.h \
-		--exclude=dt_lex.c \
-		--exclude=.tmp_versions \
-		--exclude=Module.symvers \
-		--exclude=*.ko \
-		--exclude=*.a \
-		--exclude=*.mod \
-		--exclude=tags \
-		--exclude=lwn \
-		--exclude=.dtrace.nobug \
-		dtrace-$(rel) | bzip2 >/tmp/dtrace-$(rel).tar.bz2 ; \
-	mv dtrace-$(rel) dtrace ; \
-	rcp /tmp/dtrace-$(rel).tar.bz2 minny:release/website/$(RELDIR) ; \
-	ls -l /tmp/dtrace-$(rel).tar.bz2 ; \
-	mv /tmp/dtrace-$(rel).tar.bz2 $$HOME/release/dtrace
+	tools/mkrelease.pl $$REL
 
 ######################################################################
 #   Non-real releases, for my benefit.				     #

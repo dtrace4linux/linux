@@ -59,6 +59,17 @@ sub main
 	}
 
 	###############################################
+	#   Old kernels have ioctl() only, but later  #
+	#   kernels    have   unlocked_ioctl()   and  #
+	#   compat_ioctl(). Detect this here.	      #
+	###############################################
+	$str = `grep "(.ioctl) (struct inode" /lib/modules/$build/build/include/linux/fs.h`;
+	chomp($str);
+	if ($str ne '') {
+		$inc .= "# define HAVE_OLD_IOCTL 1\n";
+	}
+	
+	###############################################
 	#   Some   versions   of   elf   dont   have  #
 	#   elf_getshdrstrndx()			      #
 	###############################################
@@ -84,7 +95,7 @@ sub main
 	###############################################
 	#   Check for ELF_C_READ_MMAP		      #
 	###############################################
-	$str = `grep ELF_C_READ_MMAP /usr/include/libelf/libelf.h`;
+	$str = `grep -s ELF_C_READ_MMAP /usr/include/libelf/libelf.h`;
 	chomp($str);
 	if ($str ne '') {
 		$inc .= "# define HAVE_ELF_C_READ_MMAP 1\n";

@@ -4428,6 +4428,11 @@ next:
 			/*
 			 * Check an IPv4 string will fit in scratch.
 			 */
+/* For AS4 and older kernels. */
+#if !defined(INET_ADDRSTRLEN)
+#  define INET_ADDRSTRLEN 16
+#  define INET6_ADDRSTRLEN 46
+#endif
 			size = INET_ADDRSTRLEN;
 			if (!DTRACE_INSCRATCH(mstate, size)) {
 				DTRACE_CPUFLAG_SET(CPU_DTRACE_NOSCRATCH);

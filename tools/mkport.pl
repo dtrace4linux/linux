@@ -63,7 +63,7 @@ sub main
 	#   kernels    have   unlocked_ioctl()   and  #
 	#   compat_ioctl(). Detect this here.	      #
 	###############################################
-	$str = `grep "(.ioctl) (struct inode" /lib/modules/$build/build/include/linux/fs.h`;
+	my $str = `grep "(.ioctl) (struct inode" /lib/modules/$build/build/include/linux/fs.h`;
 	chomp($str);
 	if ($str ne '') {
 		$inc .= "# define HAVE_OLD_IOCTL 1\n";
@@ -81,7 +81,7 @@ sub main
 	###############################################
 	#   Check for zlib functions in the kernel.   #
 	###############################################
-	my $str = `grep zlib /proc/kallsyms`;
+	$str = `grep zlib /proc/kallsyms`;
 	chomp($str);
 	if ($str eq '') {
 		$inc .= "# define DO_NOT_HAVE_ZLIB_IN_KERNEL 1\n";

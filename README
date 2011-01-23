@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-July 2010
+January 2011
 Paul D. Fox
 fox@crisp.demon.co.uk
 http://www.twitter.com/crispeditor
@@ -14,6 +14,17 @@ Blog - latest news and stuff about the dtrace project:
 Download dtrace tarballs for linux here:
 
    ftp://crisp.dynalias.com/pub/release/website/dtrace
+
+PayPal
+======
+If you want to make a donation for this software, feel free to do so.
+Nothing is asked of you - it is genuinely free software, but it can
+help guage interest and appreciation if you do.
+
+You can pay by visiting the link below and clicking on "Donate", or
+use this reference for donations:
+
+   foxpaypal@crisp.demon.co.uk
 
 Introduction
 ============

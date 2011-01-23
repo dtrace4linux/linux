@@ -1,3 +1,10 @@
+Sun Jan 23 09:12:58 2011  fox
+
+     430* cmd/dtrace/makefile: Always use -lelf and stop trying to be
+          too clever. Try and fix the USDT link time problems.
+
+     429* tools/mkport.pl: Fix silly in "my" definitions.
+
 Sat Jan 22 09:33:14 2011  fox
 
      428* tools/yacc.pl: New file to handle bison/yacc discrepancies.

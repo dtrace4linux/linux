@@ -31,6 +31,7 @@ $(BINDIR)/dtrace: $(BINDIR)/dtrace.o $(LIBS)
 	elif [ -f /usr/local/lib/libelf.a ]; then \
 		libelf=/usr/local/lib/libelf.a ; \
 	fi ; \
+	libelf=-lelf ; \
 	echo $(COMPILE) ; \
 	$(COMPILE)
 

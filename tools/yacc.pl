@@ -1,4 +1,4 @@
-#! /ms/dist/perl5/bin/perl5.10
+#! /usr/bin/perl
 
 # $Header:$
 # Script to handle differing yacc/bison combos on the system.
@@ -12,35 +12,26 @@
 use strict;
 use warnings;
 
-use File::Basename;
 use FileHandle;
-use Getopt::Long;
-use IO::File;
-use POSIX;
-
-#######################################################################
-#   Command line switches.					      #
-#######################################################################
-my %opts;
 
 sub main
 {
-	Getopt::Long::Configure('require_order');
-	Getopt::Long::Configure('no_ignore_case');
-	usage() unless GetOptions(\%opts,
-		'help',
-		);
-
-	usage() if $opts{help};
-
 	my $fname;
 	foreach my $a (@ARGV) {
 		$fname = $a if $a !~ /^-/;
 	}
 
 	if (-f "/usr/bin/bison") {
-		print "/usr/bin/bison ", join(" ", @ARGV), "\n";
-		exec "/usr/bin/bison", @ARGV;
+		my $fn = $fname;
+		$fn =~ s/\..*$//;
+
+		my $cmd = "/usr/bin/bison " . join(" ", @ARGV);
+		print $cmd, "\n";
+		my $ret = system($cmd);
+		exit($ret) if $ret;
+		rename("$fn.tab.c", "y.tab.c");
+		rename("$fn.tab.h", "y.tab.h");
+		exit(0);
 	}
 	if (-f "/usr/bin/yacc") {
 		my $fh = new FileHandle($fname);

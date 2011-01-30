@@ -48,6 +48,14 @@
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
 /* $Header: Last edited: 12-Jul-2010 1.3 $ 			      */
 
+/**********************************************************************/
+/*   Dont  define this for a 32b kernel. In a 64b kernel, we need to  */
+/*   enable the extra code to patch the ia32 syscall table.	      */
+/**********************************************************************/
+# if defined(__amd64)
+#	define SYSCALL_64_32 1
+# endif
+
 #include <linux/mm.h>
 # undef zone
 # define zone linux_zone
@@ -86,28 +94,21 @@
 #define	SYSTRACE_ENTRY(id)		((1 << SYSTRACE_SHIFT) | (id))
 #define	SYSTRACE_RETURN(id)		(id)
 
-# if !defined(__NR_syscall_max)                                              
-#       if !defined(NR_syscalls)                                             
-#               define NSYSCALL (sizeof syscallnames / sizeof syscallnames[0])
-#       else                                                                 
-#               define NSYSCALL NR_syscalls                                  
-#       endif                                                                
-# else                                                                       
-#       define NSYSCALL __NR_syscall_max                                     
-# endif
-
 /**********************************************************************/
 /*   Get a list of system call names here.			      */
 /**********************************************************************/
 static char *syscallnames[] = {
-
 # if defined(__i386)
 #	include	"syscalls-x86.tbl"
 # else
 #	include	"syscalls-x86-64.tbl"
 # endif
-
 	};
+# define NSYSCALL (sizeof syscallnames / sizeof syscallnames[0])
+static char *syscallnames32[] = {
+# include	"syscalls-x86.tbl"
+	};
+# define NSYSCALL32 (sizeof syscallnames32 / sizeof syscallnames32[0])
 
 struct sysent {
         asmlinkage int64_t         (*sy_callc)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);  /* C-style call hander or wrapper */
@@ -119,8 +120,10 @@ struct sysent {
 #define SE_LOADED       0x10            /* syscall is completely loaded */
 
 systrace_sysent_t *systrace_sysent;
+systrace_sysent_t *systrace_sysent32;
 
 struct sysent *sysent;
+struct sysent *sysent32;
 static dtrace_provider_id_t systrace_id;
 
 /**********************************************************************/
@@ -513,6 +516,37 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	}
 
 	return dtrace_systrace_syscall2(syscall, &systrace_sysent[syscall],
+		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+/**********************************************************************/
+/*   Similar code to above but for 32b-on-64b kernel.		      */
+/**********************************************************************/
+asmlinkage int64_t
+dtrace_systrace_syscall32(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+{	int syscall;
+
+	/***********************************************/
+	/*   We  need  the  syscall  -  which  is  in  */
+	/*   rax/eax.  Dont  put any code before this  */
+	/*   point    else   we   may   destroy   it.  */
+	/*   Unfortunately,  different  syscalls have  */
+	/*   differing  frame regs on the stack as we  */
+	/*   are  called  and  theres  no  consistent  */
+	/*   access to pt_regs once we are here.       */
+	/***********************************************/
+	__asm(
+		"mov %%eax,%0\n"
+		: "=a" (syscall)
+		);
+
+	if ((unsigned) syscall >= NSYSCALL32) {
+		printk("dtrace:help: Got syscall=%d - out of range (max=%d)\n", 
+			(int) syscall, (int) NSYSCALL32);
+		return -EINVAL;
+	}
+
+	return dtrace_systrace_syscall2(syscall, &systrace_sysent32[syscall],
 		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
@@ -1061,34 +1095,36 @@ get_interposer(int sysnum, int enable)
 }
 
 static void
-systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed)
+systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed, int nsyscall)
 {
 	systrace_sysent_t *sysent = *interposed;
 	int i;
 
+	/***********************************************/
+	/*   Maybe 32b/64b - dont die badly here.      */
+	/***********************************************/
+	if (actual == NULL)
+		return;
+
 	if (sysent == NULL) {
 		*interposed = sysent = kmem_zalloc(sizeof (systrace_sysent_t) *
-		    NSYSCALL, KM_SLEEP);
+		    nsyscall, KM_SLEEP);
 	}
 
 HERE();
-//printk("NSYSCALL=%d\n", (int) NSYSCALL);
-	for (i = 0; i < NSYSCALL; i++) {
+//printk("systrace_do_init: nsyscall=%d\n", nsyscall);
+	for (i = 0; i < nsyscall; i++) {
 		struct sysent *a = &actual[i];
 		systrace_sysent_t *s = &sysent[i];
-
-# if defined(sun)
-		if (LOADABLE_SYSCALL(a) && !LOADED_SYSCALL(a))
-			continue;
-# endif
 
 		if (a->sy_callc == dtrace_systrace_syscall)
 			continue;
 
-#ifdef _SYSCALL32_IMPL
+/*#ifdef SYSCALL_64_32
 		if (a->sy_callc == dtrace_systrace_syscall32)
 			continue;
 #endif
+*/
 
 		s->stsy_underlying = a->sy_callc;
 //printk("stsy_underlying=%p\n", s->stsy_underlying);
@@ -1209,6 +1245,10 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 
 	if (sysent == NULL)
 		sysent = fbt_get_sys_call_table();
+#if defined(__amd64)
+	if (sysent32 == NULL)
+		sysent32 = get_proc_addr("ia32_sys_call_table");
+#endif
 
 	if (sysent == NULL) {
 		printk("systrace.c: Cannot locate sys_call_table - not enabling syscalls\n");
@@ -1250,9 +1290,9 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		do_fork_ptr = (void *) get_proc_addr("do_fork");
 #endif
 
-	systrace_do_init(sysent, &systrace_sysent);
-#ifdef _SYSCALL32_IMPL
-	systrace_do_init(sysent32, &systrace_sysent32);
+	systrace_do_init(sysent, &systrace_sysent, NSYSCALL);
+#ifdef SYSCALL_64_32
+	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32);
 #endif
 	for (i = 0; i < NSYSCALL; i++) {
 		char	*name = syscallnames[i];
@@ -1264,14 +1304,20 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		if (name == NULL || !validate_ptr(name))
 			continue;
 
+		/***********************************************/
+		/*   Prefix     now    stripped    off    via  */
+		/*   mksyscall.pl,  dont  need to waste space  */
+		/*   doing this at runtime.		       */
+		/***********************************************/
+		/*
 		if (strncmp(name, "__NR_", 5) == 0)
 			name += 5;
+		*/
 
 		if (systrace_sysent[i].stsy_underlying == NULL)
 			continue;
 
-		if (dtrace_probe_lookup(systrace_id, NULL,
-		    name, "entry") != 0)
+		if (dtrace_probe_lookup(systrace_id, NULL, name, "entry") != 0)
 			continue;
 
 		if (dtrace_here)
@@ -1286,7 +1332,7 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 
 		systrace_sysent[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent[i].stsy_return = DTRACE_IDNONE;
-#ifdef _SYSCALL32_IMPL
+#ifdef xSYSCALL_64_32
 		systrace_sysent32[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent32[i].stsy_return = DTRACE_IDNONE;
 #endif
@@ -1307,12 +1353,12 @@ systrace_destroy(void *arg, dtrace_id_t id, void *parg)
 	 */
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
 		ASSERT(systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE);
-#ifdef _SYSCALL32_IMPL
+#ifdef SYSCALL_64_32
 		ASSERT(systrace_sysent32[sysnum].stsy_entry == DTRACE_IDNONE);
 #endif
 	} else {
 		ASSERT(systrace_sysent[sysnum].stsy_return == DTRACE_IDNONE);
-#ifdef _SYSCALL32_IMPL
+#ifdef SYSCALL_64_32
 		ASSERT(systrace_sysent32[sysnum].stsy_return == DTRACE_IDNONE);
 #endif
 	}

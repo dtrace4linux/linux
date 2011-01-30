@@ -1,3 +1,17 @@
+Sun Jan 30 22:07:28 2011  fox
+
+     433* systrace.c: Initial attempt at supporting 32b/64b mode. Not yet
+          finished, but now have two syscall tables to look after.
+
+     432* mksyscall.pl: Generated sorted and expanded syscall tables. i386 and
+          amd64 have no commonality of syscalls, and we cannot rely on
+	  #includes to access the symbol syscall names.
+
+Wed Jan 26 23:36:19 2011  fox
+
+     431* mksyscall.pl: Generate both 32 and 64 bit sys call table 
+          irrespective of kernel.
+
 Sun Jan 23 09:12:58 2011  fox
 
      430* cmd/dtrace/makefile: Always use -lelf and stop trying to be

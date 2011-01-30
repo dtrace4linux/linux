@@ -87,7 +87,7 @@ sub main
 	spawn("tools/libgcc.pl");
 
 	if ($uname_m =~ /x86.*64/) {
-		spawn("tools/mksyscall.pl x86-64");
+		spawn("tools/mksyscall.pl");
 		print $fh "export CPU_BITS=64\n";
 	} elsif ($uname_m =~ /i.*86/) {
 		$ENV{BUILD_i386} = "1";
@@ -96,7 +96,7 @@ sub main
 	  	print $fh "export PTR32=\"$ENV{PTR32}\"\n";
 		print $fh "export BUILD_i386=$ENV{BUILD_i386}\n";
 		print $fh "export CPU_BITS=$ENV{CPU_BITS}\n";
-		spawn("tools/mksyscall.pl x86");
+		spawn("tools/mksyscall.pl");
 	} else {
 		die "Unsupported cpu architecture: $uname_m\n";
 	}

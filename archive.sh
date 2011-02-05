@@ -1,6 +1,6 @@
 NAME=dtrace
 MAJ_VERSION=1
-MIN_VERSION=0112
+MIN_VERSION=0113
 EXCLUDE="*.ko *.o .git"
 EXCLUDE_DIRS="build-"
-#date Thu Jan 20 23:04:21 GMT 2011
+#date Sat Feb  5 10:24:46 GMT 2011

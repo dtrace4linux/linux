@@ -117,6 +117,7 @@ static void *xmodules;
 static void **xsys_call_table;
 int (*kernel_text_address_fn)(unsigned long);
 char *(*dentry_path_fn)(struct dentry *, char *, int);
+static struct module *(*fn__module_text_address)(unsigned long);
 
 /**********************************************************************/
 /*   Stats counters for ad hoc debugging; exposed via /dev/dtrace.    */
@@ -658,6 +659,12 @@ static int first_time = TRUE;
 	kernel_int13_handler = get_proc_addr("general_protection");
 	kernel_double_fault_handler = get_proc_addr("double_fault");
 	kernel_page_fault_handler = get_proc_addr("page_fault");
+
+	/***********************************************/
+	/*   Needed   for  validating  module  symbol  */
+	/*   probes.				       */
+	/***********************************************/
+	fn__module_text_address = get_proc_addr("__module_text_address");
 
 	/***********************************************/
 	/*   Needed  for  stack  walking  to validate  */
@@ -1224,79 +1231,24 @@ suword32(const void *addr, uint32_t value)
 int
 instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym)
 {
-	char	*secname = NULL;
+	struct module *mp1;
 
-# if defined(MODULE_SECT_NAME_LEN)
 	/***********************************************/
-	/*   This  is  horrid.  I  know  2.6.18 wants  */
-	/*   this, but 2.6.9 (much older) doesnt.      */
+	/*   Make   sure  we  have  the  prerequisite  */
+	/*   function.				       */
 	/***********************************************/
-# if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 18)
-#   define module_sections module_sect_attrs
-# endif
-	/***********************************************/
-	/*   Kernel  <=  2.6.18  ..  we dont know how  */
-	/*   many  sections  there  are so we need to  */
-	/*   validate  the  attrs[]  array in the for  */
-	/*   loop below.			       */
-	/***********************************************/
-	{
-	int j;
-	struct module_sections *secp = (struct module_sections *) 
-		mp->sect_attrs;
-//HERE();
-	for (j = 0; ; j++) {
-		/***********************************************/
-		/*   We  dont know how many entries there are  */
-		/*   - so need to validate the ptr.	       */
-		/***********************************************/
-		if (!validate_ptr(secp->attrs[j].address))
-			break;
-		if (sym->st_value < secp->attrs[j+1].address) {
-			secname = secp->attrs[j].name;
-			break;
-		}
-	}
-	}
-# else
-	/***********************************************/
-	/*   Kernel   >=  2.6.19,  hides  the  struct  */
-	/*   definitions, so we have to do this - its  */
-	/*   ugly  and  we  may  break  when/if  they  */
-	/*   change the struct.			       */
-	/***********************************************/
-	{
-	struct module_sect_attr {
-	        struct module_attribute mattr;
-	        char *name;
-	        unsigned long address;
-	};
-	struct module_sect_attrs {
-	        struct attribute_group grp;
-	        unsigned int nsections;
-	        struct module_sect_attr attrs[0];
-	};
-	struct module_sect_attrs *secp = (struct module_sect_attrs *) 
-		mp->sect_attrs;
-//printk("mp:%p mp->sect_attrs:%p\n", mp, mp->sect_attrs);
-//printk("attrs=%p shndx=%d\n", secp->attrs, sym->st_shndx);
-	if (secp->attrs)
-		secname = secp->attrs[sym->st_shndx].name;
-	}
-# endif
+	if (fn__module_text_address == NULL)
+		return 0;
 
+	/***********************************************/
+	/*   Map addr to a module - should be the one  */
+	/*   we are looking at.			       */
+	/***********************************************/
+	mp1 = fn__module_text_address(sym->st_value);
+//printk("fn__module_text_address=%p %p %p\n", fn__module_text_address, sym->st_value, mp1);
+//printk("mp=%p %p\n", mp, mp1);
 
-	if (secname == NULL)
-		return FALSE;
-//printk(""); // workaround for 2.6.18 kernel - without this we will GPF. Dont know why
-//HERE(); /*if (dtrace_here) printk("secp=%p attrs=%p %s secname=%p shndx=%d\n", secp, secp->attrs, name, secname, sym->st_shndx);*/
-	if (!validate_ptr(secname))
-		return FALSE;
-//HERE();
-	if (strncmp(secname, ".text", 5) != 0)
-		return FALSE;
-//HERE();
-	return TRUE;
+	return mp == mp1;
 }
 /**********************************************************************/
 /*   When  walking  stacks, need to see if this is a kernel pointer,  */
@@ -1674,11 +1626,11 @@ return 0;
 static struct par_alloc_t *hd_par;
 
 void *
-par_alloc(void *ptr, int size, int *init)
+par_alloc(int domain, void *ptr, int size, int *init)
 {	par_alloc_t *p;
 	
 	for (p = hd_par; p; p = p->pa_next) {
-		if (p->pa_ptr == ptr) {
+		if (p->pa_ptr == ptr && p->pa_domain == domain) {
 			if (init)
 				*init = FALSE;
 			return p;
@@ -1690,9 +1642,11 @@ par_alloc(void *ptr, int size, int *init)
 
 	if ((p = kmalloc(size + sizeof(*p), GFP_ATOMIC)) == NULL)
 		return NULL;
+	p->pa_domain = domain;
 	p->pa_ptr = ptr;
 	p->pa_next = hd_par;
 	dtrace_bzero(p+1, size);
+//printk("par_alloc %d -> %p\n", domain, p);
 	hd_par = p;
 
 	return p;
@@ -1714,18 +1668,23 @@ par_find_thread(struct task_struct *t)
 /*   Free the parallel pointer.					      */
 /**********************************************************************/
 void
-par_free(void *ptr)
+par_free(int domain, void *ptr)
 {	par_alloc_t *p = (par_alloc_t *) ptr;
 	par_alloc_t *p1;
 
-	if (hd_par == p) {
+	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;
 		kfree(ptr);
 		return;
 		}
-	for (p1 = hd_par; p1->pa_next != p; p1 = p1->pa_next)
-		;
-	if (p1->pa_next == p)
+	for (p1 = hd_par; p1 && p1->pa_next != p; p1 = p1->pa_next) {
+//		printk("p1=%p\n", p1);
+		}
+	if (p1 == NULL) {
+		printk("where did p1 go?\n");
+		return;
+	}
+	if (p1->pa_next == p && p1->pa_domain == domain)
 		p1->pa_next = p->pa_next;
 	kfree(ptr);
 }
@@ -2501,16 +2460,6 @@ dtracedrv_open(struct inode *inode, struct file *file)
 HERE();
 
 	return -ret;
-# if 0
-	/*
-	 * Ask all providers to provide their probes.
-	 */
-	mutex_enter(&dtrace_provider_lock);
-	dtrace_probe_provide(NULL);
-	mutex_exit(&dtrace_provider_lock);
-
-	return 0;
-# endif
 }
 static int
 dtracedrv_release(struct inode *inode, struct file *file)
@@ -2926,9 +2875,9 @@ static struct proc_dir_entry *dir;
 
 	ctf_init();
 	fasttrap_init();
+	systrace_init();
 	fbt_init();
 	instr_init();
-	systrace_init();
 	dtrace_profile_init();
 	sdt_init();
 	ctl_init();

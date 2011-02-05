@@ -88,10 +88,14 @@
 
 #define	SYSTRACE_ARTIFICIAL_FRAMES	1
 
+#define	STF_ENTRY		0x10000
+#define	STF_32BIT		0x20000
+
+#define SYSTRACE_MASK		0xffff
 #define	SYSTRACE_SHIFT			16
-#define	SYSTRACE_ISENTRY(x)		((int)(x) >> SYSTRACE_SHIFT)
-#define	SYSTRACE_SYSNUM(x)		((int)(x) & ((1 << SYSTRACE_SHIFT) - 1))
-#define	SYSTRACE_ENTRY(id)		((1 << SYSTRACE_SHIFT) | (id))
+#define	SYSTRACE_ISENTRY(x)		((int)(x) & STF_ENTRY)
+#define	SYSTRACE_SYSNUM(x)		((int)(x) & SYSTRACE_MASK)
+#define	SYSTRACE_ENTRY(id)		(STF_ENTRY | (id))
 #define	SYSTRACE_RETURN(id)		(id)
 
 /**********************************************************************/
@@ -1093,6 +1097,13 @@ get_interposer(int sysnum, int enable)
 # endif
 	return (void *) dtrace_systrace_syscall;
 }
+#if SYSCALL_64_32
+static void *
+get_interposer32(int sysnum, int enable)
+{
+	return (void *) dtrace_systrace_syscall;
+}
+#endif
 
 static void
 systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed, int nsyscall)
@@ -1291,9 +1302,6 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 #endif
 
 	systrace_do_init(sysent, &systrace_sysent, NSYSCALL);
-#ifdef SYSCALL_64_32
-	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32);
-#endif
 	for (i = 0; i < NSYSCALL; i++) {
 		char	*name = syscallnames[i];
 
@@ -1332,11 +1340,65 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 
 		systrace_sysent[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent[i].stsy_return = DTRACE_IDNONE;
-#ifdef xSYSCALL_64_32
+	}
+
+	/***********************************************/
+	/*   On 64b kernel, we need to ensure the 32b  */
+	/*   syscalls map to the same probe id as the  */
+	/*   64b  equivalent,  but  we are not 1:1 or  */
+	/*   using  the same index values, so we need  */
+	/*   to  hunt  for  the 64b equiv if there is  */
+	/*   one.				       */
+	/***********************************************/
+#ifdef SYSCALL_64_32
+	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32);
+	for (i = 0; i < NSYSCALL32; i++) {
+		char	*name = syscallnames32[i];
+
+		/***********************************************/
+		/*   Be  careful  in  case we have rubbish in  */
+		/*   the name.				       */
+		/***********************************************/
+		if (name == NULL || !validate_ptr(name))
+			continue;
+
+		/***********************************************/
+		/*   Prefix     now    stripped    off    via  */
+		/*   mksyscall.pl,  dont  need to waste space  */
+		/*   doing this at runtime.		       */
+		/***********************************************/
+		/*
+		if (strncmp(name, "__NR_", 5) == 0)
+			name += 5;
+		*/
+
+		if (systrace_sysent32[i].stsy_underlying == NULL)
+			continue;
+
+		/***********************************************/
+		/*   We  may  have a dup with the 64b version  */
+		/*   of    the    same   syscall,   but   the  */
+		/*   SYSTRACE_ENTRY/RETURN  below doesnt seem  */
+		/*   to matter. It might do - will be able to  */
+		/*   tell when we take a 32b syscall trap(!)   */
+		/***********************************************/
+//		if (dtrace_probe_lookup(systrace_id, NULL, name, "entry") != 0)
+//			continue;
+
+		if (dtrace_here)
+			printk("systrace_provide: patch syscall32 #%d: %s\n", i, name);
+		(void) dtrace_probe_create(systrace_id, NULL, name,
+		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
+		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
+
+		(void) dtrace_probe_create(systrace_id, NULL, name,
+		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
+		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));
+
 		systrace_sysent32[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent32[i].stsy_return = DTRACE_IDNONE;
-#endif
 	}
+#endif
 }
 
 /*ARGSUSED*/
@@ -1364,75 +1426,38 @@ systrace_destroy(void *arg, dtrace_id_t id, void *parg)
 	}
 }
 
-/**********************************************************************/
-/*   Someone  is trying to trace a syscall. Enable/patch the syscall  */
-/*   table (if not done already).				      */
-/**********************************************************************/
+
+#if SYSCALL_64_32
 /*ARGSUSED*/
-static int
-systrace_enable(void *arg, dtrace_id_t id, void *parg)
+static void
+systrace_disable32(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
-	void	*syscall_func = get_interposer(sysnum, TRUE);
+	void	*syscall_func = get_interposer32(sysnum, FALSE);
 
-/*
-	int enabled = (systrace_sysent[sysnum].stsy_entry != DTRACE_IDNONE ||
-	    systrace_sysent[sysnum].stsy_return != DTRACE_IDNONE);
-*/
+	int disable = (systrace_sysent32[sysnum].stsy_entry == DTRACE_IDNONE ||
+	    systrace_sysent32[sysnum].stsy_return == DTRACE_IDNONE);
 
-//printk("\n\nsystrace_sysent[%p].stsy_entry = %x\n", parg, systrace_sysent[sysnum].stsy_entry);
-//printk("\n\nsystrace_sysent[%p].stsy_return = %x\n", parg, systrace_sysent[sysnum].stsy_return);
-	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
-		systrace_sysent[sysnum].stsy_entry = id;
-	} else {
-		systrace_sysent[sysnum].stsy_return = id;
-	}
 	/***********************************************/
 	/*   This  may  because the patch_enable code  */
 	/*   got invoked.			       */
 	/***********************************************/
 	if (syscall_func == NULL)
-		return 0;
+		return;
 
-	/***********************************************/
-	/*   The  x86  kernel  will  page protect the  */
-	/*   sys_call_table  and panic if we write to  */
-	/*   it.  So....lets just turn off write-only  */
-	/*   on  the  target page. We might even turn  */
-	/*   it  back  on  when  we are finished, but  */
-	/*   dont care for now.			       */
-	/***********************************************/
-	if (memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE) == 0)
-		return 0;
-
-	if (dtrace_here) {
-		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
-			&sysent[sysnum].sy_callc,
-			    (void *)systrace_sysent[sysnum].stsy_underlying,
-			    (void *)syscall_func,
-				sysent[sysnum].sy_callc);
+	if (disable) {
+		casptr(&sysent32[sysnum].sy_callc,
+		    syscall_func,
+		    (void *)systrace_sysent32[sysnum].stsy_underlying);
 	}
 
-//sysent[sysnum].sy_callc = dtrace_systrace_syscall;
-HERE();
-/*
-printk("calling caspt %p %p %p\n", &sysent[sysnum].sy_callc,
-	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)syscall_func);
-*/
-	casptr(&sysent[sysnum].sy_callc,
-	    (void *)systrace_sysent[sysnum].stsy_underlying,
-	    (void *)syscall_func);
-HERE();
-	if (dtrace_here) {
-		printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
-			&sysent[sysnum].sy_callc,
-			    (void *)systrace_sysent[sysnum].stsy_underlying,
-			    (void *)syscall_func,
-				sysent[sysnum].sy_callc);
+	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
+		systrace_sysent32[sysnum].stsy_entry = DTRACE_IDNONE;
+	} else {
+		systrace_sysent32[sysnum].stsy_return = DTRACE_IDNONE;
 	}
-	return 0;
 }
+#endif
 
 /*ARGSUSED*/
 static void
@@ -1462,6 +1487,123 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 	} else {
 		systrace_sysent[sysnum].stsy_return = DTRACE_IDNONE;
 	}
+#if SYSCALL_64_32
+	systrace_disable32(arg, id, parg);
+#endif
+}
+#if SYSCALL_64_32
+static int
+systrace_enable32(void *arg, dtrace_id_t id, void *parg)
+{
+	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+	void	*syscall_func = get_interposer32(sysnum, TRUE);
+
+return 0;
+printk("arg=%p id32=%d parg=%p\n", arg, id, parg);
+	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
+		systrace_sysent32[sysnum].stsy_entry = id;
+	} else {
+		systrace_sysent32[sysnum].stsy_return = id;
+	}
+	/***********************************************/
+	/*   This  may  because the patch_enable code  */
+	/*   got invoked.			       */
+	/***********************************************/
+	if (syscall_func == NULL)
+		return 0;
+
+	/***********************************************/
+	/*   The  x86  kernel  will  page protect the  */
+	/*   sys_call_table  and panic if we write to  */
+	/*   it.  So....lets just turn off write-only  */
+	/*   on  the  target page. We might even turn  */
+	/*   it  back  on  when  we are finished, but  */
+	/*   dont care for now.			       */
+	/***********************************************/
+	if (memory_set_rw(&sysent32[sysnum].sy_callc, 1, TRUE) == 0)
+		return 0;
+
+	if (dtrace_here) {
+		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
+			&sysent32[sysnum].sy_callc,
+			    (void *)systrace_sysent32[sysnum].stsy_underlying,
+			    (void *)syscall_func,
+				sysent32[sysnum].sy_callc);
+	}
+
+	casptr(&sysent32[sysnum].sy_callc,
+	    (void *)systrace_sysent32[sysnum].stsy_underlying,
+	    (void *)syscall_func);
+
+	if (dtrace_here) {
+		printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
+			&sysent[sysnum].sy_callc,
+			    (void *)systrace_sysent[sysnum].stsy_underlying,
+			    (void *)syscall_func,
+				sysent[sysnum].sy_callc);
+	}
+	return 0;
+}
+#endif
+/**********************************************************************/
+/*   Someone  is trying to trace a syscall. Enable/patch the syscall  */
+/*   table (if not done already).				      */
+/**********************************************************************/
+/*ARGSUSED*/
+static int
+systrace_enable(void *arg, dtrace_id_t id, void *parg)
+{
+	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+	void	*syscall_func = get_interposer(sysnum, TRUE);
+
+	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
+		systrace_sysent[sysnum].stsy_entry = id;
+	} else {
+		systrace_sysent[sysnum].stsy_return = id;
+	}
+
+	/***********************************************/
+	/*   This  may  because the patch_enable code  */
+	/*   got invoked.			       */
+	/***********************************************/
+	if (syscall_func == NULL)
+		return 0;
+
+	/***********************************************/
+	/*   The  x86  kernel  will  page protect the  */
+	/*   sys_call_table  and panic if we write to  */
+	/*   it.  So....lets just turn off write-only  */
+	/*   on  the  target page. We might even turn  */
+	/*   it  back  on  when  we are finished, but  */
+	/*   dont care for now.			       */
+	/***********************************************/
+	if (memory_set_rw(&sysent[sysnum].sy_callc, 1, TRUE) == 0)
+		return 0;
+
+	if (dtrace_here) {
+		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
+			&sysent[sysnum].sy_callc,
+			    (void *)systrace_sysent[sysnum].stsy_underlying,
+			    (void *)syscall_func,
+				sysent[sysnum].sy_callc);
+	}
+
+	casptr(&sysent[sysnum].sy_callc,
+	    (void *)systrace_sysent[sysnum].stsy_underlying,
+	    (void *)syscall_func);
+
+	if (dtrace_here) {
+		printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
+			&sysent[sysnum].sy_callc,
+			    (void *)systrace_sysent[sysnum].stsy_underlying,
+			    (void *)syscall_func,
+				sysent[sysnum].sy_callc);
+	}
+#if SYSCALL_64_32
+	systrace_enable32(arg, id, parg);
+#endif
+
+	return 0;
 }
 /*ARGSUSED*/
 void
@@ -1543,10 +1685,15 @@ int systrace_init(void)
 	/*   This  is  a  run-time  and not a compile  */
 	/*   time test.				       */
 	/***********************************************/
-	if ((1 << SYSTRACE_SHIFT) <= NSYSCALL) {
-		printk("systrace: 1 << SYSTRACE_SHIFT must exceed number of system calls\n");
+	if (SYSTRACE_MASK <= NSYSCALL) {
+		printk("systrace: too many syscalls? %d is too large\n", NSYSCALL);
 		return 0;
 	}
+	if (SYSTRACE_MASK <= NSYSCALL32) {
+		printk("systrace: too many syscalls(32b)? %d is too large\n", NSYSCALL32);
+		return 0;
+	}
+
 	ret = misc_register(&systrace_dev);
 	if (ret) {
 		printk(KERN_WARNING "systrace: Unable to register misc device\n");

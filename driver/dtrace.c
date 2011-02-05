@@ -179,6 +179,14 @@ hrtime_t	dtrace_deadman_user = (hrtime_t)30 * NANOSEC;
 
 # if linux
 static void dtrace_action_chill(dtrace_mstate_t *mstate, hrtime_t val);
+
+static int dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data);
+static void dtrace_module_unloaded(struct modctl *modctl);
+
+static struct notifier_block n_module_load = {
+	.notifier_call = dtrace_module_loaded,
+	};
+
 # endif
 /*
  * DTrace External Variables
@@ -14641,10 +14649,20 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 /*
  * DTrace Hook Functions
  */
-static void
-dtrace_module_loaded(struct modctl *modctl)
-{	struct module *ctl = (struct module *) modctl;
+static int
+dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
+{	struct module *ctl = (struct module *) data;
 	dtrace_provider_t *prv;
+
+	if (val == MODULE_STATE_GOING) {
+		dtrace_module_unloaded(ctl);
+		return NOTIFY_DONE;
+	}
+	if (val != MODULE_STATE_LIVE) {
+		return NOTIFY_DONE;
+	}
+
+printk("dtrace_module_loaded called %p\n", ctl);
 
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&mod_lock);
@@ -14677,7 +14695,7 @@ dtrace_module_loaded(struct modctl *modctl)
 
 	if (dtrace_retained == NULL) {
 		mutex_exit(&dtrace_lock);
-		return;
+		return NOTIFY_DONE;
 	}
 
 # if linux
@@ -14704,6 +14722,7 @@ dtrace_module_loaded(struct modctl *modctl)
 # else
 	delay(1);
 # endif
+	return NOTIFY_DONE;
 }
 
 static void
@@ -14733,6 +14752,7 @@ dtrace_module_unloaded(struct modctl *modctl)
 		return;
 	}
 
+printk("dtrace_module_unloaded called %p '%s'\n", modctl, ctl->name);
 	for (probe = first = dtrace_hash_lookup(dtrace_bymod, &template);
 	    probe != NULL; probe = probe->dtpr_nextmod) {
 		if (probe->dtpr_ecb != NULL) {
@@ -14971,6 +14991,9 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	/*   compile  them  in  as we may enable at a  */
 	/*   future date.			       */
 	/***********************************************/
+#if linux
+	register_module_notifier(&n_module_load);
+#else
 	dtrace_modload = dtrace_module_loaded;
 	dtrace_modunload = dtrace_module_unloaded;
 	dtrace_cpu_init = dtrace_cpu_setup_initial;
@@ -14980,6 +15003,7 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_cpustart_fini = dtrace_resume;
 	dtrace_debugger_init = dtrace_suspend;
 	dtrace_debugger_fini = dtrace_resume;
+#endif
 
 #if defined(sun)
 	register_cpu_setup_func((cpu_setup_func_t *)dtrace_cpu_setup, NULL);
@@ -16213,6 +16237,9 @@ printk("dtrace_detach: dtrace_opens=%d\n", dtrace_opens);
 	dtrace_debugger_fini = NULL;
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
+#if linux
+	unregister_module_notifier(&n_module_load);
+#endif
 
 	mutex_exit(&cpu_lock);
 

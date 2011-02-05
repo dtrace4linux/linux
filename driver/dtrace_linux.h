@@ -266,14 +266,17 @@ typedef enum {
 /*   kernel  but  we need per-structure additions, so we need a hash  */
 /*   table or list so we can go from kernel object to dtrace object.  */
 /**********************************************************************/
+# define	PARD_FBT	0
+# define	PARD_INSTR	1
 typedef struct par_alloc_t {
+	int	pa_domain;	/* Avoid collisions when modules needed by */
+				/* different providers. */
 	void	*pa_ptr;
 	struct par_alloc_t *pa_next;
 	} par_alloc_t;
 
 typedef struct par_module_t {
-	void	*pa_ptr;
-	struct par_alloc_t *pa_next;
+	par_alloc_t	pm_alloc;
 	int	fbt_nentries;
 	} par_module_t;
 
@@ -354,9 +357,9 @@ int dtrace_function_size(char *name, uint8_t **start, int *size);
 extern unsigned long dcnt[MAX_DCNT];
 
 int priv_policy_choice(const cred_t *a, int priv, int allzone);
-void *par_alloc(void *, int, int *);
+void *par_alloc(int, void *, int, int *);
 proc_t * par_find_thread(struct task_struct *t);
-void par_free(void *ptr);
+void par_free(int, void *ptr);
 int fulword(const void *addr, uintptr_t *valuep);
 int fuword8(const void *addr, unsigned char *valuep);
 int fuword32(const void *addr, uint32_t *valuep);

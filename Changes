@@ -1,3 +1,25 @@
+Sat Feb  5 10:24:19 2011  fox
+
+     438* dtrace_linux.c: Init syscalls before fbt/instr provider. We can 
+          reduce memory this way. Bizarre. But true.
+
+     437* Archive: 1.0113
+
+     436* dtrace_linux.c: Fix par_free. Now correctly handles modules being
+          loaded/unloaded for fbt tracing.
+
+Fri Feb  4 22:09:23 2011  fox
+
+     435* fbt_linux.c, instr_linux.c: par_alloc/par_lookup: We had a collision
+          on modules registered by the two providers because they seem the
+	  same mem addresses. Add support or 'domains' to allow us to
+	  distinguish the clashing entries. This should fix the issue where
+	  the instr provider stops fbt from providing fbt probes for a module.
+
+Thu Feb  3 22:10:03 2011  fox
+
+     434* dtrace.c: Add support for module_loaded notifier.
+
 Sun Jan 30 22:07:28 2011  fox
 
      433* systrace.c: Initial attempt at supporting 32b/64b mode. Not yet

@@ -291,7 +291,7 @@ instr_provide_module(void *arg, struct modctl *ctl)
 	/*   parallel  struct, but need to free if we  */
 	/*   are offloaded.			       */
 	/***********************************************/
-	pmp = par_alloc(mp, sizeof *pmp, &init);
+	pmp = par_alloc(PARD_INSTR, mp, sizeof *pmp, &init);
 	if (pmp->fbt_nentries) {
 		/*
 		 * This module has some FBT entries allocated; we're afraid
@@ -575,9 +575,9 @@ instr_destroy(void *arg, dtrace_id_t id, void *parg)
 		if (mp != NULL && get_refcount(mp) == fbt->insp_loadcnt) {
 			if ((get_refcount(mp) == fbt->insp_loadcnt &&
 			    mp->state == MODULE_STATE_LIVE)) {
-			    	par_module_t *pmp = par_alloc(mp, sizeof *pmp, NULL);
+			    	par_module_t *pmp = par_alloc(PARD_INSTR, mp, sizeof *pmp, NULL);
 				if (--pmp->fbt_nentries == 0)
-					par_free(pmp);
+					par_free(PARD_INSTR, pmp);
 			}
 		}
 

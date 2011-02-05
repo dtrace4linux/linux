@@ -366,7 +366,7 @@ TODO();
 	/*   parallel  struct, but need to free if we  */
 	/*   are offloaded.			       */
 	/***********************************************/
-	pmp = par_alloc(mp, sizeof *pmp, &init);
+	pmp = par_alloc(PARD_FBT, mp, sizeof *pmp, &init);
 	if (pmp->fbt_nentries) {
 		/*
 		 * This module has some FBT entries allocated; we're afraid
@@ -375,7 +375,7 @@ TODO();
 		return;
 	}
 
-	if (dtrace_here) 
+	if (1 || dtrace_here) 
 		printk("%s(%d):modname=%s num_symtab=%u\n", dtrace_basename(__FILE__), __LINE__, modname, (unsigned) mp->num_symtab);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
@@ -526,7 +526,8 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 		/*   section  indexes). What we need to do is  */
 		/*   attempt to find the section by address.   */
 		/***********************************************/
-		if (!instr_in_text_seg(mp, name, sym))
+		int ret = instr_in_text_seg(mp, name, sym);
+		if (!ret)
 			continue;
 
 		/***********************************************/
@@ -675,12 +676,13 @@ fbt_destroy(void *arg, dtrace_id_t id, void *parg)
 	int ndx;
 
 	do {
+//printk("refc=%d load=%d\n", get_refcount(mp), fbt->fbtp_loadcnt);
 		if (mp != NULL && get_refcount(mp) == fbt->fbtp_loadcnt) {
 			if ((get_refcount(mp) == fbt->fbtp_loadcnt &&
 			    mp->state == MODULE_STATE_LIVE)) {
-			    	par_module_t *pmp = par_alloc(mp, sizeof *pmp, NULL);
+			    	par_module_t *pmp = par_alloc(PARD_FBT, mp, sizeof *pmp, NULL);
 				if (--pmp->fbt_nentries == 0)
-					par_free(pmp);
+					par_free(PARD_FBT, pmp);
 			}
 		}
 

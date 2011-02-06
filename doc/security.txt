@@ -1,5 +1,5 @@
 This document describes the security settings for dtrace, as 
-implemente for Linux. 
+implemented for Linux. 
 
 dtrace allows a user to access physical memory of the kernel and
 other processes, and, as such, should not be allowed in an untrusted
@@ -13,10 +13,10 @@ dtrace_super
 
 The /dev/dtrace interface is used to communicate the security settings.
 The idea is that on driver load, a set of security records are
-sent to the driver, which define users and groups vs the priviledges allowed.
+sent to the driver, which define users and groups vs the privileges allowed.
 
-	$ echo dtrace_proc all
-	$ echo dtrace_proc none
-	$ echo dtrace_proc 200 201 202 ...
+	$ echo dtrace_proc all >/dev/dtrace
+	$ echo dtrace_proc none >/dev/dtrace
+	$ echo dtrace_proc 200 201 202 ... >/dev/dtrace
 
 

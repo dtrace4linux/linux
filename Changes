@@ -1,3 +1,12 @@
+Sun Feb  6 09:05:12 2011  fox
+
+     440* Archive: 1.0114
+
+     439* systrace.c: When creating probes, give a module name (x64 or x32)
+          so we can distinguish 64b syscalls from 32b ones. Avoids
+	  rampant probe creation as we kept creating the probes
+	  on every use of dtrace.
+
 Sat Feb  5 10:24:19 2011  fox
 
      438* dtrace_linux.c: Init syscalls before fbt/instr provider. We can 

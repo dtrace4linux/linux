@@ -375,7 +375,7 @@ TODO();
 		return;
 	}
 
-	if (1 || dtrace_here) 
+	if (dtrace_here) 
 		printk("%s(%d):modname=%s num_symtab=%u\n", dtrace_basename(__FILE__), __LINE__, modname, (unsigned) mp->num_symtab);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;

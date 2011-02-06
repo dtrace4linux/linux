@@ -97,6 +97,8 @@
 #define	SYSTRACE_SYSNUM(x)		((int)(x) & SYSTRACE_MASK)
 #define	SYSTRACE_ENTRY(id)		(STF_ENTRY | (id))
 #define	SYSTRACE_RETURN(id)		(id)
+#define	SYSTRACE_ENTRY32(id)		(STF_32BIT | STF_ENTRY | (id))
+#define	SYSTRACE_RETURN32(id)		(STF_32BIT | (id))
 
 /**********************************************************************/
 /*   Get a list of system call names here.			      */
@@ -1101,12 +1103,13 @@ get_interposer(int sysnum, int enable)
 static void *
 get_interposer32(int sysnum, int enable)
 {
-	return (void *) dtrace_systrace_syscall;
+	return (void *) dtrace_systrace_syscall32;
 }
 #endif
 
 static void
-systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed, int nsyscall)
+systrace_do_init(struct sysent *actual, systrace_sysent_t **interposed, 
+	int nsyscall, void *systrace_syscall)
 {
 	systrace_sysent_t *sysent = *interposed;
 	int i;
@@ -1128,14 +1131,8 @@ HERE();
 		struct sysent *a = &actual[i];
 		systrace_sysent_t *s = &sysent[i];
 
-		if (a->sy_callc == dtrace_systrace_syscall)
+		if (a->sy_callc == systrace_syscall)
 			continue;
-
-/*#ifdef SYSCALL_64_32
-		if (a->sy_callc == dtrace_systrace_syscall32)
-			continue;
-#endif
-*/
 
 		s->stsy_underlying = a->sy_callc;
 //printk("stsy_underlying=%p\n", s->stsy_underlying);
@@ -1301,7 +1298,7 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		do_fork_ptr = (void *) get_proc_addr("do_fork");
 #endif
 
-	systrace_do_init(sysent, &systrace_sysent, NSYSCALL);
+	systrace_do_init(sysent, &systrace_sysent, NSYSCALL, dtrace_systrace_syscall);
 	for (i = 0; i < NSYSCALL; i++) {
 		char	*name = syscallnames[i];
 
@@ -1322,19 +1319,25 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 			name += 5;
 		*/
 
+#if __amd64
+#  define bits_name "x64"
+#else
+#  define bits_name "x32"
+#endif
+
 		if (systrace_sysent[i].stsy_underlying == NULL)
 			continue;
 
-		if (dtrace_probe_lookup(systrace_id, NULL, name, "entry") != 0)
+		if (dtrace_probe_lookup(systrace_id, bits_name, name, "entry") != 0)
 			continue;
 
 		if (dtrace_here)
 			printk("systrace_provide: patch syscall #%d: %s\n", i, name);
-		(void) dtrace_probe_create(systrace_id, NULL, name,
+		(void) dtrace_probe_create(systrace_id, bits_name, name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
 
-		(void) dtrace_probe_create(systrace_id, NULL, name,
+		(void) dtrace_probe_create(systrace_id, bits_name, name,
 		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
 		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));
 
@@ -1351,7 +1354,7 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 	/*   one.				       */
 	/***********************************************/
 #ifdef SYSCALL_64_32
-	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32);
+	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32, dtrace_systrace_syscall32);
 	for (i = 0; i < NSYSCALL32; i++) {
 		char	*name = syscallnames32[i];
 
@@ -1376,24 +1379,22 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 			continue;
 
 		/***********************************************/
-		/*   We  may  have a dup with the 64b version  */
-		/*   of    the    same   syscall,   but   the  */
-		/*   SYSTRACE_ENTRY/RETURN  below doesnt seem  */
-		/*   to matter. It might do - will be able to  */
-		/*   tell when we take a 32b syscall trap(!)   */
+		/*   This  avoids  us  recreating more probes  */
+		/*   with  the  same  name.  We  use  the x32  */
+		/*   family  to  avoid  a  clash with the x64  */
 		/***********************************************/
-//		if (dtrace_probe_lookup(systrace_id, NULL, name, "entry") != 0)
-//			continue;
+		if (dtrace_probe_lookup(systrace_id, "x32", name, "entry") != 0)
+			continue;
 
 		if (dtrace_here)
 			printk("systrace_provide: patch syscall32 #%d: %s\n", i, name);
-		(void) dtrace_probe_create(systrace_id, NULL, name,
+		(void) dtrace_probe_create(systrace_id, "x32", name,
 		    "entry", SYSTRACE_ARTIFICIAL_FRAMES,
-		    (void *)((uintptr_t)SYSTRACE_ENTRY(i)));
+		    (void *)((uintptr_t)SYSTRACE_ENTRY32(i)));
 
-		(void) dtrace_probe_create(systrace_id, NULL, name,
+		(void) dtrace_probe_create(systrace_id, "x32", name,
 		    "return", SYSTRACE_ARTIFICIAL_FRAMES,
-		    (void *)((uintptr_t)SYSTRACE_RETURN(i)));
+		    (void *)((uintptr_t)SYSTRACE_RETURN32(i)));
 
 		systrace_sysent32[i].stsy_entry = DTRACE_IDNONE;
 		systrace_sysent32[i].stsy_return = DTRACE_IDNONE;
@@ -1466,6 +1467,12 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer(sysnum, FALSE);
 
+#if SYSCALL_64_32
+	if (id & STF_32BIT) {
+		systrace_disable32(arg, id, parg);
+		return 0;
+	}
+#endif
 	int disable = (systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return == DTRACE_IDNONE);
 
@@ -1487,10 +1494,8 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 	} else {
 		systrace_sysent[sysnum].stsy_return = DTRACE_IDNONE;
 	}
-#if SYSCALL_64_32
-	systrace_disable32(arg, id, parg);
-#endif
 }
+
 #if SYSCALL_64_32
 static int
 systrace_enable32(void *arg, dtrace_id_t id, void *parg)
@@ -1498,8 +1503,7 @@ systrace_enable32(void *arg, dtrace_id_t id, void *parg)
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer32(sysnum, TRUE);
 
-return 0;
-printk("arg=%p id32=%d parg=%p\n", arg, id, parg);
+//printk("arg=%p id32=%d parg=%p\n", arg, id, parg);
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
 		systrace_sysent32[sysnum].stsy_entry = id;
 	} else {
@@ -1556,6 +1560,13 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer(sysnum, TRUE);
 
+#if SYSCALL_64_32
+	if (id & STF_32BIT) {
+		systrace_enable32(arg, id, parg);
+		return 0;
+	}
+#endif
+
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
 		systrace_sysent[sysnum].stsy_entry = id;
 	} else {
@@ -1599,9 +1610,6 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 			    (void *)syscall_func,
 				sysent[sysnum].sy_callc);
 	}
-#if SYSCALL_64_32
-	systrace_enable32(arg, id, parg);
-#endif
 
 	return 0;
 }

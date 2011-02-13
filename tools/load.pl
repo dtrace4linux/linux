@@ -193,6 +193,7 @@ sub main
 		kallsyms_op:optional
 		modules:print_modules
 		sys_call_table
+		ia32_sys_call_table
 		syscall_call:optional
 		idt_table
 		idt_descr

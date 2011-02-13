@@ -21,9 +21,9 @@ Working Features
     we mustnt touch)
   o INSTR Provider: example provider for instruction level tracing - works
     on 32/64 bit kernels.
-  o SYSCALL provider: fully implemented - can trace all syscalls. We
-    distinguish syscalls for 64bit processes from 32bit ones on 64bit
-    kernels.
+  o SYSCALL provider: fully implemented - can trace all syscalls. We set
+    the "module" to "x32" or "x64" so that you can independently trace
+    32bit syscalls on a 64bit kernel.
   o SDT Provider: first provider io:::start/io:::done "works" but debugging
     the typed arguments (args[0], args[1], args[2])
   o dtrace.conf permissioning model to avoid need for root access

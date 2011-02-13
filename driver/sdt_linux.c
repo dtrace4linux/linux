@@ -248,7 +248,11 @@ static char buf3[1024];
 		memcpy(buf2, fname, name - fname);
 		buf2[name - fname] = '\0';
 	}
-	mntname = dentry_path_fn(file->f_vfsmnt->mnt_mountpoint, buf3, sizeof buf3);
+	/***********************************************/
+	/*   Problem with older (2.6.9 kernel).	       */
+	/***********************************************/
+	if (dentry_path_fn)
+		mntname = dentry_path_fn(file->f_vfsmnt->mnt_mountpoint, buf3, sizeof buf3);
 
 	finfo.f.fi_dirname = buf2;
 	finfo.f.fi_name = name ? name + 1 : "<none>";

@@ -515,6 +515,49 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		: "=a" (syscall)
 		);
 
+#if SYSCALL_64_32
+	/***********************************************/
+	/*   Most  syscall implementations are shared  */
+	/*   between  64bit  and  32bit  code. But we  */
+	/*   need  to  know  which  one we are doing,  */
+	/*   since  we have one breakpoint we trapped  */
+	/*   on.  And  from  this, we need to get the  */
+	/*   right  syscall  probe  id,  else we have  */
+	/*   problems  because  x32  is  not a proper  */
+	/*   subset  of  x64  (or  vice  versa). This  */
+	/*   would  lead  to horrors, like, "write()"  */
+	/*   for  a  64bit  process being reported as  */
+	/*   "exit()".  So,  we  need  to know if the  */
+	/*   invoking  process is x32 or x64, and "do  */
+	/*   the right thing".			       */
+	/***********************************************/
+/*
+this was debug code - leave in for a while.
+int is_32 = current->thread.tls_array[GDT_ENTRY_TLS_MIN].d;
+struct user_regset_view *(*func)() = get_proc_addr("task_user_regset_view");
+struct user_regset_view *view = func ? func(current) : 0;
+struct mm_struct *mm = current->mm;
+printk("view=%p mach=%d mm=%p binfmt=%p f=%x\n", 
+view, view ? view->e_machine : -1, mm, mm ? mm->binfmt : 0,
+view->e_flags);
+is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
+*/
+	if (test_thread_flag(TIF_IA32)) {
+/*printk("thread: %x flag=%x\n", test_thread_flag(TIF_IA32), current_thread_info());*/
+		if ((unsigned) syscall >= NSYSCALL32) {
+			printk("dtrace:help: Got syscall32=%d - out of range (max=%d)\n", 
+				(int) syscall, (int) NSYSCALL32);
+			return -EINVAL;
+		}
+
+		return dtrace_systrace_syscall2(syscall, &systrace_sysent32[syscall],
+			FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+	}
+#endif
+
+	/***********************************************/
+	/*   64bit or native 32bit syscall.	       */
+	/***********************************************/
 	if ((unsigned) syscall >= NSYSCALL) {
 		printk("dtrace:help: Got syscall=%d - out of range (max=%d)\n", 
 			(int) syscall, (int) NSYSCALL);
@@ -522,37 +565,6 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	}
 
 	return dtrace_systrace_syscall2(syscall, &systrace_sysent[syscall],
-		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
-}
-/**********************************************************************/
-/*   Similar code to above but for 32b-on-64b kernel.		      */
-/**********************************************************************/
-asmlinkage int64_t
-dtrace_systrace_syscall32(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
-    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	int syscall;
-
-	/***********************************************/
-	/*   We  need  the  syscall  -  which  is  in  */
-	/*   rax/eax.  Dont  put any code before this  */
-	/*   point    else   we   may   destroy   it.  */
-	/*   Unfortunately,  different  syscalls have  */
-	/*   differing  frame regs on the stack as we  */
-	/*   are  called  and  theres  no  consistent  */
-	/*   access to pt_regs once we are here.       */
-	/***********************************************/
-	__asm(
-		"mov %%eax,%0\n"
-		: "=a" (syscall)
-		);
-
-	if ((unsigned) syscall >= NSYSCALL32) {
-		printk("dtrace:help: Got syscall=%d - out of range (max=%d)\n", 
-			(int) syscall, (int) NSYSCALL32);
-		return -EINVAL;
-	}
-
-	return dtrace_systrace_syscall2(syscall, &systrace_sysent32[syscall],
 		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
@@ -1103,7 +1115,7 @@ get_interposer(int sysnum, int enable)
 static void *
 get_interposer32(int sysnum, int enable)
 {
-	return (void *) dtrace_systrace_syscall32;
+	return (void *) dtrace_systrace_syscall;
 }
 #endif
 
@@ -1354,8 +1366,8 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 	/*   one.				       */
 	/***********************************************/
 #ifdef SYSCALL_64_32
-	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32, dtrace_systrace_syscall32);
-	for (i = 0; i < NSYSCALL32; i++) {
+	systrace_do_init(sysent32, &systrace_sysent32, NSYSCALL32, dtrace_systrace_syscall);
+	for (i = 0; sysent32 && i < NSYSCALL32; i++) {
 		char	*name = syscallnames32[i];
 
 		/***********************************************/
@@ -1468,9 +1480,9 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 	void	*syscall_func = get_interposer(sysnum, FALSE);
 
 #if SYSCALL_64_32
-	if (id & STF_32BIT) {
+	if ((int) parg & STF_32BIT) {
 		systrace_disable32(arg, id, parg);
-		return 0;
+		return;
 	}
 #endif
 	int disable = (systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE ||
@@ -1561,7 +1573,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	void	*syscall_func = get_interposer(sysnum, TRUE);
 
 #if SYSCALL_64_32
-	if (id & STF_32BIT) {
+	if ((int) parg & STF_32BIT) {
 		systrace_enable32(arg, id, parg);
 		return 0;
 	}

@@ -1,3 +1,13 @@
+Sun Feb 13 15:19:12 2011  fox
+
+     443* Archive: 1.0115
+
+     442* dtrace_linux.c, tools.pl, systrace.c: Add in ia32_sys_call_table as
+          an external symbol so we can intercept 32b syscalls on AS4/64b kernels.
+
+     441* driver/systrace.c: Fix problems with not handlign 32b syscalls on 64b 
+          kernels.
+
 Sun Feb  6 09:05:12 2011  fox
 
      440* Archive: 1.0114

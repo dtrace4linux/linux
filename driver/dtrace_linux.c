@@ -88,6 +88,7 @@ enum {
 	OFFSET_task_exit_notifier,
 	OFFSET_xtime,
 	OFFSET_kernel_text_address,
+	OFFSET_ia32_sys_call_table,
 	OFFSET_END_SYMS,
 	};
 static struct map {
@@ -109,12 +110,14 @@ static struct map {
 {"task_exit_notifier",     NULL},
 {"xtime",     		   NULL}, /* Needed for dtrace_gethrtime, if 2.6.9 */
 {"kernel_text_address",    NULL}, /* Used for stack walking when no dump_trace available */
+{"ia32_sys_call_table",    NULL}, /* On 64b kernel, the 32b syscall table. */
 {"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
 	};
 static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void **xsys_call_table;
+static void **xia32_sys_call_table;
 int (*kernel_text_address_fn)(unsigned long);
 char *(*dentry_path_fn)(struct dentry *, char *, int);
 static struct module *(*fn__module_text_address)(unsigned long);
@@ -1115,6 +1118,11 @@ void *
 fbt_get_sys_call_table(void)
 {
 	return xsys_call_table;
+}
+void *
+fbt_get_ia32_sys_call_table(void)
+{
+	return xia32_sys_call_table;
 }
 void *
 fbt_get_access_process_vm(void)
@@ -2169,6 +2177,7 @@ syms_write(struct file *file, const char __user *buf,
 	xkallsyms_lookup_name 	= (unsigned long (*)(char *)) syms[OFFSET_kallsyms_lookup_name].m_ptr;
 	xmodules 		= (void *) syms[OFFSET_modules].m_ptr;
 	xsys_call_table 	= (void **) syms[OFFSET_sys_call_table].m_ptr;
+	xia32_sys_call_table 	= (void **) syms[OFFSET_ia32_sys_call_table].m_ptr;
 
 	/***********************************************/
 	/*   On 2.6.23.1 kernel I have, in i386 mode,  */

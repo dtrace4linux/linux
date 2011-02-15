@@ -56,3 +56,6 @@ typedef struct thread_t {
 	int	xxx;
 	} thread_t;
 
+typedef struct dtrace_cpu_t {
+	int	cpu_id;
+	} dtrace_cpu_t;

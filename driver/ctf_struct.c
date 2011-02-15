@@ -40,3 +40,4 @@
 
 psinfo_t p;
 thread_t t;
+dtrace_cpu_t p1;

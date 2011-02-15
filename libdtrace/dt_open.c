@@ -655,7 +655,7 @@ const char *_dtrace_defld = "/usr/ccs/bin/ld";   /* default ld(1) to invoke */
 const char *_dtrace_defld = "ld";   /* default ld(1) to invoke */
 # endif
 
-const char *_dtrace_libdir = "/usr/lib/dtrace"; /* default library directory */
+static const char *_dtrace_libdir = "/usr/lib/dtrace"; /* default library directory */
 const char *_dtrace_provdir = "/dev/dtrace/provider"; /* provider directory */
 
 int _dtrace_strbuckets = 211;	/* default number of hash buckets (prime) */
@@ -1317,7 +1317,7 @@ alloc:
 	 * compile, and to provide better error reporting (because the full
 	 * reporting of compiler errors requires dtrace_open() to succeed).
 	 */
-	if (dtrace_setopt(dtp, "libdir", _dtrace_libdir) != 0)
+	if (dtrace_setopt(dtp, "libdir", dt_get_libdir()) != 0)
 		return (set_open_errno(dtp, errp, dtp->dt_errno));
 
 	return (dtp);
@@ -1431,6 +1431,50 @@ dtrace_provider_modules(dtrace_hdl_t *dtp, const char **mods, int nmods)
 	return (i);
 }
 
+/**********************************************************************/
+/*   Make   access   to   _dtrace_libdir   a   function  so  we  can  */
+/*   override/augment  the  search  strategy, e.g. when running from  */
+/*   the non-install dir.					      */
+/**********************************************************************/
+char *
+dt_get_libdir()
+{
+	struct stat sbuf;
+static char *alt_libdir;
+	char	buf[PATH_MAX + 1];
+	char	*cmd = buf;
+
+	if (alt_libdir)
+		return alt_libdir;
+
+	readlink("/proc/self/exe", buf, sizeof buf);
+	if (cmd && strncmp(cmd, "/usr/", 5) == 0) {
+		alt_libdir = _dtrace_libdir;
+		return alt_libdir;
+	}
+
+	/***********************************************/
+	/*   Compute dirname($0)/../etc		       */
+	/***********************************************/
+	if (alt_libdir == NULL) {
+		char	*cp, *cp1;
+
+		cp = malloc(strlen(cmd) + 20);
+		strcpy(cp, cmd);
+		if ((cp1 = strrchr(cp, '/')) != NULL) {
+			*cp1 = '\0';
+			cp1 = strrchr(cp, '/');
+		}
+		if (cp1) {
+			strcpy(cp1+1, "etc");
+		}
+		alt_libdir = cp;
+	}
+	if (stat(alt_libdir, &sbuf) < 0)
+		return _dtrace_libdir;
+
+	return alt_libdir;
+}
 int
 dtrace_ctlfd(dtrace_hdl_t *dtp)
 {

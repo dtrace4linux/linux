@@ -34,6 +34,8 @@
 #include <sys/task.h>
 #include <sys/utsname.h>
 
+#include <port.h> /* For HAVE_ELF_C_READ_MMAP */
+
 #include <unistd.h>
 #include <project.h>
 #include <strings.h>
@@ -1043,7 +1045,7 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 		uname(&u);
 
 		dt_module_add_kernel(dtp);
-		(void) snprintf(fname, sizeof (fname), "/usr/lib/dtrace/linux-%s.ctf", u.release);
+		(void) snprintf(fname, sizeof (fname), "%s/linux-%s.ctf", dt_get_libdir(), u.release);
 		dt_dprintf("reading kernel .ctf: %s\n", fname);
 		name = fname;
 name = "xkernel"; // xxx

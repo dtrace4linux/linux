@@ -99,6 +99,7 @@ install: build/dtrace build/config.sh
 	install -m 644 -o root libdtrace/unistd.d /usr/lib/dtrace
 	install -m 644 -o root etc/io.d /usr/lib/dtrace
 	install -m 644 -o root build/linux*.ctf /usr/lib/dtrace
+	install -m 644 -o root etc/sched.d /usr/lib/dtrace
 	scripts/mkinstall.pl
 
 newf:

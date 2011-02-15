@@ -1766,10 +1766,10 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			(void) snprintf(drti, sizeof (drti), "%s", getenv("DTRACE_DRTI_O"));
 		else if (dtp->dt_oflags & DTRACE_O_LP64) {
 			(void) snprintf(drti, sizeof (drti),
-			    "%s/64/drti.o", _dtrace_libdir);
+			    "%s/64/drti.o", dt_get_libdir());
 		} else {
 			(void) snprintf(drti, sizeof (drti),
-			    "%s/drti.o", _dtrace_libdir);
+			    "%s/drti.o", dt_get_libdir());
 		}
 
 		/***********************************************/

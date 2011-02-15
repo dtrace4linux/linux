@@ -653,7 +653,7 @@ extern int _dtrace_debug;		/* debugging messages enabled */
 extern size_t _dtrace_bufsize;		/* default dt_buf_create() size */
 extern int _dtrace_argmax;		/* default maximum probe arguments */
 
-extern const char *_dtrace_libdir;	/* default library directory */
+char *dt_get_libdir(void);		/* default library directory */
 extern const char *_dtrace_moddir;	/* default kernel module directory */
 
 #ifdef	__cplusplus

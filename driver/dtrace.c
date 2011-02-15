@@ -115,7 +115,6 @@
 # if linux
 # undef NULL
 # define NULL 0
-# undef current
 # endif
 
 # if 0
@@ -2243,25 +2242,25 @@ static int
 dtrace_speculation(dtrace_state_t *state)
 {
 	int i = 0;
-	dtrace_speculation_state_t current;
+	dtrace_speculation_state_t scurrent;
 	uint32_t *stat = &state->dts_speculations_unavail, count;
 
 	while (i < state->dts_nspeculations) {
 		dtrace_speculation_t *spec = &state->dts_speculations[i];
 
-		current = spec->dtsp_state;
+		scurrent = spec->dtsp_state;
 
-		if (current != DTRACESPEC_INACTIVE) {
-			if (current == DTRACESPEC_COMMITTINGMANY ||
-			    current == DTRACESPEC_COMMITTING ||
-			    current == DTRACESPEC_DISCARDING)
+		if (scurrent != DTRACESPEC_INACTIVE) {
+			if (scurrent == DTRACESPEC_COMMITTINGMANY ||
+			    scurrent == DTRACESPEC_COMMITTING ||
+			    scurrent == DTRACESPEC_DISCARDING)
 				stat = &state->dts_speculations_busy;
 			i++;
 			continue;
 		}
 
 		if (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-		    current, DTRACESPEC_ACTIVE) == current)
+		    scurrent, DTRACESPEC_ACTIVE) == scurrent)
 			return (i + 1);
 	}
 
@@ -2290,7 +2289,7 @@ dtrace_speculation_commit(dtrace_state_t *state, processorid_t cpu,
 	dtrace_speculation_t *spec;
 	dtrace_buffer_t *src, *dest;
 	uintptr_t daddr, saddr, dlimit;
-	dtrace_speculation_state_t current, new = 0;
+	dtrace_speculation_state_t scurrent, new = 0;
 	intptr_t offs;
 
 	if (which == 0)
@@ -2306,12 +2305,12 @@ dtrace_speculation_commit(dtrace_state_t *state, processorid_t cpu,
 	dest = &state->dts_buffer[cpu];
 
 	do {
-		current = spec->dtsp_state;
+		scurrent = spec->dtsp_state;
 
-		if (current == DTRACESPEC_COMMITTINGMANY)
+		if (scurrent == DTRACESPEC_COMMITTINGMANY)
 			break;
 
-		switch (current) {
+		switch (scurrent) {
 		case DTRACESPEC_INACTIVE:
 		case DTRACESPEC_DISCARDING:
 			return;
@@ -2353,7 +2352,7 @@ dtrace_speculation_commit(dtrace_state_t *state, processorid_t cpu,
 			ASSERT(0);
 		}
 	} while (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-	    current, new) != current);
+	    scurrent, new) != scurrent);
 
 	/*
 	 * We have set the state to indicate that we are committing this
@@ -2402,8 +2401,8 @@ out:
 	 * If we're lucky enough to be the only active CPU on this speculation
 	 * buffer, we can just set the state back to DTRACESPEC_INACTIVE.
 	 */
-	if (current == DTRACESPEC_ACTIVE ||
-	    (current == DTRACESPEC_ACTIVEONE && new == DTRACESPEC_COMMITTING)) {
+	if (scurrent == DTRACESPEC_ACTIVE ||
+	    (scurrent == DTRACESPEC_ACTIVEONE && new == DTRACESPEC_COMMITTING)) {
 		uint32_t rval = dtrace_cas32((uint32_t *)&spec->dtsp_state,
 		    DTRACESPEC_COMMITTING, DTRACESPEC_INACTIVE);
 
@@ -2426,7 +2425,7 @@ dtrace_speculation_discard(dtrace_state_t *state, processorid_t cpu,
     dtrace_specid_t which)
 {
 	dtrace_speculation_t *spec;
-	dtrace_speculation_state_t current, new = 0;
+	dtrace_speculation_state_t scurrent, new = 0;
 	dtrace_buffer_t *buf;
 
 	if (which == 0)
@@ -2441,9 +2440,9 @@ dtrace_speculation_discard(dtrace_state_t *state, processorid_t cpu,
 	buf = &spec->dtsp_buffer[cpu];
 
 	do {
-		current = spec->dtsp_state;
+		scurrent = spec->dtsp_state;
 
-		switch (current) {
+		switch (scurrent) {
 		case DTRACESPEC_INACTIVE:
 		case DTRACESPEC_COMMITTINGMANY:
 		case DTRACESPEC_COMMITTING:
@@ -2467,7 +2466,7 @@ dtrace_speculation_discard(dtrace_state_t *state, processorid_t cpu,
 			ASSERT(0);
 		}
 	} while (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-	    current, new) != current);
+	    scurrent, new) != scurrent);
 
 	buf->dtb_offset = 0;
 	buf->dtb_drops = 0;
@@ -2559,19 +2558,19 @@ dtrace_speculation_clean(dtrace_state_t *state)
 	 */
 	for (i = 0; i < state->dts_nspeculations; i++) {
 		dtrace_speculation_t *spec = &state->dts_speculations[i];
-		dtrace_speculation_state_t current, new;
+		dtrace_speculation_state_t scurrent, new;
 
 		if (!spec->dtsp_cleaning)
 			continue;
 
-		current = spec->dtsp_state;
-		ASSERT(current == DTRACESPEC_DISCARDING ||
-		    current == DTRACESPEC_COMMITTINGMANY);
+		scurrent = spec->dtsp_state;
+		ASSERT(scurrent == DTRACESPEC_DISCARDING ||
+		    scurrent == DTRACESPEC_COMMITTINGMANY);
 
 		new = DTRACESPEC_INACTIVE;
 
-		rv = dtrace_cas32((uint32_t *)&spec->dtsp_state, current, new);
-		ASSERT(rv == current);
+		rv = dtrace_cas32((uint32_t *)&spec->dtsp_state, scurrent, new);
+		ASSERT(rv == scurrent);
 		spec->dtsp_cleaning = 0;
 	}
 }
@@ -2588,7 +2587,7 @@ dtrace_speculation_buffer(dtrace_state_t *state, processorid_t cpuid,
     dtrace_specid_t which)
 {
 	dtrace_speculation_t *spec;
-	dtrace_speculation_state_t current, new = 0;
+	dtrace_speculation_state_t scurrent, new = 0;
 	dtrace_buffer_t *buf;
 
 	if (which == 0)
@@ -2603,9 +2602,9 @@ dtrace_speculation_buffer(dtrace_state_t *state, processorid_t cpuid,
 	buf = &spec->dtsp_buffer[cpuid];
 
 	do {
-		current = spec->dtsp_state;
+		scurrent = spec->dtsp_state;
 
-		switch (current) {
+		switch (scurrent) {
 		case DTRACESPEC_INACTIVE:
 		case DTRACESPEC_COMMITTINGMANY:
 		case DTRACESPEC_DISCARDING:
@@ -2641,7 +2640,7 @@ dtrace_speculation_buffer(dtrace_state_t *state, processorid_t cpuid,
 			ASSERT(0);
 		}
 	} while (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-	    current, new) != current);
+	    scurrent, new) != scurrent);
 
 	ASSERT(new == DTRACESPEC_ACTIVEONE || new == DTRACESPEC_ACTIVEMANY);
 	return (buf);
@@ -2995,7 +2994,8 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		    (uintptr_t)curthread->t_procp->p_user.u_comm,
 		    state, mstate));
 # else
-		return (uint64_t)(uintptr_t) linux_get_proc_comm();
+# undef comm /* Avoid redef issue here - defined in dtrace_linux.h */
+		return (uint64_t) get_current()->comm;
 # endif
 
 	case DIF_VAR_ZONENAME:
@@ -6042,13 +6042,13 @@ HERE();
 			    !state->dts_cred.dcr_destructive ||
 			    dtrace_destructive_disallow) {
 				void *activity = &state->dts_activity;
-				dtrace_activity_t current;
+				dtrace_activity_t scurrent;
 
 //printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
 				do {
-					current = state->dts_activity;
-				} while (dtrace_cas32(activity, current,
-				    DTRACE_ACTIVITY_KILLED) != current);
+					scurrent = state->dts_activity;
+				} while (dtrace_cas32(activity, scurrent,
+				    DTRACE_ACTIVITY_KILLED) != scurrent);
 
 				continue;
 			}
@@ -6332,17 +6332,17 @@ PRINT_CASE(DTRACEACT_SYM);
 				 * thread in COOLDOWN, so there is no race.)
 				 */
 				void *activity = &state->dts_activity;
-				dtrace_activity_t current = state->dts_activity;
+				dtrace_activity_t curr = state->dts_activity;
 PRINT_CASE(DTRACEACT_EXIT);
 
-				if (current == DTRACE_ACTIVITY_COOLDOWN)
+				if (curr == DTRACE_ACTIVITY_COOLDOWN)
 					break;
 
-				if (current != DTRACE_ACTIVITY_WARMUP)
-					current = DTRACE_ACTIVITY_ACTIVE;
+				if (curr != DTRACE_ACTIVITY_WARMUP)
+					curr = DTRACE_ACTIVITY_ACTIVE;
 
-				if (dtrace_cas32(activity, current,
-				    DTRACE_ACTIVITY_DRAINING) != current) {
+				if (dtrace_cas32(activity, curr,
+				    DTRACE_ACTIVITY_DRAINING) != curr) {
 					*flags |= CPU_DTRACE_DROP;
 					continue;
 				}

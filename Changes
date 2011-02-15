@@ -1,4 +1,16 @@
+Tue Feb 15 21:37:43 2011  fox
+
+     448* libdtrace/dt_module.c: Fix for HAVE_ELF_C_READ_MMAP
+
+     447* tools/mkport.pl: Fix for HAVE_ELF_C_READ_MMAP
+
+     446* tools/mksyscall.pl: Picking up the 64-bit unistd.h for the 64/32 table.
+
 Sun Feb 13 15:19:12 2011  fox
+
+     445* libdtrace: Move references to /usr/lib into dt_get_libdir() function.
+
+     444* driver/linux_pure.c, driver/dtrace.c: remove: linux_pure.c
 
      443* Archive: 1.0115
 

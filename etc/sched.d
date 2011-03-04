@@ -21,8 +21,11 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
+/*#pragma D depends_on module linux
+#pragma D depends_on type dtrace_cpu_t
+#pragma D depends_on type dtrace_cpu_t
+*/
 /*
-#pragma D depends_on library darwin.d
 #pragma D depends_on module mach_kernel
 #pragma D depends_on provider sched
 */
@@ -52,30 +55,30 @@ struct cpuinfo {
 typedef struct cpuinfo cpuinfo_t;
 
 
-translator cpuinfo_t < struct dtrace_cpu_t *C > {
-	cpu_id = C->cpu_id;
+translator cpuinfo_t < dtrace_cpu_t *C > {
+	cpu_id = `dtrace_cpu_id; /* C->cpu_id; */
 	cpu_pset = -1;
-	cpu_chip = C->cpu_id; /* XXX */
+	cpu_chip = `dtrace_cpu_id; /* C->cpu_id; */
 	cpu_lgrp = 0; /* XXX */
-	cpu_info = *((_processor_info_t *)`dtrace_zero); /* ` */ /* XXX */
+/*	cpu_info = *((_processor_info_t *)`dtrace_zero); /* ` */ /* XXX */
 }; 
-//
-//inline cpuinfo_t *curcpu = xlate <cpuinfo_t *> (curthread->last_processor);
-//#pragma D attributes Stable/Stable/Common curcpu
-//#pragma D binding "1.0" curcpu
-//
-//inline processorid_t cpu = curcpu->cpu_id;
-//#pragma D attributes Stable/Stable/Common cpu
-//#pragma D binding "1.0" cpu
-//
-//inline psetid_t pset = curcpu->cpu_pset;
-//#pragma D attributes Stable/Stable/Common pset
-//#pragma D binding "1.0" pset
-//
-//inline chipid_t chip = curcpu->cpu_chip;
-//#pragma D attributes Stable/Stable/Common chip
-//#pragma D binding "1.0" chip
-//
-//inline lgrp_id_t lgrp = curcpu->cpu_lgrp;
-//#pragma D attributes Stable/Stable/Common lgrp
-//#pragma D binding "1.0" lgrp
+
+inline cpuinfo_t *curcpu = xlate <cpuinfo_t *> (&`dtrace_curcpu);
+#pragma D attributes Stable/Stable/Common curcpu
+#pragma D binding "1.0" curcpu
+
+inline processorid_t cpu = curcpu->cpu_id;
+#pragma D attributes Stable/Stable/Common cpu
+#pragma D binding "1.0" cpu
+
+inline psetid_t pset = curcpu->cpu_pset;
+#pragma D attributes Stable/Stable/Common pset
+#pragma D binding "1.0" pset
+
+inline chipid_t chip = curcpu->cpu_chip;
+#pragma D attributes Stable/Stable/Common chip
+#pragma D binding "1.0" chip
+
+inline lgrp_id_t lgrp = curcpu->cpu_lgrp;
+#pragma D attributes Stable/Stable/Common lgrp
+#pragma D binding "1.0" lgrp

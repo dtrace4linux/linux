@@ -40,4 +40,23 @@
 
 psinfo_t p;
 thread_t t;
-dtrace_cpu_t p1;
+dtrace_cpu_t dtrace_curcpu;
+int cpu_dr7;
+struct task_struct *cur_thread;
+int	dtrace_cpu_id;
+
+void
+ctf_setup(void)
+{
+	/***********************************************/
+	/*   Set    up    global/externally   visible  */
+	/*   pointers  in  ctf_struct.c  so that user  */
+	/*   code can access things like cur_thread.   */
+	/***********************************************/
+	cur_thread = get_current();
+
+	dtrace_curcpu.cpu_id = smp_processor_id();
+
+	dtrace_cpu_id = smp_processor_id();
+
+}

@@ -799,9 +799,9 @@ sort_32(Elf32_Sym **p1, Elf32_Sym **p2)
 /**********************************************************************/
 /*   For Linux: add in entries from /proc/kallsyms.		      */
 /**********************************************************************/
-static int
-dt_module_add_kernel(dtrace_hdl_t *dtp)
-{
+static dt_module_t *
+dt_module_add_kernel(dtrace_hdl_t *dtp, dt_module_t *dmp)
+{	int	created = dmp == NULL;
 	unsigned long long text_start = 0;
 	unsigned long long text_end;
 	unsigned long long addr;
@@ -809,13 +809,13 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 	char	name[256];
 	char	buf[BUFSIZ];
 	FILE	*fp;
-	dt_module_t *dmp;
 	int	bits = 0;
 	int	i;
 	struct utsname u;
 
-	if ((dmp = dt_module_create(dtp, "kernel")) == NULL) {
-		return;
+	if (dmp == NULL &&
+	    (dmp = dt_module_create(dtp, "kernel")) == NULL) {
+		return NULL;
 	}
 
 	/***********************************************/
@@ -849,10 +849,11 @@ dt_module_add_kernel(dtrace_hdl_t *dtp)
 //int err;
 //ctf_file_t *ctfp = ctf_create(&err);
 		while (fgets(buf, sizeof buf, fp)) {
+			int	stype = STT_FUNC;
 			if (sscanf(buf, "%llx %s %s", &addr, type, name) != 3)
 				continue;
-//			if (*type != 'T' && *type != 't')
-//				continue;
+			if (*type != 'T' && *type != 't')
+				stype = STT_OBJECT;
 			if (text_start == 0 && (*type == 'T' || *type == 't'))
 				text_start = addr;
 			if (addr && addr < text_start)
@@ -882,7 +883,7 @@ ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
 				sp64->st_name = str_index;
 				sp64->st_value = addr;
 				sp64->st_size = 1024; // hack
-				sp64->st_info = STT_FUNC;
+				sp64->st_info = stype;
 			} else {
 				if (dmp->dm_aslen >= asmap_size) {
 					asmap_size += 8192;
@@ -894,7 +895,7 @@ ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
 				sp->st_name = str_index;
 				sp->st_value = addr;
 				sp->st_size = 1024; // hack
-				sp->st_info = STT_FUNC;
+				sp->st_info = stype;
 			}
 			strcpy(strtab + str_index, name);
 			str_index += strlen(name) + 1;
@@ -943,7 +944,8 @@ ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
 
 	if (dmp->dm_symbuckets == NULL || dmp->dm_symchains == NULL) {
 		dt_module_unload(dtp, dmp);
-		return (dt_set_errno(dtp, EDT_NOMEM));
+		dt_set_errno(dtp, EDT_NOMEM);
+		return NULL;
 	}
 
 	bzero(dmp->dm_symbuckets, sizeof (uint_t) * dmp->dm_nsymbuckets);
@@ -967,6 +969,10 @@ ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
 		Elf64_Sym **asmap = dmp->dm_asmap;
 		for (i = 0; i < dmp->dm_aslen-1; i++) {
 			asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
+/*if (strcmp("cur_thread", dmp->dm_strtab.cts_data + asmap[i]->st_name) == 0)
+printf("%s val=%p size=%d\n", dmp->dm_strtab.cts_data + asmap[i]->st_name, 
+asmap[i]->st_value,
+asmap[i]->st_size);*/
 		}
 	} else {
 		Elf32_Sym **asmap = dmp->dm_asmap;
@@ -976,13 +982,18 @@ ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
 	}
 	/***********************************************/
 	/*   HACK:   might   want   to  refresh  from  */
-	/*   /proc/kallsyms as modules get loaded.     */
+	/*   /proc/kallsyms  as  modules  get loaded.  */
+	/*   No,  probes  are  statically computed at  */
+	/*   compile/load  time,  so  we cannot see a  */
+	/*   new probe suddenly appear (I believe).    */
 	/***********************************************/
-	dmp->dm_flags |= DT_DM_KERNEL | DT_DM_LOADED;
+	if (created) {
+		dmp->dm_flags |= DT_DM_KERNEL | DT_DM_LOADED;
+	}
 
 	dt_dprintf("opened %d-bit /proc/kallsyms (syms=%d)\n",
 	    bits, dmp->dm_aslen, dmp->dm_modid);
-	return 0;
+	return dmp;
 }
 /*
  * Update our module cache by adding an entry for the specified module 'name'.
@@ -1041,14 +1052,43 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 
 	if (name == NULL) {
 # if linux
+		struct stat sbuf;
+
+		/***********************************************/
+		/*   We  need  symtab  of key data structures  */
+		/*   from the kernel. We do this by compiling  */
+		/*   and   installing   linux-`uname  -r`.ctf  */
+		/*   file.  But when running from the install  */
+		/*   tree, we have it in the build/ tree, not  */
+		/*   the /usr/lib/dtrace/etc tree.	       */
+		/***********************************************/
 		struct utsname	u;
 		uname(&u);
 
-		dt_module_add_kernel(dtp);
-		(void) snprintf(fname, sizeof (fname), "%s/linux-%s.ctf", dt_get_libdir(), u.release);
+//		dmp = dt_module_add_kernel(dtp, NULL);
+		(void) snprintf(fname, sizeof fname, "%s/linux-%s.ctf", dt_get_libdir(), u.release);
+		if (stat(fname, &sbuf) < 0) {
+			char buf[MAXPATHLEN];
+			char *cp;
+			int ret = readlink("/proc/self/exe", buf, sizeof buf);
+			if (ret > 0) {
+				buf[ret] = '\0';
+				cp = strrchr(buf, '/');
+				if (cp)
+					*cp = '\0';
+				(void) snprintf(fname, sizeof fname, "%s/linux-%s.ctf", buf, u.release);
+			}
+		}
 		dt_dprintf("reading kernel .ctf: %s\n", fname);
-		name = fname;
-name = "xkernel"; // xxx
+		//name = fname;
+		/***********************************************/
+		/*   Allow  etc/*  to  use pragma "depends_on  */
+		/*   module  linux". Hm. We load the "kernel"  */
+		/*   (/proc/kallsyms) above, but we also need  */
+		/*   the  CTF  symbols.  We'll  need a unique  */
+		/*   name for this. 			       */
+		/***********************************************/
+		name = "linux";
 		goto load_obj;
 # else
 		return;
@@ -1066,6 +1106,14 @@ load_obj:
 			(void) close(fd);
 		return;
 	}
+
+#if linux
+	/***********************************************/
+	/*   When DTRACE_DEBUG is enabled, show which  */
+	/*   .ctf file we loaded.		       */
+	/***********************************************/
+	(void) strlcpy(dmp->dm_file, fname, sizeof (dmp->dm_file));
+#endif
 
 	/*
 	 * Since the module can unload out from under us (and /system/object
@@ -1122,6 +1170,7 @@ load_obj:
 		return;
 	}
 
+	dt_module_add_kernel(dtp, NULL); //dmp);
 	/*
 	 * Iterate over the section headers locating various sections of
 	 * interest and use their attributes to flesh out the dt_module_t.
@@ -1514,11 +1563,36 @@ dtrace_symbol_type(dtrace_hdl_t *dtp, const GElf_Sym *symp,
 		tip->dtt_type = idp->di_type;
 
 	} else if (GELF_ST_TYPE(symp->st_info) != STT_FUNC) {
+#if linux
+		/***********************************************/
+		/*   Funky  code  ahead.  We have two modules  */
+		/*   under  Linux  for  the  kernel: "kernel"  */
+		/*   contains  the /proc/kallsyms symbols, so  */
+		/*   we  have  values, but "linux" is the ctf  */
+		/*   file   which  contains  the  predeclared  */
+		/*   typedefs (see driver/ctf_struct.c). When  */
+		/*   a  user refers to a symbol in the kernel  */
+		/*   module, we want to "jump" to the "linux"  */
+		/*   module  to  get  the  CTF  data,  so the  */
+		/*   following does this "sideways" jump.      */
+		/***********************************************/
+		uint_t id = sip->dts_id;
+		if (strcmp(dmp->dm_name, "kernel") == 0 &&
+		    dt_module_getctf(dtp, dmp) == NULL) {
+			GElf_Sym gsym;
+			dmp = dt_module_lookup_by_name(dtp, "linux");
+			dt_module_symname64(dmp, sip->dts_name, &gsym, &id);
+		}
+#endif
 		if (dt_module_getctf(dtp, dmp) == NULL)
 			return (-1); /* errno is set for us */
 
 		tip->dtt_ctfp = dmp->dm_ctfp;
+#if linux
+		tip->dtt_type = ctf_lookup_by_symbol(dmp->dm_ctfp, id);
+#else
 		tip->dtt_type = ctf_lookup_by_symbol(dmp->dm_ctfp, sip->dts_id);
+#endif
 
 		if (tip->dtt_type == CTF_ERR) {
 			dtp->dt_ctferr = ctf_errno(tip->dtt_ctfp);

@@ -208,7 +208,7 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 {
 	dtrace_hdl_t *dtp = yypcb->pcb_hdl;
 	dt_node_t *nnp = cnp ? cnp->dn_list : NULL;
-	int found;
+	int found = 0;
 	dt_lib_depend_t *dld;
 
 	if (cnp == NULL || nnp == NULL ||
@@ -228,6 +228,7 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 		 * We have the file we are working on in dtp->dt_filetag
 		 * so find that node and add the dependency in.
 		 */
+printf("kkk ok\n");
 		if (yypcb->pcb_cflags & DTRACE_C_CTL) {
 			char lib[MAXPATHLEN];
 
@@ -237,6 +238,7 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 
 			(void) snprintf(lib, MAXPATHLEN, "%s%s",
 			    dld->dtld_libpath, nnp->dn_string);
+printf("jjjj %s\n", lib);
 			if ((dt_lib_depend_add(dtp, &dld->dtld_dependencies,
 			    lib)) != 0) {
 				xyerror(D_PRAGMA_DEPEND,
@@ -246,6 +248,22 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 			}
 		}
 		found = 1;
+#if linux
+	} else if (strcmp(cnp->dn_string, "type") == 0) {
+		/***********************************************/
+		/*   Allow us to avoid loading, e.g. sched.d,  */
+		/*   if  the  type  we  want  isnt available.  */
+		/*   Needed   during   bootstrap  before  the  */
+		/*   linux.ctf file is available.	       */
+		/***********************************************/
+
+		/***********************************************/
+		/*   We  need to rewrite the lexer, so we can  */
+		/*   gain   access  to  the  token.  Dont  do  */
+		/*   anything for now.			       */
+		/***********************************************/
+		found = 0;
+#endif
 	} else {
 		xyerror(D_PRAGMA_INVAL, "invalid class %s "
 		    "specified by #pragma %s\n", cnp->dn_string, prname);

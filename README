@@ -84,7 +84,7 @@ people to use, debug and enhance it.
 GIT Repository
 ==============
 
-http://github.com/pmccormick/dtrace-for-linux/tree/master
+  https://github.com/pdmccormick/dtrace-for-linux
 
 Thanks to Peter McCormick for setting this up.
 
@@ -92,6 +92,9 @@ Thanks to Peter McCormick for setting this up.
    kindly set this up and it may lag the master releases. See
    the links at the top of this document for the current homepage
    data.
+
+   As of March 2011, I dont believe the git repository is being
+   synced, so do not rely on it, or check the dates.
 
 Installation
 ============

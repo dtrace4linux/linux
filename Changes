@@ -1,3 +1,36 @@
+Fri Mar  4 23:29:07 2011  fox
+
+     453* driver/dtrace_linux.c, driver/ctf_struct.c: Expose some
+          new structures so that etc/sched.d can work, and we can return
+	  the "cpu" we hit a probe on.
+
+Wed Mar  2 18:52:46 2011  fox
+
+     452* Archive: 1.0116
+
+     451* makefile: Allow DESTDIR prefix for installing into 
+          non-system areas.
+
+	  sebastian AT pipping DOT org
+
+Tue Feb 22 23:36:43 2011  fox
+
+     450* libdtrace/dt_module.c: Ensure the ctf file is loaded with a distinct
+          name from /proc/kallsyms.
+
+Thu Feb 17 23:36:52 2011  fox
+
+     449* dt_module.c: Allow us to read linux-XXX-generic.ctf from the
+          dtrace build dir when debugging. 
+
+	  We have a catch-22 during build because when we build the USDT
+	  stuff, we invoke dtrace without the linux.ctf file being ready.
+	  But etc/sched.d currently needs this for dtrace_cpu_t.
+
+	  Will need to change the order of building to resolve this, but
+	  am unhappy that we cannot put good conditionals into sched.d
+	  (like #if or "#pragma D depends_on type XXX").
+
 Tue Feb 15 21:37:43 2011  fox
 
      448* libdtrace/dt_module.c: Fix for HAVE_ELF_C_READ_MMAP

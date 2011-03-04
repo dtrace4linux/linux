@@ -221,6 +221,7 @@ static struct notifier_block n_exit = {
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+void ctf_setup(void);
 int dtrace_double_fault(void);
 int dtrace_int1(void);
 int dtrace_int3(void);
@@ -1723,6 +1724,16 @@ void	*par_setup_thread1(struct task_struct *);
 void
 par_setup_thread()
 {
+	/***********************************************/
+	/*   Setup   global   vars   for   the  probe  */
+	/*   functions  in  case user is using one of  */
+	/*   them.				       */
+	/***********************************************/
+	ctf_setup();
+
+	/***********************************************/
+	/*   May rewrite/drop this later on...	       */
+	/***********************************************/
 	par_setup_thread1(get_current());
 }
 void *
@@ -1997,7 +2008,7 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 		/***********************************************/
         	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
-//printk("int13 - gpf - %p\n", read_cr2_register());
+printk("int13 - gpf - %p\n", read_cr2_register());
 		return NOTIFY_DONE;
 		}
 

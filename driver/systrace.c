@@ -1,3 +1,12 @@
+/* 
+Unless anyone objects, I am going to remove the Sun CDDL on this
+file shortly. There is almost *no* original Sun C code left, and much
+of the horror or complexity in this file is mine and Linus's fault.
+
+Paul Fox
+Feb 2011
+*/
+
 /*
  * CDDL HEADER START
  *
@@ -54,6 +63,7 @@
 /**********************************************************************/
 # if defined(__amd64)
 #	define SYSCALL_64_32 1
+#	define	CAST_TO_INT(ptr)	((int) (long) (ptr))
 # endif
 
 #include <linux/mm.h>
@@ -119,11 +129,6 @@ static char *syscallnames32[] = {
 struct sysent {
         asmlinkage int64_t         (*sy_callc)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);  /* C-style call hander or wrapper */
 };
-
-#define LOADABLE_SYSCALL(s)     (s->sy_flags & SE_LOADABLE)
-#define LOADED_SYSCALL(s)       (s->sy_flags & SE_LOADED)
-#define SE_LOADABLE     0x08            /* syscall is loadable */
-#define SE_LOADED       0x10            /* syscall is completely loaded */
 
 systrace_sysent_t *systrace_sysent;
 systrace_sysent_t *systrace_sysent32;
@@ -1478,14 +1483,15 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 {
 	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer(sysnum, FALSE);
+	int	disable;
 
 #if SYSCALL_64_32
-	if ((int) parg & STF_32BIT) {
+	if (CAST_TO_INT(parg) & STF_32BIT) {
 		systrace_disable32(arg, id, parg);
 		return;
 	}
 #endif
-	int disable = (systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE ||
+	disable = (systrace_sysent[sysnum].stsy_entry == DTRACE_IDNONE ||
 	    systrace_sysent[sysnum].stsy_return == DTRACE_IDNONE);
 
 	/***********************************************/
@@ -1573,7 +1579,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	void	*syscall_func = get_interposer(sysnum, TRUE);
 
 #if SYSCALL_64_32
-	if ((int) parg & STF_32BIT) {
+	if (CAST_TO_INT(parg) & STF_32BIT) {
 		systrace_enable32(arg, id, parg);
 		return 0;
 	}
@@ -1706,11 +1712,11 @@ int systrace_init(void)
 	/*   time test.				       */
 	/***********************************************/
 	if (SYSTRACE_MASK <= NSYSCALL) {
-		printk("systrace: too many syscalls? %d is too large\n", NSYSCALL);
+		printk("systrace: too many syscalls? %d is too large\n", (int) NSYSCALL);
 		return 0;
 	}
 	if (SYSTRACE_MASK <= NSYSCALL32) {
-		printk("systrace: too many syscalls(32b)? %d is too large\n", NSYSCALL32);
+		printk("systrace: too many syscalls(32b)? %d is too large\n", (int) NSYSCALL32);
 		return 0;
 	}
 

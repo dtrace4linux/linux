@@ -89,18 +89,20 @@ clean:
 
 install: build/dtrace build/config.sh
 	. build/config.sh ; \
-	mkdir -p /usr/lib/dtrace/$$CPU_BITS ; \
-	rm -f /usr/lib/dtrace/types.d ; \
-	install -m 4755 -o root build/dtrace /usr/sbin/dtrace ; \
-	install -m 644 -o root build/drti.o /usr/lib/dtrace/$$CPU_BITS/drti.o
-	if [ ! -f /etc/dtrace.conf ] ; then \
-		install -m 644 -o root etc/dtrace.conf /etc/dtrace.conf ; \
+	mkdir -p "$(DESTDIR)"/usr/lib/dtrace/$$CPU_BITS ; \
+	rm -f "$(DESTDIR)"/usr/lib/dtrace/types.d ; \
+	mkdir -p "$(DESTDIR)"/usr/sbin/ ; \
+	install -m 4755 -o root build/dtrace "$(DESTDIR)"/usr/sbin/dtrace ; \
+	install -m 644 -o root build/drti.o "$(DESTDIR)"/usr/lib/dtrace/$$CPU_BITS/drti.o
+	mkdir -p "$(DESTDIR)"/etc/ ; \
+	if [ ! -f "$(DESTDIR)"/etc/dtrace.conf ] ; then \
+		install -m 644 -o root etc/dtrace.conf "$(DESTDIR)"/etc/dtrace.conf ; \
 	fi
-	install -m 644 -o root libdtrace/unistd.d /usr/lib/dtrace
-	install -m 644 -o root etc/io.d /usr/lib/dtrace
-	install -m 644 -o root build/linux*.ctf /usr/lib/dtrace
-	install -m 644 -o root etc/sched.d /usr/lib/dtrace
-	scripts/mkinstall.pl
+	install -m 644 -o root libdtrace/unistd.d "$(DESTDIR)"/usr/lib/dtrace
+	install -m 644 -o root etc/io.d "$(DESTDIR)"/usr/lib/dtrace
+	install -m 644 -o root build/linux*.ctf "$(DESTDIR)"/usr/lib/dtrace
+	install -m 644 -o root etc/sched.d "$(DESTDIR)"/usr/lib/dtrace
+	scripts/mkinstall.pl -o="$(DESTDIR)"/usr/lib/dtrace
 
 newf:
 	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \

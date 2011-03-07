@@ -98,10 +98,10 @@ install: build/dtrace build/config.sh
 	if [ ! -f "$(DESTDIR)"/etc/dtrace.conf ] ; then \
 		install -m 644 -o root etc/dtrace.conf "$(DESTDIR)"/etc/dtrace.conf ; \
 	fi
-	install -m 644 -o root libdtrace/unistd.d "$(DESTDIR)"/usr/lib/dtrace
-	install -m 644 -o root etc/io.d "$(DESTDIR)"/usr/lib/dtrace
 	install -m 644 -o root build/linux*.ctf "$(DESTDIR)"/usr/lib/dtrace
+	install -m 644 -o root etc/io.d "$(DESTDIR)"/usr/lib/dtrace
 	install -m 644 -o root etc/sched.d "$(DESTDIR)"/usr/lib/dtrace
+	install -m 644 -o root etc/unistd.d "$(DESTDIR)"/usr/lib/dtrace
 	scripts/mkinstall.pl -o="$(DESTDIR)"/usr/lib/dtrace
 
 newf:

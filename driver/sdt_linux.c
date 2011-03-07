@@ -219,7 +219,7 @@ io_prov_init(void)
 /*   structure so that D scripts can access the buf_t structure.      */
 /**********************************************************************/
 static public_buf_t *
-create_public_buf_t(struct file *file, long long offset)
+create_public_buf_t(struct file *file, void *uaddr, size_t len, long long offset)
 {
 	/***********************************************/
 	/*   BUG ALERT! We need per-cpu copies of the  */
@@ -237,6 +237,8 @@ static char buf3[1024];
 
 	memset(&finfo, 0, sizeof finfo);
 	finfo.f.fi_offset = offset;
+	finfo.b.b_addr = uaddr;
+	finfo.b.b_bcount = len;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
 	fname = d_path(&file->f_path, buf, sizeof buf);
 #else
@@ -300,7 +302,10 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			/*   Might   need   a   per-cpu   buffer   to  */
 			/*   write/read from.			       */
 			/***********************************************/
-			stack0 = (uintptr_t) create_public_buf_t((struct file *) stack0, stack3);
+			stack0 = (uintptr_t) create_public_buf_t((struct file *) stack0, 
+				stack1,  /* uaddr */
+				stack2,  /* size */
+				stack3 /* offset */);
 
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);

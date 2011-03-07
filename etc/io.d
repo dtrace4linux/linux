@@ -93,9 +93,9 @@ typedef struct devinfo {
 	int dev_major;                  /* major number */                    
 	int dev_minor;                  /* minor number */                    
 	int dev_instance;               /* instance number */                 
-	char *dev_name;                /* name of device */                   
-	char *dev_statname;            /* name of device + instance/minor */  
-	char *dev_pathname;            /* pathname of device */               
+	string dev_name;                /* name of device */                   
+	string dev_statname;            /* name of device + instance/minor */  
+	string dev_pathname;            /* pathname of device */               
 } devinfo_t;
 
 typedef struct k_fileinfo {
@@ -130,6 +130,13 @@ translator fileinfo_t < buf_t *B > {
 	fi_fs 	   = stringof(B->f.fi_fs);
 	fi_mount   = stringof(B->f.fi_mount);
 	fi_offset  = B->f.fi_offset;
+};
+translator bufinfo_t < buf_t *B > {
+	b_bcount = B->b.b_bcount;
+	b_addr = B->b.b_addr;
+};
+translator devinfo_t < buf_t *B > {
+	dev_statname = B->d.dev_statname;
 };
 
 /*

@@ -1,3 +1,16 @@
+Mon Mar  7 23:12:26 2011  fox
+
+     455* sdt_linux.c: Fix the io::start/done to populate bcount and size.
+          Add buf_t.b_addr also.
+
+	  I still dont like this emulation of io::start/done - its intercepting
+	  the VFS read/write syscalls, and I need to see if Solaris is doing
+	  this at a lower level. But the demo/io/whoio.d script now works
+
+Sun Mar  6 12:43:06 2011  fox
+
+     454* driver/sdt_linux.c: Correct the bcount for io::start/done.
+
 Fri Mar  4 23:29:07 2011  fox
 
      453* driver/dtrace_linux.c, driver/ctf_struct.c: Expose some

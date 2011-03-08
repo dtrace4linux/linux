@@ -1,3 +1,8 @@
+Tue Mar  8 22:02:52 2011  fox
+
+     456* usdt/c/makefile: Fix circular dependency on linux.ctf file. We wont
+          have built it yet, but we dont need it yet, either.
+
 Mon Mar  7 23:12:26 2011  fox
 
      455* sdt_linux.c: Fix the io::start/done to populate bcount and size.

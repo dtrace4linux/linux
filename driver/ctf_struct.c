@@ -41,7 +41,8 @@
 psinfo_t p;
 thread_t t;
 dtrace_cpu_t dtrace_curcpu;
-int cpu_dr7;
+buf_t 	dt_buf_t;	/* Unused - but need to declare some/anything */
+int 	cpu_dr7;
 struct task_struct *cur_thread;
 int	dtrace_cpu_id;
 

@@ -1038,6 +1038,8 @@ membcmp(const char *name, ctf_id_t type, ulong_t offset, void *arg)
 	ctf_bundle_t *ctb = arg;
 	ctf_membinfo_t ctm;
 
+/*ctf_member_info(ctb->ctb_file, ctb->ctb_type, name, &ctm);
+printf(" ..%s off=%x %x\n", name, offset, ctm.ctm_offset);*/
 	return (ctf_member_info(ctb->ctb_file, ctb->ctb_type,
 	    name, &ctm) == CTF_ERR || ctm.ctm_offset != offset);
 }
@@ -1265,6 +1267,15 @@ ctf_add_type(ctf_file_t *dst_fp, ctf_file_t *src_fp, ctf_id_t src_type)
 		 * pathological as to render it irrelevant for our purposes.
 		 */
 		if (dst_type != CTF_ERR && dst_kind != CTF_K_FORWARD) {
+/*if (ctf_type_size(src_fp, src_type) !=
+    ctf_type_size(dst_fp, dst_type)) {
+printf("size diff: %d %d\n", ctf_type_size(src_fp, src_type),
+    ctf_type_size(dst_fp, dst_type));
+ctf_member_iter(src_fp, src_type, membcmp, &dst);
+printf("  --vs--\n");
+ctf_member_iter(dst_fp, dst_type, membcmp, &dst);
+}
+*/
 			if (ctf_type_size(src_fp, src_type) !=
 			    ctf_type_size(dst_fp, dst_type))
 				return (ctf_set_errno(dst_fp, ECTF_CONFLICT));

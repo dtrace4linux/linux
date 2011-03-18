@@ -1,3 +1,29 @@
+Fri Mar 18 23:20:47 2011  fox
+
+     459* Archive: 1.0117
+
+     458* driver/dtrace.c: Add some annotations for debugging illaddr
+          traps.
+
+     457* driver/ctf_create.c, driver/ctf_create.h: Fix the buf_t
+          definition so that it works with etc/io.d. 
+
+	  etc/io.d: Now works to trace elements of fileinfo_t, dev_t, and
+	  bufinfo_t (io probe provider).
+
+	  sdt_linux.c: Properly handle the buf_t type for io provider.
+
+	  Note: some fields may not yet be populated or populated properly
+	  but at least we now get device names and path names and a few
+	  other key fields.
+
+	  The following now "works":
+
+	  dtrace -n io:::start'{printf("%x %x %x %s %s %p", 
+	  	args[1]->dev_major, args[1]->dev_minor, 
+		args[1]->dev_instance, args[2]->fi_pathname, 
+		args[1]->dev_pathname, arg2);exit(0);}'
+
 Tue Mar  8 22:02:52 2011  fox
 
      456* usdt/c/makefile: Fix circular dependency on linux.ctf file. We wont

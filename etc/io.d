@@ -89,23 +89,14 @@ typedef struct bufinfo {
 	dev_t b_edev;			/* extended device */
 } bufinfo_t;
 
-typedef struct devinfo {                                                      
-	int dev_major;                  /* major number */                    
-	int dev_minor;                  /* minor number */                    
-	int dev_instance;               /* instance number */                 
-	string dev_name;                /* name of device */                   
-	string dev_statname;            /* name of device + instance/minor */  
-	string dev_pathname;            /* pathname of device */               
+typedef struct devinfo {
+	int dev_major;                  /* major number */
+	int dev_minor;                  /* minor number */
+	int dev_instance;               /* instance number */
+	string dev_name;                /* name of device */
+	string dev_statname;            /* name of device + instance/minor */
+	string dev_pathname;            /* pathname of device */
 } devinfo_t;
-
-typedef struct k_fileinfo {
-	char *fi_name;
-	char *fi_dirname;
-	char *fi_pathname;
-	long long fi_offset;		/* offset within file */
-	char *fi_fs;
-	char *fi_mount;
-} k_fileinfo_t;
 
 typedef struct fileinfo {
 	string fi_name;
@@ -116,14 +107,12 @@ typedef struct fileinfo {
 	string fi_mount;
 } fileinfo_t;
 
-typedef struct buf {
-	bufinfo_t b;
-	devinfo_t d;
-	k_fileinfo_t f;
-        } buf_t;
-
+/**********************************************************************/
+/*   buf_t  is  defined in driver/ctf_struct.h as a container for io  */
+/*   probe references.						      */
+/**********************************************************************/
 #pragma D binding "1.0" translator
-translator fileinfo_t < buf_t *B > {
+translator fileinfo_t < struct buf *B > {
 	fi_name	   = stringof(B->f.fi_name);
 	fi_dirname = stringof(B->f.fi_dirname);
 	fi_pathname= stringof(B->f.fi_pathname);
@@ -131,14 +120,24 @@ translator fileinfo_t < buf_t *B > {
 	fi_mount   = stringof(B->f.fi_mount);
 	fi_offset  = B->f.fi_offset;
 };
+#pragma D binding "1.0" translator
 translator bufinfo_t < buf_t *B > {
 	b_bcount = B->b.b_bcount;
 	b_addr = B->b.b_addr;
-};
-translator devinfo_t < buf_t *B > {
-	dev_statname = B->d.dev_statname;
+	b_edev = B->b.b_edev;
+	b_blkno = 0;
+	b_flags = B->b.b_flags;
 };
 
+#pragma D binding "1.0" translator
+translator devinfo_t < buf_t *B > {
+	dev_major = B->d.dev_major;
+	dev_minor = B->d.dev_minor;
+	dev_instance = B->d.dev_instance;
+	dev_name = stringof(B->d.dev_name);
+	dev_statname = stringof(B->d.dev_statname);
+	dev_pathname = stringof(B->d.dev_pathname);
+};
 /*
 inline fileinfo_t fds[int fd] = xlate <fileinfo_t> (
     fd >= 0 && fd < curthread->t_procp->p_user.u_finfo.fi_nfiles ?

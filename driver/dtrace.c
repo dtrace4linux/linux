@@ -429,6 +429,12 @@ static MUTEX_DEFINE(dtrace_errlock);
 	(mstate)->dtms_scratch_ptr >= (alloc_sz))
 
 #if defined(linux)
+/**********************************************************************/
+/*   Allow us to debug where we are generating bad address events.    */
+/**********************************************************************/
+/*#define TRACE_BADADDR(x) printk("%s(%d): BADADDR %p\n", __FILE__, __LINE__, x)*/
+#define TRACE_BADADDR(x)
+
 #define	DTRACE_LOADFUNC(bits)						\
 /*CSTYLED*/								\
 uint##bits##_t								\
@@ -441,6 +447,7 @@ dtrace_load##bits(uintptr_t addr)					\
 	                                                                \
 	if (dtrace_memcpy_with_error(&rval, (void *) addr, sizeof(rval)) == 0) { \
 		*flags |= CPU_DTRACE_BADADDR;				\
+		TRACE_BADADDR(addr);                                    \
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
 		return (0);						\
 	}								\
@@ -475,6 +482,7 @@ dtrace_load##bits(uintptr_t addr)					\
 		 * This address falls within a toxic region; return 0.	\
 		 */							\
 		*flags |= CPU_DTRACE_BADADDR;				\
+		TRACE_BADADDR(addr);                                    \
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
 		return (0);						\
 	}								\
@@ -939,6 +947,7 @@ HERE();
 
 		if (kaddr - taddr < tsize) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+			TRACE_BADADDR(kaddr);
 HERE2();
 			cpu_core[cpu_get_id()].cpuc_dtrace_illval = kaddr;
 			return (1);
@@ -946,6 +955,7 @@ HERE2();
 
 		if (taddr - kaddr < size) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+			TRACE_BADADDR(kaddr);
 HERE2();
 			cpu_core[cpu_get_id()].cpuc_dtrace_illval = taddr;
 			return (1);
@@ -2750,6 +2760,7 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 
 		if ((lwp = curthread->t_lwp) == NULL) {
 			DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+			TRACE_BADADDR(0);
 			cpu_core[cpu_get_id()].cpuc_dtrace_illval = NULL;
 			return (0);
 		}
@@ -3258,6 +3269,7 @@ PRINT_CASE(DIF_SUBR_RW_ISWRITER);
 PRINT_CASE(DIF_SUBR_BCOPY);
 		if (!dtrace_inscratch(dest, size, mstate)) {
 			*flags |= CPU_DTRACE_BADADDR;
+			TRACE_BADADDR(dest);
 HERE2();
 			*illval = regs[rd];
 			break;
@@ -3320,6 +3332,7 @@ PRINT_CASE(DIF_SUBR_COPYINTO);
 		 */
 		if (!dtrace_inscratch(dest, size, mstate)) {
 			*flags |= CPU_DTRACE_BADADDR;
+			TRACE_BADADDR(dest);
 HERE2();
 			*illval = regs[rd];
 			break;
@@ -3385,6 +3398,7 @@ PRINT_CASE(DIF_SUBR_COPYINSTR);
 			if (wptr < rptr) {
 				*flags |= CPU_DTRACE_BADADDR;
 				*illval = tupregs[0].dttk_value;
+				TRACE_BADADDR(*illval);
 				break;
 			}
 
@@ -5438,6 +5452,7 @@ PRINT_CASE(DIF_OP_COPYS);
 				*flags |= CPU_DTRACE_BADADDR;
 HERE2();
 				*illval = regs[rd];
+				TRACE_BADADDR(*illval);
 				break;
 			}
 
@@ -5454,6 +5469,7 @@ PRINT_CASE(DIF_OP_STB);
 				*flags |= CPU_DTRACE_BADADDR;
 HERE2();
 				*illval = regs[rd];
+				TRACE_BADADDR(*illval);
 				break;
 			}
 			*((uint8_t *)(uintptr_t)regs[rd]) = (uint8_t)regs[r1];
@@ -5465,6 +5481,7 @@ PRINT_CASE(DIF_OP_STH);
 				*flags |= CPU_DTRACE_BADADDR;
 HERE2();
 				*illval = regs[rd];
+				TRACE_BADADDR(*illval);
 				break;
 			}
 			if (regs[rd] & 1) {
@@ -5482,6 +5499,7 @@ PRINT_CASE(DIF_OP_STW);
 				*flags |= CPU_DTRACE_BADADDR;
 HERE2();
 				*illval = regs[rd];
+				TRACE_BADADDR(*illval);
 				break;
 			}
 			if (regs[rd] & 3) {
@@ -5498,6 +5516,7 @@ PRINT_CASE(DIF_OP_STX);
 				*flags |= CPU_DTRACE_BADADDR;
 HERE2();
 				*illval = regs[rd];
+				TRACE_BADADDR(*illval);
 				break;
 			}
 			if (regs[rd] & 7) {
@@ -6487,6 +6506,7 @@ HERE();
 		curthread->t_dtrace_start = dtrace_gethrtime();
 
 	dtrace_interrupt_enable(cookie);
+
 }
 //EXPORT_SYMBOL(dtrace_probe);
 

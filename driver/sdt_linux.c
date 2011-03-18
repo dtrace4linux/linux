@@ -218,8 +218,8 @@ io_prov_init(void)
 /*   Convert the args do do_sync_read/do_sync_write to an exportable  */
 /*   structure so that D scripts can access the buf_t structure.      */
 /**********************************************************************/
-static public_buf_t *
-create_public_buf_t(struct file *file, void *uaddr, size_t len, long long offset)
+static buf_t *
+create_buf_t(struct file *file, void *uaddr, size_t len, long long offset)
 {
 	/***********************************************/
 	/*   BUG ALERT! We need per-cpu copies of the  */
@@ -227,7 +227,7 @@ create_public_buf_t(struct file *file, void *uaddr, size_t len, long long offset
 	/*   Without  this,  one  cpu  may  overwrite  */
 	/*   anothers version of the data.	       */
 	/***********************************************/
-static public_buf_t finfo;
+static buf_t finfo;
 static char buf[1024];
 static char buf2[1024];
 static char buf3[1024];
@@ -262,6 +262,17 @@ static char buf3[1024];
 	finfo.f.fi_fs = file->f_vfsmnt->mnt_devname;
 	finfo.f.fi_mount = mntname ? mntname : "<unknown>";
 
+	finfo.d.dev_major = -1;
+	finfo.d.dev_minor = -1;
+	finfo.d.dev_instance = -1;
+	if (file->f_mapping && file->f_mapping->host) {
+		finfo.d.dev_major = getmajor(file->f_mapping->host->i_rdev);
+		finfo.d.dev_minor = getminor(file->f_mapping->host->i_rdev);
+		finfo.d.dev_instance = file->f_mapping->host->i_rdev;
+	}
+
+	finfo.d.dev_pathname = file->f_vfsmnt->mnt_devname;
+	finfo.d.dev_statname = mntname;
 	return &finfo;
 }
 /*ARGSUSED*/
@@ -302,16 +313,17 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			/*   Might   need   a   per-cpu   buffer   to  */
 			/*   write/read from.			       */
 			/***********************************************/
-			stack0 = (uintptr_t) create_public_buf_t((struct file *) stack0, 
-				stack1,  /* uaddr */
-				stack2,  /* size */
-				stack3 /* offset */);
+			stack0 = (uintptr_t) create_buf_t((struct file *) stack0, 
+				(void *) stack1,  /* uaddr */
+				(size_t) stack2,  /* size */
+				(long long) stack3 /* offset */);
 
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);
 //printk("probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);
-			dtrace_probe(sdt->sdp_id, stack0, stack1,
-			    stack2, stack3, stack4);
+			dtrace_probe(sdt->sdp_id, stack0, stack0, stack0, 0, 0);
+//			dtrace_probe(sdt->sdp_id, stack0, stack1,
+//			    stack2, stack3, stack4);
 
 			return (DTRACE_INVOP_NOP);
 		}

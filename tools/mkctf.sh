@@ -8,8 +8,10 @@
 # scripts can utilise those features which require access to struct/union
 # type data.
 #
+# Author: Paul Fox
 
 if [ ! -f build/ctfconvert ]; then
+	echo "build/ctfconvert not available - so not building the linux.ctf file"
 	exit 0
 fi
 
@@ -19,11 +21,15 @@ pwd=`pwd`
 cd $build_dir
 cmd=`grep '^cmd_' $pwd/build/driver/.cpu_x86.o.cmd | 
 sed -e 's/^.* := //' |
-sed -e 's/-Wp,-MD[^ ]* /-g /' |
+sed -e 's/-Wp,-MD[^ ]* /-gdwarf-2 /' |
 sed -e 's/\\\\//g' |
 sed -e 's/cpu_x86/ctf_struct/g' `
 #echo $cmd
 eval $cmd
+if [ $? != 0 ]; then
+	echo $cmd
+	echo Compilation of ctf_struct failed.
+fi
 cd $pwd
-build/ctfconvert -L label -o build/linux-$BUILD_KERNEL.ctf build/driver/.tmp_ctf_struct.o
+build/ctfconvert -L label -o build/linux-$BUILD_KERNEL.ctf build/driver/ctf_struct.o
 ls -l build/linux-$BUILD_KERNEL.ctf

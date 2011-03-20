@@ -10,6 +10,7 @@
 # 24-Jul-2009 PDF Add support for FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS
 # 06-Jul-2010 PDF Add 'nonatomic' as a way to autodetect FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS on Centos 5.5
 # 15-Jul-2010 PDF Better parsing for SMP_CALL_FUNCTION_SINGLE_ARGS and SMP_CALL_FUNCTION_ARGS
+# 20-Mar-2011 PDF Add better HAVE_ELF_GETSHDRSTRNDX detection for FC-14.
 
 use strict;
 use warnings;
@@ -71,11 +72,19 @@ sub main
 	
 	###############################################
 	#   Some   versions   of   elf   dont   have  #
-	#   elf_getshdrstrndx()			      #
+	#   elf_getshdrstrndx().   But  then  again,  #
+	#   some versions are brokenly buggy and its  #
+	#   annoying  me ! I am looking at you FC-14  #
+	#   where  there is a single function mapped  #
+	#   to  the  same  code, but they dont agree  #
+	#   with the API for the return value.	      #
 	###############################################
-	my $ret = system(" objdump -T /usr/lib/libelf.so 2>/dev/null | grep elf_getshstrndx >/dev/null");
-	if ($ret == 0) {
-		$inc .= "# define HAVE_ELF_GETSHDRSTRNDX 1\n";
+	foreach my $elf ("/usr/lib/libelf.so", "/usr/lib64/libelf.so") {
+		my $ret = system(" objdump -T $elf 2>/dev/null | grep elf_getshstrndx >/dev/null");
+		if ($ret == 0) {
+			$inc .= "# define HAVE_ELF_GETSHDRSTRNDX 1\n";
+			last;
+		}
 	}
 
 	###############################################

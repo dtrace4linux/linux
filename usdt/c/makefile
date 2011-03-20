@@ -21,8 +21,8 @@ $(BINDIR)/simple_probes.o: $(BINDIR)/simple.o simple_probes.d $(DTRACE_DRTI_O) $
 	else \
 		BITS=64 ; \
 	fi ; \
-	echo DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o ; \
-	DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o
+	echo DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -x nolibs -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o ; \
+	DTRACE_DRTI_O=$(DTRACE_DRTI_O) $(DTRACE) -x nolibs -G -$$BITS -s simple_probes.d $(BINDIR)/simple.o
 	mv simple_probes.o $(BINDIR)
 
 $(BINDIR)/simple.o: simple.c

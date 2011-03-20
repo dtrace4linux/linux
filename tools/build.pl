@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# $Header: Last edited: 23-Jun-2009 1.1 $ 
+# $Header: Last edited: 20-Mar-2011 1.2 $ 
 
 # 23-Jun-2009 PDF Add check for bison/yacc/flex on the system.
 
@@ -59,7 +59,7 @@ sub main
 	}
 
 	if (! -f "/usr/include/gelf.h") {
-		print "Error: you dont appear to have /usr/include/elf.h, which means\n";
+		print "Error: you dont appear to have /usr/include/gelf.h, which means\n";
 		print "compilation will fail. You should add the libelf-dev package to\n";
 		print "your system and retry the 'make all'.\n";
 		exit(1);

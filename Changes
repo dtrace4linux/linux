@@ -1,3 +1,17 @@
+Sun Mar 20 13:07:00 2011  fox
+
+     464* tools/mkport.pl: Fix HAVE_ELF_GETSHDRSTRNDX detection for
+          FC-14 (which fixes the etc/shed.d issue).
+
+     463* mkctf.sh: Force ue of dwarf-2 so that Fedora-14 doesnt
+          bomb out since its defaulting to dwarf-3.
+
+     462* dtrace_isa.c: Fix for 2.6.38 kernels.
+
+     461* cyclic_linux.c: Add support for 2.6.38 kernels.
+
+     460* usdt/c/makefile: Add -x nolibs to avoid build problems on etc/sched.d
+
 Fri Mar 18 23:20:47 2011  fox
 
      459* Archive: 1.0117

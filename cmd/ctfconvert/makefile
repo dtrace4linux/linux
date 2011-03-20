@@ -17,7 +17,7 @@ HDRS = \
 	utils.h
 
 CC = gcc -g -I../../ -I../../libctf -I../../common \
-	-I../../uts/common -I../../linux
+	-I../../uts/common -I../../linux -I/usr/include/libdwarf
 
 BINDIR = ../../build
 OBJDIR = ../../build/ctfconvert.obj
@@ -43,8 +43,14 @@ OBJ=	$(OBJDIR)/ctfconvert.o \
 	$(OBJDIR)/util.o
 LIBS = ../../build/libctf.a -ldwarf -lbfd -lelf -lz
 
+######################################################################
+#   Fedora core will use /usr/lib64/libdwarf.so. We might want, but  #
+#   dont  care  about static libdwarf.a on FC14+. Ideally, we would  #
+#   get   rid   of   this   dependency   because   it   complicates  #
+#   cross-platform builds.					     #
+######################################################################
 all:
-	@if [ ! -f /usr/lib/libdwarf.a ]; then \
+	@if [ ! -f /usr/lib/libdwarf.a -a ! -f /usr/lib64/libdwarf.so ]; then \
 		echo "=================================================================" ; \
 		echo "=== You need /usr/lib/libdwarf.a and /usr/lib/libbfd.a installed to build." ; \
 		echo "=== " ; \

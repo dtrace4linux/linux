@@ -159,8 +159,10 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
 	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
-#else
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 37)
 	dump_trace(NULL, NULL, NULL, 0, &print_trace_ops, NULL);
+#else
+	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
 #endif
 	depth = g_depth;
 	mutex_exit(&dtrace_stack_mutex);

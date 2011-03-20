@@ -16,7 +16,7 @@
 /*   								      */
 /*   Paul Fox June 2008						      */
 /*   								      */
-/*   $Header: Last edited: 22-Apr-2009 1.2 $ 			      */
+/*   $Header: Last edited: 20-Mar-2011 1.3 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -154,7 +154,9 @@ be_callback(struct hrtimer *ptr)
 	/*   /proc/kallsyms  lookups),  so its easier  */
 	/*   to just inline what they expect.	       */
 	/***********************************************/
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+	ptr->_softexpires = ktime_add_ns(ptr->_softexpires, kt.tv64);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
 	ptr->_expires = ktime_add_ns(ptr->_expires, kt.tv64);
 	ptr->_softexpires = ktime_add_ns(ptr->_softexpires, kt.tv64);
 #else

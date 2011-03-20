@@ -13,13 +13,14 @@ download()
    if [ ! -e ${DISTRIBUTION} ]; then
        echo "\n==== Downloading DTrace for Linux ====\n"
        curl -O
-ftp://crisp.dynalias.com/pub/release/website/dtrace/${DISTRIBUTION}.tar.bz2
+ftp://crisp.dyndns-server.com/pub/release/website/dtrace/${DISTRIBUTION}.tar.bz2
        tar jxvf ${DISTRIBUTION}.tar.bz2
    fi
 }
 
 install_dependencies()
 {
+	# fc14: libdwarf libdwarf-devel
    sudo apt-get install zlib1g-dev flex bison \
    		elfutils libdwarf-dev libelf-dev libc6-dev linux-libc-dev
 }

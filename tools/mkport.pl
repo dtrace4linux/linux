@@ -80,7 +80,7 @@ sub main
 	#   with the API for the return value.	      #
 	###############################################
 	foreach my $elf ("/usr/lib/libelf.so", "/usr/lib64/libelf.so") {
-		my $ret = system(" objdump -T $elf 2>/dev/null | grep elf_getshstrndx >/dev/null");
+		my $ret = system(" objdump -T $elf 2>/dev/null | grep elf_getshdrstrndx >/dev/null");
 		if ($ret == 0) {
 			$inc .= "# define HAVE_ELF_GETSHDRSTRNDX 1\n";
 			last;

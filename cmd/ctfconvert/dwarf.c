@@ -89,6 +89,7 @@
 #include "linux.h"
 #include <libelf.h>
 #include <libdwarf.h>
+#include "libdwarfext.h"
 #include <libgen.h>
 #include <dwarf.h>
 

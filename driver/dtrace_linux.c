@@ -225,6 +225,7 @@ void ctf_setup(void);
 int dtrace_double_fault(void);
 int dtrace_int1(void);
 int dtrace_int3(void);
+int dtrace_int11(void);
 int dtrace_int13(void);
 int dtrace_page_fault(void);
 static void * par_lookup(void *ptr);
@@ -512,6 +513,7 @@ return DATAMODEL_LP64;
 /**********************************************************************/
 void *kernel_int1_handler;
 void *kernel_int3_handler;
+void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
@@ -570,13 +572,12 @@ return;
 void
 set_idt_entry(int intr, unsigned long func)
 {
+
 	gate_t *idt_table = get_proc_addr("idt_table");
 static	gate_t s;
 	int	type = CPU_GATE_INTERRUPT;
 	int	dpl = 3;
 	int	seg = __KERNEL_CS;
-
-//printk("patch idt %p vec %d func %lx\n", idt_table, intr, func);
 
 	dtrace_bzero(&s, sizeof s);
 
@@ -611,6 +612,10 @@ static	gate_t s;
 			((long *) &idt_table[intr])[1]);
 
 	idt_table[intr] = s;
+
+	void *idt_descr = get_proc_addr("idt_descr");
+	printk("idt_descr=%p\n", idt_descr);
+//        __asm__ __volatile__("lidt %0": "=m" (idt_descr));
 }
 #endif
 
@@ -630,6 +635,7 @@ dtrace_getipl(void)
 gate_t saved_double_fault;
 gate_t saved_int1;
 gate_t saved_int3;
+gate_t saved_int11;
 gate_t saved_int13;
 gate_t saved_page_fault;
 
@@ -660,6 +666,7 @@ static int first_time = TRUE;
 	/***********************************************/
 	kernel_int1_handler = get_proc_addr("debug");
 	kernel_int3_handler = get_proc_addr("int3");
+	kernel_int11_handler = get_proc_addr("segment_not_present");
 	kernel_int13_handler = get_proc_addr("general_protection");
 	kernel_double_fault_handler = get_proc_addr("double_fault");
 	kernel_page_fault_handler = get_proc_addr("page_fault");
@@ -726,6 +733,7 @@ static int first_time = TRUE;
 		saved_double_fault = idt_table[8];
 		saved_int1 = idt_table[1];
 		saved_int3 = idt_table[3];
+		saved_int11 = idt_table[11];
 		saved_int13 = idt_table[13];
 		saved_page_fault = idt_table[14];
 #if 0 && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
@@ -733,8 +741,9 @@ static int first_time = TRUE;
 #endif
 		set_idt_entry(1, (unsigned long) dtrace_int1);
 		set_idt_entry(3, (unsigned long) dtrace_int3);
+		set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
 		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
-//		set_idt_entry(14, (unsigned long) dtrace_page_fault);
+		set_idt_entry(14, (unsigned long) dtrace_page_fault);
 	}
 
 	/***********************************************/
@@ -768,6 +777,7 @@ dtrace_linux_fini(void)
 #endif
 		idt_table[1] = saved_int1;
 		idt_table[3] = saved_int3;
+		idt_table[11] = saved_int11;
 		idt_table[13] = saved_int13;
 		idt_table[14] = saved_page_fault;
 	}
@@ -1983,6 +1993,32 @@ preempt_enable_no_resched();
 	return NOTIFY_KERNEL;
 }
 /**********************************************************************/
+/*   Segment not present interrupt. Not sure if we really care about  */
+/*   these, but lets see what happens.				      */
+/**********************************************************************/
+static unsigned long cnt_snp1;
+static unsigned long cnt_snp2;
+int 
+dtrace_int11_handler(int type, struct pt_regs *regs)
+{	cpu_core_t *this_cpu = THIS_CPU();
+
+	cnt_snp1++;
+	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
+		cnt_snp2++;
+		/***********************************************/
+		/*   Bad user/D script - set the flag so that  */
+		/*   the   invoking   code   can   know  what  */
+		/*   happened,  and  propagate  back  to user  */
+		/*   space, dismissing the interrupt here.     */
+		/***********************************************/
+        	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
+		return NOTIFY_DONE;
+		}
+
+	return NOTIFY_KERNEL;
+}
+/**********************************************************************/
 /*   Detect  us  causing a GPF, before we ripple into a double-fault  */
 /*   and  a hung kernel. If we trace something incorrectly, this can  */
 /*   happen.  If it does, just disable as much of us as we can so we  */
@@ -1995,11 +2031,15 @@ preempt_enable_no_resched();
 /*   user  core  dump  or  kernel  panic.  Honor  this  bit  setting  */
 /*   appropriately for a safe journey through dtrace.		      */
 /**********************************************************************/
+static unsigned long cnt_gpf1;
+static unsigned long cnt_gpf2;
 int 
 dtrace_int13_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 
+	cnt_gpf1++;
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
+		cnt_gpf2++;
 		/***********************************************/
 		/*   Bad user/D script - set the flag so that  */
 		/*   the   invoking   code   can   know  what  */
@@ -2008,7 +2048,7 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 		/***********************************************/
         	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
-printk("int13 - gpf - %p\n", read_cr2_register());
+//printk("int13 - gpf - %p\n", read_cr2_register());
 		return NOTIFY_DONE;
 		}
 
@@ -2040,20 +2080,36 @@ printk("int13 - gpf - %p\n", read_cr2_register());
 /*   have  issues  if  a  fault fires whilst we are trying to single  */
 /*   step the kernel.						      */
 /**********************************************************************/
+unsigned long cnt_pf1;
+unsigned long cnt_pf2;
 int 
 dtrace_page_fault_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 
-dtrace_printf("PGF %p called\n", regs->r_pc-1);
-	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
-		return NOTIFY_KERNEL;
+//dtrace_printf("PGF %p called\n", regs->r_pc-1);
+//printk("pf%d,", cc++);
+	cnt_pf1++;
+	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
+		cnt_pf2++;
+//printk("dtrace PGF %p called addr:%p\n", regs->r_pc, read_cr2_register());
+		/***********************************************/
+		/*   Bad user/D script - set the flag so that  */
+		/*   the   invoking   code   can   know  what  */
+		/*   happened,  and  propagate  back  to user  */
+		/*   space, dismissing the interrupt here.     */
+		/***********************************************/
+        	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
+	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
 
-	this_cpu->cpuc_regs = regs;
-	/***********************************************/
-	/*   Hmm..we   page   faulted  whilst  single  */
-	/*   stepping.				       */
-	/***********************************************/
-dtrace_printf("dtrace nested page fault\n");
+		/***********************************************/
+		/*   Skip the offending instruction, which is  */
+		/*   probably just a MOV instruction.	       */
+		/***********************************************/
+		regs->r_pc += dtrace_instr_size(regs->r_pc);
+
+		return NOTIFY_DONE;
+		}
+
 	return NOTIFY_KERNEL;
 }
 /**********************************************************************/
@@ -2475,6 +2531,19 @@ static int
 dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
+{void *p = 0;
+__asm__ __volatile__("sidt %0" : "=m" (p) :);
+printk("p=%p\n", p);
+gate_t *idt_descr = get_proc_addr("idt_table");
+int i;
+for (i = 0; i < 18; i++) {
+printk("idt%d=t=%x dpl=%x ist=%x %04x %04x %04x %08lx %08lx\n",  i, 
+idt_descr[i].type, idt_descr[i].dpl, idt_descr[i].ist,
+idt_descr[i].offset_high, idt_descr[i].offset_middle, 
+idt_descr[i].offset_low, ((int *) &idt_descr[i])[0], 
+((int *) &idt_descr[i])[1]);
+}
+}
 //HERE();
 	ret = dtrace_open(file, 0, 0, CRED());
 HERE();
@@ -2705,6 +2774,18 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
+	static struct map {
+		unsigned long **ptr;
+		char	*name;
+		} stats[] = {
+		{&cnt_gpf1, "gpf1"},
+		{&cnt_gpf2, "gpf2"},
+		{&cnt_pf1, "pf1"},
+		{&cnt_pf2, "pf2"},
+		{&cnt_snp1, "snp1"},
+		{&cnt_snp2, "snp2"},
+		{0}
+		};
 
 	for (i = 0; i < MAX_DCNT && n < count; i++) {
 		if (dcnt[i] == 0)
@@ -2713,6 +2794,13 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		buf += size;
 		n += size;
 		}
+
+	for (i = 0; stats[i].name; i++) {
+		size = snprintf(buf, count - n, "%s=%lu\n", stats[i].name, *stats[i].ptr);
+		buf += size;
+		n += size;
+	}
+
 	return proc_calc_metrics(page, start, off, count, eof, n);
 }
 static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,

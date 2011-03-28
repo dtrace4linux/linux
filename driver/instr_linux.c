@@ -433,6 +433,26 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 /**********************************************************************/
 /*   Common code to handle module and kernel functions.		      */
 /**********************************************************************/
+struct masks {
+	unsigned char offset;
+	unsigned char and;
+	unsigned char mask;
+	};
+struct masks lidt_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x01},
+	{2, 0xff, 0x4c},
+	{0, 0, 0},
+	};
+static int
+instr_cmp(unsigned char *pc, struct masks *mp)
+{
+	for (; mp->and; mp++) {
+		if ((pc[mp->offset] & mp->and) != mp->mask)
+			return FALSE;
+	}
+	return TRUE;
+}
 static void
 instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	char *modname, char *name, uint8_t *st_value,
@@ -455,6 +475,10 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
 	name = name_buf; \
 	}} while (0)
+# define INSTR2(tbl, opcode_name) do {if (instr_cmp(instr, tbl)) { \
+	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
+	name = name_buf; \
+	}} while (0)
 
 	for (; instr < limit; instr += size) {
 		/***********************************************/
@@ -465,6 +489,8 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 			return;
 
 		name_buf[0] = '\0';
+
+		INSTR2(lidt_masks, "lidt");
 
 		INSTR(0x70, "jo");
 		INSTR(0x71, "jno");

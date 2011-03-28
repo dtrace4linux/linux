@@ -16,7 +16,7 @@ HDRS = \
 	traverse.h \
 	utils.h
 
-CC = gcc -g -I../../ -I../../libctf -I../../common \
+CC = gcc -g -I. -I../../ -I../../libctf -I../../common \
 	-I../../uts/common -I../../linux -I/usr/include/libdwarf
 
 BINDIR = ../../build

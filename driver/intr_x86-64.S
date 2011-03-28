@@ -42,7 +42,17 @@
 	.type \name, @function
 .endm
 
+/**********************************************************************/
+/*   Macros to pop the registers after taking a fault. Two scenarios  */
+/*   to  handle  those  interrupts  which do/dont push an error code  */
+/*   onto the stack.						      */
+/**********************************************************************/
 .macro POP_REGS
+	POP_REGS_NO_FAULT_CODE
+	pop %rax
+.endm
+
+.macro POP_REGS_NO_FAULT_CODE
 	testl %ebx, %ebx
 	jnz 2f
 	swapgs
@@ -63,16 +73,19 @@
 	pop %rdx
 	pop %rsi
 	pop %rdi
-	pop %rax
 .endm
-
 /**********************************************************************/
 /*   Push  the  registers  on  the  kernel stack, as we just took an  */
 /*   exception. Need to do this in struct pt_regs order.	      */
 /**********************************************************************/
 .macro PUSH_REGS ist
-	cld
 	push %rax // orig_eax
+
+	PUSH_REGS_NO_FAULT_CODE
+.endm
+
+.macro PUSH_REGS_NO_FAULT_CODE ist
+	cld
 	push %rdi
 	push %rsi
 	push %rdx
@@ -202,6 +215,31 @@ user_int3:
 	POP_REGS
 	jmp *kernel_int3_handler
 
+	FUNCTION dtrace_int11
+dtrace_int11:
+	PUSH_REGS DEBUG_STACK
+
+	/***********************************************/
+	/*   If this is a userspace GPF, just give it  */
+	/*   to the kernel.			       */
+	/***********************************************/
+	cmp $__KERNEL_CS, CS(%rsp) // 0x88
+	jne user_int11
+
+	/***********************************************/
+	/*   dtrace_int3_handler(1, regs)	       */
+	/***********************************************/
+	mov %rsp,%rsi
+	mov $2,%rdi
+	call dtrace_int11_handler
+
+	cmp $NOTIFY_DONE,%rax
+	je exit_intr
+
+	// Not handled - so let kernel have it.
+user_int11:
+	POP_REGS
+	jmp *kernel_int13_handler
 /**********************************************************************/
 /*   Interrupt  handler  for  GPF - used to detect us being naughty,  */
 /*   else pass on to kernel.					      */
@@ -237,7 +275,8 @@ user_int13:
 /**********************************************************************/
 	FUNCTION dtrace_page_fault
 dtrace_page_fault:
-	PUSH_REGS DEBUG_STACK
+	PUSH_REGS_NO_FAULT_CODE DEBUG_STACK
+
 	/***********************************************/
 	/*   If this is a userspace INT1 instruction,  */
 	/*   just  give  it  to  the  kernel. Dont do  */
@@ -251,7 +290,7 @@ dtrace_page_fault:
 	jne user_page_fault
 
 	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
+	/*   dtrace_page_fault_handler(2, regs)	       */
 	/***********************************************/
 	mov %rsp,%rsi
 	mov $2,%rdi
@@ -262,8 +301,13 @@ dtrace_page_fault:
 
 	// Not handled - so let kernel have it.
 user_page_fault:
-	POP_REGS
+	POP_REGS_NO_FAULT_CODE
 	jmp *kernel_page_fault_handler
+
+exit_intr2:
+	POP_REGS_NO_FAULT_CODE
+	add $8, %sp
+	iret
 
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */

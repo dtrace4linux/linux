@@ -1,3 +1,31 @@
+Tue Mar 29 23:00:47 2011  fox
+
+     470* driver/dtrace_isa.c: Add some safety checks around the stack
+          probing so we cannot trigger a kernel pgfault (but a Dtrace intercepted
+	  one is ok).
+
+     469* driver/dtrace_linux.c: Add fixed dtrace_int13_handler and add
+          dtrace_int11_handler (not sure we need this, for segment-not-present).
+	  Add counters to /proc/dtrace/stats to allow us to see these firing.
+
+     468* driver/instr_linux.c: Add support for LIDT instruction probes
+          (either it doesnt work, or there arent any in 64-bit space which
+	  the disassembler finds; will fix later - I wanted it to help debug
+	  early version of the pgfault handler problem).
+
+     467* driver/intr_x86-64.S: Fix pgfault interrupt to understand the
+          fault code on the stack.
+
+Tue Mar 22 19:29:23 2011  fox
+
+     466* cmd/ctfconvert: Some changes to try and support this on RHEL4, but it
+          wont work since RH4 doesnt have a good libdwarf.so on the system.
+
+	  libdwarfext.h: Added to provide missing definitions. Not needed for
+	  other platforms.
+
+     465* tools/mkport.pl: Fix typo on elf_getshstrndx
+
 Sun Mar 20 13:07:00 2011  fox
 
      464* tools/mkport.pl: Fix HAVE_ELF_GETSHDRSTRNDX detection for

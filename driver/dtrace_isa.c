@@ -488,7 +488,7 @@ uint64_t
 dtrace_getarg(int arg, int aframes)
 {
 	uintptr_t val;
-	struct frame *fp = (struct frame *)dtrace_getfp();
+	struct frame *fp;
 	uintptr_t *stack;
 	int i;
 #if defined(__amd64)
@@ -499,12 +499,21 @@ dtrace_getarg(int arg, int aframes)
 	/*int inreg = offsetof(struct regs, r_r9) / sizeof (greg_t);*/
 #endif
 
+	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+	fp = (struct frame *)dtrace_getfp();
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
+//printk("dtrace_getarg: fp=%p %p\n", fp, fp->fr_savfp);
+
 //printk("arg=%d aframes=%d\n", arg, aframes);
 
 	for (i = 1; i <= aframes; i++) {
+		pc_t savpc;
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 		fp = (struct frame *)(fp->fr_savfp);
-
-		if (fp->fr_savpc == (pc_t)dtrace_invop_callsite) {
+		savpc = fp->fr_savpc;
+		DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
+//printk("fp=%p savpc=%p\n", fp, savpc);
+		if (savpc == (pc_t)dtrace_invop_callsite) {
 #if !defined(__amd64)
 			/*
 			 * If we pass through the invalid op handler, we will

@@ -21,6 +21,29 @@
 /*   Date: May 2009						      */
 /**********************************************************************/
 
+/*
+    * 0 - Division by zero exception
+    * 1 - Debug exception
+    * 2 - Non maskable interrupt
+    * 3 - Breakpoint exception
+    * 4 - 'Into detected overflow'
+    * 5 - Out of bounds exception
+    * 6 - Invalid opcode exception
+    * 7 - No coprocessor exception
+    * 8 - Double fault (pushes an error code)
+    * 9 - Coprocessor segment overrun
+    * 10 - Bad TSS (pushes an error code)
+    * 11 - Segment not present (pushes an error code)
+    * 12 - Stack fault (pushes an error code)
+    * 13 - General protection fault (pushes an error code)
+    * 14 - Page fault (pushes an error code)
+    * 15 - Unknown interrupt exception
+    * 16 - Coprocessor fault
+    * 17 - Alignment check exception
+    * 18 - Machine check exception
+    * 19-31 - Reserved
+*/
+
 # if defined(__i386)
 
 # include <asm/segment.h>
@@ -33,7 +56,18 @@
 	.type \name, @function
 .endm
 
+/**********************************************************************/
+/*   Macros to pop the registers after taking a fault. Two scenarios  */
+/*   to  handle  those  interrupts  which do/dont push an error code  */
+/*   onto the stack.						      */
+/**********************************************************************/
+
 .macro POP_REGS
+	POP_REGS_NO_FAULT_CODE
+	pop %eax
+.endm
+
+.macro POP_REGS_NO_FAULT_CODE
 	pop %ebx
 	pop %ecx
 	pop %edx
@@ -44,12 +78,20 @@
 	pop %ds
 	pop %es
 	pop %fs
-	pop %eax
 .endm
 
-.macro PUSH_REGS
-	cld
+/**********************************************************************/
+/*   Push  the  registers  on  the  kernel stack, as we just took an  */
+/*   exception. Need to do this in struct pt_regs order.	      */
+/**********************************************************************/
+.macro PUSH_REGS ist
 	push %eax // orig_eax
+
+	PUSH_REGS_NO_FAULT_CODE
+.endm
+
+.macro PUSH_REGS_NO_FAULT_CODE ist
+	cld
 	push %fs
 	push %es
 	push %ds
@@ -139,6 +181,36 @@ user_int3:
 /*   Interrupt  handler  for  GPF - used to detect us being naughty,  */
 /*   else pass on to kernel.					      */
 /**********************************************************************/
+	FUNCTION dtrace_int11
+
+dtrace_int11:
+	PUSH_REGS
+
+	/***********************************************/
+	/*   If this is a userspace GPF, just give it  */
+	/*   to the kernel.			       */
+	/***********************************************/
+	cmp $__KERNEL_CS, 0x30(%esp)
+	jne user_int11
+
+	/***********************************************/
+	/*   dtrace_int11_handler(1, regs)	       */
+	/***********************************************/
+	mov %esp,%edx
+	mov $1,%eax
+	call dtrace_int11_handler
+	cmp $NOTIFY_DONE,%eax
+	je exit_intr
+
+	// Not handled - so let kernel have it.
+user_int11:
+	POP_REGS
+	jmp *kernel_int11_handler
+
+/**********************************************************************/
+/*   Interrupt  handler  for  GPF - used to detect us being naughty,  */
+/*   else pass on to kernel.					      */
+/**********************************************************************/
 	FUNCTION dtrace_int13
 
 dtrace_int13:
@@ -171,7 +243,7 @@ user_int13:
 	FUNCTION dtrace_page_fault
 
 dtrace_page_fault:
-	PUSH_REGS
+	PUSH_REGS_NO_FAULT_CODE DEBUG_STACK
 
 	/***********************************************/
 	/*   If this is a userspace INT3 instruction,  */
@@ -191,7 +263,7 @@ dtrace_page_fault:
 
 	// Not handled - so let kernel have it.
 user_page_fault:
-	POP_REGS
+	POP_REGS_NO_FAULT_CODE
 	jmp *kernel_page_fault_handler
 
 /**********************************************************************/

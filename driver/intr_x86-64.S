@@ -21,6 +21,29 @@
 /*   Date: May 2009						      */
 /**********************************************************************/
 
+/*
+    * 0 - Division by zero exception
+    * 1 - Debug exception
+    * 2 - Non maskable interrupt
+    * 3 - Breakpoint exception
+    * 4 - 'Into detected overflow'
+    * 5 - Out of bounds exception
+    * 6 - Invalid opcode exception
+    * 7 - No coprocessor exception
+    * 8 - Double fault (pushes an error code)
+    * 9 - Coprocessor segment overrun
+    * 10 - Bad TSS (pushes an error code)
+    * 11 - Segment not present (pushes an error code)
+    * 12 - Stack fault (pushes an error code)
+    * 13 - General protection fault (pushes an error code)
+    * 14 - Page fault (pushes an error code)
+    * 15 - Unknown interrupt exception
+    * 16 - Coprocessor fault
+    * 17 - Alignment check exception
+    * 18 - Machine check exception
+    * 19-31 - Reserved
+*/
+
 # if defined(__amd64)
 
 # include <asm/segment.h>
@@ -215,19 +238,22 @@ user_int3:
 	POP_REGS
 	jmp *kernel_int3_handler
 
+/**********************************************************************/
+/*   Segment not present.					      */
+/**********************************************************************/
 	FUNCTION dtrace_int11
 dtrace_int11:
 	PUSH_REGS DEBUG_STACK
 
 	/***********************************************/
-	/*   If this is a userspace GPF, just give it  */
-	/*   to the kernel.			       */
+	/*   If  this  is a userspace trap, just give  */
+	/*   it to the kernel.			       */
 	/***********************************************/
 	cmp $__KERNEL_CS, CS(%rsp) // 0x88
 	jne user_int11
 
 	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
+	/*   dtrace_int11_handler(1, regs)	       */
 	/***********************************************/
 	mov %rsp,%rsi
 	mov $2,%rdi

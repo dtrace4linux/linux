@@ -1,3 +1,11 @@
+Wed Mar 30 20:59:41 2011  fox
+
+     473* intr_x86-32.S: Add missing dtrace_int11 code.
+
+     472* dtrace_linux.c: Remove temp debug code which broke i386 build.
+
+     471* Archive: 1.0118
+
 Tue Mar 29 23:00:47 2011  fox
 
      470* driver/dtrace_isa.c: Add some safety checks around the stack

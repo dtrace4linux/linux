@@ -106,6 +106,21 @@ sub main
 		spawn("tools/bug.sh") if !$ENV{MAKE_KERNELS};
 		exit(1);
 	}
+
+	if ( ! -f "build/ctfconvert" ) {
+		print <<EOF;
+NOTE: The build is complete, but build/ctfconvert is not available.
+      This means you will get run time errors from the io.d and sched.d files
+      due to undefined kernel structure definitions. Simply delete or rename
+      these files until a fix can be put in place to handle older
+      distros which do not have the required libdwarf dependencies.
+
+      (Typical error is references to undefined struct definitions such
+      as dtrace_cpu_t).
+
+EOF
+
+	}
 }
 sub find_binary
 {	my @bins = @_;

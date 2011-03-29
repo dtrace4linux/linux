@@ -150,6 +150,14 @@ sub main
 		my $s = (split(" ", $_))[2];
 		$syms{$s} = $_;
 	}
+
+	###############################################
+	#   We  need  to know if we are a 32-bit cpu  #
+	#   or not.				      #
+	###############################################
+	my $uname_m = `uname -m`;
+	chomp($uname_m);
+
 	###############################################
 	#   Just  in  case - read the system map. We  #
 	#   try System.map26 for 'arch' linux, since  #
@@ -193,7 +201,7 @@ sub main
 		kallsyms_op:optional
 		modules:print_modules
 		sys_call_table
-		ia32_sys_call_table
+		ia32_sys_call_table:amd64
 		syscall_call:optional
 		idt_table
 		idt_descr
@@ -202,8 +210,21 @@ sub main
 		__module_text_address
 		/) {
 		my $done = 0;
+		my $amd64 = 0;
 		my $real_name;
 		foreach my $rawsym (split(":", $s)) {
+			###############################################
+			#   Handle case of ia32_sys_call_table which  #
+			#   is only there on a 64-bit kernel.	      #
+			###############################################
+			if ($rawsym eq 'amd64') {
+				$amd64 = 1;
+				next;
+			}
+			###############################################
+			#   If  symbol  is optional, we dont care if  #
+			#   its not there.			      #
+			###############################################
 			if ($rawsym eq 'optional') {
 				$done = 1;
 				last;
@@ -226,10 +247,24 @@ sub main
 			$done = 1;
 			last;
 		}
-		if (! $done) {
-			print "ERROR: This kernel is missing: '$s'\n";
-			$err++;
+
+		###############################################
+		#   Handle  the  error  conditions.  We must  #
+		#   stop the driver from being usable due to  #
+		#   null-ptr derefs for symbols we must have  #
+		#   and expect to have.			      #
+		###############################################
+		next if $done;
+
+		###############################################
+		#   Some symbols are cpu specific.	      #
+		###############################################
+		if ($amd64 && $uname_m !~ /64/) {
+			next;
 		}
+		
+		print "ERROR: This kernel is missing: '$s'\n";
+		$err++;
 	}
 
 	if ( "$err" != 0 ) {

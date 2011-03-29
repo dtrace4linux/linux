@@ -2105,7 +2105,7 @@ dtrace_page_fault_handler(int type, struct pt_regs *regs)
 		/*   Skip the offending instruction, which is  */
 		/*   probably just a MOV instruction.	       */
 		/***********************************************/
-		regs->r_pc += dtrace_instr_size(regs->r_pc);
+		regs->r_pc += dtrace_instr_size((uchar_t *) regs->r_pc);
 
 		return NOTIFY_DONE;
 		}
@@ -2531,19 +2531,6 @@ static int
 dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
-{void *p = 0;
-__asm__ __volatile__("sidt %0" : "=m" (p) :);
-printk("p=%p\n", p);
-gate_t *idt_descr = get_proc_addr("idt_table");
-int i;
-for (i = 0; i < 18; i++) {
-printk("idt%d=t=%x dpl=%x ist=%x %04x %04x %04x %08lx %08lx\n",  i, 
-idt_descr[i].type, idt_descr[i].dpl, idt_descr[i].ist,
-idt_descr[i].offset_high, idt_descr[i].offset_middle, 
-idt_descr[i].offset_low, ((int *) &idt_descr[i])[0], 
-((int *) &idt_descr[i])[1]);
-}
-}
 //HERE();
 	ret = dtrace_open(file, 0, 0, CRED());
 HERE();

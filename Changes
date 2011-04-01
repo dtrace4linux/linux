@@ -1,3 +1,12 @@
+Sat Apr  2 18:09:03 2011  fox
+
+     475* makefile, tools/tests.pl: Add actual testing for specific 
+          probe scenarios and interrupt handlers.
+
+     474* intr_x86-64.S, dtrace_linux.c: Fixes for page fault issues
+          (cpu_table wasnt set up properly). Rewrote interrupt routines
+	  to use a common macro.
+
 Wed Mar 30 20:59:41 2011  fox
 
      473* intr_x86-32.S: Add missing dtrace_int11 code.

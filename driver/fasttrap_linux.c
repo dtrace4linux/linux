@@ -90,7 +90,7 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "fasttrap loaded: /dev/fasttrap now available\n");
+//	printk(KERN_WARNING "fasttrap loaded: /dev/fasttrap now available\n");
 
 	fasttrap_attach();
 
@@ -104,6 +104,6 @@ void fasttrap_exit(void)
 		fasttrap_detach();
 		misc_deregister(&fasttrap_dev);
 	}
-	printk(KERN_WARNING "fasttrap driver unloaded.\n");
+//	printk(KERN_WARNING "fasttrap driver unloaded.\n");
 }
 

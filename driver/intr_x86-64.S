@@ -66,21 +66,71 @@
 .endm
 
 /**********************************************************************/
+/*   Wrap all the interrupts into a single macro.		      */
+/**********************************************************************/
+.macro INTERRUPT nr, fault, func, handler, kernel_handler
+	FUNCTION \func
+\func:
+	/***********************************************/
+	/*   Ensure  consistent  stack  frame setup -  */
+	/*   some   interrupts  have  an  error  code  */
+	/*   pushed, others do not. Short circuit the  */
+	/*   common  case  where  its a user trap and  */
+	/*   not    a    kernel    one,   and   avoid  */
+	/*   pushing/popping all the regs.	       */
+	/***********************************************/
+	.if \fault == 1
+	cmp $__KERNEL_CS,16(%rsp)
+	.else
+	cmp $__KERNEL_CS,8(%rsp)
+	.endif
+
+	je 1f
+	jmp *\kernel_handler
+1:
+
+	/***********************************************/
+	/*   Now  save  all  the registers in pt_regs  */
+	/*   order.				       */
+	/***********************************************/
+	PUSH_REGS \fault
+	
+	/***********************************************/
+	/*   dtrace_XXX_handler(nr, regs)	       */
+	/***********************************************/
+	mov %rsp,%rsi
+	mov $\nr,%rdi
+	call \handler
+
+	cmp $NOTIFY_DONE,%rax
+	je 2f // exit_intr
+
+	/***********************************************/
+	/*   Not handled - so let kernel have it.      */
+	/***********************************************/
+	POP_REGS \fault
+	jmp *\kernel_handler
+
+	/***********************************************/
+	/*   We  processed  the  interrupt, so we can  */
+	/*   exit back to the caller.		       */
+	/***********************************************/
+2:
+	POP_REGS \fault
+	iretq
+.endm
+
+/**********************************************************************/
 /*   Macros to pop the registers after taking a fault. Two scenarios  */
 /*   to  handle  those  interrupts  which do/dont push an error code  */
 /*   onto the stack.						      */
 /**********************************************************************/
-.macro POP_REGS
-	POP_REGS_NO_FAULT_CODE
-	pop %rax
-.endm
-
-.macro POP_REGS_NO_FAULT_CODE
+.macro POP_REGS fault
 	testl %ebx, %ebx
-	jnz 2f
+	jz 3f
 	swapgs
 
-2:
+3:
 	pop %r15
 	pop %r14
 	pop %r13
@@ -96,18 +146,19 @@
 	pop %rdx
 	pop %rsi
 	pop %rdi
+	.if \fault == 0
+	pop %rax
+	.endif
 .endm
 /**********************************************************************/
 /*   Push  the  registers  on  the  kernel stack, as we just took an  */
 /*   exception. Need to do this in struct pt_regs order.	      */
 /**********************************************************************/
-.macro PUSH_REGS ist
-	push %rax // orig_eax
+.macro PUSH_REGS fault
+	.if \fault == 0
+	push %rax // orig_eax - any value will do
+	.endif
 
-	PUSH_REGS_NO_FAULT_CODE
-.endm
-
-.macro PUSH_REGS_NO_FAULT_CODE ist
 	cld
 	push %rdi
 	push %rsi
@@ -132,208 +183,52 @@
 	/*   us,  after  the handler, that we need to  */
 	/*   restore GS or not. 		       */
 	/***********************************************/
-	mov $1,%ebx
-	movl $MSR_GS_BASE,%ecx
+	xorl %ebx,%ebx
+	mov    $MSR_GS_BASE,%ecx
 	rdmsr
-	testl %edx,%edx
-	js 1f
+	test %edx,%edx
+	js 4f
+//	testl $3,CS(%rsp)
+//	je 4f
 
 	swapgs
-	xorl %ebx,%ebx
-1:
+	incl %ebx
+4:
 # if defined(pda_data_offset)
 	movq %gs:pda_data_offset,%rbp
 # endif
 
 .endm
 
-// Common exit point for a handler trap.
-exit_intr:
-	POP_REGS
-	iretq
-
-
-	FUNCTION dtrace_double_fault
-dtrace_double_fault:
-	PUSH_REGS DEBUG_STACK
-	/***********************************************/
-	/*   If this is a exception, just give it to   */
-	/*   the kernel.	                       */
-	/***********************************************/
-	cmp $__KERNEL_CS, CS(%rsp) // 0x88
-	jne user_double_fault
-
-	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
-	/***********************************************/
-	mov %rsp,%rsi
-	mov $2,%rdi
-	call dtrace_double_fault_handler
-	cmp $NOTIFY_DONE,%rax
-	je exit_intr
-
-	// Not handled - so let kernel have it.
-user_double_fault:
-	POP_REGS
-	jmp *kernel_double_fault_handler
+/**********************************************************************/
+/*   Single step trap.						      */
+/**********************************************************************/
+INTERRUPT  1, 0, dtrace_int1, dtrace_int1_handler, kernel_int1_handler
 
 /**********************************************************************/
-/*   Function wired into the IDT for INT3 interrupts.		      */
+/*   Breakpoint instruction.					      */
 /**********************************************************************/
-	FUNCTION dtrace_int1
-dtrace_int1:
-	PUSH_REGS DEBUG_STACK
-	/***********************************************/
-	/*   If this is a userspace INT1 instruction,  */
-	/*   just  give  it  to  the  kernel. Dont do  */
-	/*   this, else we cannot single step past an  */
-	/*   IRET  where  we  took  an interrupt from  */
-	/*   user  space.  We  can  handle non-dtrace  */
-	/*   step   traps   via   the   return   from  */
-	/*   dtrace_int1_handler, below.	       */
-	/***********************************************/
-	cmp $__KERNEL_CS, CS(%rsp) // 0x88
-	jne user_int1
-
-	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
-	/***********************************************/
-	mov %rsp,%rsi
-	mov $2,%rdi
-	call dtrace_int1_handler
-
-	cmp $NOTIFY_DONE,%rax
-	je exit_intr
-
-	// Not handled - so let kernel have it.
-user_int1:
-	POP_REGS
-	jmp *kernel_int1_handler
+INTERRUPT  3, 0, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
 
 /**********************************************************************/
-/*   Function wired into the IDT for INT3 interrupts.		      */
+/*   Double fault.						      */
 /**********************************************************************/
-	FUNCTION dtrace_int3
-dtrace_int3:
-	PUSH_REGS DEBUG_STACK
-
-	/***********************************************/
-	/*   If this is a userspace INT3 instruction,  */
-	/*   just give it to the kernel.	       */
-	/***********************************************/
-	cmp $__KERNEL_CS, CS(%rsp) // 0x88
-	jne user_int3
-
-	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
-	/***********************************************/
-	mov %rsp,%rsi
-	mov $1,%rdi
-	call dtrace_int3_handler
-	cmp $NOTIFY_DONE,%rax
-	je exit_intr
-
-	// Not handled - so let kernel have it.
-user_int3:
-	POP_REGS
-	jmp *kernel_int3_handler
+INTERRUPT  8, 1, dtrace_double_fault, dtrace_double_fault_handler, kernel_double_fault_handler
 
 /**********************************************************************/
 /*   Segment not present.					      */
 /**********************************************************************/
-	FUNCTION dtrace_int11
-dtrace_int11:
-	PUSH_REGS DEBUG_STACK
-
-	/***********************************************/
-	/*   If  this  is a userspace trap, just give  */
-	/*   it to the kernel.			       */
-	/***********************************************/
-	cmp $__KERNEL_CS, CS(%rsp) // 0x88
-	jne user_int11
-
-	/***********************************************/
-	/*   dtrace_int11_handler(1, regs)	       */
-	/***********************************************/
-	mov %rsp,%rsi
-	mov $2,%rdi
-	call dtrace_int11_handler
-
-	cmp $NOTIFY_DONE,%rax
-	je exit_intr
-
-	// Not handled - so let kernel have it.
-user_int11:
-	POP_REGS
-	jmp *kernel_int13_handler
-/**********************************************************************/
-/*   Interrupt  handler  for  GPF - used to detect us being naughty,  */
-/*   else pass on to kernel.					      */
-/**********************************************************************/
-	FUNCTION dtrace_int13
-dtrace_int13:
-	PUSH_REGS DEBUG_STACK
-
-	/***********************************************/
-	/*   If this is a userspace GPF, just give it  */
-	/*   to the kernel.			       */
-	/***********************************************/
-	cmp $__KERNEL_CS, CS(%rsp) // 0x88
-	jne user_int13
-
-	/***********************************************/
-	/*   dtrace_int3_handler(1, regs)	       */
-	/***********************************************/
-	mov %rsp,%rsi
-	mov $2,%rdi
-	call dtrace_int13_handler
-
-	cmp $NOTIFY_DONE,%rax
-	je exit_intr
-
-	// Not handled - so let kernel have it.
-user_int13:
-	POP_REGS
-	jmp *kernel_int13_handler
+INTERRUPT  11, 1, dtrace_int11, dtrace_int11_handler, kernel_int11_handler
 
 /**********************************************************************/
-/*   Function wired into the IDT for page fault handling.	      */
+/*   General protection fault.					      */
 /**********************************************************************/
-	FUNCTION dtrace_page_fault
-dtrace_page_fault:
-	PUSH_REGS_NO_FAULT_CODE DEBUG_STACK
+INTERRUPT  13, 1, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
 
-	/***********************************************/
-	/*   If this is a userspace INT1 instruction,  */
-	/*   just  give  it  to  the  kernel. Dont do  */
-	/*   this, else we cannot single step past an  */
-	/*   IRET  where  we  took  an interrupt from  */
-	/*   user  space.  We  can  handle non-dtrace  */
-	/*   step   traps   via   the   return   from  */
-	/*   dtrace_page_fault_handler, below.	       */
-	/***********************************************/
-	cmp $__KERNEL_CS, CS(%rsp) // 0x88
-	jne user_page_fault
-
-	/***********************************************/
-	/*   dtrace_page_fault_handler(2, regs)	       */
-	/***********************************************/
-	mov %rsp,%rsi
-	mov $2,%rdi
-	call dtrace_page_fault_handler
-
-	cmp $NOTIFY_DONE,%rax
-	je exit_intr
-
-	// Not handled - so let kernel have it.
-user_page_fault:
-	POP_REGS_NO_FAULT_CODE
-	jmp *kernel_page_fault_handler
-
-exit_intr2:
-	POP_REGS_NO_FAULT_CODE
-	add $8, %sp
-	iret
+/**********************************************************************/
+/*   Page fault.						      */
+/**********************************************************************/
+INTERRUPT  14, 1, dtrace_page_fault, dtrace_page_fault_handler, kernel_page_fault_handler
 
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */

@@ -1733,7 +1733,7 @@ int systrace_init(void)
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "systrace loaded: /dev/systrace now available\n");
+//	printk(KERN_WARNING "systrace loaded: /dev/systrace now available\n");
 
 	return 0;
 }

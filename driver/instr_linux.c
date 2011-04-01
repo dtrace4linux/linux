@@ -1039,7 +1039,7 @@ int instr_init(void)
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "instr loaded: /dev/instr now available\n");
+//	printk(KERN_WARNING "instr loaded: /dev/instr now available\n");
 
 	if (instr_probetab_size == 0)
 		instr_probetab_size = INSTR_PROBETAB_SIZE;
@@ -1071,5 +1071,5 @@ void instr_exit(void)
 		misc_deregister(&instr_dev);
 	}
 
-	printk(KERN_WARNING "instr driver unloaded.\n");
+//	printk(KERN_WARNING "instr driver unloaded.\n");
 }

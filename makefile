@@ -113,6 +113,7 @@ newf:
 		grep -v '\.o$$'`
 
 test:
+	tools/tests.pl run
 	tools/runtests.pl
 
 ######################################################################

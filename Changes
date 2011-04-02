@@ -1,4 +1,17 @@
+Sun Apr  3 13:36:39 2011  fox
+
+     479* Archive: 1.0119
+
+     478* sdt_linux.c: Avoid 'dtrace -n io:::' panicing kernel on the
+          io:::return probes.
+
+     477* etc/io.d, etc/sched.d: Avoid need to delete the files - we rely
+          on pragma depends_on module linux to handle a missing linux.ctf
+	  file.
+
 Sat Apr  2 18:09:03 2011  fox
+
+     476* intr_x86-32.S: Refactor to use same macro as intr_x86-64.S
 
      475* makefile, tools/tests.pl: Add actual testing for specific 
           probe scenarios and interrupt handlers.

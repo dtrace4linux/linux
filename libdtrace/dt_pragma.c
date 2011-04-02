@@ -228,7 +228,6 @@ dt_pragma_depends(const char *prname, dt_node_t *cnp)
 		 * We have the file we are working on in dtp->dt_filetag
 		 * so find that node and add the dependency in.
 		 */
-printf("kkk ok\n");
 		if (yypcb->pcb_cflags & DTRACE_C_CTL) {
 			char lib[MAXPATHLEN];
 
@@ -238,7 +237,6 @@ printf("kkk ok\n");
 
 			(void) snprintf(lib, MAXPATHLEN, "%s%s",
 			    dld->dtld_libpath, nnp->dn_string);
-printf("jjjj %s\n", lib);
 			if ((dt_lib_depend_add(dtp, &dld->dtld_dependencies,
 			    lib)) != 0) {
 				xyerror(D_PRAGMA_DEPEND,

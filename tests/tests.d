@@ -31,3 +31,11 @@ d:
 	exit(0);
 	}
 
+name: io-1
+note: check io provider isnt causing page faults.
+d:
+	io::: { cnt++;}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-5s {
+		exit(0);
+	}

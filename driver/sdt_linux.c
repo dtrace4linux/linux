@@ -108,6 +108,7 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	sdp->sdp_modrm = modrm;
 	sdp->sdp_provider = prov;
 	sdp->sdp_flags = infp->flags;
+	sdp->sdp_entry = TRUE;
 
 	/***********************************************/
 	/*   Add the entry to the hash table.	       */
@@ -159,6 +160,7 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	sdp->sdp_inslen = size;
 	sdp->sdp_provider = prov;
 	sdp->sdp_flags = infp->flags;
+	sdp->sdp_entry = FALSE;
 
 	/***********************************************/
 	/*   Add the entry to the hash table.	       */
@@ -239,6 +241,7 @@ static char buf3[1024];
 	finfo.f.fi_offset = offset;
 	finfo.b.b_addr = uaddr;
 	finfo.b.b_bcount = len;
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
 	fname = d_path(&file->f_path, buf, sizeof buf);
 #else
@@ -273,6 +276,7 @@ static char buf3[1024];
 
 	finfo.d.dev_pathname = file->f_vfsmnt->mnt_devname;
 	finfo.d.dev_statname = mntname;
+
 	return &finfo;
 }
 /*ARGSUSED*/
@@ -313,10 +317,21 @@ sdt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 			/*   Might   need   a   per-cpu   buffer   to  */
 			/*   write/read from.			       */
 			/***********************************************/
-			stack0 = (uintptr_t) create_buf_t((struct file *) stack0, 
-				(void *) stack1,  /* uaddr */
-				(size_t) stack2,  /* size */
-				(long long) stack3 /* offset */);
+
+			/***********************************************/
+			/*   Dont  do this for the return probe - the  */
+			/*   arguments  are  going  to be junk and we  */
+			/*   will  hang/panic  the  kernel.  At  some  */
+			/*   point  we  need  something better than a  */
+			/*   entry/return  indicator -- maybe an enum  */
+			/*   type.				       */
+			/***********************************************/
+			if (sdt->sdp_entry) {
+				stack0 = (uintptr_t) create_buf_t((struct file *) stack0, 
+					(void *) stack1,  /* uaddr */
+					(size_t) stack2,  /* size */
+					(long long) stack3 /* offset */);
+			}
 
 			DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 			    CPU_DTRACE_BADADDR);

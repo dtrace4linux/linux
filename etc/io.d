@@ -4,7 +4,7 @@
 /*   $Header: Last edited: 30-Aug-2010 1.1 $ 			      */
 /**********************************************************************/
 
-/*#pragma D depends_on module unix*/
+#pragma D depends_on module linux
 /*#pragma D depends_on provider io*/
 
 inline int B_BUSY = 0x0000;

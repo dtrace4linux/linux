@@ -21,6 +21,7 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
+#pragma D depends_on module linux
 /*#pragma D depends_on module linux
 #pragma D depends_on type dtrace_cpu_t
 #pragma D depends_on type dtrace_cpu_t

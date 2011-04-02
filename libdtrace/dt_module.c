@@ -1077,6 +1077,9 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 				if (cp)
 					*cp = '\0';
 				(void) snprintf(fname, sizeof fname, "%s/linux-%s.ctf", buf, u.release);
+				/*if (stat(fname, &sbuf) < 0) {
+					printf("no such linux.ctf\n");
+				}*/
 			}
 		}
 		dt_dprintf("reading kernel .ctf: %s\n", fname);

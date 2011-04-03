@@ -6,7 +6,7 @@
 /*   								      */
 /*   License: GPL3						      */
 /*   								      */
-/*   $Header: Last edited: 25-Jul-2010 1.10 $ 			      */
+/*   $Header: Last edited: 04-Apr-2011 1.11 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -259,6 +259,23 @@ if (*instr == 0xe8) return;
 		if (size <= 0)
 			return;
 
+
+		/***********************************************/
+		/*   Handle  the BUG_ON macro which generates  */
+		/*   a  ud2a  instruction  followed by a long  */
+		/*   and a short to indicate the filename and  */
+		/*   line  number  of  where  we  bugged. The  */
+		/*   kernel  handles  the illegal instruction  */
+		/*   and  does  the appropriate lookup and we  */
+		/*   need   to   skip   over   these   pseudo  */
+		/*   instructions.			       */
+		/***********************************************/
+		if (*instr == 0x0f && instr[1] == 0x0b) {
+	                size = 2 + 8 + 2;
+	                /*printk("got a bugon: %p\n", instr);*/
+	                continue;
+	        }
+		
 #define	FBT_RET			0xc3
 #define	FBT_RET_IMM16		0xc2
 #ifdef __amd64

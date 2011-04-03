@@ -732,6 +732,7 @@ preempt_disable();
 		ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
 			regs->r_rax, &tp->ct_tinfo);
 		if (ret) {
+			cnt_int3_2++;
 			/***********************************************/
 			/*   Let  us  know  on  return  we are single  */
 			/*   stepping.				       */

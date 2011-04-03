@@ -1,3 +1,4 @@
+##################################################################
 name: systrace-stringof-bad
 note:
 	20110329 Validate pgfault handler intercepts bad addresses on
@@ -13,11 +14,51 @@ d:
 	}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s
-	/cnt > 1000 /
+	/cnt > ${loop} /
 	{
 	exit(0);
 	}
 
+##################################################################
+name: systrace-stringof-bad2
+note:
+	Use some arg to generate a page fault - systrace-stringof-bad
+	may not generate a page fault depending on the value of arg0
+	when returning from the function.
+d:
+	BEGIN {
+		cnt = 0;
+	}
+	syscall::open*: {
+		printf("bad2 %d %d %s %s %s %s", pid, ppid, execname, 
+			stringof(arg0), stringof(arg1), stringof(arg2));
+		cnt++;
+	}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-5s /cnt > ${loop} /
+	{
+		exit(0);
+	}
+##################################################################
+name: systrace-stringof-bad3
+note:
+	Be more dastardly trying to trigger a fault in dtrace_getarg -
+	just do stringof any of the args of any syscalls.
+d:
+	BEGIN {
+		cnt = 0;
+	}
+	syscall::: {
+		printf("bad2 %d %d %s %s %s %s", pid, ppid, execname, 
+			stringof(arg0), stringof(arg1), stringof(arg2));
+		cnt++;
+	}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-5s /cnt > ${loop} /
+	{
+		exit(0);
+	}
+##################################################################
 name: fbt-a
 note: Do stuff to measure fbt heavy duty access.
 d:

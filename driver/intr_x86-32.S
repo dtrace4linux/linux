@@ -19,6 +19,7 @@
 /*   Author: Paul Fox						      */
 /*   								      */
 /*   Date: May 2009						      */
+/*   $Header: Last edited: 06-Apr-2011 1.1 $ 			      */
 /**********************************************************************/
 
 /*
@@ -108,6 +109,17 @@
 	/***********************************************/
 2:
 	POP_REGS \fault
+	/***********************************************/
+	/*   If  we  are  going home, then we need to  */
+	/*   remove   the   error   code.  Note  that  */
+	/*   POP_REGS  is  using  negative  logic, to  */
+	/*   remove  the  redundant  orig_eax  on the  */
+	/*   stack,  but  *here*, we must not do that  */
+	/*   as we return after handling the fault.    */
+	/***********************************************/
+	.if \fault
+	add $4,%esp
+	.endif
 	iret
 .endm
 

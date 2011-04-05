@@ -80,3 +80,29 @@ d:
 	tick-5s {
 		exit(0);
 	}
+
+##################################################################
+name: copyinstr-1
+note: Simple version of copyinstr-1
+d:
+	syscall::open*:entry { 
+		cnt++;
+		printf("%s",execname);
+	}
+	tick-5s
+	{
+	exit(0);
+	}
+##################################################################
+name: copyinstr-2
+note: Validate copyinstr isnt generate badaddr messages
+d:
+	syscall::open*:entry { 
+		cnt++;
+		printf("%s %s",execname,copyinstr(arg0)); 
+	}
+	tick-5s
+	{
+	exit(0);
+	}
+

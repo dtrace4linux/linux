@@ -222,6 +222,7 @@ static struct notifier_block n_exit = {
 /**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
+void set_console_on(int flag);
 void ctf_setup(void);
 int dtrace_double_fault(void);
 int dtrace_int1(void);
@@ -896,12 +897,21 @@ int
 dtrace_page_fault_handler(int type, struct pt_regs *regs)
 {
 
-//dtrace_printf("PGF %p called\n", regs->r_pc-1);
-//printk("pf%d,", cc++);
+//dtrace_printf("PGF %p called pf%d\n", regs->r_pc-1, cnt_pf1);
 	cnt_pf1++;
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
 		cnt_pf2++;
-//printk("dtrace PGF %p called addr:%p\n", regs->r_pc, read_cr2_register());
+if (0) {
+set_console_on(1);
+//dump_stack();
+printk("dtrace PGF %p err=%p cr2:%p %02x %02x %02x %02x\n", 
+regs->r_pc, regs->r_trapno, read_cr2_register(), 
+((unsigned char *) regs->r_pc)[0],
+((unsigned char *) regs->r_pc)[1],
+((unsigned char *) regs->r_pc)[2],
+((unsigned char *) regs->r_pc)[3]
+);
+}
 		/***********************************************/
 		/*   Bad user/D script - set the flag so that  */
 		/*   the   invoking   code   can   know  what  */
@@ -916,7 +926,6 @@ dtrace_page_fault_handler(int type, struct pt_regs *regs)
 		/*   probably just a MOV instruction.	       */
 		/***********************************************/
 		regs->r_pc += dtrace_instr_size((uchar_t *) regs->r_pc);
-
 		return NOTIFY_DONE;
 		}
 

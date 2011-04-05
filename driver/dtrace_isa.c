@@ -491,6 +491,7 @@ dtrace_getarg(int arg, int aframes)
 	struct frame *fp;
 	uintptr_t *stack;
 	int i;
+
 #if defined(__amd64)
 	/***********************************************/
 	/*   First 6 args in a register.	       */

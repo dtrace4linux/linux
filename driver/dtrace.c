@@ -3363,6 +3363,10 @@ PRINT_CASE(DIF_SUBR_COPYINSTR);
 			break;
 		}
 
+		/***********************************************/
+		/*   Dont set the nofault flag as we conflict  */
+		/*   with Linux's safe memcpy/ex_table code.   */
+		/***********************************************/
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 		dtrace_copyinstr(tupregs[0].dttk_value, dest, size, flags);
 		DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);

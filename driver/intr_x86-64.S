@@ -19,6 +19,7 @@
 /*   Author: Paul Fox						      */
 /*   								      */
 /*   Date: May 2009						      */
+/*   $Header: Last edited: 06-Apr-2011 1.1 $ 			      */
 /**********************************************************************/
 
 /*
@@ -117,6 +118,17 @@
 	/***********************************************/
 2:
 	POP_REGS \fault
+	/***********************************************/
+	/*   If  we  are  going home, then we need to  */
+	/*   remove   the   error   code.  Note  that  */
+	/*   POP_REGS  is  using  negative  logic, to  */
+	/*   remove  the  redundant  orig_eax  on the  */
+	/*   stack,  but  *here*, we must not do that  */
+	/*   as we return after handling the fault.    */
+	/***********************************************/
+	.if \fault
+	add $8,%rsp
+	.endif
 	iretq
 .endm
 
@@ -256,15 +268,17 @@ mcount:
 
 dtrace_memcpy_with_error:
 	movq %rdx,%rcx
-0:	rep; movsb
+dt_try:	rep
+	movsb
 	movq $1, %rax
 	retq
 
-1:	mov $0, %rax
-2: 	retq
+dt_catch:	
+	mov $0, %rax
+ 	retq
 .section __ex_table,"a"
 	.align 8
-	.quad 0b,1b
+	.quad dt_try,dt_catch
 	.previous
 
 # endif

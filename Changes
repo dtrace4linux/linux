@@ -1,3 +1,8 @@
+Wed Apr  6 22:22:26 2011  fox
+
+     481* intr_x86-32.S, intr_x86-64.S: Fix sillyness when taking a handled
+          page fault where we forgot to remove the error code.
+
 Mon Apr  4 20:48:25 2011  fox
 
      480* prov_common.c: Handle the BUG_ON instruction.

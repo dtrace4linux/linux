@@ -1255,7 +1255,7 @@ int fbt_init(void)
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
-	printk(KERN_WARNING "fbt loaded: /dev/fbt now available\n");
+//	printk(KERN_WARNING "fbt loaded: /dev/fbt now available\n");
 
 	if (fbt_probetab_size == 0)
 		fbt_probetab_size = FBT_PROBETAB_SIZE;
@@ -1287,5 +1287,5 @@ void fbt_exit(void)
 		misc_deregister(&fbt_dev);
 	}
 
-	printk(KERN_WARNING "fbt driver unloaded.\n");
+//	printk(KERN_WARNING "fbt driver unloaded.\n");
 }

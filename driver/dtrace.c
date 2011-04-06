@@ -445,7 +445,9 @@ dtrace_load##bits(uintptr_t addr)					\
 	volatile uint16_t *flags = (volatile uint16_t *)		\
 	    &cpu_core[cpu_get_id()].cpuc_dtrace_flags;			\
 	                                                                \
+        *flags |= CPU_DTRACE_NOFAULT;                                   \
 	if (dtrace_memcpy_with_error(&rval, (void *) addr, sizeof(rval)) == 0) { \
+        	*flags &= ~CPU_DTRACE_NOFAULT;                          \
 		*flags |= CPU_DTRACE_BADADDR;				\
 		TRACE_BADADDR(addr);                                    \
 		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\

@@ -40,6 +40,25 @@ sub main
 
 	usage() if $opts{help};
 
+	print <<EOF;
+You are about to run a serious of tests which attempt to do reasonable
+coverage of dtrace in core areas. This deliberately involves forcing
+page faults and GPFs in the kernel, in a recoverable and safe way.
+
+These tests may crash your kernel - and better to know this up front before
+you assume dtrace/linux is production worthy.
+
+These tests will become less "noisy" and will be extended with additional
+use cases. Dont worry about errors like:
+
+dtrace: error on enabled probe ID 2 (ID 274009: syscall:x64:open:entry): invalid address (0xffff880013769ed8) in action #7
+
+in the output for now. These will be tidied up.
+
+Press <Enter> if you understand the above and would like to continue:
+EOF
+	my $ans = <STDIN>;
+
 	if (! -f "/proc/dtrace/stats") {
 		print "dtrace driver does not appear to be loaded.\n";
 		exit(1);

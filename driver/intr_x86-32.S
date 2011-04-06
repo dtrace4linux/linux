@@ -240,14 +240,22 @@ dtrace_memcpy_with_error:
 	mov 8(%esp),%esi
 	mov 4(%esp),%edi
 	mov %edx,%ecx
-0:	rep; movsb
+dt_try:	rep; movsb
 	mov $1, %eax
+	/***********************************************/
+	/*   If  rcx  is  not zero, then we must have  */
+	/*   page  faulted and the movsb was abruptly  */
+	/*   terminated.			       */
+	/***********************************************/
+	cmp $0, %ecx
+	jne dt_catch
 	ret
 
-1:	mov $0, %eax
-2: 	ret
+dt_catch:
+	mov $0, %eax
+	ret
 .section __ex_table,"a"
 	.align 4
-	.long 0b,1b
+	.long dt_try,dt_catch
 	.previous
 # endif

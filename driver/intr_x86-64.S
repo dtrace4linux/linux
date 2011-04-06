@@ -271,6 +271,13 @@ dtrace_memcpy_with_error:
 dt_try:	rep
 	movsb
 	movq $1, %rax
+	/***********************************************/
+	/*   If  rcx  is  not zero, then we must have  */
+	/*   page  faulted and the movsb was abruptly  */
+	/*   terminated.			       */
+	/***********************************************/
+	cmp $0, %rcx
+	jne dt_catch
 	retq
 
 dt_catch:	

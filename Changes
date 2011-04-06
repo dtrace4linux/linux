@@ -1,3 +1,15 @@
+Thu Apr  7 22:26:26 2011  fox
+
+     483* intr_x86-64.S: Better detection in dtrace_memcpy_with_error
+     	  that we had been aborted (%rcx != 0)
+
+     482* driver/dtrace.c: dtrace_load##bits: More accurate
+          transcription of fault handling when we have a bad address. Werent
+	  quite copying what on/usr/src/uts/i86pc/ml/locore.s does -
+	  we needed to set the CPU_DTRACE_NOFAULT flag because the
+	  dtrace_memcpy_with_error() wont be processed by the Linux
+	  exception table, so we need to avoid propagating the page faults.
+
 Wed Apr  6 22:22:26 2011  fox
 
      481* intr_x86-32.S, intr_x86-64.S: Fix sillyness when taking a handled

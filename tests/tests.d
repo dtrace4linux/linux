@@ -1,4 +1,9 @@
 ##################################################################
+# These tests are designed to validate core functionality in dtrace
+# on the installed operating system, such as bad address handling,
+# and various probe functions. We dont really care about the output -
+# other than some form of forward progress.
+##################################################################
 name: systrace-stringof-bad
 note:
 	20110329 Validate pgfault handler intercepts bad addresses on
@@ -9,8 +14,8 @@ d:
 	}
 	syscall::open*:
 	{
-	printf("%d %d %s %s", pid, ppid, execname, stringof(arg0));
-	cnt++;
+		@hash["%d %d %s %s", pid, ppid, execname, stringof(arg0)] = count();
+		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s
@@ -30,8 +35,8 @@ d:
 		cnt = 0;
 	}
 	syscall::open*: {
-		printf("bad2 %d %d %s %s %s %s", pid, ppid, execname, 
-			stringof(arg0), stringof(arg1), stringof(arg2));
+		@hash["bad2 %d %d %s %s %s %s", pid, ppid, execname, 
+			stringof(arg0), stringof(arg1), stringof(arg2)] = count();
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
@@ -49,8 +54,8 @@ d:
 		cnt = 0;
 	}
 	syscall::: {
-		printf("bad2 %d %d %s %s %s %s", pid, ppid, execname, 
-			stringof(arg0), stringof(arg1), stringof(arg2));
+		@hash["bad2 %d %d %s %s %s %s", pid, ppid, execname, 
+			stringof(arg0), stringof(arg1), stringof(arg2)] = count();
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
@@ -104,5 +109,20 @@ d:
 	tick-5s
 	{
 	exit(0);
+	}
+##################################################################
+name: badptr-1
+note: Simple badptr test (thanks Nigel Smith)
+d:
+	BEGIN
+	{
+	        x = (int *)NULL;
+	        y = *x;
+	        trace(y);
+		exit(0);
+	}
+	tick-1s
+	{
+		exit(0);
 	}
 

@@ -263,9 +263,13 @@ dtrace_probe_error(dtrace_state_t *state, dtrace_epid_t epid, int which,
     int fault, int fltoffs, uintptr_t illval)
 {
 	/***********************************************/
-	/*   Why is illval missing?		       */
+	/*   Store   away   the  faulting  address  -  */
+	/*   dtrace_probe()  doesnt  have enough argN  */
+	/*   to let us pass this in, so we keep it to  */
+	/*   one side.				       */
 	/***********************************************/
-	dtrace_probe(dtrace_probeid_error, 
+	state->dts_arg_error_illval = illval;
+    	dtrace_probe(dtrace_probeid_error, 
 		(uintptr_t) state, epid, which, fault, fltoffs);
 }
 

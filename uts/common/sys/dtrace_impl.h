@@ -1129,6 +1129,9 @@ struct dtrace_state {
 	dtrace_optval_t dts_options[DTRACEOPT_MAX]; /* options */
 	dtrace_cred_t dts_cred;			/* credentials */
         size_t dts_nretained;                   /* number of retained enabs */
+#if linux
+        uint64_t dts_arg_error_illval;
+#endif
 };
 
 struct dtrace_provider {

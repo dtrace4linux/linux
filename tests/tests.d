@@ -18,11 +18,7 @@ d:
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
-	tick-5s
-	/cnt > ${loop} /
-	{
-	exit(0);
-	}
+	tick-5s { exit(0); }
 
 ##################################################################
 name: systrace-stringof-bad2
@@ -40,7 +36,7 @@ d:
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
-	tick-5s /cnt > ${loop} /
+	tick-5s
 	{
 		exit(0);
 	}

@@ -1,3 +1,9 @@
+Sat Apr  9 08:32:59 2011  fox
+
+     484* dtrace.c, dtrace_asm.c, dtrace_impl.h: Add support for the
+          illval error/ptr for a faulted return, so that arg5 on an ERROR
+	  probe has access to it.
+
 Thu Apr  7 22:26:26 2011  fox
 
      483* intr_x86-64.S: Better detection in dtrace_memcpy_with_error

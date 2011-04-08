@@ -2733,6 +2733,12 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 				val = pv->dtpv_pops.dtps_getargval(pv->dtpv_arg,
 				    mstate->dtms_probe->dtpr_id,
 				    mstate->dtms_probe->dtpr_arg, ndx, aframes);
+#if linux
+			/* Special case access of arg5 as passed to dtrace_probe_error() (which see.) */
+			else if (mstate->dtms_probe->dtpr_id == dtrace_probeid_error && ndx == 5) {
+			        return ((dtrace_state_t *)(uintptr_t)(mstate->dtms_arg[0]))->dts_arg_error_illval;
+			}
+#endif
 			else
 				val = dtrace_getarg(ndx, aframes);
 

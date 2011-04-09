@@ -846,7 +846,7 @@ void
 dtrace_copyinstr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
     volatile uint16_t *flags)
 {
-	if (dtrace_memcpy_with_error((void *) uaddr, (void *) kaddr, size) == 0) {
+	if (dtrace_memcpy_with_error((void *) kaddr, (void *) uaddr, size) == 0) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 		return;
 		}

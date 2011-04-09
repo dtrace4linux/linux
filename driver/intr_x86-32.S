@@ -176,6 +176,7 @@
 	movl $__USER_DS, %edx
 	movl %edx,%ds
 	movl %edx,%es
+
 #if defined(__KERNEL_PERCPU)
 	movl $__KERNEL_PERCPU, %edx
 	movl %edx, %fs
@@ -239,7 +240,6 @@ dtrace_memcpy_with_error:
 	mov 12(%esp),%ecx
 	mov 8(%esp),%esi
 	mov 4(%esp),%edi
-	mov %edx,%ecx
 dt_try:	rep; movsb
 	mov $1, %eax
 	/***********************************************/

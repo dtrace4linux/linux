@@ -1,4 +1,14 @@
+Sun Apr 10 10:11:43 2011  fox
+
+     488* Archive: 1.0120
+
+     487* driver/dtrace.c: Fix gcc 4.2.4 compiler bug in dtrace_probe().
+
+     486* dtrace_isa.c: dtrace_copyinstr: Fix the direction of copying.
+
 Sat Apr  9 08:32:59 2011  fox
+
+     485* dtrace.c: dtrace_probe(): Implement reentrancy avoidance mechanism.
 
      484* dtrace.c, dtrace_asm.c, dtrace_impl.h: Add support for the
           illval error/ptr for a faulted return, so that arg5 on an ERROR

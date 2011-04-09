@@ -231,6 +231,15 @@ static dtrace_enabling_t *dtrace_retained;      /* list of retained enablings */
 static dtrace_genid_t	dtrace_retained_gen;	/* current retained enab gen */
 static dtrace_dynvar_t  dtrace_dynhash_sink;    /* end of dynamic hash chains */
 
+/**********************************************************************/
+/*   We wrap dtrace_probe(), so we have an extra frame to discount.   */
+/**********************************************************************/
+#if linux
+#define	PROBE_FRAMES 3
+#else
+#define	PROBE_FRAMES 2
+#endif
+
 /*
  * DTrace Locking
  * DTrace is protected by three (relatively coarse-grained) locks:
@@ -2725,7 +2734,7 @@ dtrace_dif_variable(dtrace_mstate_t *mstate, dtrace_state_t *state, uint64_t v,
 //printk("DIF_VAR_ARGS: ndx=%d %d %d\n", ndx, sizeof(mstate->dtms_arg), sizeof(mstate->dtms_arg[0]));
 		if (ndx >= sizeof (mstate->dtms_arg) /
 		    sizeof (mstate->dtms_arg[0])) {
-			int aframes = mstate->dtms_probe->dtpr_aframes + 2;
+			int aframes = mstate->dtms_probe->dtpr_aframes + PROBE_FRAMES;
 			dtrace_provider_t *pv;
 			uint64_t val;
 			pv = mstate->dtms_probe->dtpr_provider;
@@ -2824,7 +2833,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		if (!dtrace_priv_kernel(state))
 			return (0);
 		if (!(mstate->dtms_present & DTRACE_MSTATE_STACKDEPTH)) {
-			int aframes = mstate->dtms_probe->dtpr_aframes + 2;
+			int aframes = mstate->dtms_probe->dtpr_aframes + PROBE_FRAMES;
 
 			mstate->dtms_stackdepth = dtrace_getstackdepth(aframes);
 			mstate->dtms_present |= DTRACE_MSTATE_STACKDEPTH;
@@ -2855,7 +2864,7 @@ printk("%s(%d): TODO!!\n", __func__, __LINE__);
 		if (!dtrace_priv_kernel(state))
 			return (0);
 		if (!(mstate->dtms_present & DTRACE_MSTATE_CALLER)) {
-			int aframes = mstate->dtms_probe->dtpr_aframes + 2;
+			int aframes = mstate->dtms_probe->dtpr_aframes + PROBE_FRAMES;
 
 			if (!DTRACE_ANCHORED(mstate->dtms_probe)) {
 				/*
@@ -5848,11 +5857,93 @@ out:
 	TODO_END();
 }
 
+#if linux
+/**********************************************************************/
+/*   The following is a locking wrapper around dtrace_probe. We need  */
+/*   to  be  careful  of  the  CPU  invoking  dtrace_probe() from an  */
+/*   interrupt  routine,  whilst  processing  a probe. It looks like  */
+/*   Apple  does the same trick, with a comment in the Darwin source  */
+/*   to the effect that Solaris can guarantee no reentrancy.	      */
+/*   								      */
+/*   We   allow   error  probes  through  since  this  is  naturally  */
+/*   recursive.  What we have detected is a timer interrupt invoking  */
+/*   dtrace,  so  this is definitely a no-no: we could deadlock on a  */
+/*   mutex and not recover.					      */
+/*   								      */
+/*   Looks  like  we  need  to disable interrupts when doing syscall  */
+/*   tracing. (FBT tracing should already have interrupts disabled).  */
+/*   								      */
+/*   In any case, FBT tracing could be reentrant if we are not clean  */
+/*   in   avoiding   external   kernel  dependency  in  any  of  the  */
+/*   subroutines called from here. The interrupt routines attempt to  */
+/*   detect  this,  but  obviously  this  isnt  strong  enough  (see  */
+/*   dtrace_linux.c),  since  we  can  crash the kernel without this  */
+/*   protective wrapper.					      */
+/*   								      */
+/*   Note that we do simple "locked" assignments, rather than atomic  */
+/*   inc/dec.  The probability of a clashing interrupt is very low -  */
+/*   we and we must do none-blocking checks.			      */
+/**********************************************************************/
+unsigned long cnt_probe_recursion;
+void
+dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
+    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
+{
+static struct {
+	dtrace_id_t	id;
+	int		locked;
+	} arr[NCPU];
+	void __dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
+		    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4);
+	int cpu;
+
+	if (id == dtrace_probeid_error) {
+		__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
+		return;
+		}
+
+	cpu = cpu_get_id();
+	/***********************************************/
+	/*   If  we ever get a reentrant lock, we are  */
+	/*   a  bit hosed - because this should never  */
+	/*   happen,  and  if  it did, it potentially  */
+	/*   means  dtrace_probe() never returned (eg  */
+	/*   a  page  fault  type  trap).  Given this  */
+	/*   scenario,  then  we  can  never  call it  */
+	/*   again.  Ideally we should reset the lock  */
+	/*   occasionally.  (Losing the lock means no  */
+	/*   more dtrace_probes will fire).	       */
+	/*   					       */
+	/*   Note   that  the  timer  interrupt  will  */
+	/*   occasionally  get a look in, but we dont  */
+	/*   mind dropping the odd timer tick.	       */
+	/***********************************************/
+	if (arr[cpu].locked) {
+		/***********************************************/
+		/*   Avoid flooding the console or syslogd.    */
+		/***********************************************/
+		if (cnt_probe_recursion < 500) {
+			printk("dtrace_probe: re-entrancy: old=%d this=%d [#%lu]\n", (int) arr[cpu].id, (int) id, cnt_probe_recursion);
+			dump_stack();
+		}
+		cnt_probe_recursion++;
+		return;
+		}
+	arr[cpu].locked = 1;
+	arr[cpu].id = id;
+//printk("dtrace_probe: enter: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
+	__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
+//printk("dtrace_probe: return: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
+	arr[cpu].locked = 0;
+}
+#define dtrace_probe __dtrace_probe
+#endif
 /*
  * If you're looking for the epicenter of DTrace, you just found it.  This
  * is the function called by the provider to fire a probe -- from which all
  * subsequent probe-context DTrace activity emanates.
  */
+unsigned long cnt_probes;
 void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
@@ -5870,7 +5961,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	hrtime_t now;
 
 //dtrace_printf("dtrace_probe(%d)\n", __LINE__);
-dcnt[0]++;
+	cnt_probes++;
 # if linux
 	/***********************************************/
 	/*   We  arent modifying the kernel but we do  */
@@ -5888,12 +5979,14 @@ dcnt[0]++;
 		return;
 # endif
 
+/*
+# define dtrace_interrupt_disable() 0
+# define dtrace_interrupt_enable(x) 0
+*/
 	cookie = dtrace_interrupt_disable();
 	probe = dtrace_probes[id - 1];
 	cpuid = cpu_get_id();
 	onintr = CPU_ON_INTR(CPU);
-
-//printk("dtrace_probe: cpuid=%d onintr=%d\n", cpuid, onintr);
 
 	if (!onintr && probe->dtpr_predcache != DTRACE_CACHEIDNONE &&
 	    probe->dtpr_predcache == curthread->t_predcache) {
@@ -6405,17 +6498,35 @@ HERE();
 					int intuple = act->dta_intuple;
 					size_t s;
 
+//printk("size=%d val=%p act=%p\n", size, val, act);
 					for (s = 0; s < size; s++) {
 						if (c != '\0')
 							c = dtrace_load8(val++);
 
+#if linux	
+						/***********************************************/
+						/*   This  pointless  code,  which will never  */
+						/*   fire,  is  to work around a gcc compiler  */
+						/*   bug  which  causes  a page fault because  */
+						/*   'act' gets overwritten. I havent exactly  */
+						/*   figured  out  whats  going  on here, but  */
+						/*   turning off optimisation (which is not a  */
+						/*   good  plan  for  __dtrace_probe())  isnt  */
+						/*   viable. I have seen this on Ubuntu 8.04,  */
+						/*   gcc 4.2.4, i386.			       */
+						/***********************************************/
+						if (act == valoffs) {
+							printk("defeat compiler bug! %p act=%p s=%x/%x %x %x\n", 
+								&act, valoffs, end, act, s, size);
+						}
+#endif
 						DTRACE_STORE(uint8_t, tomax,
 						    valoffs++, c);
-HERE();
 
 						if (c == '\0' && intuple)
 							break;
 					}
+HERE();
 
 					continue;
 				}

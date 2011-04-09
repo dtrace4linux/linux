@@ -25,7 +25,8 @@ sub do_child
 {	my $ppid = shift;
 
 	while (-d "/proc/$ppid") {
-		new FileHandle("/etc/hosts");
+		my $fh = new FileHandle("/etc/hosts");
+		my $str = <$fh>;
 		new FileHandle("/etc/hosts-nonexistant");
 	}
 }
@@ -44,6 +45,13 @@ sub main
 You are about to run a serious of tests which attempt to do reasonable
 coverage of dtrace in core areas. This deliberately involves forcing
 page faults and GPFs in the kernel, in a recoverable and safe way.
+
+Each test is logged to the build/ directory with a file with the same
+name as the test. You mostly dont need to worry about the output of a test,
+except if your kernel crashes.
+
+Progress messages and occasional output is presented, so that you can
+feel secure knowing your system is still running.
 
 These tests may crash your kernel - and better to know this up front before
 you assume dtrace/linux is production worthy.
@@ -128,14 +136,54 @@ EOF
 		my $loop = $opts{loop};
 		$d =~ s/\${loop}/$loop/g;
 		my $cmd = "build/dtrace -n '$d'";
-		print $cmd, "\n";
-		my $ret = system($cmd);
+		my $ret = spawn($cmd, $info->{name});
 		$exit_code ||= $ret;
+		system("cat /proc/dtrace/stats");
 	}
 	kill SIGKILL, $pid;
 
 	print time_string() . "All tests completed.\n";
+	print <<EOF;
+
+You can look at /proc/dtrace/stats to see the number of interrupts
+and probes executed. You really want "probe_recursion" to be a small
+or zero number. At present, it may be non-zero due to timer interrupts
+interrupting another probe in progress.
+
+For the 1/2 counters - "1" means we got the interrupt but it wasnt
+for us; the "2" counter means we took a dtrace handled interrupt.
+
+int3: breakpoint trap. (Used by fbt provider)
+gpf:  general protection fault. (Shouldnt see these normally).
+pf:   page faults. will see these for badaddr probes, e.g. copyinstr(arg)
+snp:  segment not present. (Shouldnt see these normally).
+
+EOF
+	system("cat /proc/dtrace/stats");
 	exit($exit_code);
+}
+######################################################################
+#   Execute command but try and avoid flooding terminal with output  #
+#   from dtrace tests.						     #
+######################################################################
+sub spawn
+{	my $cmd = shift;
+	my $name = shift;
+
+	$cmd .= " >build/test-$name.log 2>&1";
+	print $cmd, "\n";
+	if (fork() == 0) {
+		exec $cmd;
+	}
+	while (1) {
+		my $kid = waitpid(-1, WNOHANG);
+		if ($kid > 0) {
+			system("tail build/test-$name.log");
+			return $?;
+		}
+		sleep(1);
+		print time_string() . "Running...(cpu is still alive!)\n";
+	}
 }
 sub time_string
 {

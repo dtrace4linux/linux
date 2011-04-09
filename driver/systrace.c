@@ -1309,8 +1309,10 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
 	if (ptregscall_common_ptr == NULL)
 		ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
 	if (save_rest_ptr == NULL)
 		save_rest_ptr = (char *) get_proc_addr("save_rest");
+# endif
 	if (do_fork_ptr == NULL)
 		do_fork_ptr = (void *) get_proc_addr("do_fork");
 #endif

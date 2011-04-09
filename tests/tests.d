@@ -14,7 +14,7 @@ d:
 	}
 	syscall::open*:
 	{
-		@hash["%d %d %s %s", pid, ppid, execname, stringof(arg0)] = count();
+		@hash[pid, ppid, execname, stringof(arg0)] = count();
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
@@ -31,15 +31,12 @@ d:
 		cnt = 0;
 	}
 	syscall::open*: {
-		@hash["bad2 %d %d %s %s %s %s", pid, ppid, execname, 
+		@hash[pid, ppid, execname, 
 			stringof(arg0), stringof(arg1), stringof(arg2)] = count();
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
-	tick-5s
-	{
-		exit(0);
-	}
+	tick-5s { exit(0); }
 ##################################################################
 name: systrace-stringof-bad3
 note:
@@ -50,15 +47,12 @@ d:
 		cnt = 0;
 	}
 	syscall::: {
-		@hash["bad2 %d %d %s %s %s %s", pid, ppid, execname, 
+		@hash[pid, ppid, execname, 
 			stringof(arg0), stringof(arg1), stringof(arg2)] = count();
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
-	tick-5s /cnt > ${loop} /
-	{
-		exit(0);
-	}
+	tick-5s { exit(0); }
 ##################################################################
 name: fbt-a
 note: Do stuff to measure fbt heavy duty access.
@@ -68,44 +62,34 @@ d:
 	cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
-	tick-5s
-	{
-	exit(0);
-	}
+	tick-5s { exit(0); }
 
+##################################################################
 name: io-1
 note: check io provider isnt causing page faults.
 d:
 	io::: { cnt++;}
 	tick-1s { printf("count so far: %d", cnt); }
-	tick-5s {
-		exit(0);
-	}
+	tick-5s { exit(0); }
 
 ##################################################################
-name: copyinstr-1
-note: Simple version of copyinstr-1
+name: execname-1
+note: Simple use of execname
 d:
 	syscall::open*:entry { 
 		cnt++;
 		printf("%s",execname);
 	}
-	tick-5s
-	{
-	exit(0);
-	}
+	tick-5s { exit(0); }
 ##################################################################
-name: copyinstr-2
-note: Validate copyinstr isnt generate badaddr messages
+name: copyinstr-1
+note: Validate copyinstr isnt generating badaddr messages
 d:
 	syscall::open*:entry { 
 		cnt++;
 		printf("%s %s",execname,copyinstr(arg0)); 
 	}
-	tick-5s
-	{
-	exit(0);
-	}
+	tick-5s { exit(0); }
 ##################################################################
 name: badptr-1
 note: Simple badptr test (thanks Nigel Smith)
@@ -117,8 +101,5 @@ d:
 	        trace(y);
 		exit(0);
 	}
-	tick-1s
-	{
-		exit(0);
-	}
+	tick-1s { exit(0); }
 

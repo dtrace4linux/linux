@@ -114,7 +114,7 @@ newf:
 
 test:
 	tools/tests.pl run
-	tools/runtests.pl
+#	tools/runtests.pl
 
 ######################################################################
 #   Load  the driver -- we chmod 666 til i work out how to make the  #

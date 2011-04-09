@@ -896,7 +896,6 @@ unsigned long cnt_pf2;
 int 
 dtrace_page_fault_handler(int type, struct pt_regs *regs)
 {
-
 //dtrace_printf("PGF %p called pf%d\n", regs->r_pc-1, cnt_pf1);
 	cnt_pf1++;
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
@@ -904,8 +903,8 @@ dtrace_page_fault_handler(int type, struct pt_regs *regs)
 if (0) {
 set_console_on(1);
 //dump_stack();
-printk("dtrace PGF %p err=%p cr2:%p %02x %02x %02x %02x\n", 
-regs->r_pc, regs->r_trapno, read_cr2_register(), 
+printk("dtrace cpu#%d PGF %p err=%p cr2:%p %02x %02x %02x %02x\n", 
+cpu_get_id(), regs->r_pc, regs->r_trapno, read_cr2_register(), 
 ((unsigned char *) regs->r_pc)[0],
 ((unsigned char *) regs->r_pc)[1],
 ((unsigned char *) regs->r_pc)[2],
@@ -2771,10 +2770,14 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
+	extern unsigned long cnt_probe_recursion;
+	extern unsigned long cnt_probes;
 	static struct map {
 		unsigned long **ptr;
 		char	*name;
 		} stats[] = {
+		{&cnt_probes, "probes"},
+		{&cnt_probe_recursion, "probe_recursion"},
 		{&cnt_int3_1, "int3_1"},
 		{&cnt_int3_2, "int3_2"},
 		{&cnt_gpf1, "gpf1"},

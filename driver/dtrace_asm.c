@@ -209,15 +209,6 @@ dtrace_interrupt_disable(void)
 		:
 	);
 	return ret;
-
-//	/***********************************************/
-//	/*   We  get kernel warnings because we break  */
-//	/*   the  rules  if  we  do the equivalent to  */
-//	/*   x86-64. This seems to work.	       */
-//	/***********************************************/
-//	raw_local_irq_disable();
-////	native_irq_disable();
-//	return 0;
 # endif
 }
 /**********************************************************************/

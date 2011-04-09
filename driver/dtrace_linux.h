@@ -369,7 +369,7 @@ int instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym);
 cpu_core_t	*cpu_get_this(void);
 int	is_kernel_text(unsigned long);
 int	dtrace_mutex_is_locked(mutex_t *);
-int dtrace_memcpy_with_error(void *, void *, size_t);
+asmlinkage int dtrace_memcpy_with_error(void *, void *, size_t);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

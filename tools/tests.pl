@@ -28,6 +28,10 @@ sub do_child
 		my $fh = new FileHandle("/etc/hosts");
 		my $str = <$fh>;
 		new FileHandle("/etc/hosts-nonexistant");
+		system("du /proc >/dev/null 2>&1");
+		if (fork() == 0) {
+			exit(0);
+		}
 	}
 }
 sub main
@@ -46,7 +50,7 @@ You are about to run a serious of tests which attempt to do reasonable
 coverage of dtrace in core areas. This deliberately involves forcing
 page faults and GPFs in the kernel, in a recoverable and safe way.
 
-Each test is logged to the build/ directory with a file with the same
+Each test is logged to the /tmp/ directory with a file with the same
 name as the test. You mostly dont need to worry about the output of a test,
 except if your kernel crashes.
 
@@ -170,7 +174,7 @@ sub spawn
 {	my $cmd = shift;
 	my $name = shift;
 
-	$cmd .= " >build/test-$name.log 2>&1";
+	$cmd .= " >/tmp/test-$name.log 2>&1";
 	print $cmd, "\n";
 	if (fork() == 0) {
 		exec $cmd;
@@ -178,7 +182,7 @@ sub spawn
 	while (1) {
 		my $kid = waitpid(-1, WNOHANG);
 		if ($kid > 0) {
-			system("tail build/test-$name.log");
+			system("tail /tmp/test-$name.log");
 			return $?;
 		}
 		sleep(1);

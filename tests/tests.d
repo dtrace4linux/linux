@@ -14,7 +14,10 @@ d:
 	}
 	syscall::open*:
 	{
-		@hash[pid, ppid, execname, stringof(arg0)] = count();
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		this->arg0 = stringof(arg0);
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }
@@ -31,10 +34,15 @@ d:
 		cnt = 0;
 	}
 	syscall::open*: {
-		@hash[pid, ppid, execname, 
-			stringof(arg0), stringof(arg1), stringof(arg2)] = count();
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		this->arg0 = stringof(arg0);
+		this->arg1 = stringof(arg1);
+		this->arg2 = stringof(arg2);
 		cnt++;
 	}
+	tick-5ms { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
@@ -47,8 +55,12 @@ d:
 		cnt = 0;
 	}
 	syscall::: {
-		@hash[pid, ppid, execname, 
-			stringof(arg0), stringof(arg1), stringof(arg2)] = count();
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		this->arg0 = stringof(arg0);
+		this->arg1 = stringof(arg1);
+		this->arg2 = stringof(arg2);
 		cnt++;
 	}
 	tick-1s { printf("count so far: %d", cnt); }

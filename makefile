@@ -115,6 +115,8 @@ newf:
 test:
 	tools/tests.pl run
 #	tools/runtests.pl
+testloop:
+	while true ; do tools/tests.pl run </dev/null ; done
 
 ######################################################################
 #   Load  the driver -- we chmod 666 til i work out how to make the  #

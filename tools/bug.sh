@@ -28,7 +28,7 @@ cat <<EOF | tee $file
 ==
 == Latest downloads available from here:
 ==
-== ftp://crisp.dynalias.com/pub/release/website/dtrace
+== ftp://crisp.dyndns-server.com/pub/release/website/dtrace
 == ======================
 (generating a make run - this may take a few moments...)
 EOF

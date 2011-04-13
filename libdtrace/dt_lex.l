@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <port.h>
 #include <dt_impl.h>
 #include <dt_grammar.h>
 #include <dt_parser.h>

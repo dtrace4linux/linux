@@ -52,6 +52,11 @@ sub main
 #	        }
 
 		my %calls;
+		###############################################
+		#   OpenSuse bizarreness.		      #
+		###############################################
+		my $ver2 = $ver;
+		$ver2 =~ s/-desktop$//;
 	        my @unistd_h_candidates = (
 		     # 2.6.9-78.EL
 	             "/lib/modules/$ver/build/include/asm-x86_64/ia${bits}_unistd.h",
@@ -60,13 +65,18 @@ sub main
 	             # linux-2.6.26:
 	             "/lib/modules/$ver/build/include/asm-x86/unistd_$bits.h",
 	             # linux-2.6.28-rc7:
-	             "/lib/modules/$ver/build/arch/x86/include/asm/unistd_$bits.h"
+	             "/lib/modules/$ver/build/arch/x86/include/asm/unistd_$bits.h",
+		     # Opensuse 11.1 wants this
+		     "/usr/src/linux-$ver2/arch/x86/include/asm/unistd_$bits.h",
 	             );
 
 	        my $syscall_count = 0;
 		my $src_h = '';
 	        foreach my $f (@unistd_h_candidates) {
-			next if ! -e $f;
+			if (! -e $f) {
+#				print "(no file: $f)\n";
+				next;
+			}
 
 			print "Processing: $f\n";
 			my $fh = new FileHandle($f);

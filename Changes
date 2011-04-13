@@ -1,3 +1,10 @@
+Thu Apr 14 21:51:25 2011  fox
+
+     490* mksyscall.pl: Fix for opensuse syscall table finding.
+
+     489* tools/mkport.pl, dt_impl.h: Add support for yytext[] array which
+          some lex/flex's will generate for us.
+
 Sun Apr 10 10:11:43 2011  fox
 
      488* Archive: 1.0120

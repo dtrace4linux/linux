@@ -32,6 +32,7 @@ sub do_child
 		if (fork() == 0) {
 			exit(0);
 		}
+		wait;
 	}
 }
 sub main

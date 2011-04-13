@@ -27,6 +27,7 @@
 #pragma ident	"@(#)dt_grammar.y	1.9	06/01/07 SMI"
 
 #define YYERROR_VERBOSE
+#include <port.h>
 #include <dt_impl.h>
 
 #define	OP1(op, c)	dt_node_op1(op, c)

@@ -60,6 +60,14 @@ sub main
 	}
 
 	###############################################
+	#   Annoying lex differences.		      #
+	###############################################
+	my $lex = check_lex_yytext();
+	if ($lex) {
+		$inc .= "# define $lex 1\n";
+	}
+
+	###############################################
 	#   Old kernels have ioctl() only, but later  #
 	#   kernels    have   unlocked_ioctl()   and  #
 	#   compat_ioctl(). Detect this here.	      #
@@ -139,6 +147,38 @@ sub main
 	$fh = new FileHandle(">$ENV{BUILD_DIR}/port.h");
 	die "Cannot create $ENV{BUILD_DIR}/port.h" if !$fh;
 	print $fh $inc;
+}
+######################################################################
+#   Determine  the  type of yytext so that libdtrace/dt_lex.l works  #
+#   properly.							     #
+######################################################################
+sub check_lex_yytext
+{
+	my $fh = new FileHandle(">/tmp/$ENV{USER}-lex.l");
+	print $fh "%%\n";
+	print $fh "%%\n";
+	$fh->close();
+	system("cd /tmp ; lex /tmp/$ENV{USER}-lex.l");
+	
+	$fh = new FileHandle("/tmp/lex.yy.c");
+	if (!$fh) {
+		print "Warning: cannot determine style of lex/yytext.\n";
+		return;
+	}
+	my $ret = "";
+	while (<$fh>) {
+		if (/^extern char \*yytext;/) {
+			$ret = "HAVE_LEX_YYTEXT_PTR";
+			last;
+		}
+		if (/^extern char yytext\[\];/) {
+			$ret = "HAVE_LEX_YYTEXT_ARRAY";
+			last;
+		}
+	}
+	$fh->close();
+	remove("/tmp/lex.yy.c");
+	return $ret;
 }
 ######################################################################
 #   Grep a file to see if something is where we want it.	     #

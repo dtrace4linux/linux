@@ -20,6 +20,7 @@ d:
 		this->arg0 = stringof(arg0);
 		cnt++;
 	}
+	tick-1ms { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
@@ -42,7 +43,7 @@ d:
 		this->arg2 = stringof(arg2);
 		cnt++;
 	}
-	tick-5ms { }
+	tick-1ms { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
@@ -63,6 +64,7 @@ d:
 		this->arg2 = stringof(arg2);
 		cnt++;
 	}
+	tick-1ms { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
@@ -73,6 +75,7 @@ d:
 	{
 	cnt++;
 	}
+	tick-1ms { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
@@ -81,6 +84,7 @@ name: io-1
 note: check io provider isnt causing page faults.
 d:
 	io::: { cnt++;}
+	tick-1ms { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
@@ -92,6 +96,7 @@ d:
 		cnt++;
 		printf("%s",execname);
 	}
+	tick-1ms { }
 	tick-5s { exit(0); }
 ##################################################################
 name: copyinstr-1
@@ -101,6 +106,7 @@ d:
 		cnt++;
 		printf("%s %s",execname,copyinstr(arg0)); 
 	}
+	tick-1ms { }
 	tick-5s { exit(0); }
 ##################################################################
 name: badptr-1

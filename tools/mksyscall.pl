@@ -56,7 +56,7 @@ sub main
 		#   OpenSuse bizarreness.		      #
 		###############################################
 		my $ver2 = $ver;
-		$ver2 =~ s/-desktop$//;
+		$ver2 =~ s/-[a-z]*$//;
 	        my @unistd_h_candidates = (
 		     # 2.6.9-78.EL
 	             "/lib/modules/$ver/build/include/asm-x86_64/ia${bits}_unistd.h",
@@ -74,7 +74,7 @@ sub main
 		my $src_h = '';
 	        foreach my $f (@unistd_h_candidates) {
 			if (! -e $f) {
-#				print "(no file: $f)\n";
+				print "(no file: $f)\n";
 				next;
 			}
 

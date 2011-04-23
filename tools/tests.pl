@@ -175,7 +175,14 @@ sub spawn
 {	my $cmd = shift;
 	my $name = shift;
 
-	$cmd .= " >/tmp/test-$name.log 2>&1";
+	my $fname = "/tmp/test-$ENV{USER}.$name.log";
+
+	unlink($fname);
+	if (-f $fname) {
+		print "Couldnt remove $fname - maybe a permission issue.\n";
+		exit(1);
+	}
+	$cmd .= " >$fname 2>&1";
 	print $cmd, "\n";
 	if (fork() == 0) {
 		exec $cmd;
@@ -183,7 +190,7 @@ sub spawn
 	while (1) {
 		my $kid = waitpid(-1, WNOHANG);
 		if ($kid > 0) {
-			system("tail /tmp/test-$name.log");
+			system("tail $fname");
 			return $?;
 		}
 		sleep(1);

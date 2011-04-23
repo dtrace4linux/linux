@@ -55,7 +55,7 @@ Feb 2011
 /**********************************************************************/
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 12-Jul-2010 1.3 $ 			      */
+/* $Header: Last edited: 19-Apr-2011 1.4 $ 			      */
 
 /**********************************************************************/
 /*   Dont  define this for a 32b kernel. In a 64b kernel, we need to  */
@@ -64,6 +64,8 @@ Feb 2011
 # if defined(__amd64)
 #	define SYSCALL_64_32 1
 #	define	CAST_TO_INT(ptr)	((int) (long) (ptr))
+# else
+#	define SYSCALL_64_32 0
 # endif
 
 #include <linux/mm.h>
@@ -85,6 +87,7 @@ Feb 2011
 #include <linux/syscalls.h>
 #include <sys/dtrace.h>
 #include <sys/systrace.h>
+#include <linux/vmalloc.h>
 #include <dtrace_proto.h>
 
 # if defined(sun)
@@ -372,7 +375,7 @@ systrace_assembler_dummy(void)
 		/***********************************************/
 
 		FUNCTION(systrace_part1_sys_clone)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		/***********************************************/
 		/*   For   kernel  2.6.32  and  above  (maybe  */
 		/*   before),  the  clone  hack  we do doesnt  */
@@ -405,7 +408,7 @@ systrace_assembler_dummy(void)
 		/*   glibc invokes clone() instead.	       */
 		/***********************************************/
 		FUNCTION(systrace_part1_sys_fork)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rdi\n"
@@ -423,7 +426,7 @@ systrace_assembler_dummy(void)
 		/*   priviledge level.			       */
 		/***********************************************/
 		FUNCTION(systrace_part1_sys_iopl)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rsi\n"
@@ -440,7 +443,7 @@ systrace_assembler_dummy(void)
 		/*   sigaltstack.			       */
 		/***********************************************/
 		FUNCTION(systrace_part1_sys_sigaltstack)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rdx\n"
@@ -465,7 +468,7 @@ systrace_assembler_dummy(void)
 		/*   not be.				       */
 		/***********************************************/
 		FUNCTION(systrace_part1_sys_vfork)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rdi\n"
@@ -479,6 +482,48 @@ systrace_assembler_dummy(void)
 		END_FUNCTION(systrace_part1_sys_vfork)
 
 		/***********************************************/
+		/*   Following function is used as a template  */
+		/*   for  all syscalls. We replicate the code  */
+		/*   for  each syscall, but replace the dummy  */
+		/*   value  with  the ordinal of the syscall.  */
+		/*   We   have   to  be  very  careful  about  */
+		/*   re-entrancy   (a   syscall  shouldnt  be  */
+		/*   interrupted  by another task), but we do  */
+		/*   have  to care about which cpu we are on.  */
+		/*   RAX  holds  the  syscall  number, but it  */
+		/*   is/maybe           corrupted          in  */
+		/*   dtrace_systrace_syscall() by GCC code.    */
+		/***********************************************/
+		FUNCTION(syscall_template)
+		"push %rbx\n"
+		"push %rax\n"
+		"movq $syscall_no,%rbx\n"
+		"xor %rax, %rax\n"
+# if defined(HAVE_PER_CPU__CPU_NUMBER)
+		"mov %gs:per_cpu__cpu_number,%eax\n"
+# else
+		"mov %gs:cpu_number,%eax\n"
+# endif
+		"add %rax,%rbx\n"
+		"add %rax,%rbx\n"
+		"pop %rax\n"
+		"movl %eax,(%rbx)\n" /* syscall_no[cpu] = syscall */
+		"pop %rbx\n"
+		"jmp *1f\n"
+
+		/***********************************************/
+		/*   We do an indirect jump because on 64-bit  */
+		/*   cpu,  we cannot specify a 64-bit address  */
+		/*   in the instruction itself. (Remember, we  */
+		/*   are  being  replicated, and a normal JMP  */
+		/*   is a RIP-relative instruction).	       */
+		/***********************************************/
+		".align 8\n"
+		"1:\n"
+		"	.quad dtrace_systrace_syscall\n"
+		"syscall_template_size: .long .-syscall_template\n"
+		END_FUNCTION(syscall_template)
+		/***********************************************/
 		/*   execve() relies on stub_execve() calling  */
 		/*   into  sys_execve()  to do the real work.  */
 		/*   We  use the patch enabler code to handle  */
@@ -490,36 +535,78 @@ systrace_assembler_dummy(void)
 		/*   stub_rt_sigreturn()     calling     into  */
 		/*   sys_rt_sigreturn to do the real work.     */
 		/***********************************************/
-
 		);
 
 }
+#else
+void
+systrace_assembler_dummy(void)
+{
+	__asm(
+		/***********************************************/
+		/*   Following function is used as a template  */
+		/*   for  all syscalls. We replicate the code  */
+		/*   for  each syscall, but replace the dummy  */
+		/*   value  with  the ordinal of the syscall.  */
+		/*   We   have   to  be  very  careful  about  */
+		/*   re-entrancy   (a   syscall  shouldnt  be  */
+		/*   interrupted  by another task), but we do  */
+		/*   have  to care about which cpu we are on.  */
+		/*   RAX  holds  the  syscall  number, but it  */
+		/*   is/maybe           corrupted          in  */
+		/*   dtrace_systrace_syscall() by GCC code.    */
+		/***********************************************/
+		FUNCTION(syscall_template)
+		/* %eax contains the syscall no. */
+		"push %ebx\n"
+		"movl $syscall_no,%ebx\n"
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+		"add %fs:cpu_number,%ebx\n"
+		"add %fs:cpu_number,%ebx\n"
+# else
+		"add %fs:per_cpu__cpu_number,%ebx\n"
+		"add %fs:per_cpu__cpu_number,%ebx\n"
+# endif
+		"mov %eax,(%ebx)\n" /* syscall_no[cpu_id] = syscall; */
+		"pop %ebx\n"
+		"jmpl *1f\n"
+		".align 4\n"
+		"1: .long dtrace_systrace_syscall\n"
+
+		"syscall_template_size: .long .-syscall_template\n"
+		END_FUNCTION(syscall_template)
+		);
+}
 #endif
+
+/**********************************************************************/
+/*   When  a syscall is intercepted, the actual syscall number is in  */
+/*   the  RAX  or  EAX  register,  but some kernel compilation modes  */
+/*   clobber this before we get a chance to handle this (eg OpenSuse  */
+/*   11.x),  due to stack frame canary management. So we arrange the  */
+/*   assembler  stubs  above,  to  store  the  syscall  in a per cpu  */
+/*   element.  We should change this structure to be more cache-line  */
+/*   friendly.							      */
+/**********************************************************************/
+extern void syscall_template(void);
+short syscall_no[NCPU];
 
 /**********************************************************************/
 /*   This  is  the  function which is called when a syscall probe is  */
 /*   hit. We essentially wrap the call with the entry/return probes.  */
 /*   Some assembler mess to hide what we did.			      */
 /**********************************************************************/
+
 asmlinkage int64_t
 dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
-{	int syscall;
+{
+	int	syscall = syscall_no[cpu_get_id()];
 
-	/***********************************************/
-	/*   We  need  the  syscall  -  which  is  in  */
-	/*   rax/eax.  Dont  put any code before this  */
-	/*   point    else   we   may   destroy   it.  */
-	/*   Unfortunately,  different  syscalls have  */
-	/*   differing  frame regs on the stack as we  */
-	/*   are  called  and  theres  no  consistent  */
-	/*   access to pt_regs once we are here.       */
-	/***********************************************/
-	__asm(
-		"mov %%eax,%0\n"
-		: "=a" (syscall)
-		);
-
+//	printk("sycall: %x %x cpu=%d\n", syscall_no[0], syscall_no[1], cpu_get_id());
+//	printk("syscall=%p %p %p %p s=%d\n", p, a, b, c, 
+//		syscall_no[cpu_get_id()]);
+//	printk(" =%p %p %p %p %p\n", p, p[0], p[1], p[2], p[3]);
 #if SYSCALL_64_32
 	/***********************************************/
 	/*   Most  syscall implementations are shared  */
@@ -616,11 +703,11 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
                     (uintptr_t) (c), d, e, f);				\
 	}
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 	void __user *parent_tid, void __user *child_tid, struct pt_regs *regs)
-{	dtrace_id_t id;
+{      	dtrace_id_t id;
 	int	ret;
 
 	TRACE_BEFORE(__NR_clone, clone_flags, newsp, parent_tid, child_tid, regs, 0);
@@ -640,7 +727,7 @@ dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 
 	return ret;
 }
-# else /* <= 2.6.31 */
+# else /* < 2.6.31 */
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -654,7 +741,7 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 }
 # endif
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 asmlinkage int64_t
 dtrace_systrace_syscall_execve(uintptr_t name, uintptr_t argv, uintptr_t envp,
     uintptr_t regs, uintptr_t arg4, uintptr_t arg5)
@@ -692,7 +779,7 @@ asmlinkage int64_t
 dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	long	ret;
 	dtrace_id_t id;
 	struct pt_regs *regs = (struct pt_regs *) arg0;
@@ -721,7 +808,7 @@ asmlinkage int64_t
 dtrace_systrace_syscall_iopl(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	long	ret;
 	dtrace_id_t id;
 	struct pt_regs *regs = (struct pt_regs *) arg1;
@@ -752,7 +839,7 @@ asmlinkage int64_t
 dtrace_systrace_syscall_rt_sigreturn(uintptr_t regs, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	long	ret;
 	dtrace_id_t id;
 
@@ -795,7 +882,7 @@ asmlinkage int64_t
 dtrace_systrace_syscall_sigaltstack(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	long	ret;
 	dtrace_id_t id;
 	struct pt_regs *regs = (struct pt_regs *) arg0;
@@ -838,7 +925,7 @@ asmlinkage int64_t
 dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	long	ret;
 	dtrace_id_t id;
 	struct pt_regs *regs = (struct pt_regs *) arg0;
@@ -1092,6 +1179,14 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 static void *
 get_interposer(int sysnum, int enable)
 {
+	/***********************************************/
+	/*   On  x86,  some syscalls have a different  */
+	/*   arrangement   to   save  the  stack  and  */
+	/*   registers.  So  we  have to handle these  */
+	/*   with  stubs.  For all other syscalls, we  */
+	/*   have  a common stub - so we can retrieve  */
+	/*   the syscall number (in RAX or EAX).       */
+	/***********************************************/
 # if defined(__amd64)
 	switch (sysnum) {
 	  case __NR_clone:
@@ -1114,6 +1209,7 @@ get_interposer(int sysnum, int enable)
 		return (void *) systrace_part1_sys_vfork;
 	  }
 # endif
+	return syscall_template;
 	return (void *) dtrace_systrace_syscall;
 }
 #if SYSCALL_64_32
@@ -1309,7 +1405,7 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
 	if (ptregscall_common_ptr == NULL)
 		ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	if (save_rest_ptr == NULL)
 		save_rest_ptr = (char *) get_proc_addr("save_rest");
 # endif
@@ -1338,7 +1434,7 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 			name += 5;
 		*/
 
-#if __amd64
+#if defined(__amd64)
 #  define bits_name "x64"
 #else
 #  define bits_name "x32"

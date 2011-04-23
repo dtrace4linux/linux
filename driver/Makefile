@@ -65,6 +65,8 @@ EXTRA_CFLAGS += -g \
 ######################################################################
 #   Handle  include  files  which  exist  or  moved  around amongst  #
 #   different kernel releases.					     #
+#   20110415 We are moving this to tools/mkport.pl and build/port.h  #
+#   since OpenSuse is proving challenging to keep nice and simple.   #
 ######################################################################
 EXTRA_CFLAGS += $(shell test -f include/asm/kdebug.h && echo -DHAVE_INCLUDE_ASM_KDEBUG_H)
 EXTRA_CFLAGS += $(shell test -f include/linux/kdebug.h && echo -DHAVE_INCLUDE_LINUX_KDEBUG_H)

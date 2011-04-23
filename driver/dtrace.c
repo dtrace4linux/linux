@@ -73,7 +73,11 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 # undef ASSERT
-# define ASSERT(x) {if (!(x)) {printk("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x);}}
+# define ASSERT(x) { \
+	if (!(x)) { \
+		printk("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x); \
+		dump_stack(); \
+	}}
 # define KERNELBASE 0
 # endif
 
@@ -5922,13 +5926,15 @@ static struct {
 		/***********************************************/
 		/*   Avoid flooding the console or syslogd.    */
 		/***********************************************/
-		if (cnt_probe_recursion < 500) {
-			printk("dtrace_probe: re-entrancy: old=%d this=%d [#%lu]\n", (int) arr[cpu].id, (int) id, cnt_probe_recursion);
-			dump_stack();
-		}
 		cnt_probe_recursion++;
-		return;
+		if (0) {
+			if (cnt_probe_recursion < 500) {
+				printk("dtrace_probe: re-entrancy: old=%d this=%d [#%lu]\n", (int) arr[cpu].id, (int) id, cnt_probe_recursion);
+				dump_stack();
+			}
+			return;
 		}
+	}
 	arr[cpu].locked = 1;
 	arr[cpu].id = id;
 //printk("dtrace_probe: enter: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
@@ -7987,7 +7993,8 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 			if (modp == NULL)
 				break;
 			if (modp->state != MODULE_STATE_LIVE) {
-				printk("dtrace_probe_provide: inactive module %s\n", modp->name);
+				if (dtrace_here)
+					printk("dtrace_probe_provide: inactive module %s\n", modp->name);
 				continue;
 			}
 
@@ -11624,6 +11631,17 @@ dtrace_dof_copyin(uintptr_t uarg, int *errp)
 {
 	dof_hdr_t hdr, *dof;
 
+#if linux
+	/***********************************************/
+	/*   This   assertion  is  mad.  Try  running  */
+	/*   'dtrace  -l's in parallel to see that we  */
+	/*   hit  this.  So  what  if we find its not  */
+	/*   held?  1 nanosecond later another cpu or  */
+	/*   a  probe  may  assert  it.  So why is it  */
+	/*   here?  Maybe  to  detect  coding bugs in  */
+	/*   early dtrace?			       */
+	/***********************************************/
+#endif
 	ASSERT(!MUTEX_HELD(&dtrace_lock));
 
 	/*

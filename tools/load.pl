@@ -208,6 +208,8 @@ sub main
 		xtime:optional
 		kernel_text_address
 		__module_text_address
+		vmalloc_exec
+		add_timer_on
 		/) {
 		my $done = 0;
 		my $amd64 = 0;

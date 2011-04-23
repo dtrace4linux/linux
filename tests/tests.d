@@ -120,4 +120,51 @@ d:
 		exit(0);
 	}
 	tick-1s { exit(0); }
+##################################################################
+name: profile-1
+note: Check we dont lose a rare timer in the midst of lots of timers.
+d:
+	int cnt;
+	tick-1s { 
+		printf("got %d * 1mS ticks\n", cnt);
+		exit(0); 
+		}
+	tick-1ms { cnt++; }
+##################################################################
+name: profile-2
+note: Check we dont lose a rare timer in the midst of lots of timers.
+d:
+	int cnt;
+	tick-1s { 
+		printf("got %d * tick-5000 ticks\n", cnt);
+		exit(0); 
+		}
+	tick-5000 { cnt++; }
+##################################################################
+name: profile-3
+note: Check we dont lose a rare timer in the midst of lots of timers.
+d:
+	int cnt_1ms, cnt_1s;
+	tick-1ms { cnt_1ms++; } 
+	tick-1s { cnt_1s++; 
+		printf("got %d + %d\n", cnt_1ms, cnt_1s);
+		}
+	tick-5s { 
+		printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
+		exit(0); 
+		}
+##################################################################
+name: profile-4
+note: Check we dont lose a rare timer in the midst of lots of timers.
+d:
+	int cnt_1ms, cnt_1s;
+	fbt::a*: {}
+	tick-1ms { cnt_1ms++; } 
+	tick-1s { cnt_1s++; 
+		printf("got %d + %d\n", cnt_1ms, cnt_1s);
+		}
+	tick-5s { 
+		printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
+		exit(0); 
+		}
 

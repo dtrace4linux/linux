@@ -1,3 +1,38 @@
+Sun Apr 24 12:06:54 2011  fox
+
+     497* Archive: 1.0121
+
+     496* tests/tests.d: Some more random tests.
+
+     495* driver/systrace.c: Rework the syscall trampoline code to
+          avoid RAX/EAX corruptions, along with some other fixes.
+
+     494* driver/dtrace_linux.c: Implement out own safe dtrace_xcall
+          using cross-cpu timers. Not brilliant, but seems to avoid
+	  deadlocks or kernel warnings. We have a deadman timeout to
+	  avoid real deadlocks. (We occasionally see the impossible in a 
+	  VM where timers dont fire or fire too late; I think we handle
+	  this ok). dtrace_xcalls are not that frequent, so it should have
+	  minimal performance decrease.
+
+Tue Apr 19 21:04:57 2011  fox
+
+     493* driver/systrace.c: Rewrite syscall wrappers to handle OpenSuse
+          kernel - this method appears to be better/more generic for
+	  all other platforms.
+
+	  Code is looking messy - dups of functions and horrible 32/64 
+	  ifdefs and will look to clean up at a later date.
+
+Mon Apr 18 22:30:20 2011  fox
+
+     492* tools/load.pl: Add in support for vmalloc_exec.
+	  dtrace_linux.c: Add support for vmalloc_exec.
+
+Fri Apr 15 22:06:53 2011  fox
+
+     491* tools/mkport.pl: Updates for OpenSuse 11.
+
 Thu Apr 14 21:51:25 2011  fox
 
      490* mksyscall.pl: Fix for opensuse syscall table finding.

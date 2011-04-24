@@ -1,3 +1,16 @@
+Mon Apr 25 12:14:15 2011  fox
+
+     500* dtrace_linux.c: dtrace_xcall: Take out the local_irq_enable causing
+          load-time kernel warnings to be displayed.
+
+     499* systrace.c: Fix 32-bit syscalls on 64-bit kernel causing possible
+          coredumps (saw this on exit/exitgroup syscall).
+
+     498* dtrace_linux.c: Disable the new xcall code - it wont/cannot work
+          since if we fire a timer on another cpu, the timer may not
+	  fire until we exit the current interrupt. The other
+	  code seems better, (having enabled irq's), lets see how well.
+
 Sun Apr 24 12:06:54 2011  fox
 
      497* Archive: 1.0121

@@ -139,6 +139,7 @@ kernels:
 	tools/make_kernels.pl
 
 x:
+	rdate delly ; \
 	mkupdate -m delly ; \
 	make all
 	tools/load.pl

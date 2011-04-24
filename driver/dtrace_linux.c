@@ -123,6 +123,7 @@ static void *xmodules;
 static void **xsys_call_table;
 static void **xia32_sys_call_table;
 static void (*fn_add_timer_on)(struct timer_list *timer, int cpu);
+static void (*fn_sysrq_showregs_othercpus)(void *);
 int (*kernel_text_address_fn)(unsigned long);
 char *(*dentry_path_fn)(struct dentry *, char *, int);
 static struct module *(*fn__module_text_address)(unsigned long);
@@ -974,6 +975,7 @@ static int first_time = TRUE;
 	/*   we cannot do inter-cpu IPI calls.	       */
 	/***********************************************/
 	fn_add_timer_on = get_proc_addr("add_timer_on");
+	fn_sysrq_showregs_othercpus = get_proc_addr("sysrq_showregs_othercpus");
 
 	/***********************************************/
 	/*   Needed by assembler trap handler.	       */
@@ -1408,10 +1410,12 @@ static struct xcall_tmr {
 	void		  *xc_arg;
 	volatile char	  xc_stat;
 	} xcall_tmr[NCPU][NCPU];
+static int xcall_levels[NCPU];
 static void
-xcall_timer_func(struct xcall_tmr *xc)
-{
-//printk("%p timer %d\n", xc, smp_processor_id());
+xcall_timer_func(void *arg)
+{	struct xcall_tmr *xc = arg;
+
+printk("%p timer %d\n", xc, smp_processor_id());
 //dump_stack();
 	(*xc->xc_func)(xc->xc_arg);
 	xc->xc_stat = 1;
@@ -1421,7 +1425,7 @@ unsigned long cnt_xcall2;
 unsigned long cnt_xcall3;
 unsigned long cnt_xcall4;
 void
-dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
+new_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {	int	c;
 	int	cpu_id = smp_processor_id();
 static int broken = FALSE;
@@ -1450,22 +1454,21 @@ static int broken = FALSE;
 		return;
 
 printk("dtrace_xcall %p %x cpu=%d fn_add_timer_on=%p\n", func, cpu, cpu_id, fn_add_timer_on);
-dump_stack();
-static int level;
-if (level) {
-	printk("oops - we recurssed\n");
-	cnt_xcall3++;
-dump_stack();
-	return;
-}
-level++;
+//dump_stack();
+	if (xcall_levels[cpu_id]) {
+		printk("cpu=%d oops - we recurssed\n", cpu_id);
+		cnt_xcall3++;
+		dump_stack();
+		return;
+	}
+	xcall_levels[cpu_id]++;
 	/***********************************************/
 	/*   Set  up  timers  for the other cpus - we  */
 	/*   have  to  let them decide when is a good  */
 	/*   time  to  catch  the interrupt, to avoid  */
 	/*   irq issues in smp_call_function().	       */
 	/***********************************************/
-preempt_disable();
+//preempt_disable();
 	//local_irq_disable();
 	cnt_xcall2++;
 	for (c = 0; c < nr_cpus; c++) {
@@ -1488,7 +1491,7 @@ preempt_disable();
 	/*   Now wait for the others to catch up with  */
 	/*   us.				       */
 	/***********************************************/
-set_console_on(1);
+//set_console_on(1);
 //printk("waiting!\n");
 	if (cpu & (1 << cpu_id)) {
 		func(arg);
@@ -1497,14 +1500,18 @@ set_console_on(1);
 	for (c = 0; c < nr_cpus; c++) {
 		unsigned int cnt = 1;
 		struct xcall_tmr *tmr = xcall_tmr[cpu_id] + c;
-//printk("%p cpu=%d mask=%x waiting for cpu %d: %d\n", tmr, cpu_id, cpu, c, tmr->xc_stat);
+printk("%p cpu=%d mask=%x waiting for cpu %d: %d\n", tmr, cpu_id, cpu, c, tmr->xc_stat);
 		for (; tmr->xc_stat == 0; cnt++) {
-			if (cnt == 2000000000) {
+			if (cnt == 1000000000) {
 				set_console_on(1);
 				printk("dtrace_xcall: excessive delays cpu=%d\n", cpu_id);
+				set_console_on(0);
+if (fn_sysrq_showregs_othercpus) {
+(*fn_sysrq_showregs_othercpus)(0);
+}
 				cnt_xcall4++;
 				broken = TRUE;
-				set_console_on(0);
+				dump_stack();
 break;
 			}
 			/***********************************************/
@@ -1513,26 +1520,30 @@ break;
 			asm("pause\n");
 		}
 	}
-//printk("finished\n");
-set_console_on(0);
-preempt_enable();
+printk("finished\n");
+//set_console_on(0);
+//preempt_enable();
 	//local_irq_enable();
-level--;
+	xcall_levels[cpu_id]--;
 
 }
 
 /*ARGSUSED*/
 void
-old_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
+dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {
+	cnt_xcall1++;
 	if (cpu == DTRACE_CPUALL) {
+		cnt_xcall2++;
 		/***********************************************/
 		/*   Avoid  calling  local_irq_disable, since  */
 		/*   we   will  likely  be  called  from  the  */
 		/*   hrtimer callback.			       */
 		/***********************************************/
 		preempt_disable();
+//		local_irq_enable();
 		SMP_CALL_FUNCTION(func, arg, TRUE);
+//		local_irq_disable();
 		func(arg);
 		preempt_enable();
 	} else {
@@ -2294,6 +2305,10 @@ proc_t *
 prfind(int p)
 {	struct task_struct *tp;
 
+	/***********************************************/
+	/*   Rework  this - the first arg is a struct  */
+	/*   pid *, not a pid.			       */
+	/***********************************************/
 	tp = fn_pid_task(p, PIDTYPE_PID);
 	if (!tp)
 		return (proc_t *) NULL;
@@ -2667,14 +2682,14 @@ helper_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned 
         return ret ? -ret : rv;
 }
 #ifdef HAVE_UNLOCKED_IOCTL
-static int 
+static long
 helper_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return helper_ioctl(NULL, file, cmd, arg);
 }
 #endif
 #ifdef HAVE_COMPAT_IOCTL
-static int 
+static long 
 helper_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return helper_ioctl(NULL, file, cmd, arg);
@@ -2999,14 +3014,14 @@ static int dtracedrv_ioctl(struct inode *inode, struct file *file, unsigned int 
         return ret ? -ret : rv;
 }
 #ifdef HAVE_UNLOCKED_IOCTL
-static int dtracedrv_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long dtracedrv_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return dtracedrv_ioctl(NULL, file, cmd, arg);
 }
 #endif
 
 #ifdef HAVE_COMPAT_IOCTL
-static int dtracedrv_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long dtracedrv_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return dtracedrv_ioctl(NULL, file, cmd, arg);
 }

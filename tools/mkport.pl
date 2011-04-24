@@ -76,6 +76,13 @@ sub main
 	if (have("per_cpu__cpu_number", "/proc/kallsyms")) {
 		$inc .= "# define HAVE_PER_CPU__CPU_NUMBER 1\n";
 	}
+	if (have(" cpu_number", "/proc/kallsyms")) {
+		$inc .= "# define HAVE_CPU_NUMBER 1\n";
+	}
+	if (have("pda_cpunumber", "include/asm/offset.h")) {
+		$inc .= "# define HAVE_INCLUDE_ASM_OFFSET_H 1\n";
+		$inc .= "# define HAVE_PDA_CPUNUMBER 1\n";
+	}
 
 	###############################################
 	#   Old kernels have ioctl() only, but later  #

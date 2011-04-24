@@ -497,31 +497,16 @@ systrace_assembler_dummy(void)
 		FUNCTION(syscall_template)
 		"push %rbx\n"
 		"push %rax\n"
-		"movq $syscall_no,%rbx\n"
 		"xor %rax, %rax\n"
-# if defined(HAVE_PER_CPU__CPU_NUMBER)
-		"mov %gs:per_cpu__cpu_number,%eax\n"
-# else
-		"mov %gs:cpu_number,%eax\n"
-# endif
+		"call func_smp_processor_id\n"
+		"movq $syscall_no,%rbx\n"
 		"add %rax,%rbx\n"
 		"add %rax,%rbx\n"
 		"pop %rax\n"
 		"movl %eax,(%rbx)\n" /* syscall_no[cpu] = syscall */
 		"pop %rbx\n"
-		"jmp *1f\n"
+		"jmp dtrace_systrace_syscall\n"
 
-		/***********************************************/
-		/*   We do an indirect jump because on 64-bit  */
-		/*   cpu,  we cannot specify a 64-bit address  */
-		/*   in the instruction itself. (Remember, we  */
-		/*   are  being  replicated, and a normal JMP  */
-		/*   is a RIP-relative instruction).	       */
-		/***********************************************/
-		".align 8\n"
-		"1:\n"
-		"	.quad dtrace_systrace_syscall\n"
-		"syscall_template_size: .long .-syscall_template\n"
 		END_FUNCTION(syscall_template)
 		/***********************************************/
 		/*   execve() relies on stub_execve() calling  */
@@ -560,20 +545,16 @@ systrace_assembler_dummy(void)
 		/* %eax contains the syscall no. */
 		"push %ebx\n"
 		"movl $syscall_no,%ebx\n"
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
-		"add %fs:cpu_number,%ebx\n"
-		"add %fs:cpu_number,%ebx\n"
-# else
-		"add %fs:per_cpu__cpu_number,%ebx\n"
-		"add %fs:per_cpu__cpu_number,%ebx\n"
-# endif
+		"push %eax\n"
+		"call func_smp_processor_id\n"
+		"mov %ebx,%eax\n"
+		"pop %eax\n"
 		"mov %eax,(%ebx)\n" /* syscall_no[cpu_id] = syscall; */
 		"pop %ebx\n"
 		"jmpl *1f\n"
 		".align 4\n"
 		"1: .long dtrace_systrace_syscall\n"
 
-		"syscall_template_size: .long .-syscall_template\n"
 		END_FUNCTION(syscall_template)
 		);
 }
@@ -591,6 +572,11 @@ systrace_assembler_dummy(void)
 extern void syscall_template(void);
 short syscall_no[NCPU];
 
+int
+func_smp_processor_id(void)
+{
+	return smp_processor_id();
+}
 /**********************************************************************/
 /*   This  is  the  function which is called when a syscall probe is  */
 /*   hit. We essentially wrap the call with the entry/return probes.  */
@@ -603,7 +589,7 @@ dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 {
 	int	syscall = syscall_no[cpu_get_id()];
 
-//	printk("sycall: %x %x cpu=%d\n", syscall_no[0], syscall_no[1], cpu_get_id());
+//	printk("sycall: %x %x cpu=%d sy=%d\n", syscall_no[0], syscall_no[1], cpu_get_id(), syscall);
 //	printk("syscall=%p %p %p %p s=%d\n", p, a, b, c, 
 //		syscall_no[cpu_get_id()]);
 //	printk(" =%p %p %p %p %p\n", p, p[0], p[1], p[2], p[3]);
@@ -1210,13 +1196,14 @@ get_interposer(int sysnum, int enable)
 	  }
 # endif
 	return syscall_template;
-	return (void *) dtrace_systrace_syscall;
+//	return (void *) dtrace_systrace_syscall;
 }
 #if SYSCALL_64_32
 static void *
 get_interposer32(int sysnum, int enable)
 {
-	return (void *) dtrace_systrace_syscall;
+	return syscall_template;
+//	return (void *) dtrace_systrace_syscall;
 }
 #endif
 

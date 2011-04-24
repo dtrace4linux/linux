@@ -175,7 +175,8 @@ sub spawn
 {	my $cmd = shift;
 	my $name = shift;
 
-	my $fname = "/tmp/test-$ENV{USER}.$name.log";
+	my $user = getpwuid(getuid());
+	my $fname = "/tmp/test-$user.$name.log";
 
 	unlink($fname);
 	if (-f $fname) {
@@ -194,7 +195,10 @@ sub spawn
 			return $?;
 		}
 		sleep(1);
-		print time_string() . "Running...(cpu is still alive!)\n";
+		my $fh = new FileHandle("/proc/dtrace/stats");
+		my $probes = <$fh>;
+		chomp($probes);
+		print time_string() . "Running $name...$probes\n";
 	}
 }
 sub time_string

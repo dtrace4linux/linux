@@ -14,11 +14,13 @@ use Getopt::Long;
 use IO::File;
 use POSIX;
 
+my $exit_code = 0;
 #######################################################################
 #   Command line switches.					      #
 #######################################################################
 my %opts = (
-	loop => 1000
+	count => 1,
+	loop => 1000,
 	);
 
 sub do_child
@@ -35,48 +37,8 @@ sub do_child
 		wait;
 	}
 }
-sub main
+sub do_tests
 {
-	Getopt::Long::Configure('require_order');
-	Getopt::Long::Configure('no_ignore_case');
-	usage() unless GetOptions(\%opts,
-		'help',
-		'loop=s',
-		);
-
-	usage() if $opts{help};
-
-	print <<EOF;
-You are about to run a serious of tests which attempt to do reasonable
-coverage of dtrace in core areas. This deliberately involves forcing
-page faults and GPFs in the kernel, in a recoverable and safe way.
-
-Each test is logged to the /tmp/ directory with a file with the same
-name as the test. You mostly dont need to worry about the output of a test,
-except if your kernel crashes.
-
-Progress messages and occasional output is presented, so that you can
-feel secure knowing your system is still running.
-
-These tests may crash your kernel - and better to know this up front before
-you assume dtrace/linux is production worthy.
-
-These tests will become less "noisy" and will be extended with additional
-use cases. Dont worry about errors like:
-
-dtrace: error on enabled probe ID 2 (ID 274009: syscall:x64:open:entry): invalid address (0xffff880013769ed8) in action #7
-
-in the output for now. These will be tidied up.
-
-Press <Enter> if you understand the above and would like to continue:
-EOF
-	my $ans = <STDIN>;
-
-	if (! -f "/proc/dtrace/stats") {
-		print "dtrace driver does not appear to be loaded.\n";
-		exit(1);
-	}
-
 	my @tests;
 	my $fname = "tests.d";
 	$fname = "tests/tests.d" if ! -f $fname;
@@ -120,23 +82,42 @@ EOF
 	}
 
 	###############################################
-	#   Fork a child to keep us busy.	      #
+	#   Fork  children  to keep us busy. We want  #
+	#   all cpus busy.			      #
 	###############################################
+	my $ncpu = `grep 'processor\t:' /proc/cpuinfo | wc -l`;
+	chomp($ncpu);
 	$SIG{INT} = sub { exit(0); };
 	my $ppid = $$;
-	my $pid = fork();
-	if ($pid == 0) {
-		do_child($ppid);
+	my %pids;
+	for (my $i = 0; $i < $ncpu; $i++) {
+		my $pid = fork();
+		if ($pid == 0) {
+			do_child($ppid);
+			exit(0);
+		}
+		$pids{$pid} = 1;
+	}
+
+	if ($opts{child}) {
+		print "No dtrace testing - but waiting for children\n";
+		pause();
 		exit(0);
 	}
 
 	$| = 1;
 	print "Tests:\n";
-	my $exit_code = 0;
-	my $arg = shift(@ARGV) || "";
 	foreach my $info (@tests) {
+		if (@ARGV) {
+			my $found = 0;
+			foreach my $arg (@ARGV) {
+				$found = 1 if $arg eq $info->{name};
+			}
+			next if !$found;
+		}
+
+
 		print time_string() . "Test: ", $info->{name}, "\n";
-		next if $arg ne 'run' && $arg ne $info->{name};
 		my $d = $info->{d};
 		my $loop = $opts{loop};
 		$d =~ s/\${loop}/$loop/g;
@@ -145,8 +126,59 @@ EOF
 		$exit_code ||= $ret;
 		system("cat /proc/dtrace/stats");
 	}
-	kill SIGKILL, $pid;
+	kill SIGKILL, $_ foreach keys(%pids);
+	while (wait > 0) {
+	}
 
+}
+
+sub main
+{
+	Getopt::Long::Configure('require_order');
+	Getopt::Long::Configure('no_ignore_case');
+	usage() unless GetOptions(\%opts,
+		'child',
+		'count=s',
+		'help',
+		'loop=s',
+		);
+
+	usage() if $opts{help};
+
+	print <<EOF;
+You are about to run a serious of tests which attempt to do reasonable
+coverage of dtrace in core areas. This deliberately involves forcing
+page faults and GPFs in the kernel, in a recoverable and safe way.
+
+Each test is logged to the /tmp/ directory with a file with the same
+name as the test. You mostly dont need to worry about the output of a test,
+except if your kernel crashes.
+
+Progress messages and occasional output is presented, so that you can
+feel secure knowing your system is still running.
+
+These tests may crash your kernel - and better to know this up front before
+you assume dtrace/linux is production worthy.
+
+These tests will become less "noisy" and will be extended with additional
+use cases. Dont worry about errors like:
+
+dtrace: error on enabled probe ID 2 (ID 274009: syscall:x64:open:entry): invalid address (0xffff880013769ed8) in action #7
+
+in the output for now. These will be tidied up.
+
+Press <Enter> if you understand the above and would like to continue:
+EOF
+	my $ans = <STDIN>;
+
+	if (! -f "/proc/dtrace/stats") {
+		print "dtrace driver does not appear to be loaded.\n";
+		exit(1);
+	}
+
+	for (my $i = 0; $i < $opts{count}; $i++) {
+		do_tests();
+	}
 	print time_string() . "All tests completed.\n";
 	print <<EOF;
 
@@ -212,7 +244,7 @@ sub usage
 {
 	print <<EOF;
 tests.pl - run a series of regression tests.
-Usage: tests.pl [run | <test-name>]
+Usage: tests.pl [<test-name>]
 
   Tool to run the tests in a script file (tests/tests.d) which are
   small D scripts, typically used during development, to validate that
@@ -225,7 +257,9 @@ Usage: tests.pl [run | <test-name>]
 
 Switches:
 
-  -loop NN    Loop NN times instrad of max $opts{loop} times.
+  -loop NN    Loop NN times instead of max $opts{loop} times.
+  -count NN   Repeat all tests NN times (default 1).
+
 EOF
 
 	exit(1);

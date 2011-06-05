@@ -1,3 +1,31 @@
+Mon Jun  6 22:23:23 2011  fox
+
+     505* Archive: 1.0122
+
+     504* systrace.c: Fix for 64-bit. Looks like it works, but need to
+          cleanup the ptregs calls - dont think we need the special
+	  patching code.
+
+	  Tested on Ubuntu 10.04 only so far.
+
+     503* systrace.c: Revamp for 32-bit kernels, so that we dont
+          get occasional ERESTART issues on syscalls.
+
+	  This took a lot of effort to get going, but the code is
+	  better for 32-bit kernels. Now off to refix the 64-bit
+	  kernels.
+
+Sat May 14 08:38:13 2011  fox
+
+     502* systrace.c: Fix bug where we overwrote the saved underlyer
+          when doing a syscall trace, and another /usr/sbin/dtrace does
+	  something unrelated (like 'dtrace -l').
+
+Tue May 10 23:05:18 2011  fox
+
+     501* systrace.c: Avoid two user-mode dtraces causing syscall interception
+          to point to itself and hang/panic/stack overflow the kernel.
+
 Mon Apr 25 12:14:15 2011  fox
 
      500* dtrace_linux.c: dtrace_xcall: Take out the local_irq_enable causing

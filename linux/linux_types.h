@@ -15,6 +15,19 @@
 #define TODO()	printk("%s:%s:%d: TODO:please fill me in\n", dtrace_basename(__FILE__), __func__, __LINE__)
 #define TODO_END()
 
+	/***********************************************/
+	/*   Introduce  big  delays  to  test out smp  */
+	/*   code.				       */
+	/***********************************************/
+#define DELAY(n) \
+	{static int f = 1; \
+	int	i; \
+	if (f) { \
+		printk("%s(%d): DELAY(%d)\n", __FILE__, __LINE__, n); f = 0; \
+	} \
+	for (i = 0; i < n; i++) smp_processor_id(); \
+	}
+
 # if defined(__i386) && !defined(_LP32)
 #	define _LP32
 # endif

@@ -38,7 +38,7 @@
 # define NULL 0
 
 MODULE_AUTHOR("Paul D. Fox");
-MODULE_LICENSE("CDDL");
+MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 
 #define	FBT_PUSHL_EBP		0x55

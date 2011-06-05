@@ -33,7 +33,8 @@ dtracedrv-objs := \
 	systrace.o \
 	toxic.o \
 	instr_size.o \
-	uncompress.o
+	uncompress.o \
+	x_call.o
 ifdef BUILD_i386
 	###############################################
 	#   Kernel  may  be  using  -regparm, and we  #

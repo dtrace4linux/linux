@@ -55,7 +55,7 @@ Feb 2011
 /**********************************************************************/
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 19-Apr-2011 1.4 $ 			      */
+/* $Header: Last edited: 14-May-2011 1.6 $ 			      */
 
 /**********************************************************************/
 /*   Dont  define this for a 32b kernel. In a 64b kernel, we need to  */
@@ -251,6 +251,7 @@ void systrace_part1_sys_sigaltstack(void);
 void systrace_part1_sys_rt_sigsuspend(void);
 void systrace_part1_sys_vfork(void);
 
+static void systrace_disable(void *arg, dtrace_id_t id, void *parg);
 void patch_enable(patch_t *, int);
 
 /**********************************************************************/
@@ -495,19 +496,38 @@ systrace_assembler_dummy(void)
 		/*   dtrace_systrace_syscall() by GCC code.    */
 		/***********************************************/
 		FUNCTION(syscall_template)
-		"push %rbx\n"
-		"push %rax\n"
-		"xor %rax, %rax\n"
-		"call func_smp_processor_id\n"
-		"movq $syscall_no,%rbx\n"
-		"add %rax,%rbx\n"
-		"add %rax,%rbx\n"
-		"pop %rax\n"
-		"movl %eax,(%rbx)\n" /* syscall_no[cpu] = syscall */
-		"pop %rbx\n"
-		"jmp dtrace_systrace_syscall\n"
+		/***********************************************/
+		/*   We have 6 args in registers, but we need  */
+		/*   to make space for two extra arguments.    */
+		/***********************************************/
+		"push %r9\n"
+		"push %r8\n"
+	        "movq    %rcx, %r9\n"
+	        "movq    %rdx, %r8\n"
+	        "movq    %rsi, %rcx\n"
+	        "movq    %rdi, %rdx\n"
+	        "movq    $0, %rsi\n" // dummy &ptregs
+	        "movl    $0x1234, %edi\n"
+		"call *1f\n"		// avoid call-relative issues
+		"add $8*2,%rsp\n"	// remove the dummies.
+		"ret\n"
 
+		".align 8\n"
+		"syscall_template_size: .long .-syscall_template\n"
 		END_FUNCTION(syscall_template)
+
+		"1: .quad dtrace_systrace_syscall\n"
+
+		FUNCTION(syscall_ptreg_template)
+		/***********************************************/
+		/*   dummy code - not used at present.	       */
+		/***********************************************/
+		"nop\n"
+		"movl    $0x1234, %edi\n"
+		".align 8\n"
+		"syscall_ptreg_template_size: .long .-syscall_ptreg_template\n"
+
+		END_FUNCTION(syscall_ptreg_template)
 		/***********************************************/
 		/*   execve() relies on stub_execve() calling  */
 		/*   into  sys_execve()  to do the real work.  */
@@ -523,41 +543,90 @@ systrace_assembler_dummy(void)
 		);
 
 }
+# define IS_PTREG_SYSCALL(n) \
+		((n) == __NR_clone || \
+		 (n) == __NR_fork || \
+		 (n) == __NR_iopl || \
+		 (n) == __NR_sigaltstack || \
+		 (n) == __NR_vfork)
 #else
+/**********************************************************************/
+/*   i386  code for the syscalls. Note we use entry_32.S (or entry.S  */
+/*   for  older  kernels).  What  we find is that some syscalls have  */
+/*   differing calling sequences. Since we patch to be the target of  */
+/*   the syscall, we have to emulate carefully the wrapper to get to  */
+/*   the real syscall.						      */
+/**********************************************************************/
 void
 systrace_assembler_dummy(void)
 {
 	__asm(
 		/***********************************************/
-		/*   Following function is used as a template  */
-		/*   for  all syscalls. We replicate the code  */
-		/*   for  each syscall, but replace the dummy  */
-		/*   value  with  the ordinal of the syscall.  */
-		/*   We   have   to  be  very  careful  about  */
-		/*   re-entrancy   (a   syscall  shouldnt  be  */
-		/*   interrupted  by another task), but we do  */
-		/*   have  to care about which cpu we are on.  */
-		/*   RAX  holds  the  syscall  number, but it  */
-		/*   is/maybe           corrupted          in  */
-		/*   dtrace_systrace_syscall() by GCC code.    */
+		/*   Following  function template is used for  */
+		/*   all   syscalls  which  do  not  rely  on  */
+		/*   pt_regs  as the calling argument (clone,  */
+		/*   fork,  iopl,  etc). We patch the $0x1234  */
+		/*   with  the  actual  syscall.  This avoids  */
+		/*   problems   where   we  dont  know  which  */
+		/*   syscall  we  are  since  we  are  on the  */
+		/*   called  side  of  the dispatcher code in  */
+		/*   kernel/entry_32.S.			       */
 		/***********************************************/
 		FUNCTION(syscall_template)
-		/* %eax contains the syscall no. */
-		"push %ebx\n"
-		"movl $syscall_no,%ebx\n"
+		"leal 4(%esp),%eax\n" // &ptregs
+		"push 32(%esp)\n" // for non-ptregs funcs, copy the (upto) 6 args
+		"push 32(%esp)\n" //28
+		"push 32(%esp)\n" //24
+		"push 32(%esp)\n" //20
+		"push 32(%esp)\n" //16
+		"push 32(%esp)\n" //12
+		"push 32(%esp)\n" //8
+		"push 32(%esp)\n" //4
 		"push %eax\n"
-		"call func_smp_processor_id\n"
-		"mov %ebx,%eax\n"
-		"pop %eax\n"
-		"mov %eax,(%ebx)\n" /* syscall_no[cpu_id] = syscall; */
-		"pop %ebx\n"
-		"jmpl *1f\n"
+		"pushl $0x1234\n"	// to be patched
+		"mov $dtrace_systrace_syscall,%eax\n" // avoid relocation issues
+		"call *%eax\n"
+		"add $4*10,%esp\n"
+		"ret\n"
+
 		".align 4\n"
-		"1: .long dtrace_systrace_syscall\n"
+		"syscall_template_size: .long .-syscall_template\n"
 
 		END_FUNCTION(syscall_template)
+
+		/***********************************************/
+		/*   Some 32-bit syscalls rely on passing the  */
+		/*   sole  argument  in  %eax to the function  */
+		/*   (such  as sigaltstack, fork, etc). These  */
+		/*   syscalls   need  direct  access  to  the  */
+		/*   pt_regs  array  so  they can patch, e.g.  */
+		/*   the return address.		       */
+		/***********************************************/
+		FUNCTION(syscall_ptreg_template)
+		"leal 4(%esp),%eax\n" // &ptregs
+		"pushl %eax\n"
+		"pushl $0x1234\n"	// to be patched
+		"mov $dtrace_systrace_syscall,%eax\n" // avoid relocation issues
+		"call *%eax\n"
+		"add $4*2,%esp\n"
+		"ret\n"
+
+		".align 4\n"
+		"syscall_ptreg_template_size: .long .-syscall_ptreg_template\n"
+		END_FUNCTION(syscall_ptreg_template)
 		);
 }
+# define IS_PTREG_SYSCALL(n) \
+		((n) == __NR_iopl || \
+		 (n) == __NR_fork || \
+		 (n) == __NR_clone || \
+		 (n) == __NR_vfork || \
+		 (n) == __NR_execve || \
+		 (n) == __NR_sigaltstack || \
+		 (n) == __NR_sigreturn || \
+		 (n) == __NR_rt_sigreturn || \
+		 (n) == __NR_vm86 || \
+		 (n) == __NR_vm86old)
 #endif
 
 /**********************************************************************/
@@ -569,8 +638,79 @@ systrace_assembler_dummy(void)
 /*   element.  We should change this structure to be more cache-line  */
 /*   friendly.							      */
 /**********************************************************************/
+static struct syscall_info {
+	void *s_template;
+	int	s_ptreg;
+	} syscall_info[NSYSCALL];
 extern void syscall_template(void);
-short syscall_no[NCPU];
+extern void syscall_ptreg_template(void);
+extern int syscall_template_size;
+extern int syscall_ptreg_template_size;
+char	*templates;
+char	*templates32;
+
+
+void
+init_syscalls(void)
+{	int	i;
+	void *(*vmalloc_exec)(unsigned long);
+	char	*cp;
+	int	offset1 = 0;
+	int	offset2 = 0;
+	int	template_size;
+
+	if (templates)
+		return;
+	vmalloc_exec = get_proc_addr("vmalloc_exec");
+
+	/***********************************************/
+	/*   We  have  two  templates.  To  make life  */
+	/*   simple,  we allocate memory based on the  */
+	/*   biggest template.			       */
+	/***********************************************/
+	template_size = syscall_template_size;
+	if (template_size < syscall_ptreg_template_size)
+		template_size = syscall_ptreg_template_size;
+
+	/***********************************************/
+	/*   Find  the  magic offset we need to patch  */
+	/*   in.				       */
+	/***********************************************/
+	for (cp = (char *) syscall_template; cp < (char *) syscall_template + syscall_template_size; cp++) {
+		if (*(short *) cp == 0x1234) {
+			offset1 = cp - (char *) syscall_template;
+			break;
+		}
+	}
+	for (cp = (char *) syscall_ptreg_template; cp < (char *) syscall_ptreg_template + syscall_ptreg_template_size; cp++) {
+		if (*(short *) cp == 0x1234) {
+			offset2 = cp - (char *) syscall_ptreg_template;
+			break;
+		}
+	}
+
+	/***********************************************/
+	/*   Now  create  N  copies  of the template,  */
+	/*   where   we  patch  the  actual  #syscall  */
+	/*   number into the copy of the code.	       */
+	/***********************************************/
+	templates = vmalloc_exec(NSYSCALL * template_size);
+	cp = templates;
+	for (i = 0; i < NSYSCALL; i++) {
+		syscall_info[i].s_template = cp;
+		if (IS_PTREG_SYSCALL(i)) {
+			memcpy(cp, syscall_ptreg_template, syscall_ptreg_template_size);
+			*(int *) (cp + offset2) = i;
+			cp += syscall_ptreg_template_size;
+			syscall_info[i].s_ptreg = TRUE;
+		} else {
+			memcpy(cp, syscall_template, syscall_template_size);
+			*(int *) (cp + offset1) = i;
+			cp += syscall_template_size;
+			syscall_info[i].s_ptreg = FALSE;
+		}
+	}
+}
 
 int
 func_smp_processor_id(void)
@@ -582,17 +722,11 @@ func_smp_processor_id(void)
 /*   hit. We essentially wrap the call with the entry/return probes.  */
 /*   Some assembler mess to hide what we did.			      */
 /**********************************************************************/
-
 asmlinkage int64_t
-dtrace_systrace_syscall(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
-    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+dtrace_systrace_syscall(int syscall, struct pt_regs *ptregs,
+	uintptr_t arg0, uintptr_t arg1, 
+	uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {
-	int	syscall = syscall_no[cpu_get_id()];
-
-//	printk("sycall: %x %x cpu=%d sy=%d\n", syscall_no[0], syscall_no[1], cpu_get_id(), syscall);
-//	printk("syscall=%p %p %p %p s=%d\n", p, a, b, c, 
-//		syscall_no[cpu_get_id()]);
-//	printk(" =%p %p %p %p %p\n", p, p[0], p[1], p[2], p[3]);
 #if SYSCALL_64_32
 	/***********************************************/
 	/*   Most  syscall implementations are shared  */
@@ -643,7 +777,7 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
 	}
 
 	return dtrace_systrace_syscall2(syscall, &systrace_sysent[syscall],
-		FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+		FALSE, ptregs, arg0, arg1, arg2, arg3, arg4, arg5);
 }
 /**********************************************************************/
 /*   2nd  part of the clone() syscall, called from the assembler. We  */
@@ -1001,52 +1135,59 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	/*   modified.				       */
 	/***********************************************/
 #if defined(__i386)
-	__asm(
-		// Move the stack pt_regs to be in the right
-		// place for the underlying syscall.
-		"push 64(%%esi)\n"
-		"push 60(%%esi)\n"
+		__asm(
+			/***********************************************/
+			/*   Move  the  stack  pt_regs  to  be in the  */
+			/*   right place for the underlying syscall.   */
+			/*   					       */
+			/*   We    are    copying   pt_regs   because  */
+			/*   sys_fork(),  for  instance  is called as  */
+			/*   sys_fork(struct pt_regs regs)	       */
+			/***********************************************/
+			"push 60(%%esi)\n"
 
-		"push 56(%%esi)\n"
-		"push 52(%%esi)\n"
-		"push 48(%%esi)\n"
-		"push 44(%%esi)\n"
-		"push 40(%%esi)\n"
-		"push 36(%%esi)\n"
-		"push 32(%%esi)\n"
-		"push 28(%%esi)\n"
-		"push 24(%%esi)\n"
-		"push 20(%%esi)\n"
-		"push 16(%%esi)\n"
-		"push 12(%%esi)\n"
-		"push 8(%%esi)\n"
-		"push 4(%%esi)\n"
-		"push 0(%%esi)\n"
+			"push 56(%%esi)\n"
+			"push 52(%%esi)\n"
+			"push 48(%%esi)\n"
+			"push 44(%%esi)\n"
+			"push 40(%%esi)\n"
+			"push 36(%%esi)\n"
+			"push 32(%%esi)\n"
+			"push 28(%%esi)\n"
+			"push 24(%%esi)\n"
+			"push 20(%%esi)\n"
+			"push 16(%%esi)\n"
+			"push 12(%%esi)\n"
+			"push 8(%%esi)\n"
+			"push 4(%%esi)\n"
+			"push 0(%%esi)\n"
 
-		"call *%%edi\n"
+			"call *%%edi\n"
 
-		// Copy the output pt_regs back to the home location
-		"pop 0(%%esi)\n"
-		"pop 4(%%esi)\n"
-		"pop 8(%%esi)\n"
-		"pop 12(%%esi)\n"
-		"pop 16(%%esi)\n"
-		"pop 20(%%esi)\n"
-		"pop 24(%%esi)\n"
-		"pop 28(%%esi)\n"
-		"pop 32(%%esi)\n"
-		"pop 36(%%esi)\n"
-		"pop 40(%%esi)\n"
-		"pop 44(%%esi)\n"
-		"pop 48(%%esi)\n"
-		"pop 52(%%esi)\n"
-		"pop 56(%%esi)\n"
-		"pop 60(%%esi)\n"
-		"pop 64(%%esi)\n"
+			/***********************************************/
+			/*   Copy the output pt_regs back to the home  */
+			/*   location. This matters for sys_clone()    */
+			/***********************************************/
+			"pop 0(%%esi)\n"
+			"pop 4(%%esi)\n"
+			"pop 8(%%esi)\n"
+			"pop 12(%%esi)\n"
+			"pop 16(%%esi)\n"
+			"pop 20(%%esi)\n"
+			"pop 24(%%esi)\n"
+			"pop 28(%%esi)\n"
+			"pop 32(%%esi)\n"
+			"pop 36(%%esi)\n"
+			"pop 40(%%esi)\n"
+			"pop 44(%%esi)\n"
+			"pop 48(%%esi)\n"
+			"pop 52(%%esi)\n"
+			"pop 56(%%esi)\n"
+			"pop 60(%%esi)\n"
 		
-                : "=a" (rval)
-                : "S" (pregs), "D" (sy->stsy_underlying)
-		);
+	                : "=a" (rval)
+	                : "S" (pregs), "D" (sy->stsy_underlying)
+			);
 # else
 
 	/***********************************************/
@@ -1195,8 +1336,7 @@ get_interposer(int sysnum, int enable)
 		return (void *) systrace_part1_sys_vfork;
 	  }
 # endif
-	return syscall_template;
-//	return (void *) dtrace_systrace_syscall;
+	return syscall_info[sysnum].s_template;
 }
 #if SYSCALL_64_32
 static void *
@@ -1234,7 +1374,8 @@ HERE();
 		if (a->sy_callc == systrace_syscall)
 			continue;
 
-		s->stsy_underlying = a->sy_callc;
+		if (s->stsy_underlying == NULL)
+			s->stsy_underlying = a->sy_callc;
 //printk("stsy_underlying=%p\n", s->stsy_underlying);
 	}
 }
@@ -1344,12 +1485,14 @@ static int do_patch = TRUE; // Set to FALSE whilst browsing for a patch
 /*ARGSUSED*/
 static void
 systrace_provide(void *arg, const dtrace_probedesc_t *desc)
-{
-	int i;
+{	int i;
+
 //HERE();
 //printk("descr=%p\n", desc);
 	if (desc != NULL)
 		return;
+
+	init_syscalls();
 
 	if (sysent == NULL)
 		sysent = fbt_get_sys_call_table();
@@ -1534,10 +1677,8 @@ systrace_destroy(void *arg, dtrace_id_t id, void *parg)
 /*ARGSUSED*/
 static void
 systrace_disable32(void *arg, dtrace_id_t id, void *parg)
-{
-	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+{	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer32(sysnum, FALSE);
-
 	int disable = (systrace_sysent32[sysnum].stsy_entry == DTRACE_IDNONE ||
 	    systrace_sysent32[sysnum].stsy_return == DTRACE_IDNONE);
 
@@ -1565,8 +1706,7 @@ systrace_disable32(void *arg, dtrace_id_t id, void *parg)
 /*ARGSUSED*/
 static void
 systrace_disable(void *arg, dtrace_id_t id, void *parg)
-{
-	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+{	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer(sysnum, FALSE);
 	int	disable;
 
@@ -1602,19 +1742,23 @@ systrace_disable(void *arg, dtrace_id_t id, void *parg)
 #if SYSCALL_64_32
 static int
 systrace_enable32(void *arg, dtrace_id_t id, void *parg)
-{
-	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+{	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer32(sysnum, TRUE);
-
-//printk("arg=%p id32=%d parg=%p\n", arg, id, parg);
+	int enabled = (systrace_sysent32[sysnum].stsy_entry != DTRACE_IDNONE ||
+			systrace_sysent32[sysnum].stsy_return != DTRACE_IDNONE);
+	    
 	if (SYSTRACE_ISENTRY((uintptr_t)parg)) {
 		systrace_sysent32[sysnum].stsy_entry = id;
 	} else {
 		systrace_sysent32[sysnum].stsy_return = id;
 	}
+
+	if (enabled)
+		return 0;
+
 	/***********************************************/
-	/*   This  may  because the patch_enable code  */
-	/*   got invoked.			       */
+	/*   This  may  be  because  the patch_enable  */
+	/*   code got invoked.			       */
 	/***********************************************/
 	if (syscall_func == NULL)
 		return 0;
@@ -1652,6 +1796,18 @@ systrace_enable32(void *arg, dtrace_id_t id, void *parg)
 	return 0;
 }
 #endif
+/*static void
+dump_syscalls(void)
+{	int	i;
+	long sum = 0;
+
+	for (i = 0; i < NSYSCALL; i++) {
+		printk("syscall[%d] %p %s\n", i, sysent[i].sy_callc, syscallnames[i]);
+		sum += (long) sysent[i].sy_callc;
+	}
+	printk("cksum=%lx\n", sum);
+}
+*/
 /**********************************************************************/
 /*   Someone  is trying to trace a syscall. Enable/patch the syscall  */
 /*   table (if not done already).				      */
@@ -1659,9 +1815,10 @@ systrace_enable32(void *arg, dtrace_id_t id, void *parg)
 /*ARGSUSED*/
 static int
 systrace_enable(void *arg, dtrace_id_t id, void *parg)
-{
-	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
+{	int sysnum = SYSTRACE_SYSNUM((uintptr_t)parg);
 	void	*syscall_func = get_interposer(sysnum, TRUE);
+	int enabled = (systrace_sysent[sysnum].stsy_entry != DTRACE_IDNONE ||
+			systrace_sysent[sysnum].stsy_return != DTRACE_IDNONE);
 
 #if SYSCALL_64_32
 	if (CAST_TO_INT(parg) & STF_32BIT) {
@@ -1676,9 +1833,12 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 		systrace_sysent[sysnum].stsy_return = id;
 	}
 
+	if (enabled)
+		return 0;
+
 	/***********************************************/
-	/*   This  may  because the patch_enable code  */
-	/*   got invoked.			       */
+	/*   This  may  be  because  the patch_enable  */
+	/*   code got invoked.			       */
 	/***********************************************/
 	if (syscall_func == NULL)
 		return 0;
@@ -1695,11 +1855,10 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 		return 0;
 
 	if (dtrace_here) {
-		printk("enable: sysnum=%d %p %p %p -> %p\n", sysnum,
-			&sysent[sysnum].sy_callc,
-			    (void *)systrace_sysent[sysnum].stsy_underlying,
-			    (void *)syscall_func,
-				sysent[sysnum].sy_callc);
+		printk("enable: sysnum=%d %p %p %p\n", sysnum,
+			sysent[sysnum].sy_callc,
+			(void *)systrace_sysent[sysnum].stsy_underlying,
+			(void *)syscall_func);
 	}
 
 	casptr(&sysent[sysnum].sy_callc,
@@ -1707,11 +1866,10 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 	    (void *)syscall_func);
 
 	if (dtrace_here) {
-		printk("enable: ------=%d %p %p %p -> %p\n", sysnum,
-			&sysent[sysnum].sy_callc,
-			    (void *)systrace_sysent[sysnum].stsy_underlying,
-			    (void *)syscall_func,
-				sysent[sysnum].sy_callc);
+		printk("enable: ------=%d %p %p %p\n", sysnum,
+			sysent[sysnum].sy_callc,
+			(void *)systrace_sysent[sysnum].stsy_underlying,
+			(void *)syscall_func);
 	}
 
 	return 0;
@@ -1767,6 +1925,10 @@ systrace_detach(void)
 		return (DDI_FAILURE);
 
 	systrace_probe = systrace_stub;
+	if (templates)
+		vfree(templates);
+	if (templates32)
+		vfree(templates32);
 	return (DDI_SUCCESS);
 }
 

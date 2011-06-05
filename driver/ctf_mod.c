@@ -24,7 +24,7 @@
 # undef ctf_write
 
 MODULE_AUTHOR("Paul Fox");
-MODULE_LICENSE("CDDL");
+MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACE CTF Driver");
 
 int ctf_leave_compressed = 0;

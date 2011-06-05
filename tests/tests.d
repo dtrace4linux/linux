@@ -68,6 +68,39 @@ d:
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
+name: high-profile1
+note:
+	Lots of ticks to try and induce interrupt stacking/xcall
+	issues.
+d:
+	BEGIN {
+		cnt = 0;
+	}
+	syscall::: {
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		this->arg0 = stringof(arg0);
+		this->arg1 = stringof(arg1);
+		this->arg2 = stringof(arg2);
+		cnt++;
+	}
+	tick-5000 { }
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-5s { exit(0); }
+##################################################################
+name: high-profile2
+note:
+	Lots of ticks but no probes on syscalls.
+	issues.
+d:
+	BEGIN {
+		cnt = 0;
+	}
+	tick-5000 { cnt++; }
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-10s { exit(0); }
+##################################################################
 name: fbt-a
 note: Do stuff to measure fbt heavy duty access.
 d:
@@ -79,6 +112,16 @@ d:
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
+##################################################################
+name: fbt-abc
+note: Do more stuff to measure fbt heavy duty access.
+d:
+	fbt::a*:
+	{
+	cnt++;
+	}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-10s { exit(0); }
 ##################################################################
 name: io-1
 note: check io provider isnt causing page faults.

@@ -211,7 +211,20 @@ INTERRUPT  13, 1, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
 /**********************************************************************/
 /*   Page fault.						      */
 /**********************************************************************/
-INTERRUPT  14, 1, dtrace_page_fault, dtrace_page_fault_handler, kernel_page_fault_handler
+INTERRUPT  14, 1, dtrace_page_fault, dtrace_int_page_fault_handler, kernel_page_fault_handler
+
+/**********************************************************************/
+/*   Handle  the  IPI  interrupt - inter-process subroutine call. We  */
+/*   bypass  Linux's  smp_call_function calls since the requirements  */
+/*   of  not  being  able to call from an interrupt are incompatible  */
+/*   with the Solaris mechanism.				      */
+/**********************************************************************/
+	FUNCTION dtrace_int_ipi
+dtrace_int_ipi:
+	PUSH_REGS 0
+	call xcall_slave
+	POP_REGS 0
+	iret
 
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */

@@ -38,6 +38,12 @@
 #include <linux/notifier.h>
 #include <asm/uaccess.h>
 
+/**********************************************************************/
+/*   Set  this to GPL or CDDL if debugging the driver. Really we are  */
+/*   CDDL.							      */
+/**********************************************************************/
+# define	DRIVER_LICENSE "GPL"
+
 # if HAVE_INCLUDE_LINUX_SLAB_H
 #     include <linux/slab.h>
 # endif
@@ -350,6 +356,12 @@ void dtrace_parse_function(pf_info_t *, uint8_t *, uint8_t *);
 int dtrace_function_size(char *name, uint8_t **start, int *size);
 
 /**********************************************************************/
+/*   Set  to  true  when  something  bad  goes wrong - for debugging  */
+/*   purposes.							      */
+/**********************************************************************/
+extern int dtrace_shutdown;
+
+/**********************************************************************/
 /*   Stats   counters   -  for  seeing  where  we  got  to:  ad  hoc  */
 /*   debugging/performance monitoring.				      */
 /**********************************************************************/
@@ -370,6 +382,8 @@ cpu_core_t	*cpu_get_this(void);
 int	is_kernel_text(unsigned long);
 int	dtrace_mutex_is_locked(mutex_t *);
 asmlinkage int dtrace_memcpy_with_error(void *, void *, size_t);
+void set_console_on(int flag);
+void dtrace_linux_panic(void);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

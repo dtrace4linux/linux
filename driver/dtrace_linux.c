@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 24-Jul-2010 1.9 $ 			      */
+/*   $Header: Last edited: 14-May-2011 1.10 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -28,6 +28,7 @@
 #include <linux/sys.h>
 #include <linux/thread_info.h>
 #include <linux/smp.h>
+#include <asm/smp.h>
 #include <linux/vmalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/current.h>
@@ -38,7 +39,7 @@
 //#include <asm/pgalloc.h>
 
 MODULE_AUTHOR("Paul D. Fox");
-MODULE_LICENSE("CDDL");
+MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACEDRV Driver");
 
 # if !defined(CONFIG_NR_CPUS)
@@ -48,6 +49,10 @@ MODULE_DESCRIPTION("DTRACEDRV Driver");
 # define	TRACE_ALLOC	0
 
 # define	NOTIFY_KERNEL	1
+
+#if !defined(X86_PLATFORM_IPI_VECTOR)
+#	define	X86_PLATFORM_IPI_VECTOR GENERIC_INTERRUPT_VECTOR
+#endif
 
 /**********************************************************************/
 /*   Turn on HERE() macro tracing.				      */
@@ -70,6 +75,13 @@ module_param(dtrace_printk, int, 0);
 char	dtrace_buf[LOG_BUFSIZ];
 int	dbuf_i;
 int	dtrace_printf_disable;
+
+/**********************************************************************/
+/*   TRUE when we have called dtrace_linux_init(). After that point,  */
+/*   xcalls  are  valid,  but  until  then,  we need to wait for the  */
+/*   externally loaded symbol patchups.				      */
+/**********************************************************************/
+int driver_initted;
 
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
@@ -157,6 +169,12 @@ int	nr_cpus = 1;
 MUTEX_DEFINE(mod_lock);
 
 /**********************************************************************/
+/*   Set  to  true  by  debug code that wants to immediately disable  */
+/*   probes so we can diagnose what was happening.		      */
+/**********************************************************************/
+int dtrace_shutdown;
+
+/**********************************************************************/
 /*   We  need  one  of  these for every process on the system. Linux  */
 /*   doesnt  provide a way to find a process being created, and even  */
 /*   if  it did, we need to allocate memory when that happens, which  */
@@ -167,11 +185,17 @@ MUTEX_DEFINE(mod_lock);
 sol_proc_t	*shadow_procs;
 
 /**********************************************************************/
+/*   Spinlock  to avoid dtrace_xcall having issues whilst queuing up  */
+/*   a request.							      */
+/**********************************************************************/
+extern spinlock_t xcall_spinlock;
+
+/**********************************************************************/
 /*   We need this to be in an executable page. kzalloc doesnt return  */
 /*   us  one  of  these, and havent yet fixed this so we can make it  */
 /*   executable, so for now, this will do.			      */
 /**********************************************************************/
-static cpu_core_t	cpu_core_exec[128];
+static cpu_core_t	cpu_core_exec[NCPU];
 # define THIS_CPU() &cpu_core_exec[cpu_get_id()]
 //# define THIS_CPU() &cpu_core[cpu_get_id()]
 
@@ -226,9 +250,17 @@ static struct notifier_block n_exit = {
 	};
 
 /**********************************************************************/
+/*   Externs.							      */
+/**********************************************************************/
+extern unsigned long cnt_xcall1;
+extern unsigned long cnt_xcall2;
+extern unsigned long cnt_xcall3;
+extern unsigned long cnt_xcall4;
+extern unsigned long cnt_xcall5;
+
+/**********************************************************************/
 /*   Prototypes.						      */
 /**********************************************************************/
-void set_console_on(int flag);
 void ctf_setup(void);
 int dtrace_double_fault(void);
 int dtrace_int1(void);
@@ -236,6 +268,7 @@ int dtrace_int3(void);
 int dtrace_int11(void);
 int dtrace_int13(void);
 int dtrace_page_fault(void);
+int dtrace_int_ipi(void);
 static void * par_lookup(void *ptr);
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
@@ -536,6 +569,7 @@ void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
+int ipi_vector = 0; // 0xea; // very temp hack - need to find a new interrupt
 
 /**********************************************************************/
 /*   Kernel independent gate definitions.			      */
@@ -854,6 +888,7 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 
 	cnt_gpf1++;
+
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
 		cnt_gpf2++;
 		/***********************************************/
@@ -900,7 +935,7 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 unsigned long cnt_pf1;
 unsigned long cnt_pf2;
 int 
-dtrace_page_fault_handler(int type, struct pt_regs *regs)
+dtrace_int_page_fault_handler(int type, struct pt_regs *regs)
 {
 //dtrace_printf("PGF %p called pf%d\n", regs->r_pc-1, cnt_pf1);
 	cnt_pf1++;
@@ -939,6 +974,11 @@ printk("dtrace cpu#%d PGF %p err=%p cr2:%p %02x %02x %02x %02x\n",
 	return NOTIFY_KERNEL;
 }
 /**********************************************************************/
+/*   Intercept  SMP  IPI  inter-cpu  interrupts  so we can implement  */
+/*   xcall.							      */
+/**********************************************************************/
+extern unsigned long cnt_ipi1;
+/**********************************************************************/
 /*   Saved copies of idt_table[n] for when we get unloaded.	      */
 /**********************************************************************/
 gate_t saved_double_fault;
@@ -947,6 +987,7 @@ gate_t saved_int3;
 gate_t saved_int11;
 gate_t saved_int13;
 gate_t saved_page_fault;
+gate_t saved_ipi;
 
 /**********************************************************************/
 /*   This  gets  called  once we have been told what missing symbols  */
@@ -958,11 +999,10 @@ static void
 dtrace_linux_init(void)
 {	hrtime_t	t, t1;
 	gate_t *idt_table;
-static int first_time = TRUE;
 
-	if (!first_time)
+	if (driver_initted)
 		return;
-	first_time = FALSE;
+	driver_initted = TRUE;
 
 	/***********************************************/
 	/*   Let  timers  grab  any symbols they need  */
@@ -1052,14 +1092,23 @@ static int first_time = TRUE;
 		saved_int11 = idt_table[11];
 		saved_int13 = idt_table[13];
 		saved_page_fault = idt_table[14];
+		saved_ipi = idt_table[ipi_vector];
 #if 0 && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
 		set_idt_entry(8, (unsigned long) dtrace_double_fault);
 #endif
-		set_idt_entry(1, (unsigned long) dtrace_int1);
-		set_idt_entry(3, (unsigned long) dtrace_int3);
+		set_idt_entry(1, (unsigned long) dtrace_int1); // single-step
+		set_idt_entry(3, (unsigned long) dtrace_int3); // breakpoint
 		set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
 		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
 		set_idt_entry(14, (unsigned long) dtrace_page_fault);
+/*
+{int *first_v = get_proc_addr("first_system_vector");
+set_bit(ipi_vector, used_vectors);
+if (*first_v > ipi_vector)
+	*first_v = ipi_vector;
+set_idt_entry(ipi_vector, (unsigned long) dtrace_int_ipi);
+}
+*/
 	}
 
 	/***********************************************/
@@ -1083,6 +1132,13 @@ dtrace_linux_fini(void)
 	}
 
 	/***********************************************/
+	/*   Stop  the IPI interrupt from firing (and  */
+	/*   hanging  dtrace_xcall)  as we unload the  */
+	/*   driver.				       */
+	/***********************************************/
+	driver_initted = FALSE;
+
+	/***********************************************/
 	/*   Lose  the  grab  on the interrupt vector  */
 	/*   table.				       */
 	/***********************************************/
@@ -1096,11 +1152,33 @@ dtrace_linux_fini(void)
 		idt_table[11] = saved_int11;
 		idt_table[13] = saved_int13;
 		idt_table[14] = saved_page_fault;
+		if (ipi_vector)
+	 		idt_table[ipi_vector] = saved_ipi;
 	}
 
 	return ret;
 }
+/**********************************************************************/
+/*   Call   here  to  disarm  dtrace  so  we  can  debug  unexpected  */
+/*   scenarios. In production dtrace, nothing calls this, but we may  */
+/*   put temporary enablers in, for example the GPF handler. We dont  */
+/*   panic, but we set dtrace_shutdown() to avoid dtrace causing any  */
+/*   more additional damage.					      */
+/**********************************************************************/
+void
+dtrace_linux_panic(void)
+{
+	if (dtrace_shutdown)
+		return;
 
+	dtrace_shutdown = TRUE;
+	set_console_on(1);
+	printk("dtrace_linux_panic called. Dumping cpu stacks\n");
+	set_console_on(0);
+	dump_stack();
+	smp_call_function_single(smp_processor_id() == 0 ? 1 : 0, dump_stack, 0, FALSE);
+	printk("dtrace_linux_panic: finished\n");
+}
 /**********************************************************************/
 /*   CPU specific - used by profiles.c to handle amount of frames in  */
 /*   the clock ticks.						      */
@@ -1390,187 +1468,6 @@ dtrace_vtime_disable(void)
 	    state, nstate) != state);
 }
 
-/**********************************************************************/
-/*   Code  to implement inter-cpu synchronisation. Sometimes, dtrace  */
-/*   needs to ensure the other CPUs are in sync, e.g. because we are  */
-/*   about  to  affect  global  state  for a user dtrace process. We  */
-/*   cannot  do directly what Solaris does because Linux wont let us  */
-/*   use smp_call_function() and friends from interrupt context. The  */
-/*   timer interrupt will cause this to happen.			      */
-/*   								      */
-/*   So,  instead  we  rely on being able to fire a timer on another  */
-/*   cpu.							      */
-/*   								      */
-/*   The  code  below is similar in style to the XC code in Solaris,  */
-/*   and we keep some stats so we can see if this is "good-enough".   */
-/**********************************************************************/
-static struct xcall_tmr {
-	struct timer_list xc_timer;
-	dtrace_xcall_t	  xc_func;
-	void		  *xc_arg;
-	volatile char	  xc_stat;
-	} xcall_tmr[NCPU][NCPU];
-static int xcall_levels[NCPU];
-static void
-xcall_timer_func(void *arg)
-{	struct xcall_tmr *xc = arg;
-
-printk("%p timer %d\n", xc, smp_processor_id());
-//dump_stack();
-	(*xc->xc_func)(xc->xc_arg);
-	xc->xc_stat = 1;
-}
-unsigned long cnt_xcall1;
-unsigned long cnt_xcall2;
-unsigned long cnt_xcall3;
-unsigned long cnt_xcall4;
-void
-new_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
-{	int	c;
-	int	cpu_id = smp_processor_id();
-static int broken = FALSE;
-
-	/***********************************************/
-	/*   Special case - just 'us'.		       */
-	/***********************************************/
-	cnt_xcall1++;
-	if (cpu_id == cpu) {
-		local_irq_disable();
-		func(arg);
-		local_irq_enable();
-		return;
-	}
-
-	if (broken)
-		return;
-
-	/***********************************************/
-	/*   During   initialisation,  we  wont  know  */
-	/*   where  the  add_timer_on()  function is,  */
-	/*   but  we  can  ignore this because we are  */
-	/*   just syncing.			       */
-	/***********************************************/
-	if (fn_add_timer_on == NULL)
-		return;
-
-printk("dtrace_xcall %p %x cpu=%d fn_add_timer_on=%p\n", func, cpu, cpu_id, fn_add_timer_on);
-//dump_stack();
-	if (xcall_levels[cpu_id]) {
-		printk("cpu=%d oops - we recurssed\n", cpu_id);
-		cnt_xcall3++;
-		dump_stack();
-		return;
-	}
-	xcall_levels[cpu_id]++;
-	/***********************************************/
-	/*   Set  up  timers  for the other cpus - we  */
-	/*   have  to  let them decide when is a good  */
-	/*   time  to  catch  the interrupt, to avoid  */
-	/*   irq issues in smp_call_function().	       */
-	/***********************************************/
-//preempt_disable();
-	//local_irq_disable();
-	cnt_xcall2++;
-	for (c = 0; c < nr_cpus; c++) {
-		struct xcall_tmr *tmr = xcall_tmr[cpu_id] + c;
-		if ((cpu & (1 << c)) == 0 || c == cpu_id) {
-			tmr->xc_stat = 1;
-			continue;
-		}
-
-		init_timer(&tmr->xc_timer);
-		tmr->xc_timer.function = xcall_timer_func;
-		tmr->xc_timer.data = tmr;
-		tmr->xc_timer.expires = jiffies+1;
-		tmr->xc_func = func;
-		tmr->xc_arg = arg;
-		tmr->xc_stat = 0;
-		fn_add_timer_on(&tmr->xc_timer, c);
-	}
-	/***********************************************/
-	/*   Now wait for the others to catch up with  */
-	/*   us.				       */
-	/***********************************************/
-//set_console_on(1);
-//printk("waiting!\n");
-	if (cpu & (1 << cpu_id)) {
-		func(arg);
-		xcall_tmr[cpu_id][cpu_id].xc_stat = 1;
-	}
-	for (c = 0; c < nr_cpus; c++) {
-		unsigned int cnt = 1;
-		struct xcall_tmr *tmr = xcall_tmr[cpu_id] + c;
-printk("%p cpu=%d mask=%x waiting for cpu %d: %d\n", tmr, cpu_id, cpu, c, tmr->xc_stat);
-		for (; tmr->xc_stat == 0; cnt++) {
-			if (cnt == 1000000000) {
-				set_console_on(1);
-				printk("dtrace_xcall: excessive delays cpu=%d\n", cpu_id);
-				set_console_on(0);
-if (fn_sysrq_showregs_othercpus) {
-(*fn_sysrq_showregs_othercpus)(0);
-}
-				cnt_xcall4++;
-				broken = TRUE;
-				dump_stack();
-break;
-			}
-			/***********************************************/
-			/*   Be HT friendly.			       */
-			/***********************************************/
-			asm("pause\n");
-		}
-	}
-printk("finished\n");
-//set_console_on(0);
-//preempt_enable();
-	//local_irq_enable();
-	xcall_levels[cpu_id]--;
-
-}
-
-/*ARGSUSED*/
-void
-dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
-{
-	cnt_xcall1++;
-	if (cpu == DTRACE_CPUALL) {
-		cnt_xcall2++;
-		/***********************************************/
-		/*   Avoid  calling  local_irq_disable, since  */
-		/*   we   will  likely  be  called  from  the  */
-		/*   hrtimer callback.			       */
-		/***********************************************/
-		preempt_disable();
-//		local_irq_enable();
-		SMP_CALL_FUNCTION(func, arg, TRUE);
-//		local_irq_disable();
-		func(arg);
-		preempt_enable();
-	} else {
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
-		/***********************************************/
-		/*   20090710   Special  case  where  we  are  */
-		/*   trying    to   call   ourselves,   since  */
-		/*   smp_call_function_single  doesnt like us  */
-		/*   doing    this.    Patch    provided   by  */
-		/*   Nicolas.Williams@sun.com		       */
-		/***********************************************/
-		int me = get_cpu();
-
-		put_cpu();
-
-		if (me == cpu) {
-			local_irq_disable();
-			func(arg);
-			local_irq_enable();
-			return;
-		}
-		SMP_CALL_FUNCTION_SINGLE(cpu, func, arg, TRUE);
-#else
-		SMP_CALL_FUNCTION_SINGLE(cpu, func, arg, TRUE);
-#endif
-	}
-}
 
 /**********************************************************************/
 /*   Needed by systrace.c					      */
@@ -2935,24 +2832,30 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 	char	*buf = page;
 	extern unsigned long cnt_probe_recursion;
 	extern unsigned long cnt_probes;
+# define TYPE_LONG 0
+# define TYPE_INT  1
 	static struct map {
+		int	type;
 		unsigned long *ptr;
 		char	*name;
 		} stats[] = {
-		{&cnt_probes, "probes"},
-		{&cnt_probe_recursion, "probe_recursion"},
-		{&cnt_int3_1, "int3_1"},
-		{&cnt_int3_2, "int3_2"},
-		{&cnt_gpf1, "gpf1"},
-		{&cnt_gpf2, "gpf2"},
-		{&cnt_pf1, "pf1"},
-		{&cnt_pf2, "pf2"},
-		{&cnt_snp1, "snp1"},
-		{&cnt_snp2, "snp2"},
-		{&cnt_xcall1, "xcall1"},
-		{&cnt_xcall2, "xcall2"},
-		{&cnt_xcall3, "xcall3(reentrant)"},
-		{&cnt_xcall4, "xcall4(delay)"},
+		{TYPE_LONG, &cnt_probes, "probes"},
+		{TYPE_LONG, &cnt_probe_recursion, "probe_recursion"},
+		{TYPE_LONG, &cnt_int3_1, "int3_1"},
+		{TYPE_LONG, &cnt_int3_2, "int3_2"},
+		{TYPE_LONG, &cnt_gpf1, "gpf1"},
+		{TYPE_LONG, &cnt_gpf2, "gpf2"},
+		{TYPE_LONG, &cnt_ipi1, "ipi1"},
+		{TYPE_LONG, &cnt_pf1, "pf1"},
+		{TYPE_LONG, &cnt_pf2, "pf2"},
+		{TYPE_LONG, &cnt_snp1, "snp1"},
+		{TYPE_LONG, &cnt_snp2, "snp2"},
+		{TYPE_LONG, &cnt_xcall1, "xcall1"},
+		{TYPE_LONG, &cnt_xcall2, "xcall2"},
+		{TYPE_LONG, &cnt_xcall3, "xcall3(reentrant)"},
+		{TYPE_LONG, &cnt_xcall4, "xcall4(delay)"},
+		{TYPE_LONG, &cnt_xcall5, "xcall5(spinlock)"},
+		{TYPE_INT, &dtrace_shutdown, "shutdown"},
 		{0}
 		};
 
@@ -2965,7 +2868,10 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		}
 
 	for (i = 0; stats[i].name; i++) {
-		size = snprintf(buf, count - n, "%s=%lu\n", stats[i].name, *stats[i].ptr);
+		if (stats[i].type == TYPE_LONG)
+			size = snprintf(buf, count - n, "%s=%lu\n", stats[i].name, *stats[i].ptr);
+		else
+			size = snprintf(buf, count - n, "%s=%d\n", stats[i].name, *(int *) stats[i].ptr);
 		buf += size;
 		n += size;
 	}
@@ -3085,6 +2991,12 @@ static struct proc_dir_entry *dir;
 		printk("Cannot create /proc/dtrace\n");
 		return -1;
 	}
+
+	/***********************************************/
+	/*   Lock  for  avoid  reentrancy problems in  */
+	/*   dtrace_xcall.			       */
+	/***********************************************/
+	spin_lock_init(&xcall_spinlock);
 
 	/***********************************************/
 	/*   Initialise   the   cpu_list   which  the  */

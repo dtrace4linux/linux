@@ -58,6 +58,8 @@
 # endif
 # include <asm/page.h>
 
+#define X86_PLATFORM_IPI_VECTOR         0xed
+
 # define NOTIFY_DONE	0
 
 .macro FUNCTION name
@@ -69,17 +71,15 @@
 /**********************************************************************/
 /*   Wrap all the interrupts into a single macro.		      */
 /**********************************************************************/
-.macro INTERRUPT nr, fault, func, handler, kernel_handler
+.macro INTERRUPT nr, fault, ign_user, func, handler, kernel_handler
 	FUNCTION \func
 \func:
 	/***********************************************/
-	/*   Ensure  consistent  stack  frame setup -  */
-	/*   some   interrupts  have  an  error  code  */
-	/*   pushed, others do not. Short circuit the  */
-	/*   common  case  where  its a user trap and  */
-	/*   not    a    kernel    one,   and   avoid  */
-	/*   pushing/popping all the regs.	       */
+	/*   Some interrupts are for the kernel only.  */
+	/*   Just   passthru   the  interrupt  if  it  */
+	/*   occurred in user space.		       */
 	/***********************************************/
+.if \ign_user == 0
 	.if \fault == 1
 	cmp $__KERNEL_CS,16(%rsp)
 	.else
@@ -88,6 +88,15 @@
 
 	je 1f
 	jmp *\kernel_handler
+.endif
+	/***********************************************/
+	/*   Ensure  consistent  stack  frame setup -  */
+	/*   some   interrupts  have  an  error  code  */
+	/*   pushed, others do not. Short circuit the  */
+	/*   common  case  where  its a user trap and  */
+	/*   not    a    kernel    one,   and   avoid  */
+	/*   pushing/popping all the regs.	       */
+	/***********************************************/
 1:
 
 	/***********************************************/
@@ -215,33 +224,50 @@
 /**********************************************************************/
 /*   Single step trap.						      */
 /**********************************************************************/
-INTERRUPT  1, 0, dtrace_int1, dtrace_int1_handler, kernel_int1_handler
+INTERRUPT  1, 0, 0, dtrace_int1, dtrace_int1_handler, kernel_int1_handler
 
 /**********************************************************************/
 /*   Breakpoint instruction.					      */
 /**********************************************************************/
-INTERRUPT  3, 0, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
+INTERRUPT  3, 0, 0, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
 
 /**********************************************************************/
 /*   Double fault.						      */
 /**********************************************************************/
-INTERRUPT  8, 1, dtrace_double_fault, dtrace_double_fault_handler, kernel_double_fault_handler
+INTERRUPT  8, 1, 0, dtrace_double_fault, dtrace_double_fault_handler, kernel_double_fault_handler
 
 /**********************************************************************/
 /*   Segment not present.					      */
 /**********************************************************************/
-INTERRUPT  11, 1, dtrace_int11, dtrace_int11_handler, kernel_int11_handler
+INTERRUPT  11, 1, 0, dtrace_int11, dtrace_int11_handler, kernel_int11_handler
 
 /**********************************************************************/
 /*   General protection fault.					      */
 /**********************************************************************/
-INTERRUPT  13, 1, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
+INTERRUPT  13, 1, 0, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
 
 /**********************************************************************/
 /*   Page fault.						      */
 /**********************************************************************/
-INTERRUPT  14, 1, dtrace_page_fault, dtrace_page_fault_handler, kernel_page_fault_handler
+INTERRUPT  14, 1, 0, dtrace_page_fault, dtrace_int_page_fault_handler, kernel_page_fault_handler
 
+/**********************************************************************/
+/*   Handle  the  IPI  interrupt - inter-process subroutine call. We  */
+/*   bypass  Linux's  smp_call_function calls since the requirements  */
+/*   of  not  being  able to call from an interrupt are incompatible  */
+/*   with the Solaris mechanism.				      */
+/**********************************************************************/
+	FUNCTION dtrace_int_ipi
+dtrace_int_ipi:
+	PUSH_REGS 0
+	call xcall_slave
+	POP_REGS 0
+	iretq
+
+//INTERRUPT  0xb0, 0, 1, dtrace_int_ipi, dtrace_int_ipi_handler, iret_addr
+iret_instr:
+	iretq
+iret_addr: .quad iret_instr
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */
 /*   kernels  mcount. If we try and probe mcount, we want to see the  */

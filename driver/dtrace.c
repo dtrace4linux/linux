@@ -5893,13 +5893,17 @@ void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
 {
-static struct {
-	dtrace_id_t	id;
-	int		locked;
-	} arr[NCPU];
 	void __dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4);
 	int cpu;
+
+	/***********************************************/
+	/*   Allow us to disable dtrace as soon as we  */
+	/*   come  across  a consistency error, so we  */
+	/*   can look at the latest trace info.	       */
+	/***********************************************/
+	if (dtrace_shutdown)
+		return;
 
 	if (id == dtrace_probeid_error) {
 		__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
@@ -5922,25 +5926,70 @@ static struct {
 	/*   occasionally  get a look in, but we dont  */
 	/*   mind dropping the odd timer tick.	       */
 	/***********************************************/
-	if (arr[cpu].locked) {
+int locked = 0;
+static int cnt;
+static int cnt1;
+unsigned long flags;
+if (1) {
+//	local_irq_disable();
+///	spin_lock_irqsave(&cpu_core[cpu].cpuc_spinlock, flags);
+
+/*
+	if (cpu_core[cpu].cpuc_probe_level == 0) {
+		if (spin_trylock(&cpu_core[cpu].cpuc_spinlock) == 0) {
+cnt1++;
+//			spin_lock(&cpu_core[cpu].cpuc_spinlock);
+			if (cnt1 < 10 || (cnt1 % 1000) == 0) {
+				void dump_xcall();
+				set_console_on(1);
+				printk("sorry - no lock %d/%d\n", cnt, cnt1);
+				dump_xcall();
+				dump_stack();
+				set_console_on(0);
+			}
+		} else {
+cnt++;
+//			set_console_on(1);
+//			printk("%p spin_lock cpu=%d %d\n", &cpu_core[cpu].cpuc_spinlock, cpu, cnt++);
+//			set_console_on(0);
+//			spin_lock(&cpu_core[cpu].cpuc_spinlock);
+			locked = 1;
+		}
+	}
+*/
+}
+
+	if (cpu_core[cpu].cpuc_probe_level) {
 		/***********************************************/
 		/*   Avoid flooding the console or syslogd.    */
 		/***********************************************/
 		cnt_probe_recursion++;
 		if (0) {
 			if (cnt_probe_recursion < 500) {
-				printk("dtrace_probe: re-entrancy: old=%d this=%d [#%lu]\n", (int) arr[cpu].id, (int) id, cnt_probe_recursion);
+				printk("dtrace_probe: re-entrancy: old=%d this=%d [#%lu]\n", 
+					(int) cpu_core[cpu].cpuc_this_probe, 
+					(int) id, 
+					cnt_probe_recursion);
 				dump_stack();
 			}
 			return;
 		}
 	}
-	arr[cpu].locked = 1;
-	arr[cpu].id = id;
+	cpu_core[cpu].cpuc_probe_level++;
+	cpu_core[cpu].cpuc_this_probe = id;
+//local_irq_enable();
 //printk("dtrace_probe: enter: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
 	__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
 //printk("dtrace_probe: return: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
-	arr[cpu].locked = 0;
+	cpu_core[cpu].cpuc_probe_level--;
+
+/*if (1) {
+	if (locked)
+		spin_unlock(&cpu_core[cpu].cpuc_spinlock);
+//	local_irq_enable();
+}*/
+///	spin_unlock_irqrestore(&cpu_core[cpu].cpuc_spinlock, flags);
+
 }
 #define dtrace_probe __dtrace_probe
 #endif
@@ -11640,9 +11689,16 @@ dtrace_dof_copyin(uintptr_t uarg, int *errp)
 	/*   a  probe  may  assert  it.  So why is it  */
 	/*   here?  Maybe  to  detect  coding bugs in  */
 	/*   early dtrace?			       */
+	/*   Note  that  we are called from the ioctl  */
+	/*   for  /dev/dtrace and /dev/dtrace_helper.  */
+	/*   The  function  doesnt  do  anything that  */
+	/*   cares  about  the lock. It just reads in  */
+	/*   the  ioctl  data  from  user  space  and  */
+	/*   validates it.			       */
 	/***********************************************/
-#endif
+#else
 	ASSERT(!MUTEX_HELD(&dtrace_lock));
+#endif
 
 	/*
 	 * First, we're going to copyin() the sizeof (dof_hdr_t).

@@ -113,7 +113,7 @@ newf:
 		grep -v '\.o$$'`
 
 test:
-	tools/tests.pl run
+	tools/tests.pl 
 #	tools/runtests.pl
 testloop:
 	while true ; do tools/tests.pl run </dev/null ; done

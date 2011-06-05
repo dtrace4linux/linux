@@ -21,7 +21,7 @@
 #include <linux/module.h>
 
 MODULE_AUTHOR("Paul D. Fox");
-MODULE_LICENSE("CDDL");
+MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACE/FASTTRAP Driver");
 
 /**********************************************************************/

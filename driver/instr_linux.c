@@ -41,7 +41,7 @@
 # define NULL 0
 
 MODULE_AUTHOR("Paul D. Fox");
-MODULE_LICENSE("CDDL");
+MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACE/Instruction Tracing Driver");
 
 /**********************************************************************/

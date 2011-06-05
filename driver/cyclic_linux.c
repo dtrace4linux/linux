@@ -90,7 +90,7 @@ init_cyclic()
 # endif
 
 # if MODE == CYCLIC_LINUX
-// Here to create our own stubs.
+#include <linux/interrupt.h>
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -109,7 +109,10 @@ struct c_timer {
 	struct hrtimer	c_htp;	/* Must be first item in structure */
 	cyc_handler_t	c_hdlr;
 	cyc_time_t	c_time;
+	struct c_timer	*c_next;
 	};
+spinlock_t lock_timers;
+struct c_timer *hd_timers;
 
 int
 init_cyclic()
@@ -132,11 +135,85 @@ init_cyclic()
 		printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
 		return FALSE;
 	}
+	spin_lock_init(&lock_timers);
 	return TRUE;
 }
+
+extern int dtrace_shutdown;
+static void cyclic_tasklet_func(unsigned long arg)
+{	unsigned long cnt = 0;
+	//printk("in cyclic_tasklet_func\n");
+
+	while (hd_timers && dtrace_shutdown == FALSE) {
+		ktime_t kt;
+		struct c_timer *cp;
+		struct hrtimer *ptr;
+		unsigned long flags;
+
+		if (cnt++ > 1000) {
+			printk("too many tasklets\n");
+			break;
+		}
+
+		spin_lock_irqsave(&lock_timers, flags);
+		if ((cp = hd_timers) != NULL)
+			hd_timers = cp->c_next;
+		else
+			hd_timers = NULL;
+		if (cp)
+			cp->c_next = NULL;
+		spin_unlock_irqrestore(&lock_timers, flags);
+		if (cp == NULL)
+			break;
+
+		ptr = &cp->c_htp;
+		kt.tv64 = cp->c_time.cyt_interval;
+		/***********************************************/
+		/*   Invoke the callback.		       */
+		/***********************************************/
+		cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
+
+		/***********************************************/
+		/*   Bit   annoying   this   --   in  2.6.28,  */
+		/*   "expires" gets renamed to "_expires" and  */
+		/*   "_softexpires".   The  API  we  want  is  */
+		/*   inlined,  but relies on a GPL exportable  */
+		/*   symbol,  so  we  cannot  use  it (or use  */
+		/*   /proc/kallsyms  lookups),  so its easier  */
+		/*   to just inline what they expect.	       */
+		/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+		ptr->_softexpires = ktime_add_ns(ptr->_softexpires, kt.tv64);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
+		ptr->_expires = ktime_add_ns(ptr->_expires, kt.tv64);
+		ptr->_softexpires = ktime_add_ns(ptr->_softexpires, kt.tv64);
+#else
+		ptr->expires = ktime_add_ns(ptr->expires, kt.tv64);
+#endif
+		fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+	}
+}
+DECLARE_TASKLET( cyclic_tasklet, cyclic_tasklet_func, 0 );
+
 static enum hrtimer_restart
 be_callback(struct hrtimer *ptr)
-{	struct c_timer *cp = (struct c_timer *) ptr;
+{	struct c_timer *cp;
+
+	
+	spin_lock(&lock_timers);
+	cp = (struct c_timer *) ptr;
+	cp->c_next = hd_timers;
+	hd_timers = cp;
+	spin_unlock(&lock_timers);
+
+	tasklet_schedule(&cyclic_tasklet);
+	
+	return HRTIMER_NORESTART;
+}
+static enum hrtimer_restart
+orig_be_callback(struct hrtimer *ptr)
+{
+	struct c_timer *cp = (struct c_timer *) ptr;
 	ktime_t kt;
 
 	kt.tv64 = cp->c_time.cyt_interval;
@@ -195,11 +272,30 @@ cyclic_add_omni(cyc_omni_handler_t *omni)
 void 
 cyclic_remove(cyclic_id_t id)
 {	struct c_timer *ctp = (struct c_timer *) id;
+	unsigned long flags;
 
 	if (id == 0)
 		return;
 
 	fn_hrtimer_cancel(&ctp->c_htp);
+
+	/***********************************************/
+	/*   Remove from the list if its on it.	       */
+	/***********************************************/
+	spin_lock_irqsave(&lock_timers, flags);
+	if (hd_timers == ctp)
+		hd_timers = ctp->c_next;
+	else {
+		struct c_timer *cp;
+		for (cp = hd_timers; cp; cp = cp->c_next) {
+			if (cp->c_next == ctp) {
+				cp->c_next = ctp->c_next;
+				break;
+			}
+		}
+	}
+	spin_unlock_irqrestore(&lock_timers, flags);
+
 	kfree(ctp);
 }
 

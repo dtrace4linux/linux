@@ -630,25 +630,29 @@ systrace_assembler_dummy(void)
 #endif
 
 /**********************************************************************/
-/*   When  a syscall is intercepted, the actual syscall number is in  */
-/*   the  RAX  or  EAX  register,  but some kernel compilation modes  */
-/*   clobber this before we get a chance to handle this (eg OpenSuse  */
-/*   11.x),  due to stack frame canary management. So we arrange the  */
-/*   assembler  stubs  above,  to  store  the  syscall  in a per cpu  */
-/*   element.  We should change this structure to be more cache-line  */
-/*   friendly.							      */
+/*   We  need  to  intercept  each syscall. We do this with a little  */
+/*   wrapper  of  assembler  -  because  we lose the knowledge about  */
+/*   which syscall is being invoked. So we create NSYSCALL copies of  */
+/*   the  template  code and patch in the $nn value for the syscall.  */
+/*   We  have  different  scenarios  on 64b - since the calling code  */
+/*   from assembler puts differing things in the registers for those  */
+/*   syscalls which can affect the caller ([OUT] parameters).	      */
+/*   								      */
+/*   On  32b,  we  have  two  templates to handle the ptregs calling  */
+/*   convention and non-ptreg calling convention.		      */
+/*   								      */
+/*   Its  oh-so  ugly,  but  then  we  are tracking the kernel - all  */
+/*   kernels							      */
 /**********************************************************************/
 static struct syscall_info {
 	void *s_template;
-	int	s_ptreg;
-	} syscall_info[NSYSCALL];
+	void *s_template32;
+	} syscall_info[NSYSCALL > NSYSCALL32 ? NSYSCALL : NSYSCALL32];
 extern void syscall_template(void);
 extern void syscall_ptreg_template(void);
 extern int syscall_template_size;
 extern int syscall_ptreg_template_size;
 char	*templates;
-char	*templates32;
-
 
 void
 init_syscalls(void)
@@ -658,6 +662,7 @@ init_syscalls(void)
 	int	offset1 = 0;
 	int	offset2 = 0;
 	int	template_size;
+	int	num_syscalls = NSYSCALL + NSYSCALL32;
 
 	if (templates)
 		return;
@@ -694,7 +699,7 @@ init_syscalls(void)
 	/*   where   we  patch  the  actual  #syscall  */
 	/*   number into the copy of the code.	       */
 	/***********************************************/
-	templates = vmalloc_exec(NSYSCALL * template_size);
+	templates = vmalloc_exec(num_syscalls * template_size);
 	cp = templates;
 	for (i = 0; i < NSYSCALL; i++) {
 		syscall_info[i].s_template = cp;
@@ -702,13 +707,17 @@ init_syscalls(void)
 			memcpy(cp, syscall_ptreg_template, syscall_ptreg_template_size);
 			*(int *) (cp + offset2) = i;
 			cp += syscall_ptreg_template_size;
-			syscall_info[i].s_ptreg = TRUE;
 		} else {
 			memcpy(cp, syscall_template, syscall_template_size);
 			*(int *) (cp + offset1) = i;
 			cp += syscall_template_size;
-			syscall_info[i].s_ptreg = FALSE;
 		}
+	}
+	for (i = 0; i < NSYSCALL32; i++) {
+		syscall_info[i].s_template32 = cp;
+		memcpy(cp, syscall_template, syscall_template_size);
+		*(int *) (cp + offset1) = i;
+		cp += syscall_template_size;
 	}
 }
 
@@ -1342,7 +1351,8 @@ get_interposer(int sysnum, int enable)
 static void *
 get_interposer32(int sysnum, int enable)
 {
-	return syscall_template;
+	return syscall_info[sysnum].s_template32;
+//	return syscall_template;
 //	return (void *) dtrace_systrace_syscall;
 }
 #endif
@@ -1927,8 +1937,6 @@ systrace_detach(void)
 	systrace_probe = systrace_stub;
 	if (templates)
 		vfree(templates);
-	if (templates32)
-		vfree(templates32);
 	return (DDI_SUCCESS);
 }
 

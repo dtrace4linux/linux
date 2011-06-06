@@ -1101,6 +1101,14 @@ dtrace_linux_init(void)
 		set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
 		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
 		set_idt_entry(14, (unsigned long) dtrace_page_fault);
+
+		/***********************************************/
+		/*   ipi  vector  needed by xcall code if our  */
+		/*   'new'  code  is  used.  Turn off for now  */
+		/*   since  we havent got the API to allocate  */
+		/*   a  free irq. And we dont seem to need it  */
+		/*   in xcall.c.			       */
+		/***********************************************/
 /*
 {int *first_v = get_proc_addr("first_system_vector");
 set_bit(ipi_vector, used_vectors);

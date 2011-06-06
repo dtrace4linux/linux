@@ -210,4 +210,29 @@ d:
 		printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
 		exit(0); 
 		}
+##################################################################
+name: quantize-1
+note: Some random quantize invocations
+d:
+	syscall:::entry { self->t = timestamp; }
+	syscall:::return { 
+		@s[probefunc] = quantize(timestamp - self->t); 
+		self->t = 0;
+		}
+	tick-5s { 
+		exit(0); 
+		}
+##################################################################
+name: quantize-2
+note: Some random quantize invocations
+d:
+	syscall:::entry { self->t = timestamp; }
+	syscall:::return { 
+		@s[probefunc] = lquantize(timestamp - self->t, 0, 100000, 200); 
+		self->t = 0;
+		}
+	tick-5s { 
+		exit(0); 
+		}
+
 

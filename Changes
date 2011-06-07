@@ -1,3 +1,12 @@
+Wed Jun  8 22:42:07 2011  fox
+
+     508* tests/syscall.c: dummy app to allow us to put in lots of syscalls.
+          Am debugging whether "dtrace -n syscall:::" can crash system for
+	  some syscalls, especially the pt_regs calls for a 32b binary
+	  on a 64b kernel.
+
+     507* dtrace_isa.c: Fix for 2.6.38 kernel.
+
 Tue Jun  7 22:00:51 2011  fox
 
      506* systrace.c: Fix 32b syscalls on 64b kernels (forgot to finish

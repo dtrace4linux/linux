@@ -15,6 +15,8 @@ use IO::File;
 use POSIX;
 
 my $exit_code = 0;
+my $ctrl_c = 0;
+
 #######################################################################
 #   Command line switches.					      #
 #######################################################################
@@ -26,10 +28,24 @@ my %opts = (
 sub do_child
 {	my $ppid = shift;
 
-	while (-d "/proc/$ppid") {
+	$ppid = $$ if !$ppid;
+
+	while (!$ctrl_c && -d "/proc/$ppid") {
 		my $fh = new FileHandle("/etc/hosts");
 		my $str = <$fh>;
 		new FileHandle("/etc/hosts-nonexistant");
+		###############################################
+		#   We may/may not have each binary.	      #
+		###############################################
+		if (-f "build/sys64") {
+			system("build/sys64");
+			system("strace build/sys64 >/dev/null 2>&1");
+		}
+		if (-f "build/sys32") {
+			system("build/sys32");
+			system("strace build/sys32 >/dev/null 2>&1");
+		}
+
 		system("du /proc >/dev/null 2>&1");
 		if (fork() == 0) {
 			exit(0);
@@ -87,7 +103,6 @@ sub do_tests
 	###############################################
 	my $ncpu = `grep 'processor\t:' /proc/cpuinfo | wc -l`;
 	chomp($ncpu);
-	$SIG{INT} = sub { exit(0); };
 	my $ppid = $$;
 	my %pids;
 	for (my $i = 0; $i < $ncpu; $i++) {
@@ -131,7 +146,9 @@ sub do_tests
 	}
 
 }
-
+######################################################################
+#   Main entry point.						     #
+######################################################################
 sub main
 {
 	Getopt::Long::Configure('require_order');
@@ -144,6 +161,13 @@ sub main
 		);
 
 	usage() if $opts{help};
+
+	$SIG{INT} = sub { $ctrl_c = 1; exit(0); };
+
+	if ($opts{child}) {
+		do_child();
+		exit(0);
+	}
 
 	print <<EOF;
 You are about to run a serious of tests which attempt to do reasonable
@@ -257,6 +281,7 @@ Usage: tests.pl [<test-name>]
 
 Switches:
 
+  -child      Just run the child test - dont run dtrace at same time.
   -loop NN    Loop NN times instead of max $opts{loop} times.
   -count NN   Repeat all tests NN times (default 1).
 

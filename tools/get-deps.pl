@@ -22,7 +22,8 @@ install_dependencies()
 {
 	# fc14: libdwarf libdwarf-devel
    sudo apt-get install zlib1g-dev flex bison \
-   		elfutils libdwarf-dev libelf-dev libc6-dev linux-libc-dev
+   		elfutils libdwarf-dev libelf-dev libc6-dev linux-libc-dev \
+		libc6-dev-i386
 }
 
 build()

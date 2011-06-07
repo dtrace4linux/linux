@@ -64,6 +64,7 @@ cmds:
 all0:	do_cmds kernel
 
 do_cmds:
+	cd tests ; $(MAKE) $(NOPWD)
 	cd libctf ; $(MAKE) $(NOPWD)
 	cd libdtrace ; $(MAKE) $(NOPWD)
 	cd liblinux ; $(MAKE) $(NOPWD)

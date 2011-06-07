@@ -150,7 +150,7 @@ void (*systrace_probe)(dtrace_id_t, uintptr_t, uintptr_t,
 void	*par_setup_thread2(void);
 asmlinkage int64_t
 dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
-    int copy_frame, uintptr_t *arg_ptr,
+    int copy_frame, struct pt_regs *arg_ptr,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
@@ -772,7 +772,7 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
 		}
 
 		return dtrace_systrace_syscall2(syscall, &systrace_sysent32[syscall],
-			FALSE, &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
+			FALSE, (struct pt_regs *) &arg0, arg0, arg1, arg2, arg3, arg4, arg5);
 	}
 #endif
 
@@ -804,10 +804,10 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
 	/*   pointer to pt_regs.		       */
 	/***********************************************/
 # if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
-#   define ARG0_PTR(arg0)	&arg0 
+#   define ARG0_PTR(arg0)	(struct pt_regs *) &arg0 
 #   define EXECVE_COPY_FRAME	FALSE
 # else /* 2.6.9 */
-#   define ARG0_PTR(arg0)	(char *) (&s + 1) + 8 + 8
+#   define ARG0_PTR(arg0)	(struct pt_regs *) ((char *) (&s + 1) + 8 + 8)
 #   define EXECVE_COPY_FRAME	TRUE
 # endif
 
@@ -1085,12 +1085,11 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 /**********************************************************************/
 asmlinkage int64_t
 dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
-    int copy_frame, uintptr_t *arg0_ptr,
+    int copy_frame, struct pt_regs *pregs,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {	dtrace_id_t id;
 	intptr_t	rval;
-	struct pt_regs *pregs = (struct pt_regs *) arg0_ptr;
 
 	/***********************************************/
 	/*   May  want  to single thread this code if  */

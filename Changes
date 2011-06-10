@@ -1,3 +1,9 @@
+Sat Jun 11 14:52:06 2011  fox
+
+     510* archive: 1.0123
+
+     509* systrace.c: Implement the 64b/32b ptregs syscalls.
+
 Wed Jun  8 22:42:07 2011  fox
 
      508* tests/syscall.c: dummy app to allow us to put in lots of syscalls.

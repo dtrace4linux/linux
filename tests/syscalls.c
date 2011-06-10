@@ -5,7 +5,16 @@
 /*   problems.							      */
 /**********************************************************************/
 # include <stdio.h>
+#include <signal.h>
 
+void int_handler()
+{
+	printf("SIGINT invoked\n");
+}
+void segv_handler(int sig)
+{
+	printf("SIGSEGV invoked\n");
+}
 int main(int argc, char **argv)
 {	int	x = 0;
 
@@ -19,6 +28,9 @@ int main(int argc, char **argv)
 	lseek(0, 0, -1);
 	kill(0, 0);
 	signal(99, 0);
+	signal(SIGINT, int_handler);
+	signal(SIGSEGV, segv_handler);
+//	*(int *) 0 = 0;
 	pipe(0);
 	munmap(0, 0);
 	mincore(0, 0);
@@ -43,8 +55,8 @@ int main(int argc, char **argv)
 	readdir(x, 0, 0);
 	closedir(x);
 	chroot("/");
-	sigaction(0);
-	sigprocmask(0);
+	sigaction(0, 0, 0);
+	sigprocmask(0, 0, 0);
 	sigreturn(0);
 	x += open("/nothing", 0);
 	x += chdir("/nothing");

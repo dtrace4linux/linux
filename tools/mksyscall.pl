@@ -132,6 +132,21 @@ sub main
 			my $val = $vals{$c};
 			print $fh " [$c] = \"$name\",\n";
 		}
+		###############################################
+		#   We  need  __NR_xxx  for  the  64-bit and  #
+		#   32-bit  scenarios, but we cannot include  #
+		#   both   unistd_32.h  and  unistd_64.h  so  #
+		#   handle this here.			      #
+		###############################################
+		if ($bits == 32) {
+			foreach my $c (sort {$a <=> $b} (keys(%vals))) {
+				my $name = $vals{$c};
+				$name =~ s/^__NR_//;
+				$name =~ s/^ia32_//;
+				my $val = $vals{$c};
+				print $fh "#define NR_ia32_$name $c\n";
+			}
+		}
 	}
 
 }

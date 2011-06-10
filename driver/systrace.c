@@ -227,16 +227,19 @@ typedef struct patch_t {
 /*   Function pointers.						      */
 /**********************************************************************/
 static int64_t (*sys_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+static int64_t (*sys32_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_fork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_iopl_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_rt_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_rt_sigsuspend_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_sigaltstack_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+static int64_t (*sys_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
 static char *int_ret_from_sys_call_ptr;
 static char *ptregscall_common_ptr;
+static char *ia32_ptregs_common_ptr;
 static char *save_rest_ptr;
 static long (*do_fork_ptr)(unsigned long, unsigned long, struct pt_regs *, unsigned long, int __user *, int __user *);
 
@@ -250,6 +253,15 @@ void systrace_part1_sys_iopl(void);
 void systrace_part1_sys_sigaltstack(void);
 void systrace_part1_sys_rt_sigsuspend(void);
 void systrace_part1_sys_vfork(void);
+
+void systrace_part1_sys_clone_ia32(void);
+void systrace_part1_sys_execve_ia32(void);
+void systrace_part1_sys_fork_ia32(void);
+void systrace_part1_sys_iopl_ia32(void);
+void systrace_part1_sys_rt_sigreturn_ia32(void);
+void systrace_part1_sys_sigaltstack_ia32(void);
+void systrace_part1_sys_sigreturn_ia32(void);
+void systrace_part1_sys_vfork_ia32(void);
 
 static void systrace_disable(void *arg, dtrace_id_t id, void *parg);
 void patch_enable(patch_t *, int);
@@ -483,6 +495,58 @@ systrace_assembler_dummy(void)
 		END_FUNCTION(systrace_part1_sys_vfork)
 
 		/***********************************************/
+		/*   Following  mirror the above ptregs calls  */
+		/*   but for 32bit apps.		       */
+		/***********************************************/
+		FUNCTION(systrace_part1_sys_clone_ia32)
+		"lea    -0x28(%rsp),%rdx\n"
+		"mov $dtrace_systrace_syscall_clone_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_clone_ia32)
+		
+		FUNCTION(systrace_part1_sys_execve_ia32)
+		"lea    -0x28(%rsp),%rcx\n"
+		"mov $dtrace_systrace_syscall_execve_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_execve_ia32)
+		
+		FUNCTION(systrace_part1_sys_fork_ia32)
+		"lea    -0x28(%rsp),%rdi\n"
+		"mov $dtrace_systrace_syscall_fork_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_fork_ia32)
+
+		FUNCTION(systrace_part1_sys_iopl_ia32)
+		"lea    -0x28(%rsp),%rsi\n"
+		"mov $dtrace_systrace_syscall_iopl_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_iopl_ia32)
+
+		FUNCTION(systrace_part1_sys_rt_sigreturn_ia32)
+		"lea    -0x28(%rsp),%rdi\n"
+		"mov $dtrace_systrace_syscall_rt_sigreturn_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_rt_sigreturn_ia32)
+		
+		FUNCTION(systrace_part1_sys_sigaltstack_ia32)
+		"lea    -0x28(%rsp),%rdx\n"
+		"mov $dtrace_systrace_syscall_sigaltstack_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_sigaltstack_ia32)
+		
+		FUNCTION(systrace_part1_sys_sigreturn_ia32)
+		"lea    -0x28(%rsp),%rdi\n"
+		"mov $dtrace_systrace_syscall_sigreturn_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_sigreturn_ia32)
+		
+		FUNCTION(systrace_part1_sys_vfork_ia32)
+		"lea    -0x28(%rsp),%rdi\n"
+		"mov $dtrace_systrace_syscall_vfork_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_vfork_ia32)
+
+		/***********************************************/
 		/*   Following function is used as a template  */
 		/*   for  all syscalls. We replicate the code  */
 		/*   for  each syscall, but replace the dummy  */
@@ -666,6 +730,42 @@ init_syscalls(void)
 
 	if (templates)
 		return;
+
+	/***********************************************/
+	/*   Get  the  dynamic proc addresses we need  */
+	/*   to  do  our work. The reason for so many  */
+	/*   is the differing calling conventions for  */
+	/*   some  syscalls  and  the expectations of  */
+	/*   what  is in the registers or stack. Look  */
+	/*   at  the  entry_{32,64}.S  files to get a  */
+	/*   picture of what/why.		       */
+	/*   					       */
+	/*   Add  in 32b binaries on 64b kernels, and  */
+	/*   the permutations start to mushroom.       */
+	/***********************************************/
+#if defined(__amd64)
+	/***********************************************/
+	/*   Special handling for the syscalls - find  */
+	/*   the bits of code we want to patch.	       */
+	/***********************************************/
+	sys_clone_ptr = get_proc_addr("sys_clone");
+	sys32_clone_ptr = get_proc_addr("sys32_clone");
+	sys_execve_ptr = get_proc_addr("sys_execve");
+	sys_fork_ptr = get_proc_addr("sys_fork");
+	sys_iopl_ptr = get_proc_addr("sys_iopl");
+	sys_rt_sigreturn_ptr = get_proc_addr("sys_rt_sigreturn");
+	sys_rt_sigsuspend_ptr = get_proc_addr("sys_rt_sigsuspend");
+	sys_sigaltstack_ptr = get_proc_addr("sys_sigaltstack");
+	sys_vfork_ptr = get_proc_addr("sys_vfork");
+
+	int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
+	ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
+	ia32_ptregs_common_ptr = (char *) get_proc_addr("ia32_ptregs_common");
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+	save_rest_ptr = (char *) get_proc_addr("save_rest");
+# endif
+	do_fork_ptr = (void *) get_proc_addr("do_fork");
+#endif
 	vmalloc_exec = get_proc_addr("vmalloc_exec");
 
 	/***********************************************/
@@ -820,9 +920,25 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
 			(uintptr_t) arg2, (uintptr_t) arg3,  		\
 			(uintptr_t) arg4, arg5);			\
 	}
+# define TRACE_BEFORE_IA32(call, arg0, arg1, arg2, arg3, arg4, arg5) \
+        if ((id = systrace_sysent32[call].stsy_entry) != DTRACE_IDNONE) { \
+                (*systrace_probe)(id, (uintptr_t) (arg0), arg1, 	\
+			(uintptr_t) arg2, (uintptr_t) arg3,  		\
+			(uintptr_t) arg4, arg5);			\
+	}
 
 # define TRACE_AFTER(call, a, b, c, d, e, f) \
-        if ((id = systrace_sysent[call].stsy_return) != DTRACE_IDNONE) { \
+        if ((id = systrace_sysent32[call].stsy_return) != DTRACE_IDNONE) { \
+		/***********************************************/	\
+		/*   Map   Linux   style   syscall returns to  */	\
+		/*   standard Unix format.		       */	\
+		/***********************************************/	\
+		(*systrace_probe)(id, (uintptr_t) (a),			\
+		    (uintptr_t) (b),					\
+                    (uintptr_t) (c), d, e, f);				\
+	}
+# define TRACE_AFTER_IA32(call, a, b, c, d, e, f) \
+        if ((id = systrace_sysent32[call].stsy_return) != DTRACE_IDNONE) { \
 		/***********************************************/	\
 		/*   Map   Linux   style   syscall returns to  */	\
 		/*   standard Unix format.		       */	\
@@ -1076,6 +1192,34 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 		arg0, arg1, arg2, arg3, arg4, arg5);
 # endif
 }
+
+#define FUNC_IA32(name, func) \
+asmlinkage int64_t \
+dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, \
+    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5) \
+{	long	ret; 					\
+	dtrace_id_t id;					\
+							\
+	TRACE_BEFORE_IA32(NR_ia32_ ## name, arg0, arg1, arg2, arg3, arg4, arg5); \
+							\
+	ret = func(arg0, arg1, arg2, arg3, arg4, arg5);	 \
+							\
+	TRACE_AFTER_IA32(NR_ia32_ ## name, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0); \
+	return ret;					\
+}
+
+/**********************************************************************/
+/*   The  list  of ptregs syscalls. Not that clone is different from  */
+/*   the rest.							      */
+/**********************************************************************/
+FUNC_IA32(clone, sys32_clone_ptr)
+FUNC_IA32(execve, sys_execve_ptr)
+FUNC_IA32(fork, sys_fork_ptr)
+FUNC_IA32(iopl, sys_iopl_ptr)
+FUNC_IA32(rt_sigreturn, sys_rt_sigreturn_ptr)
+FUNC_IA32(sigaltstack, sys_sigaltstack_ptr)
+FUNC_IA32(sigreturn, sys_sigreturn_ptr)
+FUNC_IA32(vfork, sys_vfork_ptr)
 # endif /* defined(__amd64) */
 
 /**********************************************************************/
@@ -1350,6 +1494,25 @@ get_interposer(int sysnum, int enable)
 static void *
 get_interposer32(int sysnum, int enable)
 {
+	switch (sysnum) {
+	  case NR_ia32_clone:
+		return (void *) systrace_part1_sys_clone_ia32;
+	  case NR_ia32_execve:
+		return (void *) systrace_part1_sys_execve_ia32;
+	  case NR_ia32_fork:
+		return (void *) systrace_part1_sys_fork_ia32;
+	  case NR_ia32_rt_sigreturn:
+		return (void *) systrace_part1_sys_rt_sigreturn_ia32;
+	  case NR_ia32_sigaltstack:
+		return (void *) systrace_part1_sys_sigaltstack_ia32;
+	  case NR_ia32_sigreturn:
+		return (void *) systrace_part1_sys_sigreturn_ia32;
+	  case NR_ia32_iopl:
+		return (void *) systrace_part1_sys_iopl_ia32;
+	  case NR_ia32_vfork:
+		return (void *) systrace_part1_sys_vfork_ia32;
+	  }
+
 	return syscall_info[sysnum].s_template32;
 //	return syscall_template;
 //	return (void *) dtrace_systrace_syscall;
@@ -1515,42 +1678,6 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 		return;
 	}
 
-	/***********************************************/
-	/*   Handle specials for the amd64 syscalls.   */
-	/***********************************************/
-#if defined(__amd64)
-	/***********************************************/
-	/*   Special handling for the syscalls - find  */
-	/*   the bits of code we want to patch.	       */
-	/***********************************************/
-	if (sys_clone_ptr == NULL)
-		sys_clone_ptr = get_proc_addr("sys_clone");
-	if (sys_execve_ptr == NULL)
-		sys_execve_ptr = get_proc_addr("sys_execve");
-	if (sys_fork_ptr == NULL)
-		sys_fork_ptr = get_proc_addr("sys_fork");
-	if (sys_iopl_ptr == NULL)
-		sys_iopl_ptr = get_proc_addr("sys_iopl");
-	if (sys_rt_sigreturn_ptr == NULL)
-		sys_rt_sigreturn_ptr = get_proc_addr("sys_rt_sigreturn");
-	if (sys_rt_sigsuspend_ptr == NULL)
-		sys_rt_sigsuspend_ptr = get_proc_addr("sys_rt_sigsuspend");
-	if (sys_sigaltstack_ptr == NULL)
-		sys_sigaltstack_ptr = get_proc_addr("sys_sigaltstack");
-	if (sys_vfork_ptr == NULL)
-		sys_vfork_ptr = get_proc_addr("sys_vfork");
-
-	if (int_ret_from_sys_call_ptr == NULL)
-		int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
-	if (ptregscall_common_ptr == NULL)
-		ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
-	if (save_rest_ptr == NULL)
-		save_rest_ptr = (char *) get_proc_addr("save_rest");
-# endif
-	if (do_fork_ptr == NULL)
-		do_fork_ptr = (void *) get_proc_addr("do_fork");
-#endif
 
 	systrace_do_init(sysent, &systrace_sysent, NSYSCALL, dtrace_systrace_syscall);
 	for (i = 0; i < NSYSCALL; i++) {

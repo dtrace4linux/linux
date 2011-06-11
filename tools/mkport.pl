@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# $Header: Last edited: 17-Jan-2011 1.2 $ 
+# $Header: Last edited: 12-Jun-2011 1.3 $ 
 #
 # Script to poke around the kernel to see what files or structs are
 # available that we really want. Usually there in a later kernel, but
@@ -23,6 +23,8 @@ use POSIX;
 
 my $kern;
 my $kern_src;
+
+my $username = getpwuid(getuid());
 
 #######################################################################
 #   Command line switches.					      #
@@ -124,6 +126,7 @@ sub main
 	if (have("stacktrace_ops", "include/asm/stacktrace.h") ||
 	    have("stacktrace_ops", "arch/x86/include/asm/stacktrace.h")) {
 		$inc .= "# define HAVE_STACKTRACE_OPS \n";
+		$inc .= find_dump_trace_args();
 	}
 
 	###############################################
@@ -193,11 +196,16 @@ sub main
 ######################################################################
 sub check_lex_yytext
 {
-	my $fh = new FileHandle(">/tmp/$ENV{USER}-lex.l");
+	my $fh = new FileHandle(">/tmp/$username-lex.l");
+	if (!$fh) {
+		print "Cannot create /tmp/$username-lex.l -- $!\n";
+		print "Please check the permissions on the file.\n";
+		exit(1);
+	}
 	print $fh "%%\n";
 	print $fh "%%\n";
 	$fh->close();
-	system("cd /tmp ; lex /tmp/$ENV{USER}-lex.l");
+	system("cd /tmp ; lex /tmp/$username-lex.l");
 	
 	$fh = new FileHandle("/tmp/lex.yy.c");
 	if (!$fh) {
@@ -218,6 +226,28 @@ sub check_lex_yytext
 	$fh->close();
 	remove("/tmp/lex.yy.c");
 	return $ret;
+}
+######################################################################
+#   The dump_trace() function for dumping a stack via callbacks has  #
+#   either  5  or  6 arguments, but what it has is not dependent on  #
+#   the   X.Y.Z   kernel   release,  so  we  need  to  handle  this  #
+#   dynamically.						     #
+######################################################################
+sub find_dump_trace_args
+{
+	my $fh = new FileHandle("$kern/arch/x86/include/asm/stacktrace.h");
+	return "" if !$fh;
+	while (<$fh>) {
+		next if !/^void\s+dump_trace/;
+		my $str = $_;
+		while (<$fh>) {
+			$str .= $_;
+			last if /\);/;
+		}
+		$str =~ s/[^,]//g;
+		return "# define FUNC_DUMP_TRACE_ARGS " . (length($str) + 1) . "\n";
+	}
+	return "";
 }
 ######################################################################
 #   Grep a file to see if something is where we want it.	     #

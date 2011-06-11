@@ -374,6 +374,8 @@ do_dwarf_phdr(char *ptr, dw_info_t *dw)
 	int	found = 0;
 	char *fp_start;
 	char *fp;
+	unsigned addr;
+	int fde_count;
 int do_phdr = 1;
 
 	/***********************************************/
@@ -445,9 +447,9 @@ printk("do_dwarf_phdr: %d ehdr=%p eh_frame_hdr_data=%p fp=%p\n", __LINE__, ehdr,
 	printf("EH.fde_fount_enc: %02x\n", *fp++);
 	printf("EH.table_enc: %02x\n", *fp++);
 	printf("EH.eh_frame_ptr: %02x\n", *(uint32_t *) fp); fp += 4;
-	int fde_count = *(uint32_t *) fp; fp += 4;
+	fde_count = *(uint32_t *) fp; fp += 4;
 	printf("EH.fde_count: %02x\n", fde_count);
-	unsigned addr = 0;
+	addr = 0;
 	for (i = 0; i < fde_count; i++) {
 		char *fp1 = fp + i * 2 * 4;
 		unsigned addr1 = *(uint32_t *) (fp1 + 4);
@@ -524,7 +526,7 @@ dw_find_ret_addr(dw_info_t *dw, unsigned long pc, int *cfa_offsetp)
 
 	char	*aug = NULL;
 
-printk("dw_find_ret_addr: here....1\npc=%p fp=%p end=%p size=%x\n", pc, fp, eh_frame_end, dw->eh_frame_sec->sh_size);
+printk("dw_find_ret_addr: here....1\npc=%p fp=%p end=%p size=%x\n", (void *) pc, fp, eh_frame_end, (int) dw->eh_frame_sec->sh_size);
 	/***********************************************/
 	/*   Walk  the  series of CIE/FDE entries til  */
 	/*   we  find  one  that  matches  the target  */
@@ -613,8 +615,8 @@ printf("R encoding %x (kernel)\n", *a);
 			}
 
 		        printf("\n%04x FDE len=%x cie=%04x pc=%lx..%lx tpc=%lx\n", 
-				fp_start - dw->eh_frame_data - 4,
-				len, cie,
+				(int) (fp_start - dw->eh_frame_data - 4),
+				(int) len, (int) cie,
 				dw->pc_begin, dw->pc_begin + dw->pc_end, pc);
 //printf("fde_encoding=%d\n", fde_encoding);
 			if (*aug == 'z') {
@@ -833,7 +835,7 @@ return 1;
 	/*   Nope - not here at all.		       */
 	/***********************************************/
 printf("not found at all....\n");
-printk("here....1 fp=%p end=%p size=%x\n", fp, eh_frame_end, dw->eh_frame_sec->sh_size);
+printk("here....1 fp=%p end=%p size=%x\n", fp, eh_frame_end, (int) dw->eh_frame_sec->sh_size);
 	return 0;
 }
 static char *

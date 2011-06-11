@@ -4,7 +4,7 @@
 /*   the kernel code directly. (This is still supported - sort of).   */
 /*   								      */
 /*   Author: Paul D. Fox					      */
-/*   $Header: Last edited: 28-Jul-2010 1.1 $ 			      */
+/*   $Header: Last edited: 11-Jun-2011 1.2 $ 			      */
 /**********************************************************************/
 
 /*
@@ -235,7 +235,7 @@ static char buf2[1024];
 static char buf3[1024];
 	char *name;
 	char *fname;
-	char *mntname;
+	char *mntname = NULL;
 
 	memset(&finfo, 0, sizeof finfo);
 	finfo.f.fi_offset = offset;
@@ -245,19 +245,24 @@ static char buf3[1024];
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
 	fname = d_path(&file->f_path, buf, sizeof buf);
 #else
-        fname = d_path(&file->f_dentry, file->f_vfsmnt, buf, sizeof buf);
+        fname = d_path(file->f_dentry, file->f_vfsmnt, buf, sizeof buf);
 #endif
+	if (IS_ERR(fname)) {
+		fname = "(unknown)";
+	}
 	name = strrchr(fname, '/');
 	memcpy(buf2, "<unknown>", 10);
 	if (fname && name) {
 		memcpy(buf2, fname, name - fname);
 		buf2[name - fname] = '\0';
 	}
+
 	/***********************************************/
 	/*   Problem with older (2.6.9 kernel).	       */
 	/***********************************************/
-	if (dentry_path_fn)
+	if (dentry_path_fn) {
 		mntname = dentry_path_fn(file->f_vfsmnt->mnt_mountpoint, buf3, sizeof buf3);
+	}
 
 	finfo.f.fi_dirname = buf2;
 	finfo.f.fi_name = name ? name + 1 : "<none>";
@@ -274,7 +279,7 @@ static char buf3[1024];
 		finfo.d.dev_instance = file->f_mapping->host->i_rdev;
 	}
 
-	finfo.d.dev_pathname = file->f_vfsmnt->mnt_devname;
+	finfo.d.dev_pathname = (char *) file->f_vfsmnt->mnt_devname;
 	finfo.d.dev_statname = mntname;
 
 	return &finfo;

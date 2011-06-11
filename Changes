@@ -1,3 +1,11 @@
+Sun Jun 12 00:01:13 2011  fox
+
+     512* mkport.pl, dtrace_isa.c: Handle dump_trace() specially with
+          respect to number of args.
+
+     511* driver/sdt_linux.c: Fix stupid issue in io::: probe on
+          AS4 (2.6.9 kernels).
+
 Sat Jun 11 14:52:06 2011  fox
 
      510* archive: 1.0123

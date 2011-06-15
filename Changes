@@ -1,3 +1,13 @@
+Thu Jun 16 23:19:02 2011  fox
+
+     515* Archive: 1.0124
+
+     514* dtrace_linux.c: Provide multi cpu stack dumping via NMI code in
+          kernel.
+
+     513* x_call.c: Use cmpxchg instruction to ensure visibility between
+          cpus.
+
 Sun Jun 12 00:01:13 2011  fox
 
      512* mkport.pl, dtrace_isa.c: Handle dump_trace() specially with

@@ -569,7 +569,7 @@ void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
-int ipi_vector = 0; // 0xea; // very temp hack - need to find a new interrupt
+int ipi_vector = 0xea; // very temp hack - need to find a new interrupt
 
 /**********************************************************************/
 /*   Kernel independent gate definitions.			      */
@@ -1114,9 +1114,10 @@ dtrace_linux_init(void)
 set_bit(ipi_vector, used_vectors);
 if (*first_v > ipi_vector)
 	*first_v = ipi_vector;
-set_idt_entry(ipi_vector, (unsigned long) dtrace_int_ipi);
 }
 */
+		if (ipi_vector)
+			set_idt_entry(ipi_vector, (unsigned long) dtrace_int_ipi);
 	}
 
 	/***********************************************/
@@ -1167,6 +1168,34 @@ dtrace_linux_fini(void)
 	return ret;
 }
 /**********************************************************************/
+/*   Utility function to dump stacks for all cpus.		      */
+/**********************************************************************/
+static void dump_cpu_stack(void)
+{
+	printk("This is CPU#%d\n", smp_processor_id());
+	dump_stack();
+}
+void
+dump_all_stacks(void)
+{
+static void (*arch_trigger_all_cpu_backtrace)(void);
+	/***********************************************/
+	/*   arch_trigger_all_cpu_backtrace     works  */
+	/*   using NMI and will work even if the CPUs  */
+	/*   have  interrupts  disabled. Our IPI call  */
+	/*   wont work.				       */
+	/***********************************************/
+	if (arch_trigger_all_cpu_backtrace == NULL)
+		arch_trigger_all_cpu_backtrace = get_proc_addr("arch_trigger_all_cpu_backtrace");
+	if (arch_trigger_all_cpu_backtrace)
+		arch_trigger_all_cpu_backtrace();
+	else {
+		set_console_on(0);
+		dump_stack();
+		smp_call_function_single(smp_processor_id() == 0 ? 1 : 0, dump_cpu_stack, 0, FALSE);
+	}
+}
+/**********************************************************************/
 /*   Call   here  to  disarm  dtrace  so  we  can  debug  unexpected  */
 /*   scenarios. In production dtrace, nothing calls this, but we may  */
 /*   put temporary enablers in, for example the GPF handler. We dont  */
@@ -1181,10 +1210,8 @@ dtrace_linux_panic(void)
 
 	dtrace_shutdown = TRUE;
 	set_console_on(1);
-	printk("dtrace_linux_panic called. Dumping cpu stacks\n");
-	set_console_on(0);
-	dump_stack();
-	smp_call_function_single(smp_processor_id() == 0 ? 1 : 0, dump_stack, 0, FALSE);
+	printk("[cpu%d] dtrace_linux_panic called. Dumping cpu stacks\n", smp_processor_id());
+	dump_all_stacks();
 	printk("dtrace_linux_panic: finished\n");
 }
 /**********************************************************************/
@@ -1417,10 +1444,31 @@ dtrace_sync_func(void)
 {
 }
 
+/**********************************************************************/
+/*   Synchronise  the cpus. This really means make sure they are not  */
+/*   in  a critical section. The source of so much heartache for me.  */
+/*   But,  allow us to make life really bad by ramping up the repeat  */
+/*   count.							      */
+/**********************************************************************/
 void
 dtrace_sync(void)
-{
-        dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
+{	int	i;
+	int	repeat = 1;
+
+/*static int levels[NCPU];
+static int lev;
+if (lev++) {
+printk("%d - nested invocation to dtrace_sync\n", smp_processor_id());
+}
+if (levels[smp_processor_id()]++) {
+printk("%d starting -- nested\n", smp_processor_id());
+dump_stack();
+}*/
+	for (i = 0; i < repeat; i++) {
+	        dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
+	}
+/*levels[smp_processor_id()]--;
+lev--;*/
 }
 void
 dtrace_vtime_enable(void)

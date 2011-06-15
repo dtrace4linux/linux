@@ -142,13 +142,13 @@ typedef struct fasttrap_bucket {
 	kmutex_t ftb_mtx;			/* bucket lock */
 	void *ftb_data;				/* data payload */
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
-	/***********************************************/
-	/*   sizeof(kmutex_t)  can  exceed  64 bytes,  */
-	/*   and gcc doesnt like this.		       */
-	/***********************************************/
-	uint8_t ftb_pad[64 - sizeof (kmutex_t) - sizeof (void *)];
-#endif
+//#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+//	/***********************************************/
+//	/*   sizeof(kmutex_t)  can  exceed  64 bytes,  */
+//	/*   and gcc doesnt like this.		       */
+//	/***********************************************/
+//	uint8_t ftb_pad[64 - sizeof (kmutex_t) - sizeof (void *)];
+//#endif
 } fasttrap_bucket_t;
 
 typedef struct fasttrap_hash {

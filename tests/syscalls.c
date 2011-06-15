@@ -5,7 +5,11 @@
 /*   problems.							      */
 /**********************************************************************/
 # include <stdio.h>
-#include <signal.h>
+# include <fcntl.h>
+# include <stdlib.h>
+# include <string.h>
+# include <signal.h>
+# include <errno.h>
 
 void int_handler()
 {
@@ -17,6 +21,7 @@ void segv_handler(int sig)
 }
 int main(int argc, char **argv)
 {	int	x = 0;
+	char	*args[10];
 
 	x += getpid();
 	x += getppid();
@@ -57,7 +62,7 @@ int main(int argc, char **argv)
 	chroot("/");
 	sigaction(0, 0, 0);
 	sigprocmask(0, 0, 0);
-	sigreturn(0);
+	/*sigreturn(0);*/ /* not implemented - need to do vsyscall to get to the kernel. */
 	x += open("/nothing", 0);
 	x += chdir("/nothing");
 	x += mknod("/nothing/nothing", 0);
@@ -78,4 +83,13 @@ int main(int argc, char **argv)
 	chmod(0, 0);
 	modify_ldt(0);
 
+	args[0] = "/bin/df";
+	args[1] = "-l";
+	args[2] = NULL;
+	close(1);
+	open("/dev/null", O_WRONLY);
+	execve("/bin/df", args, NULL);
+
+	fprintf(stderr, "Error: should not get here -- %s\n", strerror(errno));
+	exit(1);
 }

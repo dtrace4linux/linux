@@ -26,6 +26,26 @@
 #include <asm/desc.h>
 #include <asm/hardirq.h>
 
+
+/**********************************************************************/
+/*   Following taken from http://locklessinc.com/articles/locks/.     */
+/**********************************************************************/
+#if 0
+static inline unsigned xchg_32(void *ptr, unsigned x)
+{
+	int v = *(int *) ptr;
+	*(int *) ptr = x;
+	return v;
+
+	__asm__ __volatile__("lock ; xchgl %0,%1"
+				:"=r" ((unsigned) x)
+				:"m" (*(volatile unsigned *)ptr), "0" (x)
+				:"memory");
+
+	return x;
+}
+# endif
+
 /**********************************************************************/
 /*   Set to true to enable debugging.				      */
 /**********************************************************************/
@@ -38,7 +58,7 @@ extern int ipi_vector;
 /**********************************************************************/
 /*   Let us flip between the new and old code easily.		      */
 /**********************************************************************/
-# define	XCALL_MODE	XCALL_ORIG
+# define	XCALL_MODE	XCALL_NEW
 # define	XCALL_ORIG	0
 # define	XCALL_NEW	1
 
@@ -72,7 +92,7 @@ static struct xcalls {
 	volatile int	xc_ack;
 	volatile int	xc_wait;
 	volatile char	xc_state;
-	} xcalls[NCPU];
+	} xcalls[NCPU] __cacheline_aligned;
 static int xcall_levels[NCPU];
 
 unsigned long cnt_xcall1;
@@ -82,8 +102,12 @@ unsigned long cnt_xcall4;
 unsigned long cnt_xcall5;	/* Max ack_wait/spin loop */
 unsigned long cnt_ipi1;
 
+/**********************************************************************/
+/*   Prototypes.						      */
+/**********************************************************************/
 void orig_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg);
 void dtrace_xcall1(processorid_t cpu, dtrace_xcall_t func, void *arg);
+static void dump_xcalls(void);
 
 /**********************************************************************/
 /*   Switch the interface from the orig dtrace_xcall code to the new  */
@@ -110,8 +134,16 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 		orig_dtrace_xcall(cpu, func, arg);
 		return;
 	}
-
+/*
+cpu0 gs=ffff880001c00000
+cpu1 gs=ffff880001d00000
+*/
+/*long i;
+rdmsrl(MSR_GS_BASE, i);
+printk("cpu%d gs=%lx\n", smp_processor_id(), i);
+*/
 #if XCALL_MODE == XCALL_NEW
+//{int flags; asm("pushf ; pop %%rax\n" : "=a" (flags)); printk("xcall %d fl=%x\n", smp_processor_id(), flags); }
 	dtrace_xcall1(cpu, func, arg);
 #endif
 }
@@ -176,13 +208,24 @@ orig_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 /*   /proc/dtrace/stats  to  see  the  numbers  relative  to  actual  */
 /*   probes).							      */
 /**********************************************************************/
-static void
+void
 ack_wait(int c, char *msg)
 {	unsigned long cnt = 0;
 	int	cnt1 = 0;
 	volatile struct xcalls *xc = &xcalls[c];
+	volatile struct xcalls *xc_me = &xcalls[smp_processor_id()];
 
-	while (xc->xc_ack == 0) {
+	/***********************************************/
+	/*   Avoid holding on to a stale cache line.   */
+	/***********************************************/
+	while (dtrace_cas32(&xc->xc_ack, 1, 0) == 1) {
+		barrier();
+		if (xc_me->xc_state == XC_SYNC_OP) {
+			(*xc_me->xc_func)(xc_me->xc_arg);
+			xc_me->xc_ack = 1;
+			smp_mb();
+			printk("[%d] mutual xcall\n", smp_processor_id());
+		}
 		/***********************************************/
 		/*   Be HT friendly.			       */
 		/***********************************************/
@@ -213,20 +256,9 @@ ack_wait(int c, char *msg)
 		if (cnt++ == 50 * 1000 * 1000UL) {
 			cnt = 0;
 			cnt_xcall4++;
+//dump_cpu(c);
 
-			/***********************************************/
-			/*   Repost the IPI if it didnt respond quick  */
-			/*   enough.  This  is a dirty hack - because  */
-			/*   we shouldnt lose the interrupts.	       */
-			/***********************************************/
 			if (1) {
-			struct cpumask mask;
-			cpumask_clear(&mask);
-			cpumask_set_cpu(c, &mask);
-			apic->send_IPI_mask(&mask, ipi_vector);
-			}
-
-			if (xcall_debug) {
 				set_console_on(1);
 				printk("%s cpu=%d xcall %staking too long! c=%d ack=%d [xcall1=%lu] %p\n", 
 					msg, smp_processor_id(), 
@@ -236,18 +268,15 @@ ack_wait(int c, char *msg)
 				set_console_on(0);
 			}
 
-			if (cnt1++ > 6) {
+			if (cnt1++ > 3) {
 				dtrace_linux_panic();
+				dump_xcalls();
 				break;
 			}
 		}
 	}
-	if (xcall_debug && xc->xc_ack && cnt1) {
-		set_console_on(1);
-		printk("we recovered=%d!\n", cnt1);
-		set_console_on(0);
-	}
 	xc->xc_ack = 0;
+	clflush(xc);
 
 	if (xcall_debug) {
 		printk("[%d] ack_wait %s finished c=%d cnt=%lu (max=%lu)\n", smp_processor_id(), msg, c, cnt, cnt_xcall5);
@@ -276,65 +305,40 @@ void
 dtrace_xcall1(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {
 static int in_xcall;
-	unsigned long flags;
 
 	/***********************************************/
-	/*   We disable interrupts whilst xcall is in  */
-	/*   progress.    This   prevents   a   timer  */
-	/*   interrupt  (eg  profile  provider)  from  */
-	/*   trying to cause problems.		       */
+	/*   We  dont disable interrupts whilst doing  */
+	/*   an xcall. We may have two cpus trying to  */
+	/*   do  this at the same time, so we need to  */
+	/*   run in a lockless mode.		       */
 	/*   					       */
-	/*   But  we also need to prevent another CPU  */
-	/*   taking  an  xcall, so we use a spin lock  */
-	/*   to keep them out.			       */
-	/*   					       */
-	/*   Clashing  xcalls are rare - but the rate  */
-	/*   can   be  increased  by  judicious  test  */
-	/*   scenarios,  and  if  we  clash, we would  */
-	/*   hang  the CPU. ack_wait() takes steps to  */
-	/*   avoid  deadlock,  but  we really want to  */
-	/*   avoid that kicking in.		       */
-	/*   					       */
-	/*   So  we  spin lock. But we must allow the  */
-	/*   other  CPU  to  take an interrupt whilst  */
-	/*   waiting, else, we would deadlock against  */
-	/*   the  other CPU as it waits for responses  */
-	/*   from the other cpus, at the same time as  */
-	/*   we have interrupts disabled.	       */
+	/*   We  do run with preempt_disable to avoid  */
+	/*   any  chance  of rescheduling the calling  */
+	/*   process  whilst we wait for long periods  */
+	/*   of  time.  (Note  that  disable  is  not  */
+	/*   nested;  does  this  matter  if  we have  */
+	/*   multiple  cpus  coming  in  at  the same  */
+	/*   time?				       */
 	/***********************************************/
-unsigned long zz = 0;
 	preempt_disable();
-	while (0 && in_xcall) {
-zz++;
-		local_irq_save(flags);
 
-		/***********************************************/
-		/*   We  temporarily  let  the  cpu  take  an  */
-		/*   interrupt.  This is possibly bad - could  */
-		/*   we have a nested xcall stack? Maybe, but  */
-		/*   I *think* this is rare and not a runaway  */
-		/*   problem.				       */
-		/*   					       */
-		/*   My  testing  isnt showing a problem, but  */
-		/*   may  need  to try 4 or 8 core cpu to see  */
-		/*   if we can force a problem.		       */
-		/***********************************************/
-		asm("sti");
-
-		local_irq_restore(flags);
-	}
-if (zz > 1000000) {
-printk("we looped too much %d\n", smp_processor_id());
-dump_stack();
-}
 	/***********************************************/
 	/*   Critical section.			       */
 	/***********************************************/
-	local_irq_save(flags);
+	if (in_xcall) {
+		printk("[%d] x_call: re-entrant call in progress.\n", smp_processor_id()); cnt_xcall3++; 
+		//dump_xcalls();
+	}
+
+	/***********************************************/
+	/*   We  want  to "loosely" detect reentrancy  */
+	/*   across cpus - but its not critical. This  */
+	/*   just  helps in debugging and statistical  */
+	/*   analysis.				       */
+	/***********************************************/
 	in_xcall = 1;
 	dtrace_xcall2(cpu, func, arg);
 	in_xcall = 0;
-	local_irq_restore(flags);
 	preempt_enable();
 }
 void
@@ -364,7 +368,6 @@ dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 		return;
 	}
 
-	preempt_disable();
 //	local_irq_disable();
 
 	cnt_xcall2++;
@@ -395,14 +398,16 @@ dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	/***********************************************/
 	/*   Now tell the other cpus to do some work.  */
 	/***********************************************/
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 11)
+	{static void (*flat_send_IPI_mask)();
+	if (flat_send_IPI_mask == NULL)
+	        flat_send_IPI_mask = get_proc_addr("flat_send_IPI_mask");
+	if (flat_send_IPI_mask == NULL) printk("HELP ON FLAT!\n"); else
+	        flat_send_IPI_mask(&mask, ipi_vector);
+	}
+# else
 	apic->send_IPI_mask(&mask, ipi_vector);
-/*while (native_apic_mem_read(APIC_ICR) & APIC_ICR_BUSY) ;
-unsigned long cfg = mask.bits[0] << 4;
-native_apic_mem_write(APIC_ICR2, cfg);
-cfg = APIC_DM_FIXED | ipi_vector | apic->dest_logical;
-native_apic_mem_write(APIC_ICR, cfg);
-*/
-
+# endif
 	/***********************************************/
 	/*   Set  up  timers  for the other cpus - we  */
 	/*   have  to  let them decide when is a good  */
@@ -411,14 +416,17 @@ native_apic_mem_write(APIC_ICR, cfg);
 	/***********************************************/
 	if (cpu != DTRACE_CPUALL)
 		cpu = 1 << cpu;
-DELAY(500000);
+
 	/***********************************************/
 	/*   Check for ourselves.		       */
 	/***********************************************/
 	if (cpu & (1 << cpu_id)) {
 		func(arg);
 	}
-printk("[%d] getting ready.... (%ld) mask=%x func=%p\n", smp_processor_id(), cnt_xcall1, mask, func);
+
+	if (xcall_debug)
+		printk("[%d] getting ready.... (%ld) mask=%x func=%p\n", smp_processor_id(), cnt_xcall1, mask, func);
+
 	for (c = 0; c < nr_cpus; c++) {
 		if (c == cpu_id)
 			continue;
@@ -449,11 +457,25 @@ printk("[%d] getting ready.... (%ld) mask=%x func=%p\n", smp_processor_id(), cnt
 #endif
 
 	xcall_levels[cpu_id]--;
-
-	preempt_enable();
 }
 #endif
 
+/**********************************************************************/
+/*   Used for debugging.					      */
+/**********************************************************************/
+static void
+dump_xcalls(void)
+{
+	int i;
+	for (i = 0; i < nr_cpus; i++) {
+		printk("  cpu%d:  state=%d/%s ack=%d wait=%d\n", i,
+			xcalls[i].xc_state,
+			xcalls[i].xc_state == XC_SYNC_OP ? "sync" : 
+			xcalls[i].xc_state == XC_DONE ? "done" : "??",
+			xcalls[i].xc_ack,
+			xcalls[i].xc_wait);
+	}
+}
 /**********************************************************************/
 /*   This  is the IPI interrupt handler - we got invoked, so we must  */
 /*   have something to do.					      */
@@ -462,9 +484,13 @@ void
 xcall_slave(void)
 {	volatile struct xcalls *xc = &xcalls[smp_processor_id()];
 
-	ack_APIC_irq();
-
 	cnt_ipi1++;
+
+	if (xc->xc_state != XC_SYNC_OP) {
+		printk("%d timer - not in sync op? %d/%d/%d\n", smp_processor_id(),
+			xc->xc_state, xc->xc_ack, xc->xc_wait);
+		dump_xcalls();
+	}
 
 	if (xcall_debug) {
 		printk("%p timer %d (%lu) func=%p\n", xc, smp_processor_id(), cnt_xcall1, xc->xc_func);
@@ -481,11 +507,13 @@ xcall_slave(void)
 	if (xcall_debug) {
 		printk("%p timer %d waiting for xc_wait (%lu) addr=%p\n", xc, smp_processor_id(), cnt_xcall1, &xc->xc_ack);
 	}
-	while (xc->xc_wait) {
+
+	while (dtrace_cas32(&xc->xc_wait, 1, 1) == 1) {
 		smt_pause();
 	}
 
 	if (xcall_debug) {
 		printk("%p timer %d -- waiting finished (%lu)\n", xc, smp_processor_id(), cnt_xcall1);
 	}
+	ack_APIC_irq();
 }

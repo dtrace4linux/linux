@@ -84,8 +84,8 @@ spinlock_t xcall_spinlock;
 /*   The  code  below is similar in style to the XC code in Solaris,  */
 /*   and we keep some stats so we can see if this is "good-enough".   */
 /**********************************************************************/
+# define XC_DONE	0
 # define XC_SYNC_OP	1
-# define XC_DONE	2
 static struct xcalls {
 	dtrace_xcall_t	xc_func;
 	void		*xc_arg;
@@ -345,7 +345,12 @@ void
 dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {	int	c;
 	int	cpu_id = smp_processor_id();
-	struct cpumask mask;
+# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+typedef struct cpumask cpumask_t;
+#define cpu_set(c, mask) cpumask_set_cpu(c, &(mask))
+#define cpus_clear(mask) cpumask_clear(&mask)
+# endif
+	cpumask_t mask;
 
 	/***********************************************/
 	/*   If  we had an internal panic, stop doing  */
@@ -377,7 +382,7 @@ dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	/*   Set  up  the  rendezvous  with the other  */
 	/*   targetted cpus.			       */
 	/***********************************************/
-	cpumask_clear(&mask);
+	cpus_clear(mask);
 	for (c = 0; c < nr_cpus; c++) {
 		struct xcalls *xc = &xcalls[c];
 		if ((cpu & (1 << c)) == 0 || c == cpu_id) {
@@ -389,8 +394,13 @@ dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 		xc->xc_arg = arg;
 		xc->xc_ack = 0;
 		xc->xc_wait = 1;
+		if (xc->xc_state != XC_DONE) {
+			printk("[%d] cpu%d in wrong state (state=%d)\n",
+				smp_processor_id(), c, xc->xc_state);
+		}
 		xc->xc_state = XC_SYNC_OP;
-		cpumask_set_cpu(c, &mask);
+		smp_wmb();
+		cpu_set(c, mask);
 	}
 
 	smp_mb();

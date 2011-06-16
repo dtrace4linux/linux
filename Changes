@@ -1,3 +1,7 @@
+Fri Jun 17 22:15:28 2011  fox
+
+     516* systrace.c: Fix execve() for 32b apps on 64b kernel.
+
 Thu Jun 16 23:19:02 2011  fox
 
      515* Archive: 1.0124

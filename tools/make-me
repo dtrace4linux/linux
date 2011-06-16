@@ -6,7 +6,7 @@
 
 # make-me Q=0
 warn=warn
-if [ ! -f /home/fox/bin/warn ]; then
+if [ ! -f $HOME/bin/warn ]; then
 	warn=
 fi
 

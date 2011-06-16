@@ -229,6 +229,7 @@ typedef struct patch_t {
 static int64_t (*sys_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys32_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+static int64_t (*sys32_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_fork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_iopl_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_rt_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
@@ -751,6 +752,7 @@ init_syscalls(void)
 	sys_clone_ptr = get_proc_addr("sys_clone");
 	sys32_clone_ptr = get_proc_addr("sys32_clone");
 	sys_execve_ptr = get_proc_addr("sys_execve");
+	sys32_execve_ptr = get_proc_addr("sys32_execve");
 	sys_fork_ptr = get_proc_addr("sys_fork");
 	sys_iopl_ptr = get_proc_addr("sys_iopl");
 	sys_rt_sigreturn_ptr = get_proc_addr("sys_rt_sigreturn");
@@ -1213,7 +1215,7 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 /*   the rest.							      */
 /**********************************************************************/
 FUNC_IA32(clone, sys32_clone_ptr)
-FUNC_IA32(execve, sys_execve_ptr)
+FUNC_IA32(execve, sys32_execve_ptr)
 FUNC_IA32(fork, sys_fork_ptr)
 FUNC_IA32(iopl, sys_iopl_ptr)
 FUNC_IA32(rt_sigreturn, sys_rt_sigreturn_ptr)

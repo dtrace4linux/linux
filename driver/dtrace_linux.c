@@ -252,6 +252,7 @@ static struct notifier_block n_exit = {
 /**********************************************************************/
 /*   Externs.							      */
 /**********************************************************************/
+extern unsigned long cnt_xcall0;
 extern unsigned long cnt_xcall1;
 extern unsigned long cnt_xcall2;
 extern unsigned long cnt_xcall3;
@@ -269,6 +270,7 @@ int dtrace_int11(void);
 int dtrace_int13(void);
 int dtrace_page_fault(void);
 int dtrace_int_ipi(void);
+int dtrace_int_nmi(void);
 static void * par_lookup(void *ptr);
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
@@ -569,7 +571,8 @@ void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
-int ipi_vector = 0xea; // very temp hack - need to find a new interrupt
+int ipi_vector = 0xea; // very temp hack - need to find a free interrupt
+void (*kernel_nmi_handler)(void);
 
 /**********************************************************************/
 /*   Kernel independent gate definitions.			      */
@@ -983,6 +986,7 @@ extern unsigned long cnt_ipi1;
 /**********************************************************************/
 gate_t saved_double_fault;
 gate_t saved_int1;
+gate_t saved_int2;
 gate_t saved_int3;
 gate_t saved_int11;
 gate_t saved_int13;
@@ -1026,6 +1030,7 @@ dtrace_linux_init(void)
 	kernel_int13_handler = get_proc_addr("general_protection");
 	kernel_double_fault_handler = get_proc_addr("double_fault");
 	kernel_page_fault_handler = get_proc_addr("page_fault");
+	kernel_nmi_handler = get_proc_addr("nmi");
 
 	/***********************************************/
 	/*   Needed   for  validating  module  symbol  */
@@ -1118,6 +1123,12 @@ if (*first_v > ipi_vector)
 */
 		if (ipi_vector)
 			set_idt_entry(ipi_vector, (unsigned long) dtrace_int_ipi);
+		/***********************************************/
+		/*   Intercept NMI for when we have a blocked  */
+		/*   cpu  who  has  interrupts  enabled  when  */
+		/*   doing an IPI.			       */
+		/***********************************************/
+		set_idt_entry(2, (unsigned long) dtrace_int_nmi);
 	}
 
 	/***********************************************/
@@ -1157,6 +1168,7 @@ dtrace_linux_fini(void)
 //		idt_table[8] = saved_double_fault;
 #endif
 		idt_table[1] = saved_int1;
+		idt_table[2] = saved_int2;
 		idt_table[3] = saved_int3;
 		idt_table[11] = saved_int11;
 		idt_table[13] = saved_int13;
@@ -1192,7 +1204,9 @@ static void (*arch_trigger_all_cpu_backtrace)(void);
 	else {
 		set_console_on(0);
 		dump_stack();
-		smp_call_function_single(smp_processor_id() == 0 ? 1 : 0, dump_cpu_stack, 0, FALSE);
+		smp_call_function_single(smp_processor_id() == 0 ? 1 : 0, 
+			(void (*)(void *)) dump_cpu_stack, 
+			0, FALSE);
 	}
 }
 /**********************************************************************/
@@ -1453,6 +1467,17 @@ dtrace_sync_func(void)
 void
 dtrace_sync(void)
 {	int	i;
+	/***********************************************/
+	/*   Set  this  to 100 or 200 to see how well  */
+	/*   the code in x_call.c works. You will see  */
+	/*   occasional reentrancy issues (not sure I  */
+	/*   fully  understand  why, but you can work  */
+	/*   it out when two cpus are trying to cross  */
+	/*   call each other and timer interrupts are  */
+	/*   firing  and  doing  xcalls also. Not too  */
+	/*   bad  -  but  enough to maybe lock one or  */
+	/*   more cpus for a short while.	       */
+	/***********************************************/
 	int	repeat = 1;
 
 /*static int levels[NCPU];
@@ -2262,7 +2287,7 @@ prfind(int p)
 	/*   Rework  this - the first arg is a struct  */
 	/*   pid *, not a pid.			       */
 	/***********************************************/
-	tp = fn_pid_task(p, PIDTYPE_PID);
+	tp = fn_pid_task((void *) (long) p, PIDTYPE_PID);
 	if (!tp)
 		return (proc_t *) NULL;
 HERE();
@@ -2906,12 +2931,13 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG, &cnt_pf2, "pf2"},
 		{TYPE_LONG, &cnt_snp1, "snp1"},
 		{TYPE_LONG, &cnt_snp2, "snp2"},
+		{TYPE_LONG, &cnt_xcall0, "xcall0"},
 		{TYPE_LONG, &cnt_xcall1, "xcall1"},
 		{TYPE_LONG, &cnt_xcall2, "xcall2"},
 		{TYPE_LONG, &cnt_xcall3, "xcall3(reentrant)"},
 		{TYPE_LONG, &cnt_xcall4, "xcall4(delay)"},
 		{TYPE_LONG, &cnt_xcall5, "xcall5(spinlock)"},
-		{TYPE_INT, &dtrace_shutdown, "shutdown"},
+		{TYPE_INT, (unsigned long *) &dtrace_shutdown, "shutdown"},
 		{0}
 		};
 

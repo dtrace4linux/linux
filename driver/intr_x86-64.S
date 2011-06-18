@@ -264,6 +264,29 @@ dtrace_int_ipi:
 	POP_REGS 0
 	iretq
 
+/**********************************************************************/
+/*   We  use  the  NMI  interrupt  for IPI code, but only if the IPI  */
+/*   interrupt isnt responding -- possibly because the target cpu is  */
+/*   blocking  interrupts.  We  have  to be careful since NMI may be  */
+/*   used  for  watchdogs  and other things, and we have to know who  */
+/*   this NMI is for.						      */
+/**********************************************************************/
+	FUNCTION dtrace_int_nmi
+dtrace_int_nmi:
+	PUSH_REGS 0
+	call func_smp_processor_id
+	cmpb $0,nmi_masks(%rax)
+	jz  do_kernel_nmi
+	// For us...
+	movb $0,nmi_masks(%rax)
+	call xcall_slave
+	POP_REGS 0
+	iretq
+
+do_kernel_nmi:
+	POP_REGS 0
+	jmp *kernel_nmi_handler
+
 //INTERRUPT  0xb0, 0, 1, dtrace_int_ipi, dtrace_int_ipi_handler, iret_addr
 iret_instr:
 	iretq

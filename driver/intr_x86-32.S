@@ -19,7 +19,7 @@
 /*   Author: Paul Fox						      */
 /*   								      */
 /*   Date: May 2009						      */
-/*   $Header: Last edited: 06-Apr-2011 1.1 $ 			      */
+/*   $Header: Last edited: 19-Jun-2011 1.2 $ 			      */
 /**********************************************************************/
 
 /*
@@ -225,6 +225,29 @@ dtrace_int_ipi:
 	call xcall_slave
 	POP_REGS 0
 	iret
+
+/**********************************************************************/
+/*   We  use  the  NMI  interrupt  for IPI code, but only if the IPI  */
+/*   interrupt isnt responding -- possibly because the target cpu is  */
+/*   blocking  interrupts.  We  have  to be careful since NMI may be  */
+/*   used  for  watchdogs  and other things, and we have to know who  */
+/*   this NMI is for.						      */
+/**********************************************************************/
+	FUNCTION dtrace_int_nmi
+dtrace_int_nmi:
+	PUSH_REGS 0
+	call func_smp_processor_id
+	cmpb $0,nmi_masks(%eax)
+	jz  do_kernel_nmi
+	// For us...
+	movb $0,nmi_masks(%eax)
+	call xcall_slave
+	POP_REGS 0
+	iret
+
+do_kernel_nmi:
+	POP_REGS 0
+	jmp *kernel_nmi_handler
 
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */

@@ -1,3 +1,19 @@
+Sun Jun 19 00:13:41 2011  fox
+
+     521* dtrace_linux.c, x_call.c, intr_x86*.S: Add support for NMI interrupts
+          when IPI is not responding.
+
+     520* Archive: 1.0126
+
+     519* tools/mkport.pl: Try the /lib/modules/ver/build dir for probing
+          when theres no /lib/modules/ver/source directory (for Centos 4).
+
+     518* driver/x_call.c: Lockless implementation. Use NCPU*NCPU*2
+          xcalls array to avoid interference with parallel xcalls from
+	  other cpus or our own interrupt routines.
+
+     517* Archive: 1.0125
+
 Fri Jun 17 22:15:28 2011  fox
 
      516* systrace.c: Fix execve() for 32b apps on 64b kernel.

@@ -1,3 +1,14 @@
+Mon Jun 20 20:17:31 2011  fox
+
+     525* tools/mksyscalls.pl: Updates for 2.6.18 kernel.
+
+     524* dtrace_linux.c, x_call.c: Fixes for 2.6.18 kernel and >8 cpus.
+
+     523* driver/intr_x86*.S: Add cnt_nmi1/cnt_nmi2 so we can see if we are
+          called.
+
+     522* doc/security.txt: Update the security instructions.
+
 Sun Jun 19 00:13:41 2011  fox
 
      521* dtrace_linux.c, x_call.c, intr_x86*.S: Add support for NMI interrupts

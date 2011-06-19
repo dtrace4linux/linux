@@ -534,12 +534,15 @@ systrace_assembler_dummy(void)
 		"mov $dtrace_systrace_syscall_sigaltstack_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_sigaltstack_ia32)
-		
+
+#if defined(NR_ia32_sigreturn)
+		/* Not there on 2.6.18. */
 		FUNCTION(systrace_part1_sys_sigreturn_ia32)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_sigreturn_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_sigreturn_ia32)
+#endif
 		
 		FUNCTION(systrace_part1_sys_vfork_ia32)
 		"lea    -0x28(%rsp),%rdi\n"
@@ -1220,7 +1223,9 @@ FUNC_IA32(fork, sys_fork_ptr)
 FUNC_IA32(iopl, sys_iopl_ptr)
 FUNC_IA32(rt_sigreturn, sys_rt_sigreturn_ptr)
 FUNC_IA32(sigaltstack, sys_sigaltstack_ptr)
+#if defined(NR_ia32_sigreturn)
 FUNC_IA32(sigreturn, sys_sigreturn_ptr)
+#endif
 FUNC_IA32(vfork, sys_vfork_ptr)
 # endif /* defined(__amd64) */
 
@@ -1507,8 +1512,10 @@ get_interposer32(int sysnum, int enable)
 		return (void *) systrace_part1_sys_rt_sigreturn_ia32;
 	  case NR_ia32_sigaltstack:
 		return (void *) systrace_part1_sys_sigaltstack_ia32;
+#if defined(NR_ia32_sigreturn)
 	  case NR_ia32_sigreturn:
 		return (void *) systrace_part1_sys_sigreturn_ia32;
+#endif
 	  case NR_ia32_iopl:
 		return (void *) systrace_part1_sys_iopl_ia32;
 	  case NR_ia32_vfork:

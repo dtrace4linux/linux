@@ -12,11 +12,35 @@ dtrace_kernel
 dtrace_super
 
 The /dev/dtrace interface is used to communicate the security settings.
-The idea is that on driver load, a set of security records are
-sent to the driver, which define users and groups vs the privileges allowed.
+On loading the driver, the system can set up a security policy which
+allows non-root users to do specific dtrace actions.
+The format of the entries which are loaded into dtrace are:
 
-	$ echo dtrace_proc all >/dev/dtrace
-	$ echo dtrace_proc none >/dev/dtrace
-	$ echo dtrace_proc 200 201 202 ... >/dev/dtrace
+	<uid> NNN perm1 perm2 ...
+	<gid> NNN perm1 perm2 ...
+	all NNN perm1 perm2 ...
 
+"<uid>" is a numeric user id, e.g. "98". When specified, commands
+invoked by that uid are given the appropriate permissions.
 
+"<gid>" is a numeric group id, e.g. "100". Anyone with the specified
+group id can run commands according to the permissions.
+
+Permissions are:
+
+priv_user         User can trace their own processes
+priv_owner
+priv_proc         User can read from any process
+priv_kernel       User can read kernel memory
+
+	$ echo uid 200 priv_kernel >/dev/dtrace
+	$ echo gid 1000 priv_user priv_proc priv_owner >/dev/dtrace
+
+	# Totally wide open access.
+	$ echo all priv_user priv_kernel priv_proc priv_owner >/dev/dtrace
+	$ cat dtrace.cfg >/dev/dtrace
+
+Lines starting with a '#' are treated as comments. View /proc/dtrace/security
+after making changes to ensure the changes are correctly reflected.
+
+Only root can update the security permissions in the dtrace driver.

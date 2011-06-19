@@ -136,7 +136,7 @@ sub do_tests
 		my $d = $info->{d};
 		my $loop = $opts{loop};
 		$d =~ s/\${loop}/$loop/g;
-		my $cmd = "build/dtrace -n '$d'";
+		my $cmd = $opts{dtrace} ? "dtrace -n '$d'" : "build/dtrace -n '$d'";
 		my $ret = spawn($cmd, $info->{name});
 		$exit_code ||= $ret;
 		system("cat /proc/dtrace/stats");
@@ -156,6 +156,7 @@ sub main
 	usage() unless GetOptions(\%opts,
 		'child',
 		'count=s',
+		'dtrace',
 		'help',
 		'loop=s',
 		);

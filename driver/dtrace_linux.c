@@ -258,6 +258,8 @@ extern unsigned long cnt_xcall2;
 extern unsigned long cnt_xcall3;
 extern unsigned long cnt_xcall4;
 extern unsigned long cnt_xcall5;
+extern unsigned long cnt_nmi1;
+extern unsigned long cnt_nmi2;
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -293,7 +295,7 @@ void	systrace_exit(void);
 void	io_prov_init(void);
 static void print_pte(pte_t *pte, int level);
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 void clflush(void *ptr);
 # endif
 
@@ -562,8 +564,7 @@ return DATAMODEL_LP64;
 	return p->p_model;
 }
 /**********************************************************************/
-/*   Set  an entry in the idt_table (IDT) so we can have first grabs  */
-/*   at interrupts (INT1 + INT3).				      */
+/*   Pointers to the real interrupt handlers so we can daisy chain.   */
 /**********************************************************************/
 void *kernel_int1_handler;
 void *kernel_int3_handler;
@@ -571,7 +572,7 @@ void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
-int ipi_vector = 0xea; // very temp hack - need to find a free interrupt
+int ipi_vector = 0xea-1; // very temp hack - need to find a free interrupt
 void (*kernel_nmi_handler)(void);
 
 /**********************************************************************/
@@ -1093,6 +1094,7 @@ dtrace_linux_init(void)
 	} else {
 		saved_double_fault = idt_table[8];
 		saved_int1 = idt_table[1];
+		saved_int2 = idt_table[2];
 		saved_int3 = idt_table[3];
 		saved_int11 = idt_table[11];
 		saved_int13 = idt_table[13];
@@ -1204,7 +1206,7 @@ static void (*arch_trigger_all_cpu_backtrace)(void);
 	else {
 		set_console_on(0);
 		dump_stack();
-		smp_call_function_single(smp_processor_id() == 0 ? 1 : 0, 
+		SMP_CALL_FUNCTION_SINGLE(smp_processor_id() == 0 ? 1 : 0, 
 			(void (*)(void *)) dump_cpu_stack, 
 			0, FALSE);
 	}
@@ -2311,7 +2313,13 @@ rw_exit(krwlock_t *p)
 void
 set_console_on(int flag)
 {	int	mode = flag ? 7 : 0;
-	int *console_printk = get_proc_addr("console_printk");
+static	int first_time = TRUE;
+static	int *console_printk;
+	
+	if (first_time) {
+		console_printk = get_proc_addr("console_printk");
+		first_time = FALSE;
+	}
 
 	if (console_printk)
 		console_printk[0] = mode;
@@ -2927,6 +2935,8 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG, &cnt_gpf1, "gpf1"},
 		{TYPE_LONG, &cnt_gpf2, "gpf2"},
 		{TYPE_LONG, &cnt_ipi1, "ipi1"},
+		{TYPE_LONG, &cnt_nmi1, "nmi1"},
+		{TYPE_LONG, &cnt_nmi2, "nmi2"},
 		{TYPE_LONG, &cnt_pf1, "pf1"},
 		{TYPE_LONG, &cnt_pf2, "pf2"},
 		{TYPE_LONG, &cnt_snp1, "snp1"},

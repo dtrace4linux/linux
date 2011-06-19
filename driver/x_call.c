@@ -106,6 +106,8 @@ unsigned long cnt_xcall3;
 unsigned long cnt_xcall4;
 unsigned long cnt_xcall5;	/* Max ack_wait/spin loop */
 unsigned long cnt_ipi1;
+unsigned long cnt_nmi1;
+unsigned long cnt_nmi2;
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -259,7 +261,7 @@ ack_wait(int c, char *msg)
 				cpus_clear(mask);
 				cpu_set(c, mask);
 				nmi_masks[c] = 1;
-				send_ipi_interrupt(&mask, NMI_VECTOR);
+				send_ipi_interrupt(&mask, 2); //NMI_VECTOR);
 			}
 
 			if (1) {
@@ -342,7 +344,7 @@ dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {	int	c;
 	int	cpu_id = smp_processor_id();
 	int	intr = in_interrupt() ? 1 : 0;
-# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
 typedef struct cpumask cpumask_t;
 //#define cpu_set(c, mask) cpumask_set_cpu(c, &(mask))
 //#define cpus_clear(mask) cpumask_clear(&mask)
@@ -413,7 +415,10 @@ typedef struct cpumask cpumask_t;
 		/*   ^C-ing dtrace.			       */
 		/***********************************************/
 		for (cnt = 0; dtrace_cas32((void *) &xc->xc_state, XC_WORKING, XC_WORKING) == XC_WORKING; cnt++) {
-			if (cnt == 0) {
+			/***********************************************/
+			/*   Avoid noise for tiny windows.	       */
+			/***********************************************/
+			if ((cnt == 0 && xcall_debug) || !(xcall_debug && cnt == 50)) {
 				printk("[%d] cpu%d in wrong state (state=%d)\n",
 					smp_processor_id(), c, xc->xc_state);
 			}
@@ -422,6 +427,10 @@ typedef struct cpumask cpumask_t;
 					smp_processor_id(), c);
 				break;
 			}
+		}
+		if ((cnt && xcall_debug) || (!xcall_debug && cnt > 50)) {
+			printk("[%d] cpu%d in wrong state (state=%d) %u cycles\n",
+				smp_processor_id(), c, xc->xc_state, cnt);
 		}
 		/***********************************************/
 		/*   As  soon  as  we set xc_state and BEFORE  */
@@ -508,12 +517,18 @@ dump_xcalls(void)
 static void
 send_ipi_interrupt(cpumask_t *mask, int vector)
 {
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 11)
-	static void (*flat_send_IPI_mask)();
-	if (flat_send_IPI_mask == NULL)
-	        flat_send_IPI_mask = get_proc_addr("flat_send_IPI_mask");
-	if (flat_send_IPI_mask == NULL) printk("HELP ON FLAT!\n"); else
-	        flat_send_IPI_mask(mask, vector);
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+	/***********************************************/
+	/*   Theres  'flat' and theres 'cluster'. The  */
+	/*   cluster  functions  handle  more  than 8  */
+	/*   cpus. The flat does not - since the APIC  */
+	/*   only has room for an 8-bit cpu mask.      */
+	/***********************************************/
+	static void (*send_IPI_mask)(cpumask_t, int);
+	if (send_IPI_mask == NULL)
+	        send_IPI_mask = get_proc_addr("cluster_send_IPI_mask");
+	if (send_IPI_mask == NULL) printk("HELP ON send_ipi_interrupt!\n"); else
+	        send_IPI_mask(*mask, vector);
 # else
 	apic->send_IPI_mask(mask, vector);
 # endif

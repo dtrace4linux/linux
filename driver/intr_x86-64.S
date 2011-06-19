@@ -275,6 +275,7 @@ dtrace_int_ipi:
 dtrace_int_nmi:
 	PUSH_REGS 0
 	call func_smp_processor_id
+	incq cnt_nmi1
 	cmpb $0,nmi_masks(%rax)
 	jz  do_kernel_nmi
 	// For us...
@@ -284,6 +285,7 @@ dtrace_int_nmi:
 	iretq
 
 do_kernel_nmi:
+	incq cnt_nmi2
 	POP_REGS 0
 	jmp *kernel_nmi_handler
 

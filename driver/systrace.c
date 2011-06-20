@@ -241,7 +241,10 @@ static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint
 static char *int_ret_from_sys_call_ptr;
 static char *ptregscall_common_ptr;
 static char *ia32_ptregs_common_ptr;
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+# define HAVE_SAVE_REST 1
 static char *save_rest_ptr;
+# endif
 static long (*do_fork_ptr)(unsigned long, unsigned long, struct pt_regs *, unsigned long, int __user *, int __user *);
 
 /**********************************************************************/
@@ -766,7 +769,7 @@ init_syscalls(void)
 	int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
 	ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
 	ia32_ptregs_common_ptr = (char *) get_proc_addr("ia32_ptregs_common");
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+# if defined(HAVE_SAVE_REST)
 	save_rest_ptr = (char *) get_proc_addr("save_rest");
 # endif
 	do_fork_ptr = (void *) get_proc_addr("do_fork");

@@ -1,3 +1,7 @@
+Tue Jun 21 22:44:58 2011  fox
+
+     526* tools/mksyscalls.pl: Better unistd.h detection and tbl file generation.
+
 Mon Jun 20 20:17:31 2011  fox
 
      525* tools/mksyscalls.pl: Updates for 2.6.18 kernel.

@@ -11,6 +11,9 @@
 # include <signal.h>
 # include <errno.h>
 
+void sigchld()
+{
+}
 void int_handler()
 {
 	printf("SIGINT invoked\n");
@@ -19,10 +22,17 @@ void segv_handler(int sig)
 {
 	printf("SIGSEGV invoked\n");
 }
+void sigusr1()
+{
+#if __i386
+	syscall(119, 0, 0, 0); /* sigreturn */
+#endif
+}
 int main(int argc, char **argv)
 {	int	x = 0;
 	char	*args[10];
 
+	signal(SIGCHLD, sigchld);
 	x += getpid();
 	x += getppid();
 	x += getuid();
@@ -62,7 +72,6 @@ int main(int argc, char **argv)
 	chroot("/");
 	sigaction(0, 0, 0);
 	sigprocmask(0, 0, 0);
-	/*sigreturn(0);*/ /* not implemented - need to do vsyscall to get to the kernel. */
 	x += open("/nothing", 0);
 	x += chdir("/nothing");
 	x += mknod("/nothing/nothing", 0);
@@ -88,8 +97,20 @@ int main(int argc, char **argv)
 	args[2] = NULL;
 	close(1);
 	open("/dev/null", O_WRONLY);
+	/***********************************************/
+	/*   Some  syscalls  arent  available  direct  */
+	/*   from  libc,  so get them here. We mostly  */
+	/*   care  about  the  ones which have caused  */
+	/*   implementation   difficulty  and  kernel  */
+	/*   crashes - eventually we can be complete.  */
+	/***********************************************/
+	open("/system-dependent-syscalls-follow", 0);
+	if (fork() == 0)
+		exit(0);
+
 	execve("/bin/df", args, NULL);
 
 	fprintf(stderr, "Error: should not get here -- %s\n", strerror(errno));
+
 	exit(1);
 }

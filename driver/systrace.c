@@ -235,7 +235,7 @@ static int64_t (*sys_iopl_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintp
 static int64_t (*sys_rt_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_rt_sigsuspend_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_sigaltstack_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-static int64_t (*sys_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+static int64_t (*sys32_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
 static char *int_ret_from_sys_call_ptr;
@@ -759,6 +759,7 @@ init_syscalls(void)
 	sys32_clone_ptr = get_proc_addr("sys32_clone");
 	sys_execve_ptr = get_proc_addr("sys_execve");
 	sys32_execve_ptr = get_proc_addr("sys32_execve");
+	sys32_sigreturn_ptr = get_proc_addr("sys32_sigreturn");
 	sys_fork_ptr = get_proc_addr("sys_fork");
 	sys_iopl_ptr = get_proc_addr("sys_iopl");
 	sys_rt_sigreturn_ptr = get_proc_addr("sys_rt_sigreturn");
@@ -1227,9 +1228,9 @@ FUNC_IA32(iopl, sys_iopl_ptr)
 FUNC_IA32(rt_sigreturn, sys_rt_sigreturn_ptr)
 FUNC_IA32(sigaltstack, sys_sigaltstack_ptr)
 #if defined(NR_ia32_sigreturn)
-FUNC_IA32(sigreturn, sys_sigreturn_ptr)
+FUNC_IA32(sigreturn, sys32_sigreturn_ptr);
 #endif
-FUNC_IA32(vfork, sys_vfork_ptr)
+FUNC_IA32(vfork, sys_vfork_ptr);
 # endif /* defined(__amd64) */
 
 /**********************************************************************/

@@ -1,3 +1,12 @@
+Thu Jun 23 20:37:10 2011  fox
+
+     528* driver/systrace.c: Fix for i386 sigreturn() syscall.
+
+Wed Jun 22 21:18:17 2011  fox
+
+     527* tests/syscalls.c: i386 now invokes sigreturn() syscall - which is
+          panicing the 64b kernel...off to fix that.
+
 Tue Jun 21 22:44:58 2011  fox
 
      526* tools/mksyscalls.pl: Better unistd.h detection and tbl file generation.

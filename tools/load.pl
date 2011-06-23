@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# $Header: Last edited: 15-Apr-2009 1.1 $ 
+# $Header: Last edited: 24-Jun-2011 1.2 $ 
 
 # 20090415 PDF Fix for when we are using the optional symbols (AS4)
 # 20090416 PDF Add /boot/System.map support
@@ -66,6 +66,14 @@ sub main
 	print time_string() . "Syncing...\n";
 	spawn("sync ; sync");
 
+	###############################################
+	#   Get some kernel variables.		      #
+	###############################################
+	my $uname_m = `uname -m`;
+	chomp($uname_m);
+	my $kernel = `uname -r`;
+	chomp($kernel);
+
 	my $dtrace = "build/dtrace";
 	if (! -f $dtrace) {
 		###############################################
@@ -95,7 +103,7 @@ sub main
 	#   present  since we need the /dev entries to appear. Chmod 666 so
 	#   we can avoid being root all the time whilst we debug.
 	#####################################################################
-	my $dtracedrv = dirname($dtrace) . "/driver/dtracedrv.ko";
+	my $dtracedrv = "build-$kernel/driver/dtracedrv.ko";
 	print time_string() . "Loading: $dtracedrv\n";
 	my $opc_len = $opts{opcodes};
 	$opc_len = 2 if $opts{opcodes2};
@@ -155,16 +163,12 @@ sub main
 	#   We  need  to know if we are a 32-bit cpu  #
 	#   or not.				      #
 	###############################################
-	my $uname_m = `uname -m`;
-	chomp($uname_m);
 
 	###############################################
 	#   Just  in  case - read the system map. We  #
 	#   try System.map26 for 'arch' linux, since  #
 	#   it uses a different naming convention.    #
 	###############################################
-	my $kernel = `uname -r`;
-	chomp($kernel);
 	my $fname = "/boot/System.map-$kernel";
 	$fname = "/boot/System.map26" if ! -f $fname;
 	$fh = new FileHandle($fname);

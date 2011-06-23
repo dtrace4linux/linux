@@ -1,3 +1,10 @@
+Fri Jun 24 20:12:27 2011  fox
+
+     530* tools/load.pl: Use uname -r to find the right build dir when
+          we have multiplate build/ directories in the same build area.
+
+     529* x_call.c: Fix the targetted cpu scenario.
+
 Thu Jun 23 20:37:10 2011  fox
 
      528* driver/systrace.c: Fix for i386 sigreturn() syscall.

@@ -31,25 +31,6 @@ int 	in_xcall;
 char	nmi_masks[NCPU];
 
 /**********************************************************************/
-/*   Following taken from http://locklessinc.com/articles/locks/.     */
-/**********************************************************************/
-#if 0
-static inline unsigned xchg_32(void *ptr, unsigned x)
-{
-	int v = *(int *) ptr;
-	*(int *) ptr = x;
-	return v;
-
-	__asm__ __volatile__("lock ; xchgl %0,%1"
-				:"=r" ((unsigned) x)
-				:"m" (*(volatile unsigned *)ptr), "0" (x)
-				:"memory");
-
-	return x;
-}
-# endif
-
-/**********************************************************************/
 /*   Set to true to enable debugging.				      */
 /**********************************************************************/
 int	xcall_debug = 0;
@@ -372,6 +353,15 @@ typedef struct cpumask cpumask_t;
 		return;
 	}
 
+	/***********************************************/
+	/*   Set  up  the  cpu  mask  to  do just the  */
+	/*   relevant cpu.			       */
+	/***********************************************/
+	if (cpu != DTRACE_CPUALL) {
+//printk("just me %d %d\n", cpu_id, cpu);
+		cpu = 1 << cpu;
+	}
+
 	cnt_xcall2++;
 	if (xcall_levels[cpu_id]++)
 		cnt_xcall3++;
@@ -453,15 +443,6 @@ typedef struct cpumask cpumask_t;
 	/*   Now tell the other cpus to do some work.  */
 	/***********************************************/
 	send_ipi_interrupt(&mask, ipi_vector);
-
-	/***********************************************/
-	/*   Set  up  the  cpu  mask  to  do just the  */
-	/*   relevant cpu.			       */
-	/***********************************************/
-	if (cpu != DTRACE_CPUALL) {
-//printk("just me %d %d\n", cpu_id, cpu);
-		cpu = 1 << cpu;
-	}
 
 	/***********************************************/
 	/*   Check for ourselves.		       */

@@ -1,0 +1,5 @@
+The "notifier" provider provides a means to intercept the kernel
+"notifier" functions. These functions are used to broadcast a state
+notification to interested parties. Drivers can define their own notifier
+lists, and the kernel provides a number of default notifiers, e.g. to
+notify when a task exits, or a cpu switch occurs.

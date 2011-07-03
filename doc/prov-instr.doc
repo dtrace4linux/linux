@@ -1,0 +1,5 @@
+The 'instr' provider is similar to the FBT provider, but provides
+the ability to instrument probes on various interesting instructions
+in the kernel, specifically jump instructions. This can be used to
+monitor control flow and look for exceptional or common scenarios when
+trying to understand what happens dynamically in the kernel.

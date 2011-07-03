@@ -52,15 +52,6 @@
 
 #include "ctf_struct.h"
 
-/**********************************************************************/
-/*   Make the Linux patch an INT3 instruction.			      */
-/**********************************************************************/
-#if defined(linux)
-#  define	SDT_PATCHVAL	0xcc
-#else
-#  define	SDT_PATCHVAL	0xf0
-#endif
-
 #define	SDT_ADDR2NDX(addr)	((((uintptr_t)(addr)) >> 4) & sdt_probetab_mask)
 #define	SDT_PROBETAB_SIZE	0x1000		/* 4k entries -- 16K total */
 
@@ -118,7 +109,7 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	    sdt_probetab[SDT_ADDR2NDX(offset)];
 	sdt_probetab[SDT_ADDR2NDX(offset)] = sdp;
 
-	sdp->sdp_patchval = SDT_PATCHVAL;
+	sdp->sdp_patchval = PATCHVAL;
 	sdp->sdp_patchpoint = (uint8_t *)offset;
 	sdp->sdp_savedval = *sdp->sdp_patchpoint;
 
@@ -170,7 +161,7 @@ printk("io_prov_return called %s:%s %p  sz=%x\n", infp->modname, infp->name, ins
 	    sdt_probetab[SDT_ADDR2NDX(offset)];
 	sdt_probetab[SDT_ADDR2NDX(offset)] = sdp;
 
-	sdp->sdp_patchval = SDT_PATCHVAL;
+	sdp->sdp_patchval = PATCHVAL;
 	sdp->sdp_patchpoint = (uint8_t *)offset;
 	sdp->sdp_savedval = *sdp->sdp_patchpoint;
 	return 1;
@@ -439,7 +430,7 @@ sdt_provide_module(void *arg, struct modctl *ctl)
 		    sdt_probetab[SDT_ADDR2NDX(sdpd->sdpd_offset)];
 		sdt_probetab[SDT_ADDR2NDX(sdpd->sdpd_offset)] = sdp;
 
-		sdp->sdp_patchval = SDT_PATCHVAL;
+		sdp->sdp_patchval = PATCHVAL;
 		sdp->sdp_patchpoint = (uint8_t *)sdpd->sdpd_offset;
 		sdp->sdp_savedval = *sdp->sdp_patchpoint;
 	}

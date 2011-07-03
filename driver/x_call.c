@@ -310,7 +310,7 @@ dtrace_xcall1(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	/*   Just  track re-entrancy events - we will  */
 	/*   be lockless in dtrace_xcall2.	       */
 	/***********************************************/
-	if (in_xcall) {
+	if (in_xcall && cnt_xcall0 < 10) {
 		printk("[%d] x_call: re-entrant call in progress.\n", smp_processor_id()); 
 		cnt_xcall0++; 
 //dump_all_stacks();

@@ -26,6 +26,7 @@ dtracedrv-objs := \
 	intr_x86-32.o \
 	intr_x86-64.o \
 	missing.o \
+	notifier.o \
 	profile.o \
 	prov_common.o \
 	sdt_linux.o \

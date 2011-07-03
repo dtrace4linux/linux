@@ -42,6 +42,7 @@ sub main
 	usage() if ($opts{help});
 	usage() if !$ENV{BUILD_DIR};
 
+	my $fh;
 	my $fname = "$ENV{BUILD_DIR}/port.h";
 	my $build = $ENV{BUILD_DIR};
 	$build =~ s/^build-//;
@@ -63,6 +64,18 @@ sub main
 		$name = uc($name);
 		$inc .= "# define HAVE_$name $val\n";
 	}
+
+	###############################################
+	#   Generate notifiers from /proc/kallsyms.   #
+	###############################################
+	$fh = new FileHandle("grep ' [bd] .*notifier' /proc/kallsyms |");
+	my $ofh = new FileHandle(">build-$build/notifiers.h");
+	while (<$fh>) {
+		chomp;
+		my ($addr, $type, $name) = split(" ");
+		print $ofh "{\"\", \"$name\"},\n";
+	}
+	$ofh->close();
 
 	###############################################
 	#   Annoying lex differences.		      #
@@ -176,7 +189,7 @@ sub main
 		"\n" .
 		$inc . "\n";
 	print $inc if $opts{v};
-	my $fh = new FileHandle($fname);
+	$fh = new FileHandle($fname);
 	my $old = "";
 	if ($fh) {
 		while (<$fh>) {

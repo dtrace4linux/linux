@@ -1,3 +1,7 @@
+Sat Jun 25 23:44:06 2011  fox
+
+     531* notifier.c: New provider to intercept the notifier chains.
+
 Fri Jun 24 20:12:27 2011  fox
 
      530* tools/load.pl: Use uname -r to find the right build dir when

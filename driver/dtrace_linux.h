@@ -58,6 +58,11 @@
 #  include <linux/hrtimer.h>
 #endif
 
+/**********************************************************************/
+/*   Breakpoint instruction.					      */
+/**********************************************************************/
+#define	PATCHVAL	0xcc	/* INT3 instruction */
+
 # define MUTEX_HELD dtrace_mutex_is_locked
 
 #define PRIV_EFFECTIVE          (1 << 0)

@@ -14879,8 +14879,6 @@ dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
 		return NOTIFY_DONE;
 	}
 
-printk("dtrace_module_loaded called %p\n", ctl);
-
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&mod_lock);
 
@@ -16404,7 +16402,7 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&dtrace_lock);
 
-printk("dtrace_detach: dtrace_opens=%d\n", dtrace_opens);
+printk("dtrace_detach: dtrace_opens=%d helpers=%d\n", dtrace_opens, dtrace_helpers);
 	ASSERT(dtrace_opens == 0);
 
 	if (dtrace_helpers > 0) {
@@ -16415,6 +16413,7 @@ printk("dtrace_detach: dtrace_opens=%d\n", dtrace_opens);
 	}
 
 	if (dtrace_unregister((dtrace_provider_id_t)dtrace_provider) != 0) {
+printk("dtrace_unregister is causing us to fail\n");
 		mutex_exit(&dtrace_provider_lock);
 		mutex_exit(&dtrace_lock);
 		mutex_exit(&cpu_lock);

@@ -444,6 +444,14 @@ struct masks lidt_masks[] = {
 	{2, 0xff, 0x4c},
 	{0, 0, 0},
 	};
+/*   35ad4:       f0 ff 43 20             lock incl 0x20(%rbx) */
+/*   2c21e:       f0 41 ff 87 5c 01 00    lock incl 0x15c(%r15) */
+struct masks inc_masks[] = {
+//	{0, 0xff, 0xf0},	/* lock */
+	{0, 0xff, 0xff},
+	{1, 0x30, 0x00},
+	{0, 0, 0},
+	};
 static int
 instr_cmp(unsigned char *pc, struct masks *mp)
 {
@@ -475,7 +483,7 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
 	name = name_buf; \
 	}} while (0)
-# define INSTR2(tbl, opcode_name) do {if (instr_cmp(instr, tbl)) { \
+# define INSTR2(instr, tbl, opcode_name) do {if (instr_cmp(instr, tbl)) { \
 	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
 	name = name_buf; \
 	}} while (0)
@@ -490,7 +498,14 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 
 		name_buf[0] = '\0';
 
-		INSTR2(lidt_masks, "lidt");
+		INSTR2(instr, lidt_masks, "lidt");
+		/* lock-inc (32b) */
+#if 0
+		INSTR2(instr, inc_masks, "inc");
+if (*instr == 0xf0) {
+printk("lock %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
+}
+#endif
 
 		INSTR(0x70, "jo");
 		INSTR(0x71, "jno");

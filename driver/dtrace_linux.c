@@ -288,8 +288,8 @@ int	fbt_init(void);
 void	fbt_exit(void);
 int	instr_init(void);
 void	instr_exit(void);
-int	dtrace_notifier_init(void);
-void	dtrace_notifier_exit(void);
+int	dtrace_prcom_init(void);
+void	dtrace_prcom_exit(void);
 int	sdt_init(void);
 void	sdt_exit(void);
 int	systrace_init(void);
@@ -3163,7 +3163,7 @@ static struct proc_dir_entry *dir;
 	fbt_init();
 	instr_init();
 	dtrace_profile_init();
-	dtrace_notifier_init();
+	dtrace_prcom_init();
 	sdt_init();
 	ctl_init();
 
@@ -3201,7 +3201,7 @@ static void __exit dtracedrv_exit(void)
 	ctl_exit();
 	sdt_exit();
 	dtrace_profile_fini();
-	dtrace_notifier_exit();
+	dtrace_prcom_exit();
 	systrace_exit();
 	instr_exit();
 	fbt_exit();

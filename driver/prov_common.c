@@ -1,7 +1,11 @@
 /**********************************************************************/
-/*   Common code for the providers.				      */
+/*   Common  provider  code.  Linux/dtrace  works  by  not modifying  */
+/*   kernel  source.  To support the many SDT and other providers in  */
+/*   the  kernel,  we need to emulate by intercepting certain kernel  */
+/*   functions. This file provides a common approach to intercepting  */
+/*   these functions and exposing them as Solaris-like providers.     */
 /*   								      */
-/*   Date: July 20108						      */
+/*   Date: July 2010						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
 /*   License: GPL3						      */
@@ -13,15 +17,241 @@
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <dtrace_proto.h>
+#include <linux/miscdevice.h>
 #include <linux/kallsyms.h>
+
+#define regs pt_regs
+#include <sys/stack.h>
+#include <sys/frame.h>
+#include <sys/privregs.h>
 
 extern int dtrace_unhandled;
 extern int fbt_name_opcodes;
 
+# define MAX_PROVIDER	32
+# define MAX_MODULE	32
+# define MAX_FUNCTION	64
+# define MAX_NAME	64
+
+/**********************************************************************/
+/*   Structure  describing  the  probes  we  create,  and the dtrace  */
+/*   housekeeping  against  them.  These  are  all probes utilisiing  */
+/*   breakpoints  to  trap them, but the interpretation is dependent  */
+/*   on  the  address or arguments. Many of the providers will share  */
+/*   the same underlying function.				      */
+/**********************************************************************/
+typedef struct provider {
+	char			*p_probe;
+
+	char			*p_func_name;
+	void			*p_func_addr;
+	char			*p_arg0_name;
+
+	char			*p_arg0;
+	char			*p_arg1;
+	void			*p_arg_addr;
+	int			p_stack0_cond;
+	int			p_stack0_offset;
+	uintptr_t		p_stack0_addr;
+	int			p_enabled;
+	dtrace_id_t		p_id;
+	dtrace_id_t		p_id2;
+	int			p_patchval;
+	int			p_inslen;
+	int			p_modrm;
+	dtrace_provider_id_t 	p_provider_id;
+	int			p_want_return;
+	} provider_t;
+static provider_t map[] = {
+	{
+		.p_probe = "notifier::atomic:die_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:hci_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:idle_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:inet6addr_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:keyboard_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:mn10300_die_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:netevent_notif_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:panic_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:task_free_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:thread_notify_head",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:vt_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::atomic:xaction_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:acpi_bus_notify_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:acpi_chain_head",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:acpi_lid_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:adb_client_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:cpu_dma_lat_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:cpufreq_policy_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:crypto_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:dca_provider_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:dnaddr_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:fb_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:inetaddr_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:ipcns_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:memory_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:module_notify_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:munmap_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:network_lat_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:network_throughput_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:oom_notify_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:pSeries_reconfig_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:pm_chain_head",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:reboot_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:spu_switch_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:task_exit_notifier",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:ubi_notifiers",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:usb_notifier_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:wf_client_list",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::blocking:xenstore_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::raw:clockevents_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::raw:cpu_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "notifier::raw:netdev_chain",
+		.p_func_name = "notifier_call_chain",
+	},
+	{
+		.p_probe = "sched:::off-cpu",
+		.p_func_name = "perf_event_task_sched_out",
+		.p_arg0 = "lwpsinfo_t *",
+		.p_arg1 = "psinfo_t *",
+	},
+	{
+		.p_probe = "sched:::on-cpu",
+		.p_func_name = "perf_event_task_sched_in",
+	},
+	{NULL}
+	};
+
+/**********************************************************************/
+/*   Prototypes.						      */
+/**********************************************************************/
 static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *symbolsize,
                         unsigned long *offset,
                         char **modname, char *namebuf);
+uint64_t prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes);
 
 /**********************************************************************/
 /*   Find a function and compute the size of the function, so we can  */
@@ -323,4 +553,376 @@ if (*instr == 0xe8) return;
 		}
 	}
 }
+
+/**********************************************************************/
+/*   Crack open a provider:module:function spec.		      */
+/**********************************************************************/
+static void
+extract_elements(char *str, char *provider, char *module, char *function, char *name)
+{	int	i;
+
+	for (i = 0; *str && *str != ':' && i < MAX_PROVIDER - 1; i++)
+		*provider++ = *str++;
+	*provider = '\0';
+	while (*str && *str != ':') str++;
+	if (*str) str++;
+
+	for (i = 0; *str && *str != ':' && i < MAX_MODULE - 1; i++)
+		*module++ = *str++;
+	*module = '\0';
+	while (*str && *str != ':') str++;
+	if (*str) str++;
+
+	for (i = 0; *str && *str != ':' && i < MAX_FUNCTION - 1; i++)
+		*function++ = *str++;
+	*function = '\0';
+	while (*str && *str != ':') str++;
+	if (*str) str++;
+
+	for (i = 0; *str && *str != ':' && i < MAX_NAME - 1; i++)
+		*name++ = *str++;
+	*name = '\0';
+	while (*str && *str != ':') str++;
+	if (*str) str++;
+}
+/**********************************************************************/
+/*   Initialise  the  provider  addresses.  Do  this  when dtrace is  */
+/*   safely loaded with the core function pointers.		      */
+/**********************************************************************/
+static void
+prcom_init(void)
+{	static int first_time = TRUE;
+	provider_t	*pp;
+	provider_t	*pp1;
+	void	*memp;
+
+	if (!first_time)
+		return;
+
+	/***********************************************/
+	/*   Note  that many providers may map to the  */
+	/*   same  function,  so  handle  the  shared  */
+	/*   approach.				       */
+	/***********************************************/
+	for (pp = map; pp->p_probe; pp++) {
+		if (pp->p_func_addr)
+			continue;
+
+		/***********************************************/
+		/*   If  we  want  an  argument  but argument  */
+		/*   doesnt  exist  in this kernel, then just  */
+		/*   skip this entry.			       */
+		/***********************************************/
+		if (pp->p_arg0_name) {
+			if ((pp->p_stack0_addr = (uintptr_t) get_proc_addr(pp->p_arg0_name)) == 0)
+				continue;
+			}
+
+		memp = get_proc_addr(pp->p_func_name);
+		if (memp == NULL)
+			continue;
+
+		if (!memory_set_rw(memp, 1, TRUE))
+			continue;
+
+		pp->p_patchval = *(unsigned char *) memp;
+		pp->p_inslen = dtrace_instr_size_modrm((uchar_t *) memp, &pp->p_modrm);
+		pp->p_func_addr = memp;
+
+		/***********************************************/
+		/*   Share  this  to  all functions which are  */
+		/*   the same.				       */
+		/***********************************************/
+		for (pp1 = pp + 1; pp1->p_probe; pp1++) {
+			if (strcmp(pp1->p_func_name, pp->p_func_name) == 0) {
+				pp1->p_func_addr = memp;
+				pp1->p_inslen = pp->p_inslen;
+				pp1->p_modrm = pp->p_modrm;
+				pp1->p_patchval = pp->p_patchval;
+			}
+		}
+	}
+}
+
+/*ARGSUSED*/
+static int
+prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
+{
+	uintptr_t stack0, stack1, stack2, stack3, stack4, n;
+	struct pt_regs *regs;
+	provider_t *pp;
+
+	/***********************************************/
+	/*   Dont fire probe if this is unsafe.	       */
+	/***********************************************/
+	if (!tinfo->t_doprobe)
+		return (DTRACE_INVOP_NOP);
+
+	/***********************************************/
+	/*   Some probes are matching on the value of  */
+	/*   arg1   (shared   dispatch).   Get   arg1  */
+	/*   (stack0)  early  so we can use it in the  */
+	/*   loop below.			       */
+	/***********************************************/
+	regs = (struct pt_regs *) stack;
+	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+	stack0 = regs->c_arg0;
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT | CPU_DTRACE_BADADDR);
+	for (pp = map; pp->p_probe; pp++) {
+		if (addr != (uintptr_t) pp->p_func_addr)
+			continue;
+		if (!pp->p_enabled) {
+			continue;
+		}
+		if (!pp->p_stack0_cond)
+			break;
+		n = stack0 - pp->p_stack0_offset;
+		if (pp->p_stack0_addr == n)
+			break;
+	}
+
+	if (pp->p_probe == NULL) {
+		static int cnt;
+		if (cnt++ < 50)
+			printk("dtrace: prov_common: cannot map %p\n", (void *) stack0);
+		return 0;
+	}
+	/***********************************************/
+	/*   Bubble  up  entries  to  the  top of the  */
+	/*   list.				       */
+	/***********************************************/
+	if (pp != map && 0) {
+		provider_t t = pp[-1];
+		pp[-1] = *pp;
+		*pp = t;
+	}
+
+	tinfo->t_opcode = pp->p_patchval;
+	tinfo->t_inslen = pp->p_inslen;
+	tinfo->t_modrm = pp->p_modrm;
+
+	/***********************************************/
+	/*   Get  remaining arguments, in a protected  */
+	/*   fashion.				       */
+	/***********************************************/
+	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+	stack1 = regs->c_arg1;
+	stack2 = regs->c_arg2;
+	stack3 = regs->c_arg3;
+	stack4 = regs->c_arg4;
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT | CPU_DTRACE_BADADDR);
+
+	stack0 = prcom_getarg(pp, pp->p_id, NULL, 0, 0);
+	stack1 = prcom_getarg(pp, pp->p_id, NULL, 1, 0);
+
+//printk("common probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);
+	dtrace_probe(pp->p_id, stack0, stack0, stack0, 0, 0);
+
+	return (DTRACE_INVOP_NOP);
+}
+
+/*ARGSUSED*/
+static void
+prcom_provide(void *arg, const dtrace_probedesc_t *desc)
+{
+//	TODO();
+}
+
+/*ARGSUSED*/
+static void
+prcom_destroy(void *arg, dtrace_id_t id, void *parg)
+{
+}
+
+/*ARGSUSED*/
+static int
+prcom_enable(void *arg, dtrace_id_t id, void *parg)
+{	provider_t *pp = (provider_t *) parg;
+
+	prcom_init();
+
+	pp->p_enabled = TRUE;
+	if (*(unsigned char *) pp->p_func_addr != PATCHVAL) {
+		*(unsigned char *) pp->p_func_addr = PATCHVAL;
+	}
+
+	return 0;
+}
+
+/*ARGSUSED*/
+static void
+prcom_disable(void *arg, dtrace_id_t id, void *parg)
+{	provider_t *pp = (provider_t *) parg;
+
+	pp->p_enabled = FALSE;
+	if (pp->p_func_addr && pp->p_patchval &&
+	    *(unsigned char *) pp->p_func_addr == PATCHVAL) {
+		*(unsigned char *) pp->p_func_addr = pp->p_patchval;
+	}
+}
+
+/*ARGSUSED*/
+void
+prcom_getargdesc(void *arg, dtrace_id_t id, void *parg, dtrace_argdesc_t *desc)
+{	provider_t *pp = parg;
+
+printk("getargdesc %s %d\n", pp->p_probe, desc->dtargd_ndx);
+	desc->dtargd_native[0] = '\0';
+	desc->dtargd_xlate[0] = '\0';
+
+	if (pp->p_arg0 && desc->dtargd_ndx == 0) {
+		(void) strcpy(desc->dtargd_native, pp->p_arg0);
+//printk(" .. '%s'\n", desc->dtargd_native);
+		return;
+	}
+
+	if (pp->p_arg1 && desc->dtargd_ndx == 1) {
+		(void) strcpy(desc->dtargd_native, pp->p_arg1);
+//printk(" .. '%s'\n", desc->dtargd_native);
+		return;
+	}
+
+	desc->dtargd_ndx = DTRACE_ARGNONE;
+}
+/*ARGSUSED*/
+#include "ctf_struct.h"
+uint64_t
+prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
+{static psinfo_t psinfo[NCPU];
+	psinfo_t *ps = &psinfo[smp_processor_id()];
+	provider_t *pp = arg;
+
+//dtrace_printf("getarg %s %d\n", pp->p_probe, argno);
+	if (strcmp(pp->p_probe, "sched:::off-cpu") == 0) {
+		ps->pr_pid = current ? current->pid : 0;
+		ps->pr_pgid = current ? current->tgid : 0;
+		ps->pr_ppid = current && current->parent ? current->parent->pid : 0;
+		return ps;
+	}
+	return dtrace_getarg(argno, aframes);
+}
+static dtrace_pops_t prcom_pops = {
+	prcom_provide,
+	NULL,
+	prcom_enable,
+	prcom_disable,
+	NULL,
+	NULL,
+	prcom_getargdesc,
+	prcom_getarg,
+	NULL,
+	prcom_destroy
+};
+
+static dtrace_pattr_t pattr = {
+{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_COMMON },
+{ DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_UNKNOWN },
+{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_UNKNOWN },
+{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_COMMON },
+{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_COMMON },
+};
+
+/*ARGSUSED*/
+static int
+prcom_attach(void)
+{	provider_t	*pp;
+	provider_t	*pp1;
+static	char	provider[MAX_PROVIDER];
+static	char	module[MAX_MODULE];
+static	char	function[MAX_FUNCTION];
+static	char	name[MAX_NAME];
+	int	plen;
+
+	dtrace_invop_add(prcom_invop);
+
+	for (pp = map; pp->p_probe; pp++) {
+		extract_elements(pp->p_probe, provider, module, function, name);
+		if (pp->p_provider_id == 0) {
+			plen = strlen(provider);
+
+			if (dtrace_register(provider, &pattr,
+			    DTRACE_PRIV_KERNEL, NULL,
+			    &prcom_pops, NULL, &pp->p_provider_id) != 0) {
+			    	printk("prcom_attach: Failed to register '%s' probe\n",
+					pp->p_probe);
+				return (DDI_FAILURE);
+			}
+
+			/***********************************************/
+			/*   Share the provider id.		       */
+			/***********************************************/
+			for (pp1 = pp + 1; pp1->p_probe; pp1++) {
+				if (strncmp(provider, pp1->p_probe, plen) == 0 &&
+				    pp1->p_probe[plen] == ':') {
+					pp1->p_provider_id = pp->p_provider_id;
+				}
+			}
+		}
+
+		/***********************************************/
+		/*   Create the probe.			       */
+		/***********************************************/
+		if (pp->p_want_return) {
+			pp->p_id = dtrace_probe_create(pp->p_provider_id,
+			    module[0] ? module : NULL, function, "entry", 0, pp);
+			pp->p_id2 = dtrace_probe_create(pp->p_provider_id,
+			    module[0] ? module : NULL, function, "return", 0, pp);
+		} else {
+			pp->p_id = dtrace_probe_create(pp->p_provider_id,
+			    module[0] ? module : NULL, function, 
+			    name[0] ? name : NULL, 0, pp);
+		}
+	}
+
+	return (DDI_SUCCESS);
+}
+
+/*ARGSUSED*/
+static int
+prcom_detach(void)
+{	provider_t *pp;
+	provider_t *pp1;
+
+	for (pp = map; pp->p_probe; pp++) {
+		if (pp->p_func_addr && pp->p_patchval &&
+		    *(unsigned char *) pp->p_func_addr == PATCHVAL) {
+			*(unsigned char *) pp->p_func_addr = pp->p_patchval;
+		}
+	}
+
+	/***********************************************/
+	/*   Unregister the distinct providers.	       */
+	/***********************************************/
+	for (pp = map; pp->p_probe; pp++) {
+		dtrace_provider_id_t id = pp->p_provider_id;
+		if (id == 0)
+			continue;
+		if (dtrace_unregister(id) != 0) {
+			printk("dtrace: prcomm: cannot unregister %s\n",
+				pp->p_probe);
+		}
+		for (pp1 = pp + 1; pp1->p_probe; pp1++) {
+			if (pp1->p_provider_id == id)
+				pp1->p_provider_id = 0;
+		}
+	}
+
+	dtrace_invop_remove(prcom_invop);
+
+	return (DDI_SUCCESS);
+}
+
+int dtrace_prcom_init(void)
+{
+
+	printk(KERN_WARNING "dtrace: common provider being initialised\n");
+	prcom_attach();
+
+	return 0;
+}
+void dtrace_prcom_exit(void)
+{
+	prcom_detach();
+}
+
 

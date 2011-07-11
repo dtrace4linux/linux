@@ -742,7 +742,8 @@ prcom_enable(void *arg, dtrace_id_t id, void *parg)
 	prcom_init();
 
 	pp->p_enabled = TRUE;
-	if (*(unsigned char *) pp->p_func_addr != PATCHVAL) {
+	if (pp->p_func_addr &&
+	    *(unsigned char *) pp->p_func_addr != PATCHVAL) {
 		*(unsigned char *) pp->p_func_addr = PATCHVAL;
 	}
 
@@ -794,9 +795,13 @@ prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 
 //dtrace_printf("getarg %s %d\n", pp->p_probe, argno);
 	if (strcmp(pp->p_probe, "sched:::off-cpu") == 0) {
-		ps->pr_pid = current ? current->pid : 0;
-		ps->pr_pgid = current ? current->tgid : 0;
-		ps->pr_ppid = current && current->parent ? current->parent->pid : 0;
+		if (current) {
+			ps->pr_pid = current->pid;
+			ps->pr_pgid = current->tgid;
+			ps->pr_ppid = current->parent ? current->parent->pid : 0;
+		} else {
+			memset(ps, 0, sizeof *ps);
+		}
 		return ps;
 	}
 	return dtrace_getarg(argno, aframes);

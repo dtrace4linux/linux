@@ -285,7 +285,26 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 		.p_offset = 1,
 		.p_code = (char *) dtrace_systrace_syscall_execve,
 		.p_array = {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
+	4, 0x48,	/* 0xffffffff81009fb0:  add    $0x8,%rsp	*/
+	4, 0x48,	/* 0xffffffff81009fb4:  sub    $0x30,%rsp	*/
+	5, 0x48,	/* 0xffffffff81009fb8:  mov    %rbx,0x28(%rsp)	*/
+	5, 0x48,	/* 0xffffffff81009fbd:  mov    %rbp,0x20(%rsp)	*/
+	5, 0x4c,	/* 0xffffffff81009fc2:  mov    %r12,0x18(%rsp)	*/
+	5, 0x4c,	/* 0xffffffff81009fc7:  mov    %r13,0x10(%rsp)	*/
+	5, 0x4c,	/* 0xffffffff81009fcc:  mov    %r14,0x8(%rsp)	*/
+	4, 0x4c,	/* 0xffffffff81009fd1:  mov    %r15,(%rsp)	*/
+	9, 0x65,	/* 0xffffffff81009fd5:  mov    %gs:0xc700,%r11	*/
+	8, 0x4c,	/* 0xffffffff81009fde:  mov    %r11,0x98(%rsp)	*/
+	12, 0x48,	/* 0xffffffff81009fe6:  movq   $0x2b,0xa0(%rsp)	*/
+	12, 0x48,	/* 0xffffffff81009ff2:  movq   $0x33,0x88(%rsp)	*/
+	9, 0x48,	/* 0xffffffff81009ffe:  movq   $0xffffffffffffffff,0x58(%rsp)	*/
+	5, 0x4c,	/* 0xffffffff8100a007:  mov    0x30(%rsp),%r11	*/
+	8, 0x4c,	/* 0xffffffff8100a00c:  mov    %r11,0x90(%rsp)	*/
+	3, 0x48,	/* 0xffffffff8100a014:  mov    %rsp,%rcx	*/
+	5, 0xe8,	/* 0xffffffff8100a017:  callq  0xffffffff81011576 */
+
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
 			2,  0x41,
 			4,  0x48, 
 			5,  0x48, 
@@ -303,8 +322,7 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 			8,  0x4c,
 			3,  0x48,
 			5,  0xe8, /* call .... */
-#endif
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,9)
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,9)
 			2,  0x41,
 			4,  0x48, 
 			5,  0x48, 

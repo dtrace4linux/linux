@@ -459,8 +459,6 @@ if (yypcb->pcb_token != 0) {
 			BEGIN(S3);
 		}
 
-<S0>"//.*\n"     ; /* C++ comments */
-
 <S0>"/"		{
 			int c, tok;
 
@@ -639,7 +637,22 @@ if (yypcb->pcb_token != 0) {
 			return (DT_TOK_PSPEC);
 		}
 
-<S2>"/"		return (DT_TOK_DIV);
+<S2>"/"		{
+		/*
+		 * Linux extension: handle // comments
+		 */
+		int c = input();
+		if (c == '/') {
+			while ((c = input()) != 0) {
+				if (c == '\n')
+					break;
+			}
+			goto do_break2;
+		}
+		unput(c);
+		return (DT_TOK_DIV);
+		do_break2: ;
+		}
 <S2>","		return (DT_TOK_COMMA);
 
 <S2>{RGX_WS}	; /* discard */

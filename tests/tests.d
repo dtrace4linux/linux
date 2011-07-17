@@ -11,6 +11,7 @@ note:
 d:
 	BEGIN {
 	cnt = 0;
+	tstart = timestamp;
 	}
 	syscall::open*:
 	{
@@ -20,7 +21,7 @@ d:
 		this->arg0 = stringof(arg0);
 		cnt++;
 	}
-	tick-1ms { }
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
@@ -33,6 +34,7 @@ note:
 d:
 	BEGIN {
 		cnt = 0;
+		tstart = timestamp;
 	}
 	syscall::open*: {
 		this->pid = pid;
@@ -43,9 +45,11 @@ d:
 		this->arg2 = stringof(arg2);
 		cnt++;
 	}
-	tick-1ms { }
+	syscall::open*: /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
+
 ##################################################################
 name: systrace-stringof-bad3
 note:
@@ -54,6 +58,7 @@ note:
 d:
 	BEGIN {
 		cnt = 0;
+		tstart = timestamp;
 	}
 	syscall::: {
 		this->pid = pid;
@@ -64,7 +69,8 @@ d:
 		this->arg2 = stringof(arg2);
 		cnt++;
 	}
-	tick-1ms { }
+	syscall::: /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
@@ -85,6 +91,7 @@ d:
 		this->arg2 = stringof(arg2);
 		cnt++;
 	}
+	syscall::: /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-5000 { }
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
@@ -104,11 +111,14 @@ d:
 name: fbt-a
 note: Do stuff to measure fbt heavy duty access.
 d:
+	BEGIN {
+		tstart = timestamp;
+	}
 	fbt::a*:
 	{
 	cnt++;
 	}
-	tick-1ms { }
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
@@ -126,8 +136,11 @@ d:
 name: io-1
 note: check io provider isnt causing page faults.
 d:
+	BEGIN {
+		tstart = timestamp;
+	}
 	io::: { cnt++;}
-	tick-1ms { }
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 
@@ -135,21 +148,27 @@ d:
 name: execname-1
 note: Simple use of execname
 d:
+	BEGIN {
+		tstart = timestamp;
+	}
 	syscall::open*:entry { 
 		cnt++;
 		printf("%s",execname);
 	}
-	tick-1ms { }
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-5s { exit(0); }
 ##################################################################
 name: copyinstr-1
 note: Validate copyinstr isnt generating badaddr messages
 d:
+	BEGIN {
+		tstart = timestamp;
+	}
 	syscall::open*:entry { 
 		cnt++;
 		printf("%s %s",execname,copyinstr(arg0)); 
 	}
-	tick-1ms { }
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-5s { exit(0); }
 ##################################################################
 name: badptr-1
@@ -235,4 +254,9 @@ d:
 		exit(0); 
 		}
 
-
+##################################################################
+name: BEGIN-fbt:a-exec-time
+note: Test from Nigel Smith
+d:
+	fbt:kernel:a*: {} 
+	dtrace:::BEGIN { exit(0); }

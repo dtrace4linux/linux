@@ -50,6 +50,7 @@ sub main
 	$kern = "/lib/modules/$build/build";
 	$kern_src = "/lib/modules/$build/source";
 	$kern_src = $kern if ! -d $kern_src;
+	$kern_src = "/usr/src/kernels/$build" if ! -d $kern_src;
 	foreach my $f (qw{
 		include/linux/cred.h
 		include/linux/slab.h
@@ -105,7 +106,9 @@ sub main
 	#   kernels    have   unlocked_ioctl()   and  #
 	#   compat_ioctl(). Detect this here.	      #
 	###############################################
-	my $str = `grep "(.ioctl) (struct inode" /lib/modules/$build/build/include/linux/fs.h`;
+	my $fs_h = "/lib/modules/$build/build/include/linux/fs.h";
+	$fs_h = "$kern_src/include/linux/fs.h" if ! -f $fs_h;
+	my $str = `grep "(.ioctl) (struct inode" $fs_h`;
 	chomp($str);
 	if ($str ne '') {
 		$inc .= "# define HAVE_OLD_IOCTL 1\n";

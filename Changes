@@ -1,3 +1,14 @@
+Mon Jul 18 23:15:08 2011  fox
+
+     536* driver/systrace.c: Fix for execv on 2.6.38 kernels.
+
+Wed Jul 13 21:30:01 2011  fox
+
+     535* dt_lex.l: Handle // comments at outer scope.
+
+     534* tests/tests.d: Better use of timestamps to exit test after 5s
+          to avoid problems with dropped probes.
+
 Tue Jul 12 07:07:55 2011  fox
 
      533* driver/prov_common.c: Avoid null ptr deref for some probes.

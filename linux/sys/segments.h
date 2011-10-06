@@ -86,4 +86,8 @@ typedef struct user_desc {
 #define	SELISLDT(s)	(((s) & SEL_TI_LDT) == SEL_TI_LDT)
 #define	SELISUPL(s)	(((s) & CPL_MASK) == SEL_UPL)
 
+#ifdef  __cplusplus
+}
+#endif
+
 # endif /* _SYS_SEGMENTS_H */

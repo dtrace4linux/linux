@@ -495,10 +495,14 @@ extern char *cplus_demangle(const char *, int);
 static char 
 *demangleSymbolCString(const char *mangled)
 {
+# if HAVE_CPLUS_DEMANGLE
 	 if(mangled[0]!='_') return NULL;
 	 if(mangled[1]=='_') mangled++; // allow either __Z or _Z prefix
 	 if(mangled[1]!='Z') return NULL;
 	 return cplus_demangle(mangled, 0);
+# else
+	return NULL;
+# endif
 }
 
 static char *

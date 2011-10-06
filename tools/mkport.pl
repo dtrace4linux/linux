@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# $Header: Last edited: 12-Jun-2011 1.3 $ 
+# $Header: Last edited: 07-Oct-2011 1.4 $ 
 #
 # Script to poke around the kernel to see what files or structs are
 # available that we really want. Usually there in a later kernel, but
@@ -99,6 +99,15 @@ sub main
 	if (have("pda_cpunumber", "include/asm/offset.h")) {
 		$inc .= "# define HAVE_INCLUDE_ASM_OFFSET_H 1\n";
 		$inc .= "# define HAVE_PDA_CPUNUMBER 1\n";
+	}
+
+	###############################################
+	#   Check  for  problems  with libbfd having  #
+	#   cplus_demangle()   function   needed  by  #
+	#   ctfconvert/dwarf.c.			      #
+	###############################################
+	if (have_cplus_demangle()) {
+		$inc .= "# define HAVE_CPLUS_DEMANGLE 1\n";
 	}
 
 	###############################################
@@ -286,6 +295,24 @@ sub have
 		return 1 if /$name/;
 	}
 }
+######################################################################
+#   Some  libbfd libraries dont have cplus_demangle, so detect that  #
+#   here.							     #
+######################################################################
+sub have_cplus_demangle
+{
+	my $fh = new FileHandle(">/tmp/demangle.c");
+	print $fh <<EOF;
+int main(int argc, char **argv)
+{
+	return cplus_demangle("", 0);
+}
+EOF
+	$fh->close();
+	system("gcc -o /tmp/$ENV{USER}.demangle /tmp/demangle.c -lbfd");
+	return -f "/tmp/$ENV{USER}.demangle";
+}
+
 ######################################################################
 #   Handle  funkyness  of smp_call_function_single - may/may not be  #
 #   there, may have differing arguments.			     #

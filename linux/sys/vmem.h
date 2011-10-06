@@ -23,4 +23,8 @@ extern "C" {
 
 typedef struct vmem vmem_t;
 
+#ifdef  __cplusplus
+}
+#endif
+
 #endif

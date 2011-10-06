@@ -1,3 +1,8 @@
+Fri Oct  7 19:53:05 2011  fox
+
+     537* mkport.pl, ctfconvert/dwarf.c: Handle missing cplus_demangle()
+          function. Reported on SLE11.
+
 Mon Jul 18 23:15:08 2011  fox
 
      536* driver/systrace.c: Fix for execv on 2.6.38 kernels.

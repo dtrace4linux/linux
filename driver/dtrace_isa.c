@@ -106,8 +106,11 @@ static void print_trace_address(void *data, unsigned long addr, int reliable)
 /**********************************************************************/
 # if defined(HAVE_STACKTRACE_OPS)
 static const struct stacktrace_ops print_trace_ops = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+#else
 	.warning = print_trace_warning,
 	.warning_symbol = print_trace_warning_symbol,
+#endif
 	.stack = print_trace_stack,
 	.address = print_trace_address,
 };

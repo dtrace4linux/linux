@@ -74,7 +74,7 @@ $(BINDIR)/ctfconvert: $(OBJDIR) $(OBJ)
 $(BINDIR)/ctfdump: $(OBJDIR)/compare.o $(OBJDIR)/dump.o $(OBJDIR)/utils.o
 	$(CC) -o $(BINDIR)/ctfdump $(OBJDIR)/alist.o $(OBJDIR)/ctf.o $(OBJDIR)/dump.o \
 		$(OBJDIR)/hash.o $(OBJDIR)/iidesc.o $(OBJDIR)/input.o \
-		$(OBJDIR)/list.o $(OBJDIR)/merge.o $(OBJDIR)/output.o \
+		$(OBJDIR)/list.o $(OBJDIR)/memory.o $(OBJDIR)/merge.o $(OBJDIR)/output.o \
 		$(OBJDIR)/st_bugs.o \
 		$(OBJDIR)/st_parse.o \
 		$(OBJDIR)/stabs.o $(OBJDIR)/stack.o $(OBJDIR)/strtab.o \

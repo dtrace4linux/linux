@@ -21,7 +21,7 @@ ftp://crisp.dyndns-server.com/pub/release/website/dtrace/${DISTRIBUTION}.tar.bz2
 install_dependencies()
 {
 	# fc14: libdwarf libdwarf-devel
-   sudo apt-get install zlib1g-dev flex bison \
+   sudo apt-get install binutils-dev zlib1g-dev flex bison \
    		elfutils libdwarf-dev libelf-dev libc6-dev linux-libc-dev \
 		libc6-dev-i386
 }

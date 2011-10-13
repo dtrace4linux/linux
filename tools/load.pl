@@ -8,6 +8,7 @@
 # 20090513 PDF Add copy of /etc/dtrace.conf to /dev/dtrace.
 # 20090605 PDF Add -opcodes support for fbt provider.
 # 20090718 PDF Add System.map26 support for Arch linux.
+# 20111014 PDF Read /proc/kallsyms as root to avoid permission issue.
 
 # Simple script to load the driver and get it ready.
 
@@ -148,9 +149,12 @@ sub main
 	
 	###############################################
 	#   Read  symbols  in  /proc/kallsyms into a  #
-	#   hash				      #
+	#   hash.  Oh  dear. Recent kernels make the  #
+	#   entries  in  /proc/kallsyms not readable  #
+	#   if  we are not root (symaddr come out as  #
+	#   zero).				      #
 	###############################################
-	my $fh = new FileHandle("/proc/kallsyms");
+	my $fh = new FileHandle("$SUDO cat /proc/kallsyms |");
 	die "Cannot proceed - /proc/kallsyms - $!" if !$fh;
 	my %syms;
 	while (<$fh>) {

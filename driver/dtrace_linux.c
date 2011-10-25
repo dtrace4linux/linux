@@ -193,7 +193,11 @@ extern spinlock_t xcall_spinlock;
 /**********************************************************************/
 /*   We need this to be in an executable page. kzalloc doesnt return  */
 /*   us  one  of  these, and havent yet fixed this so we can make it  */
-/*   executable, so for now, this will do.			      */
+/*   executable,  so  for  now, this will do. As of 3.x kernels, BSS  */
+/*   pages  are not executable. We should use a GCC __attribute__ to  */
+/*   mark  this  in  an  executable  section  (.text?)  but .text is  */
+/*   execute/no-write.    We    change    the    page    perms    in  */
+/*   dtrace_linux_init.						      */
 /**********************************************************************/
 static cpu_core_t	cpu_core_exec[NCPU];
 # define THIS_CPU() &cpu_core_exec[cpu_get_id()]
@@ -1036,6 +1040,13 @@ dtrace_linux_init(void)
 	kernel_nmi_handler = get_proc_addr("nmi");
 
 	/***********************************************/
+	/*   cpu_core_exec  is  sitting  in  the  BSS  */
+	/*   segment.  We  need to make it executable  */
+	/*   for 3.x kernels, so do this here.	       */
+	/***********************************************/
+	memory_set_rw(cpu_core_exec, sizeof cpu_core_exec / PAGE_SIZE, TRUE);
+	
+	/***********************************************/
 	/*   Needed   for  validating  module  symbol  */
 	/*   probes.				       */
 	/***********************************************/
@@ -1135,10 +1146,6 @@ if (*first_v > ipi_vector)
 		set_idt_entry(2, (unsigned long) dtrace_int_nmi);
 	}
 
-	/***********************************************/
-	/*   Initialise the io provider.	       */
-	/***********************************************/
-	io_prov_init();
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -1918,6 +1925,12 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	pmd->pmd |= perms;
 	pte->pte |= perms;
 
+	/***********************************************/
+	/*   Make  page  executable. Ideally we would  */
+	/*   pass in the and+or perms to set.	       */
+	/***********************************************/
+	pte->pte &= ~_PAGE_NX;
+
 	clflush(pmd);
 	clflush(pte);
 # endif
@@ -2461,6 +2474,13 @@ syms_write(struct file *file, const char __user *buf,
 		hunt_init();
 		dtrace_linux_init();
 
+		dtrace_prcom_init();
+		sdt_init();
+		ctl_init();
+		/***********************************************/
+		/*   Initialise the io provider.	       */
+		/***********************************************/
+		io_prov_init();
 	}
 	return orig_count;
 }
@@ -3163,9 +3183,9 @@ static struct proc_dir_entry *dir;
 	fbt_init();
 	instr_init();
 	dtrace_profile_init();
-	dtrace_prcom_init();
+/*	dtrace_prcom_init();
 	sdt_init();
-	ctl_init();
+	ctl_init();*/
 
 	/***********************************************/
 	/*   We  cannot  call  this  til  we  get the  */

@@ -43,7 +43,8 @@ extern int fbt_name_opcodes;
 typedef struct provider {
 	char			*p_probe;
 
-	char			*p_func_name;
+	char			*p_func_name;  /* Set for function based probes. */
+	void			*p_instr_addr; /* Set for non-function based probe. */
 	void			*p_func_addr;
 	char			*p_arg0_name;
 
@@ -62,7 +63,8 @@ typedef struct provider {
 	dtrace_provider_id_t 	p_provider_id;
 	int			p_want_return;
 	} provider_t;
-static provider_t map[] = {
+#define MAX_PROVIDER_TBL 1024
+static provider_t map[MAX_PROVIDER_TBL] = {
 	{
 		.p_probe = "notifier::atomic:die_chain",
 		.p_func_name = "notifier_call_chain",
@@ -243,6 +245,7 @@ static provider_t map[] = {
 	},
 	{NULL}
 	};
+static int probe_cnt;
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -252,6 +255,7 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *offset,
                         char **modname, char *namebuf);
 uint64_t prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes);
+void vminfo_init(void);
 
 /**********************************************************************/
 /*   Find a function and compute the size of the function, so we can  */
@@ -555,6 +559,106 @@ if (*instr == 0xe8) return;
 }
 
 /**********************************************************************/
+/*   Disassemble  the  kernel,  and  allow us to invoke callbacks to  */
+/*   determine which instructions we want to add SDT probes from.     */
+/**********************************************************************/
+static	const char *(*my_kallsyms_lookup)(unsigned long addr,
+                        unsigned long *symbolsize,
+                        unsigned long *offset,
+                        char **modname, char *namebuf);
+void
+dtrace_parse_kernel_function(void (*callback)(), struct module *modp, char *name, uint8_t *instr, uint8_t *limit)
+{
+	int	size;
+	int	modrm;
+
+//printk("dtrace_parse_kernel_function: %s, size=%d\n", name, limit - instr);
+	for (; instr < limit; instr += size) {
+		/***********************************************/
+		/*   Make sure we dont try and handle data or  */
+		/*   bad instructions.			       */
+		/***********************************************/
+		if ((size = dtrace_instr_size_modrm(instr, &modrm)) <= 0)
+			return;
+/*
+if (size == 9 && *instr == 0x65)
+printk("inst:%p %d %02x %02x %02x %02x %02x %04x\n", instr, size, *instr, instr[1], instr[2], instr[3], instr[4],
+*(int *) (&instr[5]));
+*/
+		/***********************************************/
+		/*   incq %gs:nnnn			       */
+		/***********************************************/
+		if (//size == 9 &&
+		    instr[0] == 0x65 &&
+		    instr[1] == 0x48 &&
+		    instr[2] == 0xff &&
+		    instr[3] == 0x04 &&
+		    instr[4] == 0x25) {
+		    	callback(instr, size);
+		    	}
+	}
+}
+void
+dtrace_parse_kernel(void (*callback)())
+{
+	static struct module kern;
+	int	n;
+static	caddr_t ktext;
+static	caddr_t ketext;
+static int first_time = TRUE;
+	caddr_t a, aend;
+	char	name[KSYM_NAME_LEN];
+
+	if (first_time) {
+		first_time = FALSE;
+		ktext = get_proc_addr("_text");
+		if (ktext == NULL)
+			ktext = get_proc_addr("_stext");
+		ketext = get_proc_addr("_etext");
+		my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
+		}
+
+	if (ktext == NULL) {
+		printk("dtracedrv:dtrace_parse_kernel: Cannot find _text/_stext\n");
+		return;
+	}
+	if (kern.name[0])
+		return;
+
+	strcpy(kern.name, "kernel");
+	/***********************************************/
+	/*   Walk   the  code  segment,  finding  the  */
+	/*   symbols,  and  creating a probe for each  */
+	/*   one.				       */
+	/***********************************************/
+	for (n = 0, a = ktext; my_kallsyms_lookup && a < ketext; ) {
+		const char *cp;
+		unsigned long size;
+		unsigned long offset;
+		char	*modname = NULL;
+
+		cp = my_kallsyms_lookup((unsigned long) a, &size, &offset, &modname, name);
+		if (cp == NULL)
+			aend = a + 4;
+		else
+			aend = a + (size - offset);
+
+		/***********************************************/
+		/*   If  this  function  is  toxic, we mustnt  */
+		/*   touch it.				       */
+		/***********************************************/
+		if (cp && *cp && !is_toxic_func((unsigned long) a, cp)) {
+			dtrace_parse_kernel_function(callback, &kern, name, a, aend);
+//			instr_provide_function(&kern, 
+//				(par_module_t *) &kern, //uck on the cast..we dont really need it
+//				"kernel", name, 
+//				a, a, aend, n);
+		}
+		a = aend;
+		n++;
+	}
+}
+/**********************************************************************/
 /*   Crack open a provider:module:function spec.		      */
 /**********************************************************************/
 static void
@@ -585,6 +689,7 @@ extract_elements(char *str, char *provider, char *module, char *function, char *
 	while (*str && *str != ':') str++;
 	if (*str) str++;
 }
+
 /**********************************************************************/
 /*   Initialise  the  provider  addresses.  Do  this  when dtrace is  */
 /*   safely loaded with the core function pointers.		      */
@@ -604,7 +709,7 @@ prcom_init(void)
 	/*   same  function,  so  handle  the  shared  */
 	/*   approach.				       */
 	/***********************************************/
-	for (pp = map; pp->p_probe; pp++) {
+	for (pp = map; pp < &map[probe_cnt]; pp++) {
 		if (pp->p_func_addr)
 			continue;
 
@@ -618,9 +723,11 @@ prcom_init(void)
 				continue;
 			}
 
-		memp = get_proc_addr(pp->p_func_name);
-		if (memp == NULL)
-			continue;
+		if ((memp = pp->p_instr_addr) == NULL) {
+			memp = get_proc_addr(pp->p_func_name);
+			if (memp == NULL)
+				continue;
+			}
 
 		if (!memory_set_rw(memp, 1, TRUE))
 			continue;
@@ -633,8 +740,15 @@ prcom_init(void)
 		/*   Share  this  to  all functions which are  */
 		/*   the same.				       */
 		/***********************************************/
-		for (pp1 = pp + 1; pp1->p_probe; pp1++) {
-			if (strcmp(pp1->p_func_name, pp->p_func_name) == 0) {
+		for (pp1 = pp + 1; pp1 < &map[probe_cnt]; pp1++) {
+			int	same = FALSE;
+			if (pp1->p_func_name && pp->p_func_name &&
+			    strcmp(pp1->p_func_name, pp->p_func_name) == 0)
+			    	same = TRUE;
+			if (pp1->p_instr_addr && pp->p_instr_addr && pp1->p_instr_addr == pp->p_instr_addr)
+				same = TRUE;
+
+			if (same) {
 				pp1->p_func_addr = memp;
 				pp1->p_inslen = pp->p_inslen;
 				pp1->p_modrm = pp->p_modrm;
@@ -644,6 +758,18 @@ prcom_init(void)
 	}
 }
 
+/**********************************************************************/
+/*   Called  from  other  providers  to  add  a  probe to a specific  */
+/*   instruction.						      */
+/**********************************************************************/
+void
+prcom_add_instruction(char *name, uint8_t *instr)
+{
+	map[probe_cnt].p_probe = name;
+	map[probe_cnt].p_instr_addr = instr;
+	probe_cnt++;
+printk("prcom_add_instruction: %s %p\n", name, instr);
+}
 /*ARGSUSED*/
 static int
 prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
@@ -668,7 +794,7 @@ prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	stack0 = regs->c_arg0;
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT | CPU_DTRACE_BADADDR);
-	for (pp = map; pp->p_probe; pp++) {
+	for (pp = map; pp < &map[probe_cnt]; pp++) {
 		if (addr != (uintptr_t) pp->p_func_addr)
 			continue;
 		if (!pp->p_enabled) {
@@ -840,7 +966,15 @@ static	char	name[MAX_NAME];
 
 	dtrace_invop_add(prcom_invop);
 
-	for (pp = map; pp->p_probe; pp++) {
+	for (pp = map; ; pp++) {
+		if (pp->p_func_name == NULL && pp->p_instr_addr == NULL)
+			break;
+		probe_cnt++;
+		}
+
+	vminfo_init();
+
+	for (pp = map; pp < &map[probe_cnt]; pp++) {
 		extract_elements(pp->p_probe, provider, module, function, name);
 		if (pp->p_provider_id == 0) {
 			plen = strlen(provider);
@@ -856,7 +990,7 @@ static	char	name[MAX_NAME];
 			/***********************************************/
 			/*   Share the provider id.		       */
 			/***********************************************/
-			for (pp1 = pp + 1; pp1->p_probe; pp1++) {
+			for (pp1 = pp + 1; pp1 < &map[probe_cnt]; pp1++) {
 				if (strncmp(provider, pp1->p_probe, plen) == 0 &&
 				    pp1->p_probe[plen] == ':') {
 					pp1->p_provider_id = pp->p_provider_id;
@@ -888,7 +1022,7 @@ prcom_detach(void)
 {	provider_t *pp;
 	provider_t *pp1;
 
-	for (pp = map; pp->p_probe; pp++) {
+	for (pp = map; pp < &map[probe_cnt]; pp++) {
 		if (pp->p_func_addr && pp->p_patchval &&
 		    *(unsigned char *) pp->p_func_addr == PATCHVAL) {
 			*(unsigned char *) pp->p_func_addr = pp->p_patchval;
@@ -898,7 +1032,7 @@ prcom_detach(void)
 	/***********************************************/
 	/*   Unregister the distinct providers.	       */
 	/***********************************************/
-	for (pp = map; pp->p_probe; pp++) {
+	for (pp = map; pp < &map[probe_cnt]; pp++) {
 		dtrace_provider_id_t id = pp->p_provider_id;
 		if (id == 0)
 			continue;
@@ -906,7 +1040,7 @@ prcom_detach(void)
 			printk("dtrace: prcomm: cannot unregister %s\n",
 				pp->p_probe);
 		}
-		for (pp1 = pp + 1; pp1->p_probe; pp1++) {
+		for (pp1 = pp + 1; pp1 < &map[probe_cnt]; pp1++) {
 			if (pp1->p_provider_id == id)
 				pp1->p_provider_id = 0;
 		}

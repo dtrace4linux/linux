@@ -1,3 +1,21 @@
+Wed Oct 26 22:19:06 2011  fox
+
+     545* vminfo.c: Make it work (or at least compile) for <2.6.39 kernels.
+
+     544* prov_common.c: Changes so that we can add support for instruction
+          level providers (ie. vminfo). Change the map[] table to
+	  allow room for expansion (ideally a linked list), and provide
+	  support for instruction level kernel disassembly callbacks.
+
+     543* vminfo.c: New file. vminfo provider. Similar to Solaris, but
+          annotating all the /proc/vmstats counters.
+
+     542* dtrace_linux.c: Move some of the init calls to after the end of
+          syms_write, so we can share the prcom code with the vminfo code.
+
+     541* dtrace_linux.c: Fix PAGE_NX issue for cpu_core_exec[] structure
+          on 3.x kernels.
+
 Tue Oct 11 23:49:58 2011  fox
 
      540* cmd/ctfconvert/makefile: Fix bad linking for unused ctfdump

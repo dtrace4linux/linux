@@ -67,6 +67,8 @@ int fbt_name_opcodes;
 module_param(fbt_name_opcodes, int, 0);
 int dtrace_printk;
 module_param(dtrace_printk, int, 0);
+int grab_panic;
+module_param(grab_panic, int, 0);
 
 /**********************************************************************/
 /*   dtrace_printf() buffer and state.				      */
@@ -252,6 +254,15 @@ static struct notifier_block n_exit = {
 	.notifier_call = proc_exit_notifier,
 	.priority = NOTIFIER_MAX_PRIO, // notify us first - before kprobes
 	};
+
+/**********************************************************************/
+/*   Used when we want to intercept panics for final autopsy of what  */
+/*   we did wrong.						      */
+/**********************************************************************/
+int dtrace_kernel_panic(struct notifier_block *this, unsigned long event, void *ptr);
+static struct notifier_block panic_notifier = {
+        .notifier_call = dtrace_kernel_panic,
+};
 
 /**********************************************************************/
 /*   Externs.							      */
@@ -1146,6 +1157,12 @@ if (*first_v > ipi_vector)
 		set_idt_entry(2, (unsigned long) dtrace_int_nmi);
 	}
 
+	/***********************************************/
+	/*   Let  us  grab  the  panics  if we are in  */
+	/*   debug mode.			       */
+	/***********************************************/
+        if (grab_panic)
+               atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -2484,23 +2501,7 @@ syms_write(struct file *file, const char __user *buf,
 	}
 	return orig_count;
 }
-/**********************************************************************/
-/*   Handle invalid instruction exception, needed by FBT/SDT as they  */
-/*   patch  code, with an illegal instruction (i386==F0, amd64==CC),  */
-/*   and we get to call the handler (in dtrace_subr.c).		      */
-/**********************************************************************/
-/*
-dotraplinkage void
-trap_invalid_instr()
-{
-}
-*/
 
-void
-trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu)
-{
-TODO();
-}
 /**********************************************************************/
 /*   Deliver signal to a proc.					      */
 /**********************************************************************/

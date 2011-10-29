@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# $Header: Last edited: 24-Jun-2011 1.2 $ 
+# $Header: Last edited: 29-Oct-2011 1.3 $ 
 
 # 20090415 PDF Fix for when we are using the optional symbols (AS4)
 # 20090416 PDF Add /boot/System.map support
@@ -9,6 +9,7 @@
 # 20090605 PDF Add -opcodes support for fbt provider.
 # 20090718 PDF Add System.map26 support for Arch linux.
 # 20111014 PDF Read /proc/kallsyms as root to avoid permission issue.
+# 20111028 PDF Add -panic switch so I can maybe figure out why we are dying.
 
 # Simple script to load the driver and get it ready.
 
@@ -32,6 +33,7 @@ my %opts = (
 	mem_alloc => 0,
 	opcodes => 0,
 	opcodes2 => 0,
+	panic => 0,
 	printk => 0,
 	unhandled => 0,
 	v => 0,
@@ -47,6 +49,7 @@ sub main
 		'mem_alloc',
 		'opcodes',
 		'opcodes2',
+		'panic',
 		'printk',
 		'unhandled',
 		'unload',
@@ -112,7 +115,8 @@ sub main
 		" fbt_name_opcodes=$opc_len" .
 		" dtrace_unhandled=$opts{unhandled}" .
 		" dtrace_mem_alloc=$opts{mem_alloc}" .
-		" dtrace_printk=$opts{printk}");
+		" dtrace_printk=$opts{printk}" .
+		" grab_panic=$opts{panic}");
 	if ($ret) {
 		print "\n";
 		print "An error was detected loading the driver. Refer to\n";
@@ -388,6 +392,8 @@ Switches:
    -opcodes   Make probes named after x86 instruction opcodes to help
               debugging.
    -opcodes2  Make probes named after first two bytes of opcode.
+   -panic     Intercept the panics which can occur. Might be helpful
+              for dtrace developer to salvage some autopsy info.
    -printk    Use printk to print to console instead of /proc/dtrace/trace
    -unhandled Log FBT functions we couldnt handle because of unsupported/
               disassembly errors.

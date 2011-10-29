@@ -703,6 +703,7 @@ prcom_init(void)
 
 	if (!first_time)
 		return;
+	first_time = FALSE;
 
 	/***********************************************/
 	/*   Note  that many providers may map to the  */

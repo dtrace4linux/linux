@@ -2863,7 +2863,7 @@ cyclic_mp_init()
 {
 	cpu_t *c;
 
-	mutex_enter(&cpu_lock);
+	dmutex_enter(&cpu_lock);
 
 	c = cpu_list;
 	do {
@@ -2874,7 +2874,7 @@ cyclic_mp_init()
 	} while ((c = c->cpu_next) != cpu_list);
 
 	register_cpu_setup_func((cpu_setup_func_t *)cyclic_cpu_setup, NULL);
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&cpu_lock);
 }
 
 /*

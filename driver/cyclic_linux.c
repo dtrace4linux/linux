@@ -111,7 +111,7 @@ struct c_timer {
 	cyc_time_t	c_time;
 	struct c_timer	*c_next;
 	};
-spinlock_t lock_timers;
+mutex_t lock_timers;
 struct c_timer *hd_timers;
 
 int
@@ -135,7 +135,7 @@ init_cyclic()
 		printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
 		return FALSE;
 	}
-	spin_lock_init(&lock_timers);
+	dmutex_init(&lock_timers);
 	return TRUE;
 }
 
@@ -148,21 +148,20 @@ static void cyclic_tasklet_func(unsigned long arg)
 		ktime_t kt;
 		struct c_timer *cp;
 		struct hrtimer *ptr;
-		unsigned long flags;
 
 		if (cnt++ > 1000) {
 			printk("too many tasklets\n");
 			break;
 		}
 
-		spin_lock_irqsave(&lock_timers, flags);
+		dmutex_enter(&lock_timers);
 		if ((cp = hd_timers) != NULL)
 			hd_timers = cp->c_next;
 		else
 			hd_timers = NULL;
 		if (cp)
 			cp->c_next = NULL;
-		spin_unlock_irqrestore(&lock_timers, flags);
+		dmutex_exit(&lock_timers);
 		if (cp == NULL)
 			break;
 
@@ -200,16 +199,17 @@ be_callback(struct hrtimer *ptr)
 {	struct c_timer *cp;
 
 	
-	spin_lock(&lock_timers);
+	dmutex_enter(&lock_timers);
 	cp = (struct c_timer *) ptr;
 	cp->c_next = hd_timers;
 	hd_timers = cp;
-	spin_unlock(&lock_timers);
+	dmutex_exit(&lock_timers);
 
 	tasklet_schedule(&cyclic_tasklet);
 	
 	return HRTIMER_NORESTART;
 }
+# if 0
 static enum hrtimer_restart
 orig_be_callback(struct hrtimer *ptr)
 {
@@ -241,6 +241,8 @@ orig_be_callback(struct hrtimer *ptr)
 #endif
 	return HRTIMER_RESTART;
 }
+#endif
+
 cyclic_id_t 
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 {	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
@@ -272,7 +274,6 @@ cyclic_add_omni(cyc_omni_handler_t *omni)
 void 
 cyclic_remove(cyclic_id_t id)
 {	struct c_timer *ctp = (struct c_timer *) id;
-	unsigned long flags;
 
 	if (id == 0)
 		return;
@@ -282,7 +283,7 @@ cyclic_remove(cyclic_id_t id)
 	/***********************************************/
 	/*   Remove from the list if its on it.	       */
 	/***********************************************/
-	spin_lock_irqsave(&lock_timers, flags);
+	dmutex_enter(&lock_timers);
 	if (hd_timers == ctp)
 		hd_timers = ctp->c_next;
 	else {
@@ -294,7 +295,7 @@ cyclic_remove(cyclic_id_t id)
 			}
 		}
 	}
-	spin_unlock_irqrestore(&lock_timers, flags);
+	dmutex_exit(&lock_timers);
 
 	kfree(ctp);
 }

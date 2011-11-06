@@ -389,6 +389,9 @@ int	dtrace_mutex_is_locked(mutex_t *);
 asmlinkage int dtrace_memcpy_with_error(void *, void *, size_t);
 void set_console_on(int flag);
 void dtrace_linux_panic(void);
+int libc_strlen(const char *str);
+int libc_strcmp(const char *p1, const char *p2);
+int libc_strncmp(const char *s1, const char *s2, int len);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

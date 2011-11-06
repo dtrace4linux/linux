@@ -255,6 +255,7 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *offset,
                         char **modname, char *namebuf);
 uint64_t prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes);
+void tcp_init(void);
 void vminfo_init(void);
 
 /**********************************************************************/
@@ -764,12 +765,35 @@ prcom_init(void)
 /*   instruction.						      */
 /**********************************************************************/
 void
-prcom_add_instruction(char *name, uint8_t *instr)
+prcom_add_instruction(char *probe, uint8_t *instr)
 {
-	map[probe_cnt].p_probe = name;
+	if (probe_cnt + 1 >= MAX_PROVIDER_TBL) {
+		printk("prov_common: Cannot add '%s' as MAX_PROVIDER_TBL too small\n", probe);
+		return;
+	}
+
+	map[probe_cnt].p_probe = probe;
 	map[probe_cnt].p_instr_addr = instr;
 	probe_cnt++;
-printk("prcom_add_instruction: %s %p\n", name, instr);
+//printk("prcom_add_instruction: %s %p\n", name, instr);
+}
+void
+prcom_add_function(char *probe, char *func)
+{	uint8_t *addr;
+
+	if (probe_cnt + 1 >= MAX_PROVIDER_TBL) {
+		printk("prov_common: Cannot add '%s' as MAX_PROVIDER_TBL too small\n", probe);
+		return;
+	}
+
+	if ((addr = get_proc_addr(func)) == 0) {
+		printk("prcom_add_function: cannot locate '%s'\n", func);
+		return;
+	}
+	map[probe_cnt].p_probe = probe;
+	map[probe_cnt].p_instr_addr = addr;
+	probe_cnt++;
+//printk("prcom_add_instruction: %s %p\n", name, instr);
 }
 /*ARGSUSED*/
 static int
@@ -973,6 +997,10 @@ static	char	name[MAX_NAME];
 		probe_cnt++;
 		}
 
+	/***********************************************/
+	/*   Add the common SDT providers.	       */
+	/***********************************************/
+	tcp_init();
 	vminfo_init();
 
 	for (pp = map; pp < &map[probe_cnt]; pp++) {

@@ -691,7 +691,7 @@ fasttrap_return_common(struct regs *rp, uintptr_t pc, pid_t pid,
 	kmutex_t *pid_mtx;
 
 	pid_mtx = &cpu_core[cpu_get_id()].cpuc_pid_lock;
-	mutex_enter(pid_mtx);
+	dmutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
 
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
@@ -706,7 +706,7 @@ fasttrap_return_common(struct regs *rp, uintptr_t pc, pid_t pid,
 	 * is not essential to the correct execution of the process.
 	 */
 	if (tp == NULL) {
-		mutex_exit(pid_mtx);
+		dmutex_exit(pid_mtx);
 		return;
 	}
 
@@ -727,7 +727,7 @@ fasttrap_return_common(struct regs *rp, uintptr_t pc, pid_t pid,
 		    rp->r_r0, rp->r_r1, 0, 0);
 	}
 
-	mutex_exit(pid_mtx);
+	dmutex_exit(pid_mtx);
 }
 
 static void
@@ -749,9 +749,9 @@ fasttrap_sigsegv(proc_t *p, struct task_struct *t, uintptr_t addr)
 	sqp->sq_info.si_code = SEGV_MAPERR;
 	sqp->sq_info.si_addr = (caddr_t)addr;
 
-	mutex_enter(&p->p_lock);
+	dmutex_enter(&p->p_lock);
 	sigaddqa(p, t, sqp);
-	mutex_exit(&p->p_lock);
+	dmutex_exit(&p->p_lock);
 
 	if (t != NULL)
 		aston(t);
@@ -1001,7 +1001,7 @@ HERE();
 
 	pid = p->p_pid;
 	pid_mtx = &cpu_core[cpu_get_id()].cpuc_pid_lock;
-	mutex_enter(pid_mtx);
+	dmutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
 printk("probe: bucket=%p pid=%d pc=%p\n", bucket, pid, (void *) pc);
 HERE();
@@ -1021,7 +1021,7 @@ HERE();
 	 * fasttrap_ioctl), or somehow we have mislaid this tracepoint.
 	 */
 	if (tp == NULL) {
-		mutex_exit(pid_mtx);
+		dmutex_exit(pid_mtx);
 HERE();
 		return (-1);
 	}
@@ -1145,7 +1145,7 @@ HERE();
 	 * tracepoint again later if we need to light up any return probes.
 	 */
 	tp_local = *tp;
-	mutex_exit(pid_mtx);
+	dmutex_exit(pid_mtx);
 	tp = &tp_local;
 
 	/*

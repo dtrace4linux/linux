@@ -85,6 +85,11 @@ int	dtrace_printf_disable;
 /**********************************************************************/
 int driver_initted;
 
+int
+printk(const char *fmt, ...)
+{
+	return 0;
+}
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
 /**********************************************************************/
@@ -104,7 +109,6 @@ enum {
 	OFFSET_kernel_text_address,
 	OFFSET_ia32_sys_call_table,
 	OFFSET_vmalloc_exec,
-	OFFSET_add_timer_on,
 	OFFSET_END_SYMS,
 	};
 static struct map {
@@ -128,7 +132,6 @@ static struct map {
 {"kernel_text_address",    NULL}, /* Used for stack walking when no dump_trace available */
 {"ia32_sys_call_table",    NULL}, /* On 64b kernel, the 32b syscall table. */
 {"vmalloc_exec",    	   NULL}, /* Needed for syscall trampolines. */
-{"add_timer_on",    	   NULL}, /* Needed for dtrace_xcall. */
 {"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
 	};
@@ -136,7 +139,6 @@ static unsigned long (*xkallsyms_lookup_name)(char *);
 static void *xmodules;
 static void **xsys_call_table;
 static void **xia32_sys_call_table;
-static void (*fn_add_timer_on)(struct timer_list *timer, int cpu);
 static void (*fn_sysrq_showregs_othercpus)(void *);
 int (*kernel_text_address_fn)(unsigned long);
 char *(*dentry_path_fn)(struct dentry *, char *, int);
@@ -187,12 +189,6 @@ int dtrace_shutdown;
 sol_proc_t	*shadow_procs;
 
 /**********************************************************************/
-/*   Spinlock  to avoid dtrace_xcall having issues whilst queuing up  */
-/*   a request.							      */
-/**********************************************************************/
-extern spinlock_t xcall_spinlock;
-
-/**********************************************************************/
 /*   We need this to be in an executable page. kzalloc doesnt return  */
 /*   us  one  of  these, and havent yet fixed this so we can make it  */
 /*   executable,  so  for  now, this will do. As of 3.x kernels, BSS  */
@@ -205,7 +201,6 @@ static cpu_core_t	cpu_core_exec[NCPU];
 # define THIS_CPU() &cpu_core_exec[cpu_get_id()]
 //# define THIS_CPU() &cpu_core[cpu_get_id()]
 
-static MUTEX_DEFINE(dtrace_provider_lock);	/* provider state lock */
 MUTEX_DEFINE(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
@@ -273,6 +268,8 @@ extern unsigned long cnt_xcall2;
 extern unsigned long cnt_xcall3;
 extern unsigned long cnt_xcall4;
 extern unsigned long cnt_xcall5;
+extern unsigned long long cnt_xcall6;
+extern unsigned long long cnt_xcall7;
 extern unsigned long cnt_nmi1;
 extern unsigned long cnt_nmi2;
 
@@ -589,7 +586,7 @@ void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
-int ipi_vector = 0xea-1; // very temp hack - need to find a free interrupt
+int ipi_vector = 0xea-1-16; // very temp hack - need to find a free interrupt
 void (*kernel_nmi_handler)(void);
 
 /**********************************************************************/
@@ -721,7 +718,7 @@ dtrace_int1_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 	cpu_trap_t	*tp;
 
-dtrace_printf("int1 PC:%p regs:%p CPU:%d\n", (void *) regs->r_pc-1, regs, smp_processor_id());
+//dtrace_printf("int1 PC:%p regs:%p CPU:%d\n", (void *) regs->r_pc-1, regs, smp_processor_id());
 	/***********************************************/
 	/*   Did  we expect this? If not, back to the  */
 	/*   kernel.				       */
@@ -763,8 +760,8 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	int	ret;
 static unsigned long cnt;
 
-dtrace_printf("#%lu INT3 PC:%p REGS:%p CPU:%d mode:%d\n", cnt_int3_1++, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
-preempt_disable();
+//dtrace_printf("#%lu INT3 PC:%p REGS:%p CPU:%d mode:%d\n", cnt_int3_1++, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
+//preempt_disable();
 
 	/***********************************************/
 	/*   Are  we idle, or already single stepping  */
@@ -805,8 +802,8 @@ preempt_disable();
 			/*   can step over it.			       */
 			/***********************************************/
 			cpu_copy_instr(this_cpu, tp, regs);
-preempt_enable_no_resched();
-dtrace_printf("INT3 %p called CPU:%d good finish flags:%x\n", regs->r_pc-1, cpu_get_id(), regs->r_rfl);
+//preempt_enable_no_resched();
+//dtrace_printf("INT3 %p called CPU:%d good finish flags:%x\n", regs->r_pc-1, cpu_get_id(), regs->r_rfl);
 			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 			return NOTIFY_DONE;
 		}
@@ -816,7 +813,7 @@ dtrace_printf("INT3 %p called CPU:%d good finish flags:%x\n", regs->r_pc-1, cpu_
 		/*   Not  fbt/sdt,  so lets see if its a USDT  */
 		/*   (user space probe).		       */
 		/***********************************************/
-preempt_enable_no_resched();
+//preempt_enable_no_resched();
 		if (dtrace_user_probe(3, regs, (caddr_t) regs->r_pc, smp_processor_id())) {
 			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 			HERE();
@@ -826,7 +823,7 @@ preempt_enable_no_resched();
 		/***********************************************/
 		/*   Not ours, so let the kernel have it.      */
 		/***********************************************/
-dtrace_printf("INT3 %p called CPU:%d hand over\n", regs->r_pc-1, cpu_get_id());
+//dtrace_printf("INT3 %p called CPU:%d hand over\n", regs->r_pc-1, cpu_get_id());
 		this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
 		return NOTIFY_KERNEL;
 	}
@@ -851,7 +848,7 @@ switch_off:
 	tp->ct_tinfo.t_doprobe = FALSE;
 	ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
 		regs->r_rax, &tp->ct_tinfo);
-preempt_enable_no_resched();
+//preempt_enable_no_resched();
 	if (ret) {
 		((unsigned char *) regs->r_pc)[-1] = tp->ct_tinfo.t_opcode;
 		regs->r_pc--;
@@ -1033,10 +1030,8 @@ dtrace_linux_init(void)
 	init_cyclic();
 
 	/***********************************************/
-	/*   Needed  for dtrace_xcall emulation since  */
-	/*   we cannot do inter-cpu IPI calls.	       */
+	/*   Useful for debugging.		       */
 	/***********************************************/
-	fn_add_timer_on = get_proc_addr("add_timer_on");
 	fn_sysrq_showregs_othercpus = get_proc_addr("sysrq_showregs_othercpus");
 
 	/***********************************************/
@@ -1056,6 +1051,9 @@ dtrace_linux_init(void)
 	/*   for 3.x kernels, so do this here.	       */
 	/***********************************************/
 	memory_set_rw(cpu_core_exec, sizeof cpu_core_exec / PAGE_SIZE, TRUE);
+{printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
+__supported_pte_mask &= ~_PAGE_NX;
+}
 	
 	/***********************************************/
 	/*   Needed   for  validating  module  symbol  */
@@ -1172,6 +1170,8 @@ dtrace_linux_fini(void)
 {	int	ret = 1;
 	gate_t *idt_table;
 
+        if (grab_panic)
+               atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	if (fn_profile_event_unregister) {
 		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
 	} else {
@@ -1205,6 +1205,8 @@ dtrace_linux_fini(void)
 	 		idt_table[ipi_vector] = saved_ipi;
 	}
 
+        if (grab_panic)
+               atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
 	return ret;
 }
 /**********************************************************************/
@@ -1275,7 +1277,7 @@ dtrace_mach_aframes(void)
 int
 dtrace_mutex_is_locked(mutex_t *mp)
 {
-	return mutex_is_locked(mp);
+	return dmutex_is_locked(mp);
 }
 /**********************************************************************/
 /*   Avoid  calling  real  memcpy,  since  we  will  call  this from  */
@@ -1378,6 +1380,7 @@ static	char	tmp[40];
 	short	width;
 static char digits[] = "0123456789abcdef";
 # define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
+static mutex_t lock;
 
 # if 0
 	/***********************************************/
@@ -1396,11 +1399,13 @@ static char digits[] = "0123456789abcdef";
 		va_end(ap);
 		return;
 	}
+	dmutex_enter(&lock);
 	while ((ch = *fmt++) != '\0') {
 		if (ch != '%') {
 			ADDCH(ch);
 			continue;
 		}
+
 		zero = ' ';
 		width = -1;
 
@@ -1478,10 +1483,15 @@ static char digits[] = "0123456789abcdef";
 		  	break;
 		  }
 	}
+	dmutex_exit(&lock);
 	va_end(ap);
 }
 
-static void
+/**********************************************************************/
+/*   Make this public so that xcall can short-circuit the call if we  */
+/*   are safe.							      */
+/**********************************************************************/
+/*static*/ void
 dtrace_sync_func(void)
 {
 }
@@ -1508,20 +1518,9 @@ dtrace_sync(void)
 	/***********************************************/
 	int	repeat = 1;
 
-/*static int levels[NCPU];
-static int lev;
-if (lev++) {
-printk("%d - nested invocation to dtrace_sync\n", smp_processor_id());
-}
-if (levels[smp_processor_id()]++) {
-printk("%d starting -- nested\n", smp_processor_id());
-dump_stack();
-}*/
 	for (i = 0; i < repeat; i++) {
 	        dtrace_xcall(DTRACE_CPUALL, (dtrace_xcall_t)dtrace_sync_func, NULL);
 	}
-/*levels[smp_processor_id()]--;
-lev--;*/
 }
 void
 dtrace_vtime_enable(void)
@@ -1937,19 +1936,21 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	pp->pp_pte = *pte;
 
 	/***********************************************/
-	/*   We only need to set these two, for now.   */
+	/*   Avoid  touching/flushing  page  table if  */
+	/*   this is a no-op.			       */
 	/***********************************************/
-	pmd->pmd |= perms;
-	pte->pte |= perms;
+	if ((pmd->pmd & perms) != perms ||
+	    (pte->pte & (perms | _PAGE_NX)) != perms) {
+		pmd->pmd |= perms;
+		/***********************************************/
+		/*   Make  page  executable. Ideally we would  */
+		/*   pass in the and+or perms to set.	       */
+		/***********************************************/
+		pte->pte = (pte->pte | perms) & ~_PAGE_NX;
 
-	/***********************************************/
-	/*   Make  page  executable. Ideally we would  */
-	/*   pass in the and+or perms to set.	       */
-	/***********************************************/
-	pte->pte &= ~_PAGE_NX;
-
-	clflush(pmd);
-	clflush(pte);
+		clflush(pmd);
+		clflush(pte);
+	}
 # endif
 	return 1;
 }
@@ -1999,7 +2000,8 @@ mem_unset_writable(page_perms_t *pp)
 /**********************************************************************/
 int
 memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
-{
+{	int	i;
+
 #if defined(__i386)
 	int level;
 	pte_t *pte;
@@ -2013,35 +2015,41 @@ static pte_t *(*lookup_address)(void *, int *);
 		return 0;
 		}
 
-	pte = lookup_address(addr, &level);
-	if ((pte_val(*pte) & _PAGE_RW) == 0) {
+	for (i = 0; i <= num_pages; i++) {
+		pte = lookup_address(addr, &level);
+		if ((pte_val(*pte) & _PAGE_RW) == 0) {
 # if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
 			pte->pte_low |= _PAGE_RW;
 # else
 			pte->pte |= _PAGE_RW;
 # endif
 
-		/***********************************************/
-		/*   If  we  touch  the page mappings, ensure  */
-		/*   cpu  and  cpu caches know what happened,  */
-		/*   else we may have random GPFs as we go to  */
-		/*   do   a  write.  If  this  function  isnt  */
-		/*   available,   we   are   pretty  much  in  */
-		/*   trouble.				       */
-		/*   20100726   This   function  calls  other  */
-		/*   functions  which  we  may be probing. We  */
-		/*   may   have   a  random  race  condition,  */
-		/*   dependent on the order of symbols in the  */
-		/*   kernel,  and  crash. I have seen this on  */
-		/*   2.6.24/i386  kernel.  Need  to make this  */
-		/*   safe as the probes are armed.	       */
-		/***********************************************/
-		__flush_tlb_all();
+			/***********************************************/
+			/*   If  we  touch  the page mappings, ensure  */
+			/*   cpu  and  cpu caches know what happened,  */
+			/*   else we may have random GPFs as we go to  */
+			/*   do   a  write.  If  this  function  isnt  */
+			/*   available,   we   are   pretty  much  in  */
+			/*   trouble.				       */
+			/*   20100726   This   function  calls  other  */
+			/*   functions  which  we  may be probing. We  */
+			/*   may   have   a  random  race  condition,  */
+			/*   dependent on the order of symbols in the  */
+			/*   kernel,  and  crash. I have seen this on  */
+			/*   2.6.24/i386  kernel.  Need  to make this  */
+			/*   safe as the probes are armed.	       */
+			/***********************************************/
+			__flush_tlb_all();
+		}
+		addr += PAGE_SIZE;
 	}
 # else
 	page_perms_t perms;
 
-	mem_set_writable((unsigned long) addr, &perms, _PAGE_RW);
+	for (i = 0; i <= num_pages; i++) {
+		mem_set_writable((unsigned long) addr, &perms, _PAGE_RW);
+		addr += PAGE_SIZE;
+	}
 # endif
 	return 1;
 }
@@ -2105,30 +2113,35 @@ return 0;
 /*   collection semantics.					      */
 /**********************************************************************/
 static struct par_alloc_t *hd_par;
+static mutex_t par_mutex;
 
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
 {	par_alloc_t *p;
-	
+
+	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {
 			if (init)
 				*init = FALSE;
+			dmutex_exit(&par_mutex);
 			return p;
 		}
 	}
+	dmutex_exit(&par_mutex);
 
 	if (init)
 		*init = TRUE;
 
 	if ((p = kmalloc(size + sizeof(*p), GFP_ATOMIC)) == NULL)
 		return NULL;
+	dtrace_bzero(p+1, size);
 	p->pa_domain = domain;
 	p->pa_ptr = ptr;
+	dmutex_enter(&par_mutex);
 	p->pa_next = hd_par;
-	dtrace_bzero(p+1, size);
-//printk("par_alloc %d -> %p\n", domain, p);
 	hd_par = p;
+	dmutex_exit(&par_mutex);
 
 	return p;
 }
@@ -2153,8 +2166,10 @@ par_free(int domain, void *ptr)
 {	par_alloc_t *p = (par_alloc_t *) ptr;
 	par_alloc_t *p1;
 
+	dmutex_enter(&par_mutex);
 	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;
+		dmutex_exit(&par_mutex);
 		kfree(ptr);
 		return;
 		}
@@ -2162,11 +2177,13 @@ par_free(int domain, void *ptr)
 //		printk("p1=%p\n", p1);
 		}
 	if (p1 == NULL) {
+		dmutex_exit(&par_mutex);
 		printk("where did p1 go?\n");
 		return;
 	}
 	if (p1->pa_next == p && p1->pa_domain == domain)
 		p1->pa_next = p->pa_next;
+	dmutex_exit(&par_mutex);
 	kfree(ptr);
 }
 /**********************************************************************/
@@ -2177,10 +2194,14 @@ static void *
 par_lookup(void *ptr)
 {	par_alloc_t *p;
 	
+	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
-		if (p->pa_ptr == ptr)
+		if (p->pa_ptr == ptr) {
+			dmutex_exit(&par_mutex);
 			return p;
 		}
+	}
+	dmutex_exit(&par_mutex);
 	return NULL;
 }
 /**********************************************************************/
@@ -2550,9 +2571,9 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 	if (TRACE_ALLOC || dtrace_mem_alloc)
 		dtrace_printf("vmem_alloc(size=%d)\n", (int) s);
 
-	mutex_enter(&seqp->seq_mutex);
+	dmutex_enter(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
-	mutex_exit(&seqp->seq_mutex);
+	dmutex_exit(&seqp->seq_mutex);
 	return ret;
 }
 
@@ -2565,7 +2586,7 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 	if (TRACE_ALLOC || dtrace_here)
 		dtrace_printf("vmem_create(size=%d)\n", (int) size);
 
-	mutex_init(&seqp->seq_mutex);
+	dmutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
 
 	return seqp;
@@ -2942,22 +2963,27 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
-	extern unsigned long cnt_probe_recursion;
+	extern unsigned long long cnt_probe_recursion;
 	extern unsigned long cnt_probes;
+	extern unsigned long cnt_mtx1;
+	extern unsigned long cnt_mtx2;
 # define TYPE_LONG 0
 # define TYPE_INT  1
+# define TYPE_LONG_LONG 2
 	static struct map {
 		int	type;
 		unsigned long *ptr;
 		char	*name;
 		} stats[] = {
-		{TYPE_LONG, &cnt_probes, "probes"},
+		{TYPE_LONG_LONG, &cnt_probes, "probes"},
 		{TYPE_LONG, &cnt_probe_recursion, "probe_recursion"},
 		{TYPE_LONG, &cnt_int3_1, "int3_1"},
 		{TYPE_LONG, &cnt_int3_2, "int3_2"},
 		{TYPE_LONG, &cnt_gpf1, "gpf1"},
 		{TYPE_LONG, &cnt_gpf2, "gpf2"},
 		{TYPE_LONG, &cnt_ipi1, "ipi1"},
+		{TYPE_LONG, &cnt_mtx1, "mtx1"},
+		{TYPE_LONG, &cnt_mtx2, "mtx2"},
 		{TYPE_LONG, &cnt_nmi1, "nmi1"},
 		{TYPE_LONG, &cnt_nmi2, "nmi2"},
 		{TYPE_LONG, &cnt_pf1, "pf1"},
@@ -2970,6 +2996,8 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG, &cnt_xcall3, "xcall3(reentrant)"},
 		{TYPE_LONG, &cnt_xcall4, "xcall4(delay)"},
 		{TYPE_LONG, &cnt_xcall5, "xcall5(spinlock)"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_xcall6, "xcall6(ack_waits)"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_xcall7, "xcall7(fast)"},
 		{TYPE_INT, (unsigned long *) &dtrace_shutdown, "shutdown"},
 		{0}
 		};
@@ -2983,7 +3011,9 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		}
 
 	for (i = 0; stats[i].name; i++) {
-		if (stats[i].type == TYPE_LONG)
+		if (stats[i].type == TYPE_LONG_LONG)
+			size = snprintf(buf, count - n, "%s=%llu\n", stats[i].name, *(unsigned long long *) stats[i].ptr);
+		else if (stats[i].type == TYPE_LONG)
 			size = snprintf(buf, count - n, "%s=%lu\n", stats[i].name, *stats[i].ptr);
 		else
 			size = snprintf(buf, count - n, "%s=%d\n", stats[i].name, *(int *) stats[i].ptr);
@@ -3108,12 +3138,6 @@ static struct proc_dir_entry *dir;
 	}
 
 	/***********************************************/
-	/*   Lock  for  avoid  reentrancy problems in  */
-	/*   dtrace_xcall.			       */
-	/***********************************************/
-	spin_lock_init(&xcall_spinlock);
-
-	/***********************************************/
 	/*   Initialise   the   cpu_list   which  the  */
 	/*   dtrace_buffer_alloc  code  wants when we  */
 	/*   go into a GO state.		       */
@@ -3137,11 +3161,11 @@ static struct proc_dir_entry *dir;
 		/*   to handle actual online cpus.	       */
 		/***********************************************/
 		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
-		mutex_init(&cpu_list[i].cpu_ft_lock);
+		dmutex_init(&cpu_list[i].cpu_ft_lock);
 	}
 	cpu_list[nr_cpus-1].cpu_next = cpu_list;
 	for (i = 0; i < nr_cpus; i++) {
-		mutex_init(&cpu_core[i].cpuc_pid_lock);
+		dmutex_init(&cpu_core[i].cpuc_pid_lock);
 	}
 	/***********************************************/
 	/*   Initialise  the  shadow  procs.  We dont  */
@@ -3151,8 +3175,8 @@ static struct proc_dir_entry *dir;
 	shadow_procs = (sol_proc_t *) vmalloc(sizeof(sol_proc_t) * PID_MAX_DEFAULT);
 	memset(shadow_procs, 0, sizeof(sol_proc_t) * PID_MAX_DEFAULT);
 	for (i = 0; i < PID_MAX_DEFAULT; i++) {
-		mutex_init(&shadow_procs[i].p_lock);
-		mutex_init(&shadow_procs[i].p_crlock);
+		dmutex_init(&shadow_procs[i].p_lock);
+		dmutex_init(&shadow_procs[i].p_crlock);
 		}
 
 	/***********************************************/

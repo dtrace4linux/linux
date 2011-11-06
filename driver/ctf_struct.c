@@ -14,6 +14,7 @@
 /*   $Header:$							      */
 /**********************************************************************/
 
+#define cpumask xx_cpumask
 #include <linux/swap.h> /* want totalram_pages */
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -40,6 +41,7 @@
 
 psinfo_t p;
 thread_t t;
+cpumask_t cpumask;
 dtrace_cpu_t dtrace_curcpu;
 buf_t 	dt_buf_t;	/* Unused - but need to declare some/anything */
 int 	cpu_dr7;

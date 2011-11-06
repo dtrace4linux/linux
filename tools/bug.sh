@@ -49,4 +49,5 @@ grep model /proc/cpuinfo | sort -u
 echo =========================
 make all
 ) >$file 2>&1
+touch .dtrace.nobug
 exit 1

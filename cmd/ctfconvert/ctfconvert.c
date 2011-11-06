@@ -59,6 +59,12 @@ usage(void)
 	    "  Note: if -L labelenv is specified and labelenv is not set in\n"
 	    "  the environment, a default value is used.\n",
 	    progname);
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Environment variables:");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "  CTFCONVERT_DEBUG_LEVEL=n -- dump DWARF debug\n");
+	fprintf(stderr, "  CTFCONVERT_DEBUG_PARSE=n -- dump DWARF parsing info\n");
 }
 
 static void

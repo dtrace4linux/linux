@@ -1,3 +1,74 @@
+Sun Nov  6 00:41:47 2011  fox
+
+     564* driver/vminfo.c: Compile warnings cleanup; avoid table overflow.
+
+     563* driver/prov_common.c: Avoid table overflow.
+
+     562* driver/dtrace_isa.c: Fix stack() which paniced us because of
+          changes in Linux 2.6.39 and above.
+
+     561* Archive: 1.0127
+
+     560* driver/dtrace_linux.c: Turn off interrupt level dtrace_printf()
+          calls. Might be affecting Liux 3.0 kernel (probably not). But
+	  removes noise from /proc/dtrace/trace.
+
+	  Add mutex protection to the par_alloc family of functions.
+
+	  Add some extra stats to /proc/dtrace/stats.
+
+	  Dont update a PTE entry if what we are doing is the same as it is
+	  (performance optimisation). Add multipage support.
+
+     559* driver/dtrace_linux.h: Add libc_ prototypes.
+
+     558* driver/dtrace_subr.c: Hide dtrace_sync_func since we need the
+          real one to be global for xcall.c to see it.
+
+     557* driver/fbt_linux.c: Put some protection in, in case the par_alloc
+          fails to allocate (normally, because I was testing/disabling par_alloc).
+
+     556* driver/*: Replace mutex calls with dmutex calls (to avoid
+          name clash).
+
+     555* driver/cyclic_linux.c: Replace kernel spinlocks with our
+          mutex calls.
+
+     554* driver/ctf_struct.c: Add cpumask typedef. Trying to fix the
+          ctfconvert issue, but this change doesnt fix it. Need to
+	  dive into the dwarf code to see what gcc on Ubuntu 11.10
+	  is tickling the "cant resolve type" bug.
+
+     553* driver/libc.c: Some simple string functions. I really want
+          "nm -u build/driver/dtracedrv.ko" to be clean. It isnt, but
+	  some of these functions are only called during load time.
+	  We'll defer proper libc cleanup til a later date.
+
+     552* driver/mutex.c: Our simple spinlock mutexes.
+
+     551* linux_types.h: Use our own mutex/dmutex implementation to
+          avoid problems with Linux mutexes trying to preempt us.
+
+     550* cmd/ctfconvert/dwarf.c: Avoid bailing out when hitting a DWARF
+          issue. This may be caused by newer gcc's emitting something
+	  we dont understand. For now, just work around it.
+	  (cpumask is causing the problem).
+
+Sat Nov  5 16:46:29 2011  fox
+
+     549* bug.sh: Dont keep telling people to contact me - just on the
+          first failed build.
+
+Sun Oct 30 12:25:08 2011  fox
+
+     548* dtrace_linux.c: Add a panic notifier (dont need it, just for
+          debugging).
+
+     547* prov_common.c: Dont let us reparse the common provider table
+          multiple times.
+
+     546* tools/tty.pl: New load causing tool.
+
 Wed Oct 26 22:19:06 2011  fox
 
      545* vminfo.c: Make it work (or at least compile) for <2.6.39 kernels.

@@ -1269,7 +1269,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	/*   we are debugging.			       */
 	/***********************************************/
 	if (do_slock) {
-		mutex_enter(&slock);
+		dmutex_enter(&slock);
 	}
 
 	if (dtrace_here) {
@@ -1291,12 +1291,12 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
          */
 # if defined(TODOxxx)
         {proc_t *p = ttoproc(curthread);
-        mutex_enter(&p->p_lock);
+        dmutex_enter(&p->p_lock);
         if (curthread->t_dtrace_stop && !curthread->t_lwp->lwp_nostop) {
                 curthread->t_dtrace_stop = 0;
                 stop(PR_REQUESTED, 0);
         }
-        mutex_exit(&p->p_lock);
+        dmutex_exit(&p->p_lock);
 	}
 # else
 	{
@@ -1474,7 +1474,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 		}
 
 	if (do_slock) {
-		mutex_exit(&slock);
+		dmutex_exit(&slock);
 	}
 
         return (rval);
@@ -1593,7 +1593,7 @@ patch_enable(patch_t *pp, int enable)
 	char	buf[128];
 	int	last_s = 0;
 	int	failed = FALSE;
-static int dtrace_show_patches = TRUE;
+static int dtrace_show_patches = FALSE;
 static int do_patch = TRUE; // Set to FALSE whilst browsing for a patch
 
 	/***********************************************/

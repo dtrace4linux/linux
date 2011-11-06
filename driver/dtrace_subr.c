@@ -163,11 +163,11 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 }
 # endif
 
+# if 0
 void
 dtrace_sync_func(void)
 {}
 
-# if 0
 void
 dtrace_sync(void)
 {

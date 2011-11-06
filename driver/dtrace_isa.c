@@ -97,6 +97,48 @@ static void print_trace_address(void *data, unsigned long addr, int reliable)
 	if (g_depth < g_pcstack_limit)
 		g_pcstack[g_depth++] = addr;
 }
+/**********************************************************************/
+/*   For 2.6.39 kernels and above.				      */
+/**********************************************************************/
+
+static inline int valid_stack_ptr(struct thread_info *tinfo,
+           void *p, unsigned int size, void *end)
+{
+        void *t = tinfo;
+        if (end) {
+               if (p < end && p >= (end-THREAD_SIZE))
+                      return 1;
+               else
+                      return 0;
+        }
+        return p > t && p < t + THREAD_SIZE - size;
+}
+
+static unsigned long
+walk_stack(struct thread_info *tinfo,
+               unsigned long *stack, unsigned long bp,
+               const struct stacktrace_ops *ops, void *data,
+               unsigned long *end, int *graph)
+{
+        struct stack_frame *frame = (struct stack_frame *)bp;
+
+        while (valid_stack_ptr(tinfo, stack, sizeof(*stack), end)) {
+               unsigned long addr;
+
+               addr = *stack;
+               if (is_kernel_text(addr)) {
+                      if ((unsigned long) stack == bp + sizeof(long)) {
+                             ops->address(data, addr, 1);
+                             frame = frame->next_frame;
+                             bp = (unsigned long) frame;
+                      } else {
+                             ops->address(data, addr, 0);
+                      }
+               }
+               stack++;
+        }
+        return bp;   
+}
 #endif
 
 /**********************************************************************/
@@ -107,6 +149,7 @@ static void print_trace_address(void *data, unsigned long addr, int reliable)
 # if defined(HAVE_STACKTRACE_OPS)
 static const struct stacktrace_ops print_trace_ops = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	.walk_stack = walk_stack,
 #else
 	.warning = print_trace_warning,
 	.warning_symbol = print_trace_warning_symbol,
@@ -155,7 +198,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	}
 #else
 
-	mutex_enter(&dtrace_stack_mutex);
+	dmutex_enter(&dtrace_stack_mutex);
 	g_depth = 0;
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
@@ -166,7 +209,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
 #endif
 	depth = g_depth;
-	mutex_exit(&dtrace_stack_mutex);
+	dmutex_exit(&dtrace_stack_mutex);
 #endif
 
 	while (depth < pcstack_limit)

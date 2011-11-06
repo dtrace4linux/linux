@@ -12,6 +12,7 @@ dtracedrv-objs := \
 	cpu_x86.o \
 	cyclic_linux.o \
 	dis_tables.o \
+	mutex.o \
 	dtrace.o \
 	dtrace_asm.o \
 	dtrace_isa.o \
@@ -25,6 +26,7 @@ dtracedrv-objs := \
 	instr_linux.o \
 	intr_x86-32.o \
 	intr_x86-64.o \
+	libc.o \
 	missing.o \
 	panic.o \
 	profile.o \
@@ -32,6 +34,7 @@ dtracedrv-objs := \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \
+	tcp.o \
 	toxic.o \
 	instr_size.o \
 	uncompress.o \

@@ -292,7 +292,7 @@ instr_provide_module(void *arg, struct modctl *ctl)
 	/*   are offloaded.			       */
 	/***********************************************/
 	pmp = par_alloc(PARD_INSTR, mp, sizeof *pmp, &init);
-	if (pmp->fbt_nentries) {
+	if (pmp == NULL || pmp->fbt_nentries) {
 		/*
 		 * This module has some FBT entries allocated; we're afraid
 		 * to screw with it.
@@ -617,7 +617,7 @@ instr_destroy(void *arg, dtrace_id_t id, void *parg)
 			if ((get_refcount(mp) == fbt->insp_loadcnt &&
 			    mp->state == MODULE_STATE_LIVE)) {
 			    	par_module_t *pmp = par_alloc(PARD_INSTR, mp, sizeof *pmp, NULL);
-				if (--pmp->fbt_nentries == 0)
+				if (pmp && --pmp->fbt_nentries == 0)
 					par_free(PARD_INSTR, pmp);
 			}
 		}

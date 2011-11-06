@@ -35,6 +35,7 @@ Working Features
   o D scripts should work, except where they rely on providers/features 
     not yet ready in Linux/dtrace (eg cannot run standard scripts like
     iosnoop.d or other scripts out there).
+  o vminfo provider - probes for the stats in /proc/vmstats
 
 Partially Working / Not yet quality controlled:
 

@@ -28,32 +28,31 @@
 #include <linux/vmalloc.h>
 #include <dtrace_proto.h>
 
+#define MAX_LOCATORS 99
 typedef struct find_sdt_t {
 	void	*f_offset;
 	char	*f_name;
 	dtrace_provider_id_t f_id;
 	} find_sdt_t;
-find_sdt_t sdt_locator[99];
-int	sdt_locator_cnt;
-
-/**********************************************************************/
-/*   Prototypes.						      */
-/**********************************************************************/
-void prcom_add_instruction(char *name, uint8_t *instr);
-void dtrace_parse_kernel(void (*callback)());
+static find_sdt_t sdt_locator[MAX_LOCATORS];
+static int	sdt_locator_cnt;
 
 /**********************************************************************/
 /*   Compile up a list of instructions we are going to intercept. As  */
 /*   we  disassemble the kernel, we will match against these entries  */
 /*   to know which ones go with which probe.			      */
 /**********************************************************************/
-void
+static void
 sdt_add_locator(void *instr, char *name)
 {
-	printk("sdt_add_locator: %p %s\n", instr, name);
+	if (sdt_locator_cnt >= MAX_LOCATORS) {
+		printk("sdt_locator table too small, please resize\n");
+		return;
+	}
+
+//	printk("sdt_add_locator: %p %s\n", instr, name);
 	sdt_locator[sdt_locator_cnt].f_offset = instr;
 	sdt_locator[sdt_locator_cnt].f_name = name;
-//	sdt_locator[sdt_locator_cnt].f_id = id;
 	sdt_locator_cnt++;
 }
 
@@ -83,7 +82,7 @@ vminfo_instr_callback(uint8_t *instr, int size)
 /*   definitions,  but, since these are enums, we cannot directly do  */
 /*   ifdef's to protect ourselves for older kernels.		      */
 /**********************************************************************/
-void vminfo_init()
+void vminfo_init(void)
 {
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 #	define	vm_event_addr(x) &vm_event_states.event[x]
@@ -114,7 +113,9 @@ void vminfo_init()
 	sdt_add_locator(vm_event_addr(PGSCAN_DIRECT_NORMAL), "vminfo:::pgscan_direct");
 	sdt_add_locator(vm_event_addr(PGSCAN_DIRECT_MOVABLE), "vminfo:::pgscan_direct");
 
+#ifdef CONFIG_NUMA
 	sdt_add_locator(vm_event_addr(PGSCAN_ZONE_RECLAIM_FAILED), "vminfo:::pgscan_zone_reclaim_failed");
+#endif
 	sdt_add_locator(vm_event_addr(PGINODESTEAL), "vminfo:::pginodesteal");
 	sdt_add_locator(vm_event_addr(SLABS_SCANNED), "vminfo:::slabs_scanned");
 	sdt_add_locator(vm_event_addr(KSWAPD_STEAL), "vminfo:::kswapd_steal");

@@ -367,7 +367,7 @@ TODO();
 	/*   are offloaded.			       */
 	/***********************************************/
 	pmp = par_alloc(PARD_FBT, mp, sizeof *pmp, &init);
-	if (pmp->fbt_nentries) {
+	if (pmp == NULL || pmp->fbt_nentries) {
 		/*
 		 * This module has some FBT entries allocated; we're afraid
 		 * to screw with it.
@@ -545,6 +545,9 @@ fbt_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
 {
 	fbt_probe_t *fbt;
 
+if (*instr == 0xcc)
+return 1;
+
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 	fbt->fbtp_name = infp->name;
 
@@ -587,6 +590,8 @@ fbt_prov_return(pf_info_t *infp, uint8_t *instr, int size)
 	fbt_probe_t *fbt;
 	fbt_probe_t *retfbt = infp->retptr;
 
+if (*instr == 0xcc)
+return 1;
 	/***********************************************/
 	/*   Sanity check for bad things happening.    */
 	/***********************************************/
@@ -681,7 +686,7 @@ fbt_destroy(void *arg, dtrace_id_t id, void *parg)
 			if ((get_refcount(mp) == fbt->fbtp_loadcnt &&
 			    mp->state == MODULE_STATE_LIVE)) {
 			    	par_module_t *pmp = par_alloc(PARD_FBT, mp, sizeof *pmp, NULL);
-				if (--pmp->fbt_nentries == 0)
+				if (pmp && --pmp->fbt_nentries == 0)
 					par_free(PARD_FBT, pmp);
 			}
 		}

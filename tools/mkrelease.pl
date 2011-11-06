@@ -16,6 +16,7 @@ use FileHandle;
 use Getopt::Long;
 use IO::File;
 use POSIX;
+use Cwd;
 
 #######################################################################
 #   Command line switches.					      #
@@ -34,8 +35,28 @@ sub main
 
 	usage() if $opts{help};
 
+	my $fh = new FileHandle("Changes");
+	my $msg;
+	while (<$fh>) {
+		chomp;
+		next if !/^     /;
+		$msg = "$_\n";
+		while (<$fh>) {
+			chomp;
+			last if $_ eq '';
+			$msg .= "$_\n";
+		}
+		last;
+	}
+	print "msg=$msg\n" if $opts{v};
+	$fh = new FileHandle(">/tmp/msg");
+	print $fh $msg;
+	$fh->close();
+
+	my $pwd = Cwd::cwd();
+
 	my $rel = $ARGV[0] || strftime("%Y%m%d", localtime);
-	my $fh = new FileHandle(".release");
+	$fh = new FileHandle(".release");
 	die "Cannot open .release file -- $!\n" if !$fh;
 	my %vars;
 	while (<$fh>) {
@@ -80,6 +101,10 @@ sub main
 	}
 	spawn("ls -l /tmp/dtrace-$rel.tar.bz2");
 	spawn("mv /tmp/dtrace-$rel.tar.bz2 $ENV{HOME}/release/dtrace");
+
+	spawn("twit 'New release of dtrace-$rel on ftp://crisp.dyndns-server.com/pub/release/website/dtrace'");
+	chdir($pwd);
+	spawn("git commit -F /tmp/msg .");
 }
 sub spawn
 {	my $cmd = shift;

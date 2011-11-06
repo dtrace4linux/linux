@@ -254,56 +254,22 @@ typedef unsigned long long hrtime_t;
 	# endif
 
 	/***********************************************/
-	/*   Dtrace  mutexes are semaphores on Linux,  */
-	/*   since  linux mutexes can sleep but we do  */
-	/*   this in interrupt context, which mutexes  */
-	/*   do not allow.                             */
+	/*   Define our own private mutexes so we can  */
+	/*   avoid  problems  and clashes with kernel  */
+	/*   implemented ones. Our mutexes are really  */
+	/*   spinlocks.  This  allows  us  to  bypass  */
+	/*   problems probing kernel mutexes.	       */
 	/***********************************************/
-	typedef struct semaphore mutex_t;
-	#if defined(DEFINE_SEMAPHORE)
-	   /***********************************************/
-	   /*   New kernels have a distinction.		  */
-	   /***********************************************/
-	#  define MUTEX_DEFINE(name) DEFINE_SEMAPHORE(name)
-	#else
-	   /***********************************************/
-	   /*   Old  kernels have semaphores as mutexes.  */
-	   /*   These are IRQ friendly.			  */
-	   /***********************************************/
-	#  define MUTEX_DEFINE(name) DECLARE_MUTEX(name)
-	#endif
-	#undef mutex_init
-
-	# if defined(HAVE_SEMAPHORE_ATOMIC_COUNT)
-	#  define mutex_is_locked(x) (atomic_read(&(x)->count) == 0)
-	# else
-	#  define mutex_is_locked(x) ((x)->count == 0)
-	#endif
-	#define mutex_init(x)   sema_init(x, 1)
-	#define mutex_enter(x)  down(x)
-	#define mutex_exit(x)   up(x)
+	typedef struct mutex_t {
+		void	*count;
+		int	cpu;	/* CPU who has the lock */
+		} mutex_t;
 	#define kmutex_t mutex_t
-
-# if defined(cant_use_pure_mutexes)
-	/***********************************************/
-	/*   We   revamped   to   use  direct  kernel  */
-	/*   mutexes.  We  use  to use semaphores for  */
-	/*   compatibility  with  old kernels, but we  */
-	/*   give  up  now, as supporting the old and  */
-	/*   new  style  leads  to  horrible  compile  */
-	/*   complications.			       */
-	/*   We  need  to  be  careful  of  interrupt  */
-	/*   context  mutex  trying  to  suspend  the  */
-	/*   calling   code,   because  this  is  not  */
-	/*   possible.				       */
-	/***********************************************/
-	typedef struct mutex mutex_t;
-	#define MUTEX_DEFINE(name) DEFINE_MUTEX(name)
-	#define mutex_is_locked(x) (atomic_read(&(x)->count) == 0)
-	#define	mutex_enter(x)	mutex_lock(x)
-	#define	mutex_exit(x)	mutex_unlock(x)
-	#define kmutex_t mutex_t
-# endif
+	#define MUTEX_DEFINE(name) mutex_t name
+	void dmutex_init(mutex_t *mp);
+	void dmutex_enter(mutex_t *mp);
+	void dmutex_exit(mutex_t *mp);
+	int dmutex_is_locked(mutex_t *mp);
 	
 	# include	<sys/cpuvar_defs.h>
 	# include	<sys/cpuvar.h>

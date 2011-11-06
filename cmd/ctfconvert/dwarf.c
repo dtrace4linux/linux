@@ -1859,8 +1859,8 @@ die_resolve(dwarf_t *dw)
 			(void) iitraverse_hash(dw->dw_td->td_iihash,
 			    &dw->dw_td->td_curvgen, NULL, NULL,
 			    die_fail_reporters, dw);
-
-			terminate("failed to resolve types\n");
+break;
+			//terminate("failed to resolve types\n");
 		}
 
 		last = dw->dw_nunres;

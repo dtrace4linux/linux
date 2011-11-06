@@ -19,7 +19,7 @@ sub main
 		shift;
 	}
 	$ENV{CPUS} = 1 if !defined($ENV{CPUS});
-	$ENV{CPU} = 1 if !defined($ENV{CPU});
+	$ENV{CPU} = 0 if !defined($ENV{CPU});
 	$ENV{COUNT} = 0 if !defined($ENV{COUNT});
 
 	$| = 1;
@@ -55,16 +55,21 @@ sub main
 	my $str = "\033[1;1H\033[37m";
 	while (<$fh>) {
 		chomp;
-		next if $ENV{CPU} == 0;
+		next if $ENV{CPU} != 0;
 		my ($name, $val) = split(/=/);
 		$val = commify($val);
 		$str .= "$name=$val\n";
 		}
+	my $lines = $.;
+	if ($ENV{CPU} == 0) {
+		my $cmd = "tail -" . ($rows - $lines - 1) . " /var/log/kern.log";
+#		$str .= `$cmd`;
+	}
 
 	my $r = $ARGV[0] || 1;
 	my $c = $ARGV[1] || 1;
 	my $ch = $ARGV[2] || 65;
-	$r = $. + 1  if $r < $. + 1;
+	$r = $lines + 1  if $r < $lines + 1;
 
 	my $fg = sprintf("\033[%dm", 31 + $ENV{CPU});
 	$str .= sprintf("$fg\033[%d;40HCount: $ENV{COUNT}", $ENV{CPU} + 1);

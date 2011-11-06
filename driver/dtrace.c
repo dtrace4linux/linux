@@ -5926,39 +5926,6 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/*   occasionally  get a look in, but we dont  */
 	/*   mind dropping the odd timer tick.	       */
 	/***********************************************/
-int locked = 0;
-static int cnt;
-static int cnt1;
-unsigned long flags;
-if (1) {
-//	local_irq_disable();
-///	spin_lock_irqsave(&cpu_core[cpu].cpuc_spinlock, flags);
-
-/*
-	if (cpu_core[cpu].cpuc_probe_level == 0) {
-		if (spin_trylock(&cpu_core[cpu].cpuc_spinlock) == 0) {
-cnt1++;
-//			spin_lock(&cpu_core[cpu].cpuc_spinlock);
-			if (cnt1 < 10 || (cnt1 % 1000) == 0) {
-				void dump_xcall();
-				set_console_on(1);
-				printk("sorry - no lock %d/%d\n", cnt, cnt1);
-				dump_xcall();
-				dump_stack();
-				set_console_on(0);
-			}
-		} else {
-cnt++;
-//			set_console_on(1);
-//			printk("%p spin_lock cpu=%d %d\n", &cpu_core[cpu].cpuc_spinlock, cpu, cnt++);
-//			set_console_on(0);
-//			spin_lock(&cpu_core[cpu].cpuc_spinlock);
-			locked = 1;
-		}
-	}
-*/
-}
-
 	if (cpu_core[cpu].cpuc_probe_level) {
 		/***********************************************/
 		/*   Avoid flooding the console or syslogd.    */
@@ -5977,18 +5944,8 @@ cnt++;
 	}
 	cpu_core[cpu].cpuc_probe_level++;
 	cpu_core[cpu].cpuc_this_probe = id;
-//local_irq_enable();
-//printk("dtrace_probe: enter: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
 	__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
-//printk("dtrace_probe: return: this=%d [#%lu]\n", (int) id, cnt_probe_recursion);
 	cpu_core[cpu].cpuc_probe_level--;
-
-/*if (1) {
-	if (locked)
-		spin_unlock(&cpu_core[cpu].cpuc_spinlock);
-//	local_irq_enable();
-}*/
-///	spin_unlock_irqrestore(&cpu_core[cpu].cpuc_spinlock, flags);
 
 }
 #define dtrace_probe __dtrace_probe
@@ -5998,7 +5955,7 @@ cnt++;
  * is the function called by the provider to fire a probe -- from which all
  * subsequent probe-context DTrace activity emanates.
  */
-unsigned long cnt_probes;
+unsigned long long cnt_probes;
 void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
@@ -6987,7 +6944,7 @@ dtrace_errdebug(const char *str)
 	int hval = dtrace_hash_str((char *)str) % DTRACE_ERRHASHSZ;
 	int occupied = 0;
 
-	mutex_enter(&dtrace_errlock);
+	dmutex_enter(&dtrace_errlock);
 	dtrace_errlast = str;
 	dtrace_errthread = curthread;
 
@@ -7009,7 +6966,7 @@ dtrace_errdebug(const char *str)
 
 	panic("dtrace: undersized error hash");
 out:
-	mutex_exit(&dtrace_errlock);
+	dmutex_exit(&dtrace_errlock);
 }
 #endif
 
@@ -7504,8 +7461,8 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 		return (0);
 	}
 
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&dtrace_lock);
 
 	/*
 	 * If there is at least one provider registered, we'll add this
@@ -7526,15 +7483,15 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 		 * will acquire cpu_lock and dtrace_lock.  We therefore need
 		 * to drop all of our locks before calling into it...
 		 */
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_provider_lock);
 		dtrace_enabling_matchall();
 
 		return (0);
 	}
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_provider_lock);
 
 	return (0);
 }
@@ -7574,9 +7531,9 @@ HERE();
 			RETURN(EBUSY);
 		}
 	} else {
-		mutex_enter(&dtrace_provider_lock);
-		mutex_enter(&mod_lock);
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_provider_lock);
+		dmutex_enter(&mod_lock);
+		dmutex_enter(&dtrace_lock);
 	}
 
 	/*
@@ -7588,9 +7545,9 @@ HERE();
 	    (dtrace_opens || (dtrace_anon.dta_state != NULL &&
 	    dtrace_anon.dta_state->dts_necbs > 0))) {
 		if (!self) {
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&mod_lock);
-			mutex_exit(&dtrace_provider_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&mod_lock);
+			dmutex_exit(&dtrace_provider_lock);
 		}
 		RETURN(EBUSY);
 	}
@@ -7612,9 +7569,9 @@ HERE();
 		 * We have at least one ECB; we can't remove this provider.
 		 */
 		if (!self) {
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&mod_lock);
-			mutex_exit(&dtrace_provider_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&mod_lock);
+			dmutex_exit(&dtrace_provider_lock);
 		}
 HERE();
 		RETURN(EBUSY);
@@ -7683,9 +7640,9 @@ HERE();
 	}
 
 	if (!self) {
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&mod_lock);
-		mutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&mod_lock);
+		dmutex_exit(&dtrace_provider_lock);
 	}
 
 	kmem_free(old->dtpv_name, strlen(old->dtpv_name) + 1);
@@ -7706,13 +7663,13 @@ dtrace_invalidate(dtrace_provider_id_t id)
 	ASSERT(pvp->dtpv_pops.dtps_enable !=
 	    (int (*)(void *, dtrace_id_t, void *))dtrace_enable_nullop);
 
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&dtrace_lock);
 
 	pvp->dtpv_defunct = 1;
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_provider_lock);
 }
 
 /*
@@ -7747,8 +7704,8 @@ dtrace_condense(dtrace_provider_id_t id)
 	ASSERT(prov->dtpv_pops.dtps_enable !=
 	    (int (*)(void *, dtrace_id_t, void *))dtrace_enable_nullop);
 
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&dtrace_lock);
 
 	/*
 	 * Attempt to destroy the probes associated with this provider.
@@ -7778,8 +7735,8 @@ dtrace_condense(dtrace_provider_id_t id)
 		vmem_free(dtrace_arena, (void *)((uintptr_t)i + 1), 1);
 	}
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_provider_lock);
 
 	return (0);
 }
@@ -7810,7 +7767,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	if (provider == dtrace_provider) {
 		ASSERT(MUTEX_HELD(&dtrace_lock));
 	} else {
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 	}
 
 	id = (dtrace_id_t)(uintptr_t)vmem_alloc(dtrace_arena, 1,
@@ -7877,7 +7834,7 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 	dtrace_probes[id - 1] = probe;
 
 	if (provider != dtrace_provider)
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 //HERE();
 
 	return (id);
@@ -7925,10 +7882,10 @@ dtrace_probe_lookup(dtrace_provider_id_t prid, const char *mod,
 	pkey.dtpk_nmatch = name ? &dtrace_match_string : &dtrace_match_nul;
 	pkey.dtpk_id = DTRACE_IDNONE;
 
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 	match = dtrace_match(&pkey, DTRACE_PRIV_ALL, 0, 0,
 	    dtrace_probe_lookup_match, &id);
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	ASSERT(match == 1 || match == 0);
 	return (match ? id : 0);
@@ -7943,13 +7900,13 @@ dtrace_probe_arg(dtrace_provider_id_t id, dtrace_id_t pid)
 	dtrace_probe_t *probe;
 	void *rval = NULL;
 
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 
 	if ((probe = dtrace_probe_lookup_id(pid)) != NULL &&
 	    probe->dtpr_provider == (dtrace_provider_t *)id)
 		rval = probe->dtpr_arg;
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	return (rval);
 }
@@ -8021,7 +7978,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 		 * that this also prevents the mod_busy bits from changing.
 		 * (mod_busy can only be changed with mod_lock held.)
 		 */
-		mutex_enter(&mod_lock);
+		dmutex_enter(&mod_lock);
 # if defined(sun)
 
 		{struct modctl *ctl = &modules;
@@ -8056,7 +8013,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 		}
 		}
 # endif
-		mutex_exit(&mod_lock);
+		dmutex_exit(&mod_lock);
 	} while (all && (prv = prv->dtpv_next) != NULL);
 //HERE();
 }
@@ -8367,12 +8324,12 @@ dtrace_meta_register(const char *name, const dtrace_mops_t *mops, void *arg,
 	(void) strcpy(meta->dtm_name, name);
 	meta->dtm_arg = arg;
 
-	mutex_enter(&dtrace_meta_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_meta_lock);
+	dmutex_enter(&dtrace_lock);
 
 	if (dtrace_meta_pid != NULL) {
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&dtrace_meta_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_meta_lock);
 		cmn_err(CE_WARN, "failed to register meta-register %s: "
 		    "user-land meta-provider exists", name);
 		kmem_free(meta->dtm_name, strlen(meta->dtm_name) + 1);
@@ -8391,7 +8348,7 @@ dtrace_meta_register(const char *name, const dtrace_mops_t *mops, void *arg,
 	help = dtrace_deferred_pid;
 	dtrace_deferred_pid = NULL;
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	while (help != NULL) {
 		for (i = 0; i < help->dthps_nprovs; i++) {
@@ -8406,7 +8363,7 @@ dtrace_meta_register(const char *name, const dtrace_mops_t *mops, void *arg,
 		help = next;
 	}
 
-	mutex_exit(&dtrace_meta_lock);
+	dmutex_exit(&dtrace_meta_lock);
 
 	return (0);
 }
@@ -8416,8 +8373,8 @@ dtrace_meta_unregister(dtrace_meta_provider_id_t id)
 {
 	dtrace_meta_t **pp, *old = (dtrace_meta_t *)id;
 
-	mutex_enter(&dtrace_meta_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_meta_lock);
+	dmutex_enter(&dtrace_lock);
 
 	if (old == dtrace_meta_pid) {
 		pp = &dtrace_meta_pid;
@@ -8427,15 +8384,15 @@ dtrace_meta_unregister(dtrace_meta_provider_id_t id)
 	}
 
 	if (old->dtm_count != 0) {
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&dtrace_meta_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_meta_lock);
 		RETURN(EBUSY);
 	}
 
 	*pp = NULL;
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&dtrace_meta_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_meta_lock);
 
 	kmem_free(old->dtm_name, strlen(old->dtm_name) + 1);
 	kmem_free(old, sizeof (dtrace_meta_t));
@@ -11475,8 +11432,8 @@ dtrace_enabling_matchall(void)
 {
 	dtrace_enabling_t *enab;
 
-	mutex_enter(&cpu_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&cpu_lock);
+	dmutex_enter(&dtrace_lock);
 
 	/*
 	 * Iterate over all retained enablings to see if any probes match
@@ -11500,8 +11457,8 @@ dtrace_enabling_matchall(void)
 			(void) dtrace_enabling_match(enab, NULL);
 	}
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&cpu_lock);
 }
 
 /*
@@ -11575,9 +11532,9 @@ retry:
 		for (; enab != NULL; enab = enab->dten_next) {
 			for (i = 0; i < enab->dten_ndesc; i++) {
 				desc = enab->dten_desc[i]->dted_probe;
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 				prv->dtpv_pops.dtps_provide(parg, &desc);
-				mutex_enter(&dtrace_lock);
+				dmutex_enter(&dtrace_lock);
 				/*
 				 * Process the retained enablings again if
 				 * they have changed while we weren't holding
@@ -11589,9 +11546,9 @@ retry:
 		}
 	} while (all && (prv = prv->dtpv_next) != NULL);
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 	dtrace_probe_provide(NULL, all ? NULL : prv);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 }
 
 /*
@@ -13190,8 +13147,8 @@ dtrace_state_go(dtrace_state_t *state, processorid_t *cpu)
 	int rval = 0, i, bufsize = NCPU * sizeof (dtrace_buffer_t);
 	dtrace_icookie_t cookie;
 
-	mutex_enter(&cpu_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&cpu_lock);
+	dmutex_enter(&dtrace_lock);
 HERE();
 
 	if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE) {
@@ -13459,8 +13416,8 @@ err:
 	state->dts_speculations = NULL;
 
 out:
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&cpu_lock);
 
 	return (rval);
 }
@@ -14072,22 +14029,22 @@ dtrace_helper_destroygen(int gen)
 		help->dthps_provs[i] = help->dthps_provs[help->dthps_nprovs];
 		help->dthps_provs[help->dthps_nprovs] = NULL;
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		/*
 		 * If we have a meta provider, remove this helper provider.
 		 */
-		mutex_enter(&dtrace_meta_lock);
+		dmutex_enter(&dtrace_meta_lock);
 		if (dtrace_meta_pid != NULL) {
 			ASSERT(dtrace_deferred_pid == NULL);
 			dtrace_helper_provider_remove(&prov->dthp_prov,
 			    p->p_pid);
 		}
-		mutex_exit(&dtrace_meta_lock);
+		dmutex_exit(&dtrace_meta_lock);
 
 		dtrace_helper_provider_destroy(prov);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 	}
 
 	return (0);
@@ -14191,8 +14148,8 @@ dtrace_helper_provider_register(proc_t *p, dtrace_helpers_t *help,
 {
 	ASSERT(MUTEX_NOT_HELD(&dtrace_lock));
 
-	mutex_enter(&dtrace_meta_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_meta_lock);
+	dmutex_enter(&dtrace_lock);
 
 HERE();
 //printk("dtrace_meta_pid=%p dtrace_provider=%p p_pid=%d\n", dtrace_meta_pid, dtrace_provider, p->p_pid);
@@ -14216,7 +14173,7 @@ HERE();
 			dtrace_deferred_pid = help;
 		}
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 	} else if (dofhp != NULL) {
 		/*
@@ -14226,7 +14183,7 @@ HERE();
 		 */
 
 HERE();
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		dtrace_helper_provide(dofhp, p->p_pid);
 
@@ -14237,7 +14194,7 @@ HERE();
 		 */
 
 		int i;
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 HERE();
 		for (i = 0; i < help->dthps_nprovs; i++) {
@@ -14247,7 +14204,7 @@ HERE();
 		}
 	}
 
-	mutex_exit(&dtrace_meta_lock);
+	dmutex_exit(&dtrace_meta_lock);
 HERE();
 }
 
@@ -14325,16 +14282,16 @@ HERE();
 static void
 dtrace_helper_provider_destroy(dtrace_helper_provider_t *hprov)
 {
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 
 	if (--hprov->dthp_ref == 0) {
 		dof_hdr_t *dof;
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 		dof = (dof_hdr_t *)(uintptr_t)hprov->dthp_prov.dofhp_dof;
 		dtrace_dof_destroy(dof);
 		kmem_free(hprov, sizeof (dtrace_helper_provider_t));
 	} else {
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 	}
 }
 
@@ -14654,10 +14611,10 @@ HERE();
 		dhp->dofhp_dof = (uint64_t)(uintptr_t)dof;
 HERE();
 		if (dtrace_helper_provider_add(dhp, gen) == 0) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 HERE();
 			dtrace_helper_provider_register(curproc, help, dhp);
-			mutex_enter(&dtrace_lock);
+			dmutex_enter(&dtrace_lock);
 
 			destroy = 0;
 		}
@@ -14697,7 +14654,7 @@ dtrace_helpers_destroy(void)
 	proc_t *p = curproc;
 	int i;
 
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 
 	ASSERT(p->p_dtrace_helpers != NULL);
 	ASSERT(dtrace_helpers > 0);
@@ -14724,13 +14681,13 @@ dtrace_helpers_destroy(void)
 		}
 	}
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	/*
 	 * Destroy the helper providers.
 	 */
 	if (help->dthps_maxprovs > 0) {
-		mutex_enter(&dtrace_meta_lock);
+		dmutex_enter(&dtrace_meta_lock);
 		if (dtrace_meta_pid != NULL) {
 			ASSERT(dtrace_deferred_pid == NULL);
 
@@ -14739,7 +14696,7 @@ dtrace_helpers_destroy(void)
 				    &help->dthps_provs[i]->dthp_prov, p->p_pid);
 			}
 		} else {
-			mutex_enter(&dtrace_lock);
+			dmutex_enter(&dtrace_lock);
 			ASSERT(help->dthps_deferred == 0 ||
 			    help->dthps_next != NULL ||
 			    help->dthps_prev != NULL ||
@@ -14757,10 +14714,10 @@ dtrace_helpers_destroy(void)
 				ASSERT(help->dthps_prev == NULL);
 			}
 
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 		}
 
-		mutex_exit(&dtrace_meta_lock);
+		dmutex_exit(&dtrace_meta_lock);
 
 		for (i = 0; i < help->dthps_nprovs; i++) {
 			dtrace_helper_provider_destroy(help->dthps_provs[i]);
@@ -14770,7 +14727,7 @@ dtrace_helpers_destroy(void)
 		    sizeof (dtrace_helper_provider_t *));
 	}
 
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 
 	dtrace_vstate_fini(&help->dthps_vstate);
 	kmem_free(help->dthps_actions,
@@ -14778,7 +14735,7 @@ dtrace_helpers_destroy(void)
 	kmem_free(help, sizeof (dtrace_helpers_t));
 
 	--dtrace_helpers;
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 }
 
 static void
@@ -14790,7 +14747,7 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 	dtrace_vstate_t *vstate;
 	int i, j, sz, hasprovs = 0;
 
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 	ASSERT(from->p_dtrace_helpers != NULL);
 	ASSERT(dtrace_helpers > 0);
 
@@ -14857,7 +14814,7 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 		hasprovs = 1;
 	}
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	if (hasprovs)
 		dtrace_helper_provider_register(to, newhelp, NULL);
@@ -14879,8 +14836,8 @@ dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
 		return NOTIFY_DONE;
 	}
 
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&mod_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&mod_lock);
 
 # if linux
 	ASSERT(ctl->state == MODULE_STATE_LIVE);
@@ -14895,8 +14852,8 @@ dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
 	for (prv = dtrace_provider; prv != NULL; prv = prv->dtpv_next)
 		prv->dtpv_pops.dtps_provide_module(prv->dtpv_arg, ctl);
 
-	mutex_exit(&mod_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&mod_lock);
+	dmutex_exit(&dtrace_provider_lock);
 
 	/*
 	 * If we have any retained enablings, we need to match against them.
@@ -14906,10 +14863,10 @@ dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
 	 * classes.)  So if we have any retained enablings, we need to dispatch
 	 * our task queue to do the match for us.
 	 */
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 
 	if (dtrace_retained == NULL) {
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 		return NOTIFY_DONE;
 	}
 
@@ -14920,7 +14877,7 @@ dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
 	    (task_func_t *)dtrace_enabling_matchall, NULL, TQ_SLEEP);
 # endif
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	/*
 	 * And now, for a little heuristic sleaze:  in general, we want to
@@ -14952,18 +14909,18 @@ dtrace_module_unloaded(struct modctl *modctl)
 	template.dtpr_mod = ctl->mod_modname;
 # endif
 
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&mod_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&mod_lock);
+	dmutex_enter(&dtrace_lock);
 
 	if (dtrace_bymod == NULL) {
 		/*
 		 * The DTrace module is loaded (obviously) but not attached;
 		 * we don't have any work to do.
 		 */
-		mutex_exit(&dtrace_provider_lock);
-		mutex_exit(&mod_lock);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&mod_lock);
+		dmutex_exit(&dtrace_lock);
 		return;
 	}
 
@@ -14971,9 +14928,9 @@ printk("dtrace_module_unloaded called %p '%s'\n", modctl, ctl->name);
 	for (probe = first = dtrace_hash_lookup(dtrace_bymod, &template);
 	    probe != NULL; probe = probe->dtpr_nextmod) {
 		if (probe->dtpr_ecb != NULL) {
-			mutex_exit(&dtrace_provider_lock);
-			mutex_exit(&mod_lock);
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_provider_lock);
+			dmutex_exit(&mod_lock);
+			dmutex_exit(&dtrace_lock);
 
 			/*
 			 * This shouldn't _actually_ be possible -- we're
@@ -15034,9 +14991,9 @@ printk("dtrace_module_unloaded called %p '%s'\n", modctl, ctl->name);
 		kmem_free(probe, sizeof (dtrace_probe_t));
 	}
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&mod_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&mod_lock);
+	dmutex_exit(&dtrace_provider_lock);
 }
 
 void
@@ -15055,7 +15012,7 @@ static int
 dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
 {
 	ASSERT(MUTEX_HELD(&cpu_lock));
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&dtrace_lock);
 
 	switch (what) {
 	case CPU_CONFIG: {
@@ -15108,7 +15065,7 @@ PRINT_CASE(CPU_UNCONFIG);
 		break;
 	}
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 	return (0);
 }
 
@@ -15170,17 +15127,17 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_state_t *state = NULL;
 	dtrace_enabling_t *enab;
 
-	mutex_enter(&cpu_lock);
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&cpu_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&dtrace_lock);
 
 # if defined(sun)
 	if (ddi_soft_state_init(&dtrace_softstate,
 	    sizeof (dtrace_state_t), 0) != 0) {
 		cmn_err(CE_NOTE, "/dev/dtrace failed to initialize soft state");
-		mutex_exit(&cpu_lock);
-		mutex_exit(&dtrace_provider_lock);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&cpu_lock);
+		dmutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
 		return (DDI_FAILURE);
 	}
 
@@ -15191,9 +15148,9 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 		cmn_err(CE_NOTE, "/dev/dtrace couldn't create minor nodes");
 		ddi_remove_minor_node(devi, NULL);
 		ddi_soft_state_fini(&dtrace_softstate);
-		mutex_exit(&cpu_lock);
-		mutex_exit(&dtrace_provider_lock);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&cpu_lock);
+		dmutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
 		return (DDI_FAILURE);
 	}
 
@@ -15297,7 +15254,7 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	    dtrace_provider, NULL, NULL, "ERROR", 1, NULL);
 
 	dtrace_anon_property();
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&cpu_lock);
 
 	/*
 	 * If DTrace helper tracing is enabled, we need to allocate the
@@ -15330,21 +15287,21 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 		 * up cpu_lock, and regain our locks before matching the
 		 * retained anonymous enabling.
 		 */
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_provider_lock);
 
-		mutex_enter(&cpu_lock);
-		mutex_enter(&dtrace_provider_lock);
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&cpu_lock);
+		dmutex_enter(&dtrace_provider_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if ((enab = dtrace_anon.dta_enabling) != NULL)
 			(void) dtrace_enabling_match(enab, NULL);
 
-		mutex_exit(&cpu_lock);
+		dmutex_exit(&cpu_lock);
 	}
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_provider_lock);
 
 	if (state != NULL) {
 		/*
@@ -15391,12 +15348,12 @@ dtrace_open(struct file *fp, int flag, int otyp, cred_t *cred_p)
 	/*
 	 * Ask all providers to provide all their probes.
 	 */
-	mutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&dtrace_provider_lock);
 	dtrace_probe_provide(NULL, NULL);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_provider_lock);
 
-	mutex_enter(&cpu_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&cpu_lock);
+	dmutex_enter(&dtrace_lock);
 	dtrace_opens++;
 	dtrace_membar_producer();
 HERE();
@@ -15408,8 +15365,8 @@ HERE();
 	 */
 	if (kdi_dtrace_set(KDI_DTSET_DTRACE_ACTIVATE) != 0) {
 		dtrace_opens--;
-		mutex_exit(&cpu_lock);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&cpu_lock);
+		dmutex_exit(&dtrace_lock);
 		RETURN(EBUSY);
 	}
 
@@ -15424,7 +15381,7 @@ HERE();
 	fp->private_data = state;
 # endif
 
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&cpu_lock);
 
 	if (state == NULL) {
 # if defined(sun)
@@ -15433,11 +15390,11 @@ HERE();
 # else
 		--dtrace_opens;
 # endif
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 		RETURN(EAGAIN);
 	}
 
-	mutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_lock);
 
 	return (0);
 }
@@ -15466,8 +15423,8 @@ dtrace_close(struct file *fp, int flag, int otyp, cred_t *cred_p)
                 return (0);*/
 	state = fp->private_data;
 # endif
-	mutex_enter(&cpu_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&cpu_lock);
+	dmutex_enter(&dtrace_lock);
 HERE();
 //printk("dtrace_opens=%d dtrace_opens state=%p\n", dtrace_opens, state);
 
@@ -15488,8 +15445,8 @@ HERE();
 	--dtrace_opens;
 #endif
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&cpu_lock);
 
 	return (0);
 }
@@ -15527,7 +15484,7 @@ PRINT_CASE(DTRACEHIOC_ADD);
 		if (dof == NULL)
 			return (rval);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		/*
 		 * dtrace_helper_slurp() takes responsibility for the dof --
@@ -15540,15 +15497,15 @@ PRINT_CASE(DTRACEHIOC_ADD);
 			rval = EINVAL;
 		}
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 		return (rval);
 	}
 
 	case DTRACEHIOC_REMOVE: {
 PRINT_CASE(DTRACEHIOC_REMOVE);
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 		rval = dtrace_helper_destroygen(arg);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		return (rval);
 	}
@@ -15603,14 +15560,14 @@ PRINT_CASE(DTRACEIOC_PROVIDER);
 			RETURN(EFAULT);
 
 		pvd.dtvd_name[DTRACE_PROVNAMELEN - 1] = '\0';
-		mutex_enter(&dtrace_provider_lock);
+		dmutex_enter(&dtrace_provider_lock);
 
 		for (pvp = dtrace_provider; pvp != NULL; pvp = pvp->dtpv_next) {
 			if (strcmp(pvp->dtpv_name, pvd.dtvd_name) == 0)
 				break;
 		}
 
-		mutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_provider_lock);
 
 		if (pvp == NULL)
 			RETURN(ESRCH);
@@ -15636,15 +15593,15 @@ PRINT_CASE(DTRACEIOC_EPROBE);
 		if (copyin((void *)arg, &epdesc, sizeof (epdesc)) != 0)
 			RETURN(EFAULT);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if ((ecb = dtrace_epid2ecb(state, epdesc.dtepd_epid)) == NULL) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(EINVAL);
 		}
 
 		if (ecb->dte_probe == NULL) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(EINVAL);
 		}
 
@@ -15688,7 +15645,7 @@ PRINT_CASE(DTRACEIOC_EPROBE);
 			dest += sizeof (dtrace_recdesc_t);
 		}
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		if (copyout(buf, (void *)arg, dest - (uintptr_t)buf) != 0) {
 			kmem_free(buf, size);
@@ -15714,10 +15671,10 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 		if (copyin((void *)arg, &aggdesc, sizeof (aggdesc)) != 0)
 			RETURN(EFAULT);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if ((agg = dtrace_aggid2agg(state, aggdesc.dtagd_id)) == NULL) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(EINVAL);
 		}
 
@@ -15791,7 +15748,7 @@ PRINT_CASE(DTRACEIOC_AGGDESC);
 				break;
 		}
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		if (copyout(buf, (void *)arg, dest - (uintptr_t)buf) != 0) {
 			kmem_free(buf, size);
@@ -15828,8 +15785,8 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		if ((dof = dtrace_dof_copyin(arg, &rval)) == NULL)
 			return (rval);
 
-		mutex_enter(&cpu_lock);
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&cpu_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if (state == NULL) {
 			printk("DTRACEIOC_ENABLE: Sorry - but state is null and it should not be!\n");
@@ -15839,23 +15796,23 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		vstate = &state->dts_vstate;
 
 		if (state->dts_activity != DTRACE_ACTIVITY_INACTIVE) {
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&cpu_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
 			RETURN(EBUSY);
 		}
 
 		if (dtrace_dof_slurp(dof, vstate, cr, &enab, 0, B_TRUE) != 0) {
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&cpu_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
 			RETURN(EINVAL);
 		}
 
 		if ((rval = dtrace_dof_options(dof, state)) != 0) {
 			dtrace_enabling_destroy(enab);
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&cpu_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&cpu_lock);
 			dtrace_dof_destroy(dof);
 			return (rval);
 		}
@@ -15866,8 +15823,8 @@ PRINT_CASE(DTRACEIOC_ENABLE);
                         dtrace_enabling_destroy(enab);
                 }
 
-		mutex_exit(&cpu_lock);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&cpu_lock);
+		dmutex_exit(&dtrace_lock);
 		dtrace_dof_destroy(dof);
 
 //printk("err=%d rv=%d\n", err, *rv);
@@ -15898,9 +15855,9 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		create->dtpd_func[DTRACE_FUNCNAMELEN - 1] = '\0';
 		create->dtpd_name[DTRACE_NAMELEN - 1] = '\0';
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 		err = dtrace_enabling_replicate(state, match, create);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		return (err);
 	}
@@ -15930,9 +15887,9 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		 * all providers the opportunity to provide it.
 		 */
 		if (desc.dtpd_id == DTRACE_IDNONE) {
-			mutex_enter(&dtrace_provider_lock);
+			dmutex_enter(&dtrace_provider_lock);
 			dtrace_probe_provide(&desc, NULL);
-			mutex_exit(&dtrace_provider_lock);
+			dmutex_exit(&dtrace_provider_lock);
 			desc.dtpd_id++;
 		}
 
@@ -15950,7 +15907,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 # endif
 		dtrace_cred2priv(cr, &priv, &uid, &zoneid);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if (cmd == DTRACEIOC_PROBEMATCH) {
 			for (i = desc.dtpd_id; i <= dtrace_nprobes; i++) {
@@ -15961,7 +15918,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 			}
 
 			if (m < 0) {
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 				RETURN(EINVAL);
 			}
 
@@ -15975,12 +15932,12 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		}
 
 		if (probe == NULL) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(ESRCH);
 		}
 
 		dtrace_probe_description(probe, &desc);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
 			RETURN(EFAULT);
@@ -16003,25 +15960,25 @@ PRINT_CASE(DTRACEIOC_PROBEARG);
 		if (desc.dtargd_ndx == DTRACE_ARGNONE)
 			RETURN(EINVAL);
 
-		mutex_enter(&dtrace_provider_lock);
-		mutex_enter(&mod_lock);
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_provider_lock);
+		dmutex_enter(&mod_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if (desc.dtargd_id > dtrace_nprobes) {
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&mod_lock);
-			mutex_exit(&dtrace_provider_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&mod_lock);
+			dmutex_exit(&dtrace_provider_lock);
 			RETURN(EINVAL);
 		}
 
 		if ((probe = dtrace_probes[desc.dtargd_id - 1]) == NULL) {
-			mutex_exit(&dtrace_lock);
-			mutex_exit(&mod_lock);
-			mutex_exit(&dtrace_provider_lock);
+			dmutex_exit(&dtrace_lock);
+			dmutex_exit(&mod_lock);
+			dmutex_exit(&dtrace_provider_lock);
 			RETURN(EINVAL);
 		}
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		prov = probe->dtpr_provider;
 
@@ -16040,8 +15997,8 @@ PRINT_CASE(DTRACEIOC_PROBEARG);
 			    probe->dtpr_id, probe->dtpr_arg, &desc);
 		}
 
-		mutex_exit(&mod_lock);
-		mutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&mod_lock);
+		dmutex_exit(&dtrace_provider_lock);
 
 		if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
 			RETURN(EFAULT);
@@ -16068,9 +16025,9 @@ PRINT_CASE(DTRACEIOC_GO);
 		processorid_t cpuid;
 
 PRINT_CASE(DTRACEIOC_STOP);
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 		rval = dtrace_state_stop(state, &cpuid);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		if (rval != 0)
 			return (rval);
@@ -16089,9 +16046,9 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 		if (copyin((void *)arg, &hdr, sizeof (hdr)) != 0)
 			RETURN(EFAULT);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 		dof = dtrace_dof_create(state);
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		len = MIN(hdr.dofh_loadsz, dof->dofh_loadsz);
 		rval = copyout(dof, (void *)arg, len);
@@ -16113,7 +16070,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 		if (desc.dtbd_cpu < 0 || desc.dtbd_cpu >= NCPU)
 			RETURN(EINVAL);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if (cmd == DTRACEIOC_BUFSNAP) {
 			buf = &state->dts_buffer[desc.dtbd_cpu];
@@ -16126,7 +16083,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 			size_t sz = buf->dtb_offset;
 
 			if (state->dts_activity != DTRACE_ACTIVITY_STOPPED) {
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 				RETURN(EBUSY);
 			}
 
@@ -16136,7 +16093,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 			 * to consume.
 			 */
 			if (buf->dtb_flags & DTRACEBUF_CONSUMED) {
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 
 				desc.dtbd_size = 0;
 				desc.dtbd_drops = 0;
@@ -16160,7 +16117,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 			}
 
 			if (copyout(buf->dtb_tomax, desc.dtbd_data, sz) != 0) {
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 				RETURN(EFAULT);
 			}
 
@@ -16169,7 +16126,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 			desc.dtbd_errors = buf->dtb_errors;
 			desc.dtbd_oldest = buf->dtb_xamot_offset;
 
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 
 			if (copyout(&desc, (void *)arg, sizeof (desc)) != 0)
 				RETURN(EFAULT);
@@ -16181,7 +16138,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 
 		if (buf->dtb_tomax == NULL) {
 			ASSERT(buf->dtb_xamot == NULL);
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 HERE();
 			RETURN(ENOENT);
 		}
@@ -16202,7 +16159,7 @@ HERE();
 		 */
 		if (buf->dtb_tomax == cached) {
 			ASSERT(buf->dtb_xamot != cached);
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(ENOENT);
 		}
 
@@ -16217,7 +16174,7 @@ HERE();
 //}
 		if (copyout(buf->dtb_xamot, desc.dtbd_data,
 		    buf->dtb_xamot_offset) != 0) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(EFAULT);
 		}
 
@@ -16226,7 +16183,7 @@ HERE();
 		desc.dtbd_errors = buf->dtb_xamot_errors;
 		desc.dtbd_oldest = 0;
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 
 		/*
 		 * Finally, copy out the buffer description.
@@ -16272,10 +16229,10 @@ PRINT_CASE(DTRACEIOC_CONF);
 
 		bzero(&stat, sizeof (stat));
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if (state->dts_activity == DTRACE_ACTIVITY_INACTIVE) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(ENOENT);
 		}
 
@@ -16315,7 +16272,7 @@ PRINT_CASE(DTRACEIOC_CONF);
 		    (state->dts_activity == DTRACE_ACTIVITY_KILLED);
 		stat.dtst_errors = nerrs;
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 //dump_mem(&stat, sizeof stat);
 		if (copyout(&stat, (void *)arg, sizeof (stat)) != 0)
 			RETURN(EFAULT);
@@ -16332,11 +16289,11 @@ PRINT_CASE(DTRACEIOC_FORMAT);
 		if (copyin((void *)arg, &fmt, sizeof (fmt)) != 0)
 			RETURN(EFAULT);
 
-		mutex_enter(&dtrace_lock);
+		dmutex_enter(&dtrace_lock);
 
 		if (fmt.dtfd_format == 0 ||
 		    fmt.dtfd_format > state->dts_nformats) {
-			mutex_exit(&dtrace_lock);
+			dmutex_exit(&dtrace_lock);
 			RETURN(EINVAL);
 		}
 
@@ -16356,17 +16313,17 @@ PRINT_CASE(DTRACEIOC_FORMAT);
 			fmt.dtfd_length = len;
 
 			if (copyout(&fmt, (void *)arg, sizeof (fmt)) != 0) {
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 				RETURN(EINVAL);
 			}
 		} else {
 			if (copyout(str, fmt.dtfd_string, len) != 0) {
-				mutex_exit(&dtrace_lock);
+				dmutex_exit(&dtrace_lock);
 				RETURN(EINVAL);
 			}
 		}
 
-		mutex_exit(&dtrace_lock);
+		dmutex_exit(&dtrace_lock);
 		return (0);
 	}
 
@@ -16398,25 +16355,25 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	}
 # endif
 
-	mutex_enter(&cpu_lock);
-	mutex_enter(&dtrace_provider_lock);
-	mutex_enter(&dtrace_lock);
+	dmutex_enter(&cpu_lock);
+	dmutex_enter(&dtrace_provider_lock);
+	dmutex_enter(&dtrace_lock);
 
 printk("dtrace_detach: dtrace_opens=%d helpers=%d\n", dtrace_opens, dtrace_helpers);
 	ASSERT(dtrace_opens == 0);
 
 	if (dtrace_helpers > 0) {
-		mutex_exit(&dtrace_provider_lock);
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&cpu_lock);
+		dmutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&cpu_lock);
 		return (DDI_FAILURE);
 	}
 
 	if (dtrace_unregister((dtrace_provider_id_t)dtrace_provider) != 0) {
 printk("dtrace_unregister is causing us to fail\n");
-		mutex_exit(&dtrace_provider_lock);
-		mutex_exit(&dtrace_lock);
-		mutex_exit(&cpu_lock);
+		dmutex_exit(&dtrace_provider_lock);
+		dmutex_exit(&dtrace_lock);
+		dmutex_exit(&cpu_lock);
 		return (DDI_FAILURE);
 	}
 
@@ -16457,7 +16414,7 @@ printk("dtrace_unregister is causing us to fail\n");
 	unregister_module_notifier(&n_module_load);
 #endif
 
-	mutex_exit(&cpu_lock);
+	dmutex_exit(&cpu_lock);
 
 	if (dtrace_helptrace_enabled) {
 		kmem_free(dtrace_helptrace_buffer, dtrace_helptrace_bufsize);
@@ -16498,8 +16455,8 @@ printk("dtrace_unregister is causing us to fail\n");
 	ASSERT(dtrace_opens == 0);
         ASSERT(dtrace_retained == NULL);
 
-	mutex_exit(&dtrace_lock);
-	mutex_exit(&dtrace_provider_lock);
+	dmutex_exit(&dtrace_lock);
+	dmutex_exit(&dtrace_provider_lock);
 
 	/*
 	 * We don't destroy the task queue until after we have dropped our

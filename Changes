@@ -1,4 +1,29 @@
+Mon Nov  7 23:00:12 2011  fox
+
+     568* mutex.c, linux_types.h, cyclic_linux.c: Revert cyclic_linux.c
+          to using a spinlock - not a mutex or semaphore, since we
+	  run from IRQ context/tasklet context.
+
+	  Revert mutex.c to use pure semaphores, not hand crafted
+	  mutexes. If the kernel is doing lock checking, it will
+	  tell us if we might block in an interrupt routine, which is
+	  bad. (So, why did I do mutex.c at all? Probably got confused
+	  by some other issues).
+
+	  linux_types.h: Wrap the semaphores with the dmutex call
+	  wrappers. Dont really need this.
+
+	  Anyway, I still kept some of the lock-tightening code which
+	  was possibly upsetting the kernels.
+
 Sun Nov  6 00:41:47 2011  fox
+
+     567* tools/tty.pl: Commarise numbers when dumping stats. Dont
+          keep printing the prompt message.
+
+     566* mutex.c: Calling the wrong panic routine!
+
+     565* dtrace_linux.h: Dont map dtrace_panic to panic.
 
      564* driver/vminfo.c: Compile warnings cleanup; avoid table overflow.
 

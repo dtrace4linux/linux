@@ -257,12 +257,12 @@ typedef unsigned long long hrtime_t;
 	/*   Define our own private mutexes so we can  */
 	/*   avoid  problems  and clashes with kernel  */
 	/*   implemented ones. Our mutexes are really  */
-	/*   spinlocks.  This  allows  us  to  bypass  */
-	/*   problems probing kernel mutexes.	       */
+	/*   semaphores,  since we cannot use a mutex  */
+	/*   inside an interrupt.		       */
 	/***********************************************/
 	typedef struct mutex_t {
-		void	*count;
-		int	cpu;	/* CPU who has the lock */
+		struct semaphore m_sem;
+		int		m_initted;
 		} mutex_t;
 	#define kmutex_t mutex_t
 	#define MUTEX_DEFINE(name) mutex_t name

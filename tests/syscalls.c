@@ -11,6 +11,9 @@
 # include <signal.h>
 # include <errno.h>
 
+static int cnt;
+static int line;
+
 void sigchld()
 {
 }
@@ -20,7 +23,11 @@ void int_handler()
 }
 void segv_handler(int sig)
 {
-	printf("SIGSEGV invoked\n");
+	printf("PID:%d SIGSEGV#%d invoked, at syscalls.c:%d\n", getpid(), cnt++, line);
+	if (cnt > 10) {
+		printf("Something is wrong. We shouldnt be segfaulting whilst dtrace isactive\n");
+		exit(0);
+	}
 }
 void sigusr1()
 {
@@ -51,6 +58,8 @@ int main(int argc, char **argv)
 	mincore(0, 0);
 	shmget(0);
 	shmat(0);
+
+	line = __LINE__;
 	dup(-1);
 	dup2(-1, -1);
 	shmctl(0, 0, 0, 0);
@@ -64,32 +73,46 @@ int main(int argc, char **argv)
 	getpeername(0, 0, 0);
 	truncate(0, 0);
 	ftruncate(0, 0);
+	line = __LINE__;
 	if (vfork() == 0)
 		exit(0);
+	line = __LINE__;
 	x = opendir("/", 0, 0);
+	line = __LINE__;
 	readdir(x, 0, 0);
+	line = __LINE__;
 	closedir(x);
+	line = __LINE__;
 	chroot("/");
+	line = __LINE__;
 	sigaction(0, 0, 0);
+	line = __LINE__;
 	sigprocmask(0, 0, 0);
 	x += open("/nothing", 0);
 	x += chdir("/nothing");
 	x += mknod("/nothing/nothing", 0);
 	x += ioctl();
 	execve("/nothing", NULL, NULL);
+	line = __LINE__;
 	x += close(-2);
+	line = __LINE__;
 	if (fork() == 0)
 		exit(0);
+	line = __LINE__;
 	clone();
+	line = __LINE__;
 	brk(0);
 	sbrk(0);
+	line = __LINE__;
 	mmap(0, 0, 0, 0, 0);
 	uname(0);
 	getcwd(0, 0);
 	iopl(3);
+	line = __LINE__;
 	unlink("/nothing");
 	rmdir("/nothing");
 	chmod(0, 0);
+	line = __LINE__;
 	modify_ldt(0);
 
 	args[0] = "/bin/df";
@@ -104,10 +127,13 @@ int main(int argc, char **argv)
 	/*   implementation   difficulty  and  kernel  */
 	/*   crashes - eventually we can be complete.  */
 	/***********************************************/
+	line = __LINE__;
 	open("/system-dependent-syscalls-follow", 0);
+	line = __LINE__;
 	if (fork() == 0)
 		exit(0);
 
+	line = __LINE__;
 	execve("/bin/df", args, NULL);
 
 	fprintf(stderr, "Error: should not get here -- %s\n", strerror(errno));

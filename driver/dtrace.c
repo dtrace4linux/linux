@@ -604,7 +604,7 @@ dtrace_panic(const char *format, ...)
 int
 dtrace_assfail(const char *a, const char *f, int l)
 {
-	dtrace_panic("assertion failed: %s, file: %s, line: %d", a, f, l);
+	dtrace_linux_panic("assertion failed: %s, file: %s, line: %d", a, f, l);
 
 	/*
 	 * We just need something here that even the most clever compiler
@@ -5651,7 +5651,7 @@ dtrace_action_panic(dtrace_ecb_t *ecb)
 	 * thread calls panic() from dtrace_probe(), and that panic() is
 	 * called exactly once.)
 	 */
-	dtrace_panic("dtrace: panic action at probe %s:%s:%s:%s (ecb %p)",
+	panic("dtrace: panic action at probe %s:%s:%s:%s (ecb %p)",
 	    probe->dtpr_provider->dtpv_name, probe->dtpr_mod,
 	    probe->dtpr_func, probe->dtpr_name, (void *)ecb);
 }

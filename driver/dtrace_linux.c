@@ -1247,13 +1247,17 @@ static void (*arch_trigger_all_cpu_backtrace)(void);
 /*   more additional damage.					      */
 /**********************************************************************/
 void
-dtrace_linux_panic(void)
-{
+dtrace_linux_panic(const char *fmt, ...)
+{	va_list	ap;
+
 	if (dtrace_shutdown)
 		return;
 
 	dtrace_shutdown = TRUE;
 	set_console_on(1);
+	va_start(ap, fmt);
+	vprintk(fmt, ap);
+	va_end(ap);
 	printk("[cpu%d] dtrace_linux_panic called. Dumping cpu stacks\n", smp_processor_id());
 	dump_all_stacks();
 	printk("dtrace_linux_panic: finished\n");

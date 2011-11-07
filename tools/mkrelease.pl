@@ -102,7 +102,7 @@ sub main
 	spawn("ls -l /tmp/dtrace-$rel.tar.bz2");
 	spawn("mv /tmp/dtrace-$rel.tar.bz2 $ENV{HOME}/release/dtrace");
 
-	spawn("twit 'New release of dtrace-$rel on ftp://crisp.dyndns-server.com/pub/release/website/dtrace'");
+	spawn("twit 'Release: dtrace-b$vars{build} on ftp://crisp.dyndns-server.com/pub/release/website/dtrace/dtrace-$rel.tar.gz'");
 	chdir($pwd);
 	spawn("git commit -F /tmp/msg .");
 }

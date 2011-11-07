@@ -237,7 +237,6 @@ void *vmem_create(const char *name, void *base, size_t size, size_t quantum,
 //void	*kmem_zalloc(size_t size, int kmflags);
 
 extern int panic_quiesce;
-# define	dtrace_panic	panic
 
 # if linux
 #	define	cpu_get_id()	smp_processor_id()
@@ -388,7 +387,7 @@ int	is_kernel_text(unsigned long);
 int	dtrace_mutex_is_locked(mutex_t *);
 asmlinkage int dtrace_memcpy_with_error(void *, void *, size_t);
 void set_console_on(int flag);
-void dtrace_linux_panic(void);
+void dtrace_linux_panic(const char *, ...);
 int libc_strlen(const char *str);
 int libc_strcmp(const char *p1, const char *p2);
 int libc_strncmp(const char *s1, const char *s2, int len);

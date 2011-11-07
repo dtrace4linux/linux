@@ -258,7 +258,7 @@ ack_wait(int c, char *msg)
 
 			if (cnt1++ > 3) {
 				dump_xcalls();
-				dtrace_linux_panic();
+				dtrace_linux_panic("xcall taking too long");
 				break;
 			}
 		}
@@ -409,6 +409,7 @@ typedef struct cpumask cpumask_t;
 			cnt_xcall7++;
 			continue;
 		}
+//dtrace_printf("xcall %p\n", func);
 
 		xc->xc_func = func;
 		xc->xc_arg = arg;

@@ -260,3 +260,9 @@ note: Test from Nigel Smith
 d:
 	fbt:kernel:a*: {} 
 	dtrace:::BEGIN { exit(0); }
+##################################################################
+name: fbt-BEGIN-exit
+note: Variant of bug report from Nigel Smith
+d:
+	fbt:kernel:: BEGIN {exit(0); } 
+

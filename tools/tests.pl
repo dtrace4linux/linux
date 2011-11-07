@@ -25,6 +25,12 @@ my %opts = (
 	loop => 1000,
 	);
 
+sub commify {
+	local $_ = shift;
+	1 while s/^([-+]?\d+)(\d{3})/$1,$2/;
+	return $_;
+}
+
 sub do_child
 {	my $ppid = shift;
 
@@ -139,12 +145,22 @@ sub do_tests
 		my $cmd = $opts{dtrace} ? "dtrace -n '$d'" : "build/dtrace -n '$d'";
 		my $ret = spawn($cmd, $info->{name});
 		$exit_code ||= $ret;
-		system("cat /proc/dtrace/stats");
+		dump_stats();
 	}
 	kill SIGKILL, $_ foreach keys(%pids);
 	while (wait > 0) {
 	}
 
+}
+sub dump_stats
+{
+	my $fh = new FileHandle("/proc/dtrace/stats");
+	while (<$fh>) {
+		chomp;
+		my ($name, $val) = split(/=/);
+		$val = commify($val);
+		print "$name=$val\n";
+	}
 }
 ######################################################################
 #   Main entry point.						     #
@@ -170,7 +186,10 @@ sub main
 		exit(0);
 	}
 
-	print <<EOF;
+	my $print_msg = ! -f ".test.prompt";
+	new FileHandle(">.test.prompt");
+	if ($print_msg) {
+		print <<EOF;
 You are about to run a serious of tests which attempt to do reasonable
 coverage of dtrace in core areas. This deliberately involves forcing
 page faults and GPFs in the kernel, in a recoverable and safe way.
@@ -194,7 +213,8 @@ in the output for now. These will be tidied up.
 
 Press <Enter> if you understand the above and would like to continue:
 EOF
-	my $ans = <STDIN>;
+		my $ans = <STDIN>;
+	}
 
 	if (! -f "/proc/dtrace/stats") {
 		print "dtrace driver does not appear to be loaded.\n";
@@ -221,7 +241,7 @@ pf:   page faults. will see these for badaddr probes, e.g. copyinstr(arg)
 snp:  segment not present. (Shouldnt see these normally).
 
 EOF
-	system("cat /proc/dtrace/stats");
+	dump_stats();
 	exit($exit_code);
 }
 ######################################################################

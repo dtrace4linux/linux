@@ -85,6 +85,7 @@ unsigned long cnt_xcall4;
 unsigned long cnt_xcall5;	/* Max ack_wait/spin loop */
 unsigned long long cnt_xcall6;
 unsigned long long cnt_xcall7;
+unsigned long cnt_xcall8;
 unsigned long cnt_ipi1;
 unsigned long cnt_nmi1;
 unsigned long cnt_nmi2;
@@ -96,6 +97,7 @@ void orig_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg);
 void dtrace_xcall1(processorid_t cpu, dtrace_xcall_t func, void *arg);
 static void dump_xcalls(void);
 static void send_ipi_interrupt(cpumask_t *mask, int vector);
+void xcall_slave2(void);
 
 /**********************************************************************/
 /*   Switch the interface from the orig dtrace_xcall code to the new  */
@@ -188,8 +190,8 @@ orig_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 /*   /proc/dtrace/stats  to  see  the  numbers  relative  to  actual  */
 /*   probes).							      */
 /**********************************************************************/
-void
-ack_wait(int c, char *msg)
+int
+ack_wait(int c, int attempts)
 {	int	intr = in_interrupt() ? 1 : 0;
 	unsigned long cnt = 0;
 	int	cnt1 = 0;
@@ -199,12 +201,15 @@ ack_wait(int c, char *msg)
 	/*   Avoid holding on to a stale cache line.   */
 	/***********************************************/
 	while (dtrace_cas32((void *) &xc->xc_state, XC_WORKING, XC_WORKING) != XC_IDLE) {
+		if (attempts-- <= 0)
+			return 0;
+
 		barrier();
 
 		/***********************************************/
 		/*   Be HT friendly.			       */
 		/***********************************************/
-		smt_pause();
+//		smt_pause();
 
 		cnt_xcall6++;
 		/***********************************************/
@@ -243,13 +248,13 @@ ack_wait(int c, char *msg)
 				cpus_clear(mask);
 				cpu_set(c, mask);
 				nmi_masks[c] = 1;
-				send_ipi_interrupt(&mask, 2); //NMI_VECTOR);
+//				send_ipi_interrupt(&mask, 2); //NMI_VECTOR);
 			}
 
 			if (1) {
 //				set_console_on(1);
-				dtrace_printf("%s cpu=%d xcall %staking too long! c=%d [xcall1=%lu]\n", 
-					msg, smp_processor_id(), 
+				dtrace_printf("ack_wait cpu=%d xcall %staking too long! c=%d [xcall1=%lu]\n", 
+					smp_processor_id(), 
 					cnt1 ? "STILL " : "",
 					c, cnt_xcall1);
 				//dump_stack();
@@ -265,8 +270,9 @@ ack_wait(int c, char *msg)
 	}
 
 	if (xcall_debug) {
-		dtrace_printf("[%d] ack_wait %s finished c=%d cnt=%lu (max=%lu)\n", smp_processor_id(), msg, c, cnt, cnt_xcall5);
+		dtrace_printf("[%d] ack_wait finished c=%d cnt=%lu (max=%lu)\n", smp_processor_id(), c, cnt, cnt_xcall5);
 	}
+	return 1;
 }
 /**********************************************************************/
 /*   Linux  version  of  the  cpu  cross call code. We need to avoid  */
@@ -403,7 +409,7 @@ typedef struct cpumask cpumask_t;
 		/*   are  calling  dtrace_sync,  then  we can  */
 		/*   avoid the xcall.			       */
 		/***********************************************/
-		if (func == dtrace_sync_func &&
+		if ((void *) func == (void *) dtrace_sync_func &&
 		    cpu_core[c].cpuc_probe_level == 0) {
 			cpu &= ~(1 << c);
 			cnt_xcall7++;
@@ -477,17 +483,30 @@ typedef struct cpumask cpumask_t;
 
 	/***********************************************/
 	/*   Wait for the cpus we invoked the IPI on.  */
-	/*   Dont  do  ourselves - because we inlined  */
-	/*   above.  And  dont  do a cpu we didnt ask  */
-	/*   for. Duh!				       */
+	/*   Cycle  thru  the  cpus,  to avoid mutual  */
+	/*   deadlock  between one cpu trying to call  */
+	/*   us whilst we are calling them.	       */
 	/***********************************************/
-	for (c = 0; c < nr_cpus; c++) {
-		if (c == cpu_id)
-			continue;
-		if ((cpu & (1 << c)) == 0)
-			continue;
+	while (cpus_todo > 0) {
+//static int first = 1;
+		for (c = 0; c < nr_cpus && cpus_todo > 0; c++) {
+			xcall_slave2();
+			if (c == cpu_id || (cpu & (1 << c)) == 0)
+				continue;
 
-		ack_wait(c, "wait1");
+			/***********************************************/
+			/*   Wait  a  little  while  for  this cpu to  */
+			/*   respond before going on to the next one.  */
+			/***********************************************/
+			if (ack_wait(c, 1000)) {
+				cpus_todo--;
+				cpu &= ~(1 << c);
+			}
+		}
+/*if (cpus_todo > 0 && first) { 
+cnt_xcall8++;
+void dump_all_stacks(void); first = FALSE; dtrace_printf("xcall deadlock:\n"); }
+*/
 	}
 
 //	smp_mb();
@@ -531,6 +550,8 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 	        send_IPI_mask = get_proc_addr("cluster_send_IPI_mask");
 	if (send_IPI_mask == NULL) dtrace_printf("HELP ON send_ipi_interrupt!\n"); else
 	        send_IPI_mask(*mask, vector);
+# elseif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
+	send_IPI_mask(*mask, vector);
 # else
 	apic->send_IPI_mask(mask, vector);
 # endif
@@ -542,9 +563,18 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 void 
 xcall_slave(void)
 {
-	int	i, j;
-
 	cnt_ipi1++;
+
+	xcall_slave2();
+
+	smp_mb();
+
+	ack_APIC_irq();
+}
+void 
+xcall_slave2(void)
+{
+	int	i, j;
 
 	/***********************************************/
 	/*   Check  each slot for this cpu - one from  */
@@ -561,7 +591,5 @@ xcall_slave(void)
 			}
 		}
 	}
-	smp_mb();
-
-	ack_APIC_irq();
 }
+

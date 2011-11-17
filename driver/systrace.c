@@ -1511,8 +1511,14 @@ get_interposer(int sysnum, int enable)
 	  case __NR_rt_sigreturn:
 	  	patch_enable(&patch_rt_sigreturn, enable);
 		return NULL;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,25)
+	  /***********************************************/
+	  /*   This  went away in the later kernels, so	 */
+	  /*   we dont need to treat it specially.	 */
+	  /***********************************************/
 	  case __NR_rt_sigsuspend:
 		return (void *) systrace_part1_sys_rt_sigsuspend;
+#endif
 	  case __NR_vfork:
 		return (void *) systrace_part1_sys_vfork;
 	  }
@@ -1593,8 +1599,17 @@ patch_enable(patch_t *pp, int enable)
 	char	buf[128];
 	int	last_s = 0;
 	int	failed = FALSE;
+	/***********************************************/
+	/*   Normally  set  to  FALSE; set to TRUE to  */
+	/*   dump things to the printk() log.	       */
+	/***********************************************/
 static int dtrace_show_patches = FALSE;
-static int do_patch = TRUE; // Set to FALSE whilst browsing for a patch
+	/***********************************************/
+	/*   Normally  set  to  TRUE. Set to FALSE if  */
+	/*   you  are  browsing  thru the patch debug  */
+	/*   data.				       */
+	/***********************************************/
+static int do_patch = TRUE;
 
 	/***********************************************/
 	/*   If  we  are  disabling the patch, put it  */

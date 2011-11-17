@@ -140,6 +140,8 @@ init_cyclic()
 }
 
 extern int dtrace_shutdown;
+unsigned long long cnt_timer1;
+unsigned long long cnt_timer2;
 static void cyclic_tasklet_func(unsigned long arg)
 {	unsigned long cnt = 0;
 	//printk("in cyclic_tasklet_func\n");
@@ -151,11 +153,12 @@ static void cyclic_tasklet_func(unsigned long arg)
 		unsigned long flags;
 
 		if (cnt++ > 1000) {
-			printk("cyclic_linux: too many tasklets (%d)\n", cnt);
+			printk("cyclic_linux: too many tasklets (%lu)\n", cnt);
 			break;
 		}
 
 		spin_lock_irqsave(&lock_timers, flags);
+		cnt_timer1++;
 		if ((cp = hd_timers) != NULL)
 			hd_timers = cp->c_next;
 		else
@@ -171,6 +174,8 @@ static void cyclic_tasklet_func(unsigned long arg)
 		/***********************************************/
 		/*   Invoke the callback.		       */
 		/***********************************************/
+		if (cpu_core[smp_processor_id()].cpuc_probe_level)
+			cnt_timer2++;
 		cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
 
 		/***********************************************/

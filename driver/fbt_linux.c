@@ -103,6 +103,7 @@ typedef struct fbt_probe {
 	struct modctl	*fbtp_ctl;
 	int		fbtp_loadcnt;
 	int		fbtp_symndx;
+	unsigned int	fbtp_fired;
 //	int		fbtp_primary;
 	struct fbt_probe *fbtp_next;
 } fbt_probe_t;
@@ -164,6 +165,7 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 			tinfo->t_modrm = fbt->fbtp_modrm;
 			if (!tinfo->t_doprobe)
 				return fbt->fbtp_rval;
+			fbt->fbtp_fired++;
 			if (fbt->fbtp_roffset == 0) {
 				/*
 				 * When accessing the arguments on the stack,
@@ -545,8 +547,21 @@ fbt_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
 {
 	fbt_probe_t *fbt;
 
-if (*instr == 0xcc)
-return 1;
+	/***********************************************/
+	/*   Avoid patching a patched probe point.     */
+	/***********************************************/
+	if (*instr == 0xcc)
+		return 1;
+
+	/***********************************************/
+	/*   This  is temporary. Because of the issue  */
+	/*   of   %RIP   relative   addressing  modes  */
+	/*   potentially not being addressable in our  */
+	/*   single-step  jump  buffer, disable those  */
+	/*   probes which look like one of these.      */
+	/***********************************************/
+	if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) 
+		return 1;
 
 	fbt = kmem_zalloc(sizeof (fbt_probe_t), KM_SLEEP);
 	fbt->fbtp_name = infp->name;
@@ -1164,7 +1179,7 @@ static void fbt_seq_stop(struct seq_file *seq, void *v)
 }
 static int fbt_seq_show(struct seq_file *seq, void *v)
 {
-	int	i;
+	int	i, s;
 	int	n = (int) (long) v;
 	int	target;
 	fbt_probe_t *fbt = NULL;
@@ -1172,11 +1187,12 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 	unsigned long offset;
 	char	*modname = NULL;
 	char	name[KSYM_NAME_LEN];
+	char	ibuf[64];
 	const	char	*cp;
 
 //printk("%s v=%p\n", __func__, v);
 	if (n == 1) {
-		seq_printf(seq, "# patchpoint opcode inslen modrm name\n");
+		seq_printf(seq, "# count patchpoint opcode inslen modrm name\n");
 		return 0;
 	}
 	if (n > num_probes)
@@ -1200,15 +1216,29 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 	if (fbt == NULL)
 		return 0;
 
+	/***********************************************/
+	/*   Dump the instruction so we can make sure  */
+	/*   we  can  single  step them in the adjust  */
+	/*   cpu code.				       */
+	/***********************************************/
+	s = dtrace_instr_size(fbt->fbtp_patchpoint);
+	ibuf[0] = '\0';
+	for (cp = ibuf, i = 0; i < s; i++) {
+		snprintf(cp, sizeof ibuf - (cp - ibuf) - 3, "%02x ", 
+			fbt->fbtp_patchpoint[i] & 0xff);
+		cp += 3;
+		}
 	cp = my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
 		&size, &offset, &modname, name);
-	seq_printf(seq, "%d %p %02x %d %2d %s:%s\n", n-1, 
+	seq_printf(seq, "%d %04u %p %02x %d %2d %s:%s %s\n", n-1, 
+		fbt->fbtp_fired,
 		fbt->fbtp_patchpoint,
 		fbt->fbtp_savedval,
 		fbt->fbtp_inslen,
 		fbt->fbtp_modrm,
 		modname ? modname : "kernel",
-		cp ? cp : "NULL");
+		cp ? cp : "NULL",
+		ibuf);
 	return 0;
 }
 struct seq_operations seq_ops = {

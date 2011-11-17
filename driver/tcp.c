@@ -24,7 +24,8 @@
 /**********************************************************************/
 /*   Initialise the tcp provider probes.			      */
 /**********************************************************************/
-void tcp_init()
+void 
+tcp_init(void)
 {
 	prcom_add_function("tcp:::state-change", "tcp_set_state");
 }

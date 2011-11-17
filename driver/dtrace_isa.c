@@ -114,6 +114,7 @@ static inline int valid_stack_ptr(struct thread_info *tinfo,
         return p > t && p < t + THREAD_SIZE - size;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 static unsigned long
 walk_stack(struct thread_info *tinfo,
                unsigned long *stack, unsigned long bp,
@@ -139,6 +140,8 @@ walk_stack(struct thread_info *tinfo,
         }
         return bp;   
 }
+#endif
+
 #endif
 
 /**********************************************************************/

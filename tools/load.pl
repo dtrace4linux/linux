@@ -118,14 +118,15 @@ sub main
 		" dtrace_printk=$opts{printk}" .
 		" grab_panic=$opts{panic}");
 	if ($ret) {
+		my $log = -f "/var/log/messages" ? "/var/log/messages" : "/var/log/kern.log";
 		print "\n";
 		print "An error was detected loading the driver. Refer to\n";
-		print "/var/log/messages or 'dmesg' to see what the issue\n";
+		print "$log or 'dmesg' to see what the issue\n";
 		print "might be. For your convenience, here is the last few\n";
-		print "lines from /var/log/messages:\n";
+		print "lines from $log:\n";
 		print "\n";
-		print "===== tail -10 /var/log/messages\n";
-		system("tail -10 /var/log/messages");
+		print "===== tail -10 $log\n";
+		system("$SUDO tail -10 $log");
 		exit(1);
 	}
         my $sectop = "/sys/module/dtracedrv/sections/";

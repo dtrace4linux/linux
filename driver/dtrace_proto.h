@@ -59,6 +59,7 @@ void	cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs);
 void	prcom_add_instruction(char *name, uint8_t *instr);
 void	prcom_add_function(char *probe, char *func);
 void	dtrace_parse_kernel(void (*callback)(uint8_t *, int));
+void	dtrace_instr_dump(char *label, uint8_t *insn);
 
 # endif
 

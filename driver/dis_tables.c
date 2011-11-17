@@ -33,6 +33,9 @@
 #if defined(linux)
 typedef unsigned int uint_t;
 typedef unsigned long long uint64_t;
+typedef unsigned int uint32_t;
+typedef unsigned short uint16_t;
+typedef long long int64_t;
 typedef unsigned char uchar_t;
 typedef unsigned int size_t;
 typedef unsigned char uint8_t;
@@ -1759,6 +1762,7 @@ dtrace_get_operand(dis86_t *x, uint_t mode, uint_t r_m, int wbit, int opindex)
 	 */
 	if (r_m == ESP_REGNO || r_m == ESP_REGNO + 8) {
 		have_SIB = 1;
+		base = 0; /* Avoid compiler thinking base is used before defined */
 		dtrace_get_SIB(x, &ss, &index, &base);
 		if (x->d86_error)
 			return;

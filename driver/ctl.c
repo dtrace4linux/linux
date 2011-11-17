@@ -584,8 +584,9 @@ static int proc_pident_readdir2(struct file *filp,
 
 int ctl_init(void)
 {
+/*
 	dtrace_printf("ctl loaded: /proc/pid/ctl now available\n");
-
+*/
 	return 0;
 }
 void ctl_exit(void)

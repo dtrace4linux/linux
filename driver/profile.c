@@ -538,7 +538,7 @@ dtrace_profile_init(void)
 	initted = TRUE;
 
 	profile_attach();
-	dtrace_printf("profile loaded: /dev/dtrace-profile available\n");
+	dtrace_printf("profile loaded: /dev/dtrace_profile available\n");
 	return 0;
 }
 

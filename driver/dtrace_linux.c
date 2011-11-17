@@ -85,7 +85,7 @@ int	dtrace_printf_disable;
 /**********************************************************************/
 int driver_initted;
 
-int
+asmlinkage int
 printk(const char *fmt, ...)
 {
 	return 0;
@@ -270,8 +270,11 @@ extern unsigned long cnt_xcall4;
 extern unsigned long cnt_xcall5;
 extern unsigned long long cnt_xcall6;
 extern unsigned long long cnt_xcall7;
+extern unsigned long cnt_xcall8;
 extern unsigned long cnt_nmi1;
 extern unsigned long cnt_nmi2;
+extern unsigned long long cnt_timer1;
+extern unsigned long long cnt_timer2;
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -752,16 +755,17 @@ dtrace_int1_handler(int type, struct pt_regs *regs)
 /**********************************************************************/
 static unsigned long cnt_int3_1;
 static unsigned long cnt_int3_2;
+static unsigned long cnt_int3_3;
 int dtrace_int_disable;
 int 
 dtrace_int3_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 	cpu_trap_t	*tp;
 	int	ret;
-static unsigned long cnt;
 
-//dtrace_printf("#%lu INT3 PC:%p REGS:%p CPU:%d mode:%d\n", cnt_int3_1++, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
+//dtrace_printf("#%lu INT3 PC:%p REGS:%p CPU:%d mode:%d\n", cnt_int3_1, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
 //preempt_disable();
+	cnt_int3_1++;
 
 	/***********************************************/
 	/*   Are  we idle, or already single stepping  */
@@ -840,7 +844,8 @@ static unsigned long cnt;
 	/*   We  need to find the underlying probe so  */
 	/*   we can unpatch it.			       */
 	/***********************************************/
-dtrace_printf("recursive-int[%lu]: CPU:%d PC:%p\n", cnt++, smp_processor_id(), (void *) regs->r_pc-1);
+	cnt_int3_3++;
+dtrace_printf("recursive-int[%lu]: CPU:%d PC:%p\n", cnt_int3_3, smp_processor_id(), (void *) regs->r_pc-1);
 dtrace_printf_disable = 1;
 
 switch_off:
@@ -1375,7 +1380,7 @@ void
 dtrace_printf(char *fmt, ...)
 {	short	ch;
 	va_list	ap;
-	unsigned long n;
+	unsigned long long n;
 	char	*cp;
 	short	i;
 	short	l_mode;
@@ -1384,7 +1389,6 @@ static	char	tmp[40];
 	short	width;
 static char digits[] = "0123456789abcdef";
 # define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
-static mutex_t lock;
 
 # if 0
 	/***********************************************/
@@ -1403,7 +1407,7 @@ static mutex_t lock;
 		va_end(ap);
 		return;
 	}
-	dmutex_enter(&lock);
+
 	while ((ch = *fmt++) != '\0') {
 		if (ch != '%') {
 			ADDCH(ch);
@@ -1430,15 +1434,24 @@ static mutex_t lock;
 			l_mode = TRUE;
 			if ((ch = *fmt++) == '\0')
 				break;
+			if (ch == 'l') {
+				l_mode++;
+				if ((ch = *fmt++) == '\0')
+			  		break;
+			}
 		}
 		switch (ch) {
 		  case 'c':
-		  	n = (char) va_arg(ap, int);
-			ADDCH(n);
+		  	ch = (char) va_arg(ap, int);
+			ADDCH(ch);
 		  	break;
 		  case 'd':
 		  case 'u':
-		  	n = va_arg(ap, int);
+			if (l_mode) {
+			  	n = va_arg(ap, unsigned long);
+			} else {
+			  	n = va_arg(ap, unsigned int);
+			}
 			if (ch == 'd' && (long) n < 0) {
 				ADDCH('-');
 				n = -n;
@@ -1481,13 +1494,15 @@ static mutex_t lock;
 		  	break;
 		  case 's':
 		  	cp = va_arg(ap, char *);
+			if (cp == NULL)
+				cp = "(null)";
 			while (*cp) {
 				ADDCH(*cp++);
 			}
 		  	break;
 		  }
 	}
-	dmutex_exit(&lock);
+
 	va_end(ap);
 }
 
@@ -1748,11 +1763,25 @@ is_kernel_text(unsigned long p)
 	return 0;
 }
 
+/**********************************************************************/
+/*   Function  for  validating  we  dont  have  IRQs  disabled  on a  */
+/*   sleeping kalloc.						      */
+/**********************************************************************/
+void
+km_check(unsigned long flags)
+{
+	if (irqs_disabled() && flags == KM_NOSLEEP) {
+		dtrace_printf("sleeping with ints disabled\n");
+		dump_stack();
+	}
+}
+
 # define	VMALLOC_SIZE	(100 * 1024)
 void *
 kmem_alloc(size_t size, int flags)
 {	void *ptr;
 
+//km_check(flags);
 	if (size > VMALLOC_SIZE) {
 		ptr = vmalloc(size);
 	} else {
@@ -1766,6 +1795,7 @@ void *
 kmem_zalloc(size_t size, int flags)
 {	void *ptr;
 
+//km_check(flags);
 	if (size > VMALLOC_SIZE) {
 		ptr = vmalloc(size);
 		if (ptr)
@@ -2122,7 +2152,7 @@ static mutex_t par_mutex;
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
 {	par_alloc_t *p;
-
+return NULL;
 	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {
@@ -2170,6 +2200,7 @@ par_free(int domain, void *ptr)
 {	par_alloc_t *p = (par_alloc_t *) ptr;
 	par_alloc_t *p1;
 
+return NULL;
 	dmutex_enter(&par_mutex);
 	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;
@@ -2198,6 +2229,7 @@ static void *
 par_lookup(void *ptr)
 {	par_alloc_t *p;
 	
+return NULL;
 	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr) {
@@ -2562,8 +2594,10 @@ uwrite(proc_t *p, void *src, size_t len, uintptr_t addr)
 /**********************************************************************/
 /*   Need to implement this or use the unr code from FreeBSD.	      */
 /**********************************************************************/
+#define	SEQ_MAGIC (('m' << 24) | ('s' << 16) | ('e' << 8) | 'q')
 typedef struct seq_t {
 	mutex_t seq_mutex;
+	long	seq_magic;
 	int	seq_id;
 	} seq_t;
 
@@ -2574,10 +2608,19 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 
 	if (TRACE_ALLOC || dtrace_mem_alloc)
 		dtrace_printf("vmem_alloc(size=%d)\n", (int) s);
+	if (seqp->seq_magic != SEQ_MAGIC) {
+		static int once = TRUE;
+		if (once) {
+			once = FALSE;
+			dtrace_printf("%p: vmem_alloc: bad magic\n", seqp);
+		}
+	}
 
-	dmutex_enter(&seqp->seq_mutex);
+if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d fl=%d\n", __func__, __LINE__, irqs_disabled(), native_save_fl());
+	mutex_enter(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
-	dmutex_exit(&seqp->seq_mutex);
+	mutex_exit(&seqp->seq_mutex);
+if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d fl=%d\n", __func__, __LINE__, irqs_disabled(), native_save_fl());
 	return ret;
 }
 
@@ -2592,20 +2635,32 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 
 	dmutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
+	seqp->seq_magic = SEQ_MAGIC;
 
+	dtrace_printf("vmem_create(%s) %p cpu:%d\n", name, seqp, smp_processor_id());
+	mutex_dump(&seqp->seq_mutex);
+	
 	return seqp;
 }
 
 void
 vmem_free(vmem_t *hdr, void *ptr, size_t size)
-{
+{	seq_t *seqp = (seq_t *) hdr;
+
 	if (TRACE_ALLOC || dtrace_here)
 		dtrace_printf("vmem_free(ptr=%p, size=%d)\n", ptr, (int) size);
+	if (seqp->seq_magic != SEQ_MAGIC) {
+		dtrace_printf("%p: vmem_free: bad magic\n", seqp);
+	}
 
 }
 void 
 vmem_destroy(vmem_t *hdr)
-{
+{	seq_t *seqp = (seq_t *) hdr;
+
+	if (seqp->seq_magic != SEQ_MAGIC) {
+		dtrace_printf("%p: vmem_destroy: bad magic\n", seqp);
+	}
 	kfree(hdr);
 }
 /**********************************************************************/
@@ -2971,6 +3026,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 	extern unsigned long cnt_probes;
 	extern unsigned long cnt_mtx1;
 	extern unsigned long cnt_mtx2;
+	extern unsigned long cnt_mtx3;
 # define TYPE_LONG 0
 # define TYPE_INT  1
 # define TYPE_LONG_LONG 2
@@ -2980,20 +3036,24 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		char	*name;
 		} stats[] = {
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
-		{TYPE_LONG, &cnt_probe_recursion, "probe_recursion"},
+		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
 		{TYPE_LONG, &cnt_int3_1, "int3_1"},
-		{TYPE_LONG, &cnt_int3_2, "int3_2"},
+		{TYPE_LONG, &cnt_int3_2, "int3_2(ours)"},
+		{TYPE_LONG, &cnt_int3_3, "int3_3(reentr)"},
 		{TYPE_LONG, &cnt_gpf1, "gpf1"},
 		{TYPE_LONG, &cnt_gpf2, "gpf2"},
 		{TYPE_LONG, &cnt_ipi1, "ipi1"},
 		{TYPE_LONG, &cnt_mtx1, "mtx1"},
 		{TYPE_LONG, &cnt_mtx2, "mtx2"},
+		{TYPE_LONG, &cnt_mtx3, "mtx3"},
 		{TYPE_LONG, &cnt_nmi1, "nmi1"},
 		{TYPE_LONG, &cnt_nmi2, "nmi2"},
 		{TYPE_LONG, &cnt_pf1, "pf1"},
 		{TYPE_LONG, &cnt_pf2, "pf2"},
 		{TYPE_LONG, &cnt_snp1, "snp1"},
 		{TYPE_LONG, &cnt_snp2, "snp2"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer1, "timer1"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer2, "timer2(rec)"},
 		{TYPE_LONG, &cnt_xcall0, "xcall0"},
 		{TYPE_LONG, &cnt_xcall1, "xcall1"},
 		{TYPE_LONG, &cnt_xcall2, "xcall2"},
@@ -3002,6 +3062,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG, &cnt_xcall5, "xcall5(spinlock)"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_xcall6, "xcall6(ack_waits)"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_xcall7, "xcall7(fast)"},
+		{TYPE_LONG, (unsigned long *) &cnt_xcall8, "xcall8"},
 		{TYPE_INT, (unsigned long *) &dtrace_shutdown, "shutdown"},
 		{0}
 		};

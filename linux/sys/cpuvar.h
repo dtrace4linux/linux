@@ -128,6 +128,7 @@ typedef struct cpu_core {
 	/*   Here for single stepping.                 */
 	/***********************************************/
 	int		cpuc_mode;
+	int		cpuc_nmi;	/* Inside a bkpt from an NMI. */
 	cpu_trap_t	cpuc_trap[2];
 
 	/***********************************************/

@@ -1,3 +1,48 @@
+Thu Nov 17 22:09:35 2011  fox
+
+     578* dt_module.c: Fix unsigned isue leading to core dump.
+
+     577* dtrace_linux.c, mutex.c: Add better diagnostics/error detection
+          to mutex. Fix issue in dmutex_init which could lead to memory
+	  corruption/kernel core dump.
+
+Tue Nov 15 22:53:23 2011  fox
+
+     576* driver/dtrace_linux.c: dtrace_printf() Add support for %ll
+          specifier. Avoid core dump on printing null string.
+
+	  Add magic number checking to vmem allocate/free functions.
+
+Sun Nov 13 11:45:49 2011  fox
+
+     575* Archive: 1.0128
+
+     574* systrace.c: Fix for rt_sigsuspend in 2.6.26 and above kernels.
+          Was causing build/sys64 to core dump or panic the kernel.
+
+Fri Nov 11 23:03:36 2011  fox
+
+     573* tests/instr.c: Instruction dumper, for diagnosing instruction
+          single stepping issues. We dont build it, but theres a comment
+	  to show how to build it.
+
+Thu Nov 10 23:12:04 2011  fox
+
+     572* fbt_linux.c: /proc/dtrace/fbt now include the probe hit count
+          and an instruction dumper so we can verify if we are handling
+	  all the fbt probes properly when single stepping.
+
+Wed Nov  9 20:37:30 2011  fox
+
+     571* dtrace_linux.c: Remove redundant mtx counters, add extra int3
+          counters. Remove dtrace_printf() mutex since that cannot work.
+
+     570* tests/syscalls.c: Remove non-determinism and random segfaults.
+
+Tue Nov  8 21:53:44 2011  fox
+
+     569* vminfo.c: Fix config issue for fc15/2.6.38 kernel.
+
 Mon Nov  7 23:00:12 2011  fox
 
      568* mutex.c, linux_types.h, cyclic_linux.c: Revert cyclic_linux.c

@@ -568,7 +568,7 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *offset,
                         char **modname, char *namebuf);
 void
-dtrace_parse_kernel_function(void (*callback)(), struct module *modp, char *name, uint8_t *instr, uint8_t *limit)
+dtrace_parse_kernel_function(void (*callback)(uint8_t *, int), struct module *modp, char *name, uint8_t *instr, uint8_t *limit)
 {
 	int	size;
 	int	modrm;
@@ -600,7 +600,7 @@ printk("inst:%p %d %02x %02x %02x %02x %02x %04x\n", instr, size, *instr, instr[
 	}
 }
 void
-dtrace_parse_kernel(void (*callback)())
+dtrace_parse_kernel(void (*callback)(uint8_t *, int))
 {
 	static struct module kern;
 	int	n;
@@ -953,7 +953,7 @@ prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
 		} else {
 			memset(ps, 0, sizeof *ps);
 		}
-		return ps;
+		return (uint64_t) ps;
 	}
 	return dtrace_getarg(argno, aframes);
 }

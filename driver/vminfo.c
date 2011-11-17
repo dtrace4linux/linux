@@ -68,7 +68,7 @@ vminfo_instr_callback(uint8_t *instr, int size)
 	int	offset = *(int *) (instr + 5);
 
 	for (i = 0; i < sdt_locator_cnt; i++) {
-		if (sdt_locator[i].f_offset == offset) {
+		if (sdt_locator[i].f_offset == (void *) (long) offset) {
 //			printk("callback: %p name=%s\n", instr, sdt_locator[i].f_name);
 			prcom_add_instruction(sdt_locator[i].f_name, instr);
 			return;
@@ -153,7 +153,7 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(UNEVICTABLE_PGSTRANDED), "vminfo:::unevictable_pgstranded");
 	sdt_add_locator(vm_event_addr(UNEVICTABLE_MLOCKFREED), "vminfo:::unevictable_mlockfreed");
 
-# ifdef CONFIG_TRANSPARENT_HUGEPAGE
+#if defined(CONFIG_TRANSPARENT_HUGEPAGE) && LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	sdt_add_locator(vm_event_addr(THP_FAULT_ALLOC), "vminfo:::thp_fault_alloc");
 	sdt_add_locator(vm_event_addr(THP_FAULT_FALLBACK), "vminfo:::thp_fault_fallback");
 	sdt_add_locator(vm_event_addr(THP_COLLAPSE_ALLOC), "vminfo:::thp_collapse_alloc");

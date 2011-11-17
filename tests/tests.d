@@ -81,6 +81,7 @@ note:
 d:
 	BEGIN {
 		cnt = 0;
+		tstart = timestamp;
 	}
 	syscall::: {
 		this->pid = pid;
@@ -219,14 +220,32 @@ d:
 name: profile-4
 note: Check we dont lose a rare timer in the midst of lots of timers.
 d:
+	BEGIN {
+		tstart = timestamp;
+		}
 	int cnt_1ms, cnt_1s;
 	fbt::a*: {}
 	tick-1ms { cnt_1ms++; } 
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { cnt_1s++; 
 		printf("got %d + %d\n", cnt_1ms, cnt_1s);
 		}
 	tick-5s { 
 		printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
+		exit(0); 
+		}
+##################################################################
+name: profile-5
+note: Check we dont lose a rare timer in the midst of lots of timers.
+d:
+	int cnt_1ms, cnt_1s, cnt_fbt;
+	fbt::: {cnt_fbt++;}
+	tick-1ms { cnt_1ms++; } 
+	tick-1s { cnt_1s++; 
+		printf("got %d + %d, fbt=%d\n", cnt_1ms, cnt_1s, cnt_fbt);
+		}
+	tick-5s { 
+		printf("the end: got %d + %d, fbt=%d\n", cnt_1ms, cnt_1s, cnt_fbt);
 		exit(0); 
 		}
 ##################################################################
@@ -261,8 +280,33 @@ d:
 	fbt:kernel:a*: {} 
 	dtrace:::BEGIN { exit(0); }
 ##################################################################
+name: BEGIN-fbt:exec-time
+note: Test from Nigel Smith
+d:
+	fbt:kernel:: {} 
+	dtrace:::BEGIN { exit(0); }
+##################################################################
 name: fbt-BEGIN-exit
 note: Variant of bug report from Nigel Smith
 d:
 	fbt:kernel:: BEGIN {exit(0); } 
+
+##################################################################
+name: tcp-1
+note: Check tcp probe. Ideally need to invoke TCP activity, but this will 
+	just let us show we dont crash the kernel.
+d:
+	tcp::: {printf("%s", execname); }
+	tick-5s { 
+		exit(0); 
+		}
+
+##################################################################
+name: vminfo-1
+note: Check vminfo does something
+d:
+	vminfo::: {printf("%s", execname); }
+	tick-5s { 
+		exit(0); 
+		}
 

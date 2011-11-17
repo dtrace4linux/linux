@@ -1,0 +1,15 @@
+#!/bin/sh
+while true
+do
+	echo ''
+	load
+	cat /proc/dtrace/trace
+	grep --color irq=1 /proc/dtrace/trace
+	if [ $? != 1 ]; then
+		break
+	fi
+	grep --color fail /proc/dtrace/trace
+	if [ $? != 1 ]; then
+		break
+	fi
+done

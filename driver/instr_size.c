@@ -29,7 +29,25 @@
 
 
 //#pragma ident	"@(#)instr_size.c	1.14	05/07/08 SMI"
-#include <linux_types.h>
+#if defined(USERMODE)
+typedef unsigned int uint_t;
+typedef unsigned long long uint64_t;
+typedef unsigned char uchar_t;
+typedef unsigned int size_t;
+typedef unsigned char uint8_t;
+# define uintptr_t unsigned long
+# define NULL 0
+
+# define	DATAMODEL_LP64 2
+# define	DATAMODEL_NATIVE 2
+
+# define	model_t	int
+
+# else
+
+#include <dtrace_linux.h>
+#include <sys/dtrace_impl.h>
+#include <dtrace_proto.h>
 # if defined(sun)
 #include <sys/proc.h>
 #include <sys/param.h>
@@ -39,6 +57,8 @@
 #include <vm/seg_enum.h>
 #include <sys/privregs.h>
 # endif
+
+#endif
 
 #include "dis_tables.h"
 
@@ -167,6 +187,29 @@ if (0)
 	  }
 	*modrm = rmindex;
 	return size;
+}
+/**********************************************************************/
+/*   Utility  to partially disassemble an instruction. Useful whilst  */
+/*   looking around, not needed during core processing.		      */
+/**********************************************************************/
+void
+dtrace_instr_dump(char *label, uint8_t *insn)
+{	int	 s = dtrace_instr_size(insn);
+	char	buf[128];
+	char	*cp;
+	int	i;
+
+	snprintf(buf, sizeof buf, "%s %p: ", label, insn);
+	cp = buf + strlen(buf);
+	for (i = 0; i < s; i++) {
+		snprintf(cp, sizeof buf - (cp - buf) - 3, "%02x ", *insn++);
+		cp += strlen(cp);
+	}
+#if !defined(DIS_TEXT)
+	*cp++ = '\n';
+#endif
+	*cp++ = '\0';
+	printk(buf);
 }
 #endif
 # if 0

@@ -17,6 +17,11 @@ static int line;
 void sigchld()
 {
 }
+int
+clone_func(void *arg)
+{
+	return 0;
+}
 void int_handler()
 {
 	printf("SIGINT invoked\n");
@@ -99,17 +104,21 @@ int main(int argc, char **argv)
 	if (fork() == 0)
 		exit(0);
 	line = __LINE__;
-	clone();
+	clone(clone_func, 0, 0, 0);
 	line = __LINE__;
 	brk(0);
 	sbrk(0);
 	line = __LINE__;
 	mmap(0, 0, 0, 0, 0);
+	line = __LINE__;
 	uname(0);
+	line = __LINE__;
 	getcwd(0, 0);
+	line = __LINE__;
 	iopl(3);
 	line = __LINE__;
 	unlink("/nothing");
+	line = __LINE__;
 	rmdir("/nothing");
 	chmod(0, 0);
 	line = __LINE__;
@@ -132,6 +141,16 @@ int main(int argc, char **argv)
 	line = __LINE__;
 	if (fork() == 0)
 		exit(0);
+
+	{
+	sigset_t oldset;
+	sigset_t set;
+	sigprocmask(SIG_BLOCK, NULL, &oldset);
+	alarm(1);
+	sigemptyset(&set);
+	sigaddset(&set, SIGALRM);
+	sigsuspend(&set);
+	}
 
 	line = __LINE__;
 	execve("/bin/df", args, NULL);

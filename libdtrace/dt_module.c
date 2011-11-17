@@ -967,7 +967,7 @@ ctf_add_integer(ctfp, CTF_ADD_ROOT, name, &enc);
 	/***********************************************/
 	if (bits == 64) {
 		Elf64_Sym **asmap = dmp->dm_asmap;
-		for (i = 0; i < dmp->dm_aslen-1; i++) {
+		for (i = 0; i < (int) dmp->dm_aslen-1; i++) {
 			asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
 /*if (strcmp("cur_thread", dmp->dm_strtab.cts_data + asmap[i]->st_name) == 0)
 printf("%s val=%p size=%d\n", dmp->dm_strtab.cts_data + asmap[i]->st_name, 

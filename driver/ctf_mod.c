@@ -179,7 +179,7 @@ ctf_init(void)
 		printk(KERN_WARNING "ctf: Unable to register misc device\n");
 		return ret;
 		}
-	dtrace_printf("ctf driver loaded /proc/ctf and /dev/ctf now available\n");
+	dtrace_printf("ctf loaded: /dev/ctf now available\n");
 	initted = TRUE;
 
 	return 0;

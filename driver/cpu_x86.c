@@ -327,6 +327,15 @@ cpu_fix_rel(cpu_core_t *this_cpu, cpu_trap_t *tp, unsigned char *orig_pc)
 		/*   cache  buffer,  vs the original location  */
 		/*   of the instruction.		       */
 		/***********************************************/
+
+		/***********************************************/
+		/*   We  have  some  complications  here. The  */
+		/*   nn(%rip)  offset might be 16 or 32 bits,  */
+		/*   but  we  might  be  too  far away in our  */
+		/*   buffer to handle the displacement, so we  */
+		/*   will  need to map the instruction to use  */
+		/*   a long offset.			       */
+		/***********************************************/
 		unsigned char *target;
 		u32 new_target;
 

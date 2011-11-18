@@ -211,6 +211,28 @@ dtrace_interrupt_disable(void)
 	return ret;
 # endif
 }
+dtrace_icookie_t
+dtrace_interrupt_get(void)
+{	long	ret;
+
+#if defined(__amd64)
+	__asm(
+        	"pushfq\n"
+        	"popq    %%rax\n"
+		: "=a" (ret)
+	);
+	return ret;
+#elif defined(__i386)
+
+	__asm(
+		"pushf\n"
+		"pop %%eax\n"
+		: "=a" (ret)
+		:
+	);
+	return ret;
+# endif
+}
 /**********************************************************************/
 /*   This   routine   restores   interrupts   previously   saved  by  */
 /*   dtrace_interrupt_disable.  This  allows  nested disable/enable,  */

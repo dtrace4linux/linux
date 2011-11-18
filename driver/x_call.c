@@ -247,7 +247,7 @@ ack_wait(int c, int attempts)
 				cpumask_t mask;
 				cpus_clear(mask);
 				cpu_set(c, mask);
-				nmi_masks[c] = 1;
+//				nmi_masks[c] = 1;
 //				send_ipi_interrupt(&mask, 2); //NMI_VECTOR);
 			}
 
@@ -550,7 +550,7 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 	        send_IPI_mask = get_proc_addr("cluster_send_IPI_mask");
 	if (send_IPI_mask == NULL) dtrace_printf("HELP ON send_ipi_interrupt!\n"); else
 	        send_IPI_mask(*mask, vector);
-# elseif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
+# elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
 	send_IPI_mask(*mask, vector);
 # else
 	apic->send_IPI_mask(mask, vector);

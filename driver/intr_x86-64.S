@@ -276,6 +276,16 @@ dtrace_int_nmi:
 	PUSH_REGS 0
 	call func_smp_processor_id
 	incq cnt_nmi1
+
+	/***********************************************/
+	/*   HACK  ALERT!  Disable NMIs whilst dtrace  */
+	/*   loaded,  since we cannot allow probes on  */
+	/*   the NMI call graph.		       */
+	/***********************************************/
+	POP_REGS 0
+	iretq
+	/* END HACK */
+
 	cmpb $0,nmi_masks(%rax)
 	jz  do_kernel_nmi
 	// For us...

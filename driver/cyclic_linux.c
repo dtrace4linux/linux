@@ -37,6 +37,9 @@
 # define MODE CYCLIC_LINUX
 #endif
 
+unsigned long long cnt_timer1;
+unsigned long long cnt_timer2;
+
 # if MODE == CYCLIC_SUN
 // needed if we go the Sun route..
 
@@ -140,8 +143,6 @@ init_cyclic()
 }
 
 extern int dtrace_shutdown;
-unsigned long long cnt_timer1;
-unsigned long long cnt_timer2;
 static void cyclic_tasklet_func(unsigned long arg)
 {	unsigned long cnt = 0;
 	//printk("in cyclic_tasklet_func\n");

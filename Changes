@@ -1,3 +1,11 @@
+Fri Nov 18 20:21:52 2011  fox
+
+     581* intr_x86-64.S: Disable NMIs whilst we are loaded to avoid calamity.
+
+     580* x_call.c: Fix NMI (dont invoke it).
+
+     579* x_call.c: Fix #elif.
+
 Thu Nov 17 22:09:35 2011  fox
 
      578* dt_module.c: Fix unsigned isue leading to core dump.

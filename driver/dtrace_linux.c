@@ -1164,8 +1164,10 @@ if (*first_v > ipi_vector)
 	/*   Let  us  grab  the  panics  if we are in  */
 	/*   debug mode.			       */
 	/***********************************************/
+#if 0
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
+#endif
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -1175,8 +1177,6 @@ dtrace_linux_fini(void)
 {	int	ret = 1;
 	gate_t *idt_table;
 
-        if (grab_panic)
-               atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	if (fn_profile_event_unregister) {
 		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
 	} else {
@@ -1210,8 +1210,10 @@ dtrace_linux_fini(void)
 	 		idt_table[ipi_vector] = saved_ipi;
 	}
 
+#if 0
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
+#endif
 	return ret;
 }
 /**********************************************************************/

@@ -28,7 +28,7 @@
 /*   when allocating memory if the irqs_disabled() function disagree  */
 /*   with the allocation flags.					      */
 /*--------------------------------------------------------------------*/
-/*  $Header: Last edited: 13-Nov-2011 1.1 $ */
+/*  $Header: Last edited: 18-Nov-2011 1.2 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -68,7 +68,7 @@ dtrace_printf("%p mutex recursive, dflag=%d %d\n", mp, dflag, mp->m_type);
         if (dflag)
                 flags = dtrace_interrupt_disable();
 	else
-		flags = native_save_fl();
+		flags = dtrace_interrupt_get();
 
         for (cnt = 0; dtrace_casptr(&mp->m_count, 0, (void *) 1) == (void *) 1; ) {
                 if (cnt++ > 10 * 1000 * 1000) {

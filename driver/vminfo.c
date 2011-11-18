@@ -130,7 +130,7 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(ALLOCSTALL), "vminfo:::allocstall");
 	sdt_add_locator(vm_event_addr(PGROTATED), "vminfo:::pgrotated");
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	sdt_add_locator(vm_event_addr(COMPACTBLOCKS), "vminfo:::compactblocks");
 	sdt_add_locator(vm_event_addr(COMPACTPAGES), "vminfo:::compactpages");
 	sdt_add_locator(vm_event_addr(COMPACTPAGEFAILED), "vminfo:::compactpagefailed");

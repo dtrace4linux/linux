@@ -262,6 +262,9 @@ static struct notifier_block panic_notifier = {
 /**********************************************************************/
 /*   Externs.							      */
 /**********************************************************************/
+extern unsigned long long cnt_syscall1;
+extern unsigned long long cnt_syscall2;
+extern unsigned long long cnt_syscall3;
 extern unsigned long cnt_xcall0;
 extern unsigned long cnt_xcall1;
 extern unsigned long cnt_xcall2;
@@ -1153,9 +1156,11 @@ if (*first_v > ipi_vector)
 		if (ipi_vector)
 			set_idt_entry(ipi_vector, (unsigned long) dtrace_int_ipi);
 		/***********************************************/
-		/*   Intercept NMI for when we have a blocked  */
-		/*   cpu  who  has  interrupts  enabled  when  */
-		/*   doing an IPI.			       */
+		/*   Intercept  NMI.  We  used  to use it for  */
+		/*   unblocking  xcall  IPI calls, but now we  */
+		/*   must  avoid  NMI  propagating  into  the  */
+		/*   kernel  because  we  cannot have a probe  */
+		/*   fire from an NMI.			       */
 		/***********************************************/
 		set_idt_entry(2, (unsigned long) dtrace_int_nmi);
 	}
@@ -3054,6 +3059,9 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG, &cnt_pf2, "pf2"},
 		{TYPE_LONG, &cnt_snp1, "snp1"},
 		{TYPE_LONG, &cnt_snp2, "snp2"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_syscall1, "syscall1"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_syscall2, "syscall2"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_syscall3, "syscall3"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer1, "timer1"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer2, "timer2(rec)"},
 		{TYPE_LONG, &cnt_xcall0, "xcall0"},

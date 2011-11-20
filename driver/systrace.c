@@ -89,6 +89,7 @@ Feb 2011
 #include <sys/systrace.h>
 #include <linux/vmalloc.h>
 #include <dtrace_proto.h>
+#include <linux/proc_fs.h>
 
 # if defined(sun)
 #include <sys/stat.h>
@@ -139,6 +140,10 @@ systrace_sysent_t *systrace_sysent32;
 struct sysent *sysent;
 struct sysent *sysent32;
 static dtrace_provider_id_t systrace_id;
+
+unsigned long long	cnt_syscall1;
+unsigned long long	cnt_syscall2;
+unsigned long long	cnt_syscall3;
 
 /**********************************************************************/
 /*   This  needs to be defined in sysent.c - just need to figure out  */
@@ -1278,11 +1283,14 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 			get_current(), linux_get_syscall());
 	}
 
+	sy->stsy_count++;
+	cnt_syscall1++;
         if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
 		cpu_core_t *this_cpu = cpu_get_this();
 		this_cpu->cpuc_regs = pregs;
 
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
+		cnt_syscall2++;
 	}
 
         /*
@@ -1471,6 +1479,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 		(*systrace_probe)(id, (uintptr_t) (rval < 0 ? -1 : rval), 
 		    (uintptr_t)(int64_t) rval,
                     (uintptr_t)((int64_t)rval >> 32), 0, 0, 0);
+		cnt_syscall3++;
 		}
 
 	if (do_slock) {
@@ -2112,6 +2121,74 @@ systrace_detach(void)
 	return (DDI_SUCCESS);
 }
 
+/**********************************************************************/
+/*   Code for /proc/dtrace/syscall				      */
+/**********************************************************************/
+static void *sys_seq_start(struct seq_file *seq, loff_t *pos)
+{
+	if (*pos >= NSYSCALL + NSYSCALL32)
+		return 0;
+	return (void *) (*pos + 1);
+}
+static void *sys_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+{	long	n = (long) v;
+//printk("%s pos=%p mcnt=%d\n", __func__, *pos, mcnt);
+	++*pos;
+
+	return (void *) (n - 2 > NSYSCALL + NSYSCALL32 ? NULL : (void *) (n + 1));
+}
+static void sys_seq_stop(struct seq_file *seq, void *v)
+{
+//printk("%s v=%p\n", __func__, v);
+}
+static int sys_seq_show(struct seq_file *seq, void *v)
+{
+	int	n = (int) (long) v;
+	systrace_sysent_t *sysp;
+
+//printk("%s v=%p\n", __func__, v);
+	if (n == 1) {
+		seq_printf(seq, "# arch sysno count name\n");
+		return 0;
+	}
+
+	n -= 2;
+	if (n >= NSYSCALL + NSYSCALL32)
+		return 0;
+
+	if (n > NSYSCALL)
+		sysp = &systrace_sysent32[n - NSYSCALL];
+	else
+		sysp = &systrace_sysent[n];
+
+	seq_printf(seq, "%s %3d %7llu %s\n",
+		n >= NSYSCALL ? "x32" : "x64",
+		n >= NSYSCALL ? n - NSYSCALL : n,
+		sysp->stsy_count,
+		n >= NSYSCALL ? syscallnames32[n - NSYSCALL] : syscallnames[n]);
+	return 0;
+}
+static struct seq_operations seq_ops = {
+	.start = sys_seq_start,
+	.next = sys_seq_next,
+	.stop = sys_seq_stop,
+	.show = sys_seq_show,
+	};
+static int sys_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &seq_ops);
+}
+static const struct file_operations sys_proc_fops = {
+        .owner   = THIS_MODULE,
+        .open    = sys_seq_open,
+        .read    = seq_read,
+        .llseek  = seq_lseek,
+        .release = seq_release,
+};
+
+/**********************************************************************/
+/*   Main starting interface for the driver.			      */
+/**********************************************************************/
 /*ARGSUSED*/
 static int
 systrace_open(struct inode *inode, struct file *file)
@@ -2133,6 +2210,7 @@ static int initted;
 
 int systrace_init(void)
 {	int	ret;
+	struct proc_dir_entry *ent;
 
 	/***********************************************/
 	/*   This  is  a  run-time  and not a compile  */
@@ -2157,6 +2235,9 @@ int systrace_init(void)
 
 	systrace_attach();
 
+	ent = create_proc_entry("dtrace/syscall", 0444, NULL);
+	if (ent)
+		ent->proc_fops = &sys_proc_fops;
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */
 	/***********************************************/
@@ -2166,6 +2247,7 @@ int systrace_init(void)
 }
 void systrace_exit(void)
 {
+	remove_proc_entry("dtrace/syscall", 0);
 	if (initted) {
 		systrace_detach();
 

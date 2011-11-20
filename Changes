@@ -1,3 +1,10 @@
+Sun Nov 20 10:46:20 2011  fox
+
+     583* systrace.c: Add syscall counting stats to /proc/dtrace/stats.
+
+     582* systrace.c: Add /proc/dtrace/syscall so we can see how many hits
+          and do coverage analysis.
+
 Fri Nov 18 20:21:52 2011  fox
 
      581* intr_x86-64.S: Disable NMIs whilst we are loaded to avoid calamity.

@@ -14,6 +14,47 @@
 static int cnt;
 static int line;
 
+void alarm_handler()
+{
+}
+/**********************************************************************/
+/*   Do something with signals. Dont wait for too long.		      */
+/**********************************************************************/
+void
+do_signals()
+{
+	sigset_t oldset;
+	sigset_t set;
+	int	pid;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGALRM);
+	sigprocmask(SIG_UNBLOCK, &set, &oldset);
+	signal(SIGALRM, alarm_handler);
+	pid = getpid();
+	if (fork() == 0) {
+		struct timeval tv;
+		tv.tv_sec = 0;
+		tv.tv_usec = 20000;
+		select(FD_SETSIZE, NULL, NULL, NULL, &tv);
+		kill(pid, SIGCONT);
+		exit(0);
+		}
+	alarm(1);
+	getpid();
+	sigsuspend(&oldset);
+}
+void
+do_slow()
+{	int	pid = getpid();
+
+	if (fork())
+		return;
+
+	sync();
+	exit(0);
+}
+
 void sigchld()
 {
 }
@@ -44,7 +85,11 @@ int main(int argc, char **argv)
 {	int	x = 0;
 	char	*args[10];
 
+	setuid(2);
+
 	signal(SIGCHLD, sigchld);
+	do_signals();
+
 	x += getpid();
 	x += getppid();
 	x += getuid();
@@ -65,6 +110,51 @@ int main(int argc, char **argv)
 	shmat(0);
 
 	line = __LINE__;
+	poll(-1, 0, 0);
+	signal(SIGSEGV, SIG_IGN);
+//	ppoll(-1, -1, -1, 0);
+	signal(SIGSEGV, SIG_DFL);
+	sched_yield();
+	readv(-1, 0, 0, 0);
+	writev(-1, 0, 0, 0);
+	msync(0, 0, 0);
+	fsync(-1);
+	fdatasync(-1);
+	semget(0, 0, 0);
+	semctl(0, 0, 0);
+	uselib(NULL);
+	pivot_root(0, 0);
+	personality(-1);
+	setfsuid(-1);
+	flock(-1, 0);
+	shmdt(0, 0, 0);
+	times(0);
+	mremap(0, 0, 0, 0, 0);
+	madvise(0, 0, 0);
+	fchown(-1, 0, 0);
+	lchown(0, 0, 0);
+	setreuid();
+	setregid();
+	link("/nonexistant", "/also-nonexistant");
+
+	do_slow();
+
+	symlink("/nothing", "/");
+	rename("/", "/");
+	mkdir("/junk/stuff////0", 0777);
+	geteuid();
+	getsid();
+	getpgid();
+	getresuid();
+	getresgid();
+	getpgid();
+	ptrace(-1, 0, 0, 0);
+	semop(0, 0, 0);
+	capget(0, 0);
+
+	line = __LINE__;
+	gettimeofday(0, 0);
+	settimeofday(0, 0);
 	dup(-1);
 	dup2(-1, -1);
 	shmctl(0, 0, 0, 0);
@@ -116,13 +206,24 @@ int main(int argc, char **argv)
 	getcwd(0, 0);
 	line = __LINE__;
 	iopl(3);
+	ioperm(0, 0, 0);
+	mount(0, 0, 0, 0, 0);
+	umount(0, 0);
+	umount(0, 0, 0);
+	swapon(0, 0);
+	swapoff(0);
+	sethostname(0);
 	line = __LINE__;
+	time(NULL);
 	unlink("/nothing");
 	line = __LINE__;
 	rmdir("/nothing");
 	chmod(0, 0);
 	line = __LINE__;
 	modify_ldt(0);
+
+	stat("/doing-nice", 0);
+	nice(0);
 
 	args[0] = "/bin/df";
 	args[1] = "-l";
@@ -142,16 +243,27 @@ int main(int argc, char **argv)
 	if (fork() == 0)
 		exit(0);
 
-	{
-	sigset_t oldset;
-	sigset_t set;
-	sigprocmask(SIG_BLOCK, NULL, &oldset);
-	alarm(1);
-	sigemptyset(&set);
-	sigaddset(&set, SIGALRM);
-	sigsuspend(&set);
+	{int status;
+	while (wait(&status) >= 0)
+		;
 	}
 
+	do_signals();
+
+	/***********************************************/
+	/*   Some syscalls arent directly accessible,  */
+	/*   e.g. legacy.			       */
+	/***********************************************/
+#if defined(_amd64)
+	syscall(174, 0, 0, 0); // create_module
+	syscall(176, 0, 0, 0); // delete_module
+	syscall(178, 0, 0, 0); // query_module
+#else
+	syscall(24, 0, 0, 0); // getuid
+	syscall(34, 0, 0, 0); // nice
+	syscall(59, 0, 0, 0); // oldolduname	
+	syscall(109, 0, 0, 0); // olduname	
+#endif
 	line = __LINE__;
 	execve("/bin/df", args, NULL);
 

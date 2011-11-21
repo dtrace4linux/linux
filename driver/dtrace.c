@@ -7767,14 +7767,11 @@ dtrace_probe_create(dtrace_provider_id_t prov, const char *mod,
 		ASSERT(MUTEX_HELD(&dtrace_lock));
 	} else {
 		mutex_enter(&dtrace_lock);
-if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d\n", __func__, __LINE__, irqs_disabled());
 	}
 
-if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d fl=%d\n", __func__, __LINE__, irqs_disabled(), native_save_fl());
 	id = (dtrace_id_t)(uintptr_t)vmem_alloc(dtrace_arena, 1,
 	    VM_BESTFIT | VM_SLEEP);
 
-if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d fl=%d\n", __func__, __LINE__, irqs_disabled(), native_save_fl());
 	probe = kmem_zalloc(sizeof (dtrace_probe_t), KM_SLEEP);
 	if (probe == NULL) {
 		printk("dtrace_probe_create: Cannot alloc sizeof(dtrace_probe_t) %d\n", (int) sizeof(dtrace_probe_t));
@@ -12819,6 +12816,7 @@ HERE();
 
 	now = dtrace_gethrtime();
 
+dtrace_printf("deadman: diff=%llu %llu %d\n", now - state->dts_laststatus, dtrace_deadman_user, now - state->dts_laststatus >= dtrace_deadman_user);
 	if (state != dtrace_anon.dta_state &&
 	    now - state->dts_laststatus >= dtrace_deadman_user)
 		return;

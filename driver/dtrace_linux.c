@@ -2623,11 +2623,9 @@ vmem_alloc(vmem_t *hdr, size_t s, int flags)
 		}
 	}
 
-if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d fl=%d\n", __func__, __LINE__, irqs_disabled(), native_save_fl());
 	mutex_enter(&seqp->seq_mutex);
 	ret = (void *) (long) ++seqp->seq_id;
 	mutex_exit(&seqp->seq_mutex);
-if (irqs_disabled()) dtrace_printf("%s:%d: irq=%d fl=%d\n", __func__, __LINE__, irqs_disabled(), native_save_fl());
 	return ret;
 }
 
@@ -2645,7 +2643,7 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 	seqp->seq_magic = SEQ_MAGIC;
 
 	dtrace_printf("vmem_create(%s) %p cpu:%d\n", name, seqp, smp_processor_id());
-	mutex_dump(&seqp->seq_mutex);
+/*	mutex_dump(&seqp->seq_mutex);*/
 	
 	return seqp;
 }

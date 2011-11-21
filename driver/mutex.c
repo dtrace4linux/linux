@@ -94,9 +94,10 @@ mutex_enter(mutex_t *mp)
 {
 mutex_t imp = *mp;
 
-if (mp->m_count && mp->m_type) {
-dtrace_printf("%p mutex...fail in mutex_enter count=%d type=%d\n", mp, mp->m_count, mp->m_type);
-}
+	if (mp->m_count && mp->m_type) {
+		dtrace_printf("%p mutex...fail in mutex_enter count=%d type=%d\n", mp, mp->m_count, mp->m_type);
+	}
+
 	cnt_mtx2++;
 	mutex_enter_common(mp, FALSE);
 	if (irqs_disabled()) {

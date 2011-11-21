@@ -90,6 +90,7 @@ Feb 2011
 #include <linux/vmalloc.h>
 #include <dtrace_proto.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 # if defined(sun)
 #include <sys/stat.h>

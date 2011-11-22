@@ -97,6 +97,7 @@ typedef struct fbt_probe {
 	uint8_t		fbtp_savedval;
 	uint8_t		fbtp_inslen;	/* Length of instr we are patching */
 	char		fbtp_modrm;	/* Offset to modrm byte of instruction */
+	uint8_t		fbtp_type;
 	uintptr_t	fbtp_roffset;
 	dtrace_id_t	fbtp_id;
 	char		*fbtp_name;
@@ -581,6 +582,7 @@ fbt_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
 	/***********************************************/
 	fbt->fbtp_savedval = *instr;
 	fbt->fbtp_inslen = size;
+	fbt->fbtp_type = 0; /* entry */
 //if (modrm >= 0 && (instr[modrm] & 0xc7) == 0x05) printk("modrm %s %p rm=%d\n", name, instr, modrm);
 	fbt->fbtp_modrm = modrm;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
@@ -653,6 +655,7 @@ return 1;
 	/***********************************************/
 	fbt->fbtp_savedval = *instr;
 	fbt->fbtp_inslen = size;
+	fbt->fbtp_type = 1; /* return */
 	fbt->fbtp_modrm = -1;
 	fbt->fbtp_patchval = FBT_PATCHVAL;
 	fbt->fbtp_hashnext = fbt_probetab[FBT_ADDR2NDX(instr)];
@@ -1230,7 +1233,7 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 		}
 	cp = my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
 		&size, &offset, &modname, name);
-	seq_printf(seq, "%d %04u %p %02x %d %2d %s:%s %s\n", n-1, 
+	seq_printf(seq, "%d %04u %p %02x %d %2d %s:%s:%s %s\n", n-1, 
 		fbt->fbtp_fired,
 		fbt->fbtp_patchpoint,
 		fbt->fbtp_savedval,
@@ -1238,6 +1241,7 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 		fbt->fbtp_modrm,
 		modname ? modname : "kernel",
 		cp ? cp : "NULL",
+		fbt->fbtp_type ? "return" : "entry",
 		ibuf);
 	return 0;
 }

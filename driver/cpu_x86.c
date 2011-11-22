@@ -16,7 +16,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 27-Jul-2010 1.5 $ 			      */
+/*   $Header: Last edited: 22-Nov-2011 1.6 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -38,9 +38,47 @@ int
 cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 {	uchar_t *pc = tp->ct_instr_buf;
 	greg_t *sp;
-	int	keep_going = FALSE;
+	int	keep_going;
 
 	pc = cpu_skip_prefix(pc);
+
+	/***********************************************/
+	/*   For  some  instructions,  we  need to be  */
+	/*   careful of the IF/TF flags. So, do these  */
+	/*   first.				       */
+	/***********************************************/
+	switch (*pc) {
+	  case 0x9c: // pushfl
+	  	/***********************************************/
+	  	/*   If  we push flags, we have two copies on  */
+	  	/*   the stack - the one for the instruction,  */
+	  	/*   and the one for pt_regs we pushed on the  */
+	  	/*   stack  as  part  of  the  trap  handler.  */
+	  	/*   Update  the  invokers  flags, since ours  */
+	  	/*   are useless at this point (or, that they  */
+	  	/*   need to agree).			       */
+		/*   We  just  pushed  the  flags,  but those  */
+		/*   flags  would  contain the TF bit set, so  */
+		/*   we  must turn that off. Also, dont touch  */
+		/*   the  IF bit - that stays as whatever the  */
+		/*   original  code  had it. If we attempt to  */
+		/*   execute the switch-statement below, then  */
+		/*   we  would  turn  off  IF,  and  hit  the  */
+		/*   infamous    "BUG_ON/WARN_ONCE"    errors  */
+		/*   complaining  that  a  caller  may  sleep  */
+		/*   because interrupts are disabled.	       */
+	  	/***********************************************/
+		{greg_t *fl = (greg_t *) regs->r_sp;
+		regs->r_rfl &= ~X86_EFLAGS_TF;
+		/***********************************************/
+		/*   Put back the original flags at the point  */
+		/*   we were going to breakpoint.	       */
+		/***********************************************/
+		*fl = tp->ct_eflags;
+		regs->r_pc = (greg_t) tp->ct_orig_pc;
+	  	return FALSE;
+		}
+	  }
 
 	/***********************************************/
 	/*   Dont undo IF flag for IRET instruction.   */
@@ -54,6 +92,7 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 		regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF|X86_EFLAGS_IF)) | 
 			(tp->ct_eflags & (X86_EFLAGS_IF));
 
+	keep_going = FALSE;
 	switch (*pc) {
 	  case 0x70: case 0x71: case 0x72: case 0x73:
 	  case 0x74: case 0x75: case 0x76: case 0x77:
@@ -72,21 +111,12 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 			regs->r_pc = (greg_t) tp->ct_orig_pc;
 		break;
 
+#if 0
 	  case 0x9c: // pushfl
-	  	/***********************************************/
-	  	/*   If  we push flags, we have two copies on  */
-	  	/*   the stack - the one for the instruction,  */
-	  	/*   and the one for pt_regs we pushed on the  */
-	  	/*   stack  as  part  of  the  trap  handler.  */
-	  	/*   Update  the  invokers  flags, since ours  */
-	  	/*   are useless at this point (or, that they  */
-	  	/*   need to agree).			       */
-	  	/***********************************************/
-		{greg_t *fl = (greg_t *) regs->r_sp;
-		*fl = regs->r_rfl;
-		regs->r_pc = (greg_t) tp->ct_orig_pc;
+	  	/* NOTREACHED -- see above */
 	  	break;
 		}
+#endif
 
 	  case 0xc2: //ret imm16
 	  case 0xc3: //ret

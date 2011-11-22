@@ -1,3 +1,8 @@
+Tue Nov 22 22:30:00 2011  fox
+
+     586* driver/cpu_x86.c: When handling PUSHF instruction, dont leave
+          interrupts disabled. Cause random crashes/kernel assertion issues.
+
 Mon Nov 21 22:25:54 2011  fox
 
      585* driver/*: Remove some debug left behind. Some portability fixes.

@@ -259,10 +259,13 @@ int main(int argc, char **argv)
 	syscall(176, 0, 0, 0); // delete_module
 	syscall(178, 0, 0, 0); // query_module
 #else
-	syscall(24, 0, 0, 0); // getuid
+	syscall(0, 0, 0, 0); // restart_syscall
+	syscall(34, 0, 0, 0); // nice
 	syscall(34, 0, 0, 0); // nice
 	syscall(59, 0, 0, 0); // oldolduname	
 	syscall(109, 0, 0, 0); // olduname	
+	if (fork() == 0)
+		syscall(1, 0, 0, 0); // exit
 #endif
 	line = __LINE__;
 	execve("/bin/df", args, NULL);

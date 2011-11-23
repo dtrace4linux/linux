@@ -126,7 +126,6 @@ sub do_tests
 		exit(0);
 	}
 
-	$| = 1;
 	print "Tests:\n";
 	foreach my $info (@tests) {
 		if (@ARGV) {
@@ -178,6 +177,7 @@ sub main
 		);
 
 	usage() if $opts{help};
+	$| = 1;
 
 	$SIG{INT} = sub { $ctrl_c = 1; exit(0); };
 
@@ -265,6 +265,8 @@ sub spawn
 	if (fork() == 0) {
 		exec $cmd;
 	}
+
+	print time_string() . "=== Test: $name\n";
 	while (1) {
 		my $kid = waitpid(-1, WNOHANG);
 		if ($kid > 0) {
@@ -275,7 +277,15 @@ sub spawn
 		my $fh = new FileHandle("/proc/dtrace/stats");
 		my $probes = <$fh>;
 		chomp($probes);
-		print time_string() . "Running $name...$probes\n";
+		my ($pname, $val) = split(/=/, $probes);
+
+		$fh = new FileHandle("/proc/loadavg");
+		my $lav = <$fh>;
+		chomp($lav);
+
+		printf time_string() . "  $pname=%15s Load: $lav\n", 
+			commify($val);
+
 	}
 }
 sub time_string

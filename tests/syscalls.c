@@ -14,6 +14,8 @@
 static int cnt;
 static int line;
 
+static void trace(int line, char *msg);
+
 void alarm_handler()
 {
 }
@@ -27,6 +29,7 @@ do_signals()
 	sigset_t set;
 	int	pid;
 
+	trace(__LINE__, "starting do_signals");
 	sigemptyset(&set);
 	sigaddset(&set, SIGALRM);
 	sigprocmask(SIG_UNBLOCK, &set, &oldset);
@@ -42,7 +45,8 @@ do_signals()
 		}
 	alarm(1);
 	getpid();
-	sigsuspend(&oldset);
+	trace(__LINE__, "do_signals:calling sigsuspend");
+	sigsuspend(&set);
 }
 void
 do_slow()
@@ -81,6 +85,14 @@ void sigusr1()
 	syscall(119, 0, 0, 0); /* sigreturn */
 #endif
 }
+static void
+trace(int line, char *msg)
+{	char	buf[1024];
+
+	sprintf(buf, "/tracing:/line %d - %s", line, msg);
+	open(buf, O_RDONLY);
+}
+
 int main(int argc, char **argv)
 {	int	x = 0;
 	char	*args[10];
@@ -248,19 +260,18 @@ int main(int argc, char **argv)
 		;
 	}
 
-	do_signals();
-
 	/***********************************************/
 	/*   Some syscalls arent directly accessible,  */
 	/*   e.g. legacy.			       */
 	/***********************************************/
-#if defined(_amd64)
+#if defined(__x86_64__)
+	trace(__LINE__, "x64 syscalls");
 	syscall(174, 0, 0, 0); // create_module
 	syscall(176, 0, 0, 0); // delete_module
 	syscall(178, 0, 0, 0); // query_module
 #else
+	trace(__LINE__, "x32 syscalls");
 	syscall(0, 0, 0, 0); // restart_syscall
-	syscall(34, 0, 0, 0); // nice
 	syscall(34, 0, 0, 0); // nice
 	syscall(59, 0, 0, 0); // oldolduname	
 	syscall(109, 0, 0, 0); // olduname	

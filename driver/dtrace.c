@@ -6528,9 +6528,11 @@ HERE();
 						/*   viable. I have seen this on Ubuntu 8.04,  */
 						/*   gcc 4.2.4, i386.			       */
 						/***********************************************/
-						if (act == valoffs) {
-							printk("defeat compiler bug! %p act=%p s=%x/%x %x %x\n", 
-								&act, valoffs, end, act, s, size);
+						if (act == (dtrace_action_t *) valoffs) {
+							printk("defeat compiler bug! %p act=%lx s=%lx/%p %lx %lx\n", 
+								&act, (long) valoffs, 
+								end, act, 
+								(long) s, (long) size);
 						}
 #endif
 						DTRACE_STORE(uint8_t, tomax,
@@ -10404,7 +10406,9 @@ HERE();
 		 * cache ID for the probe, disable it and sync one more time
 		 * to assure that we'll never hit it again.
 		 */
+# if !linux
 		dtrace_provider_t *prov = probe->dtpr_provider;
+# endif
 
 		ASSERT(ecb->dte_next == NULL);
 		ASSERT(probe->dtpr_ecb_last == NULL);
@@ -12816,7 +12820,7 @@ HERE();
 
 	now = dtrace_gethrtime();
 
-dtrace_printf("deadman: diff=%llu %llu %d\n", now - state->dts_laststatus, dtrace_deadman_user, now - state->dts_laststatus >= dtrace_deadman_user);
+//dtrace_printf("deadman: diff=%llu %llu %d\n", now - state->dts_laststatus, dtrace_deadman_user, now - state->dts_laststatus >= dtrace_deadman_user);
 	if (state != dtrace_anon.dta_state &&
 	    now - state->dts_laststatus >= dtrace_deadman_user)
 		return;

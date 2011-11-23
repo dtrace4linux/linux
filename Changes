@@ -1,3 +1,11 @@
+Wed Nov 23 21:04:52 2011  fox
+
+     589* syscalls.c: Avoid hanging on sys64.
+
+     588* systrace.c: Add "*" to show probed syscalls.
+
+     587* vminfo.c: Avoid compile issue on older kernels.
+
 Tue Nov 22 22:30:00 2011  fox
 
      586* driver/cpu_x86.c: When handling PUSHF instruction, dont leave

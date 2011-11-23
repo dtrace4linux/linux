@@ -2146,10 +2146,11 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 {
 	int	n = (int) (long) v;
 	systrace_sysent_t *sysp;
+	struct sysent *syp;
 
 //printk("%s v=%p\n", __func__, v);
 	if (n == 1) {
-		seq_printf(seq, "# arch sysno count name\n");
+		seq_printf(seq, "# arch curvect origvect sysno count name\n");
 		return 0;
 	}
 
@@ -2157,14 +2158,19 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 	if (n >= NSYSCALL + NSYSCALL32)
 		return 0;
 
-	if (n > NSYSCALL)
+	if (n >= NSYSCALL) {
 		sysp = &systrace_sysent32[n - NSYSCALL];
-	else
+		syp = &sysent32[n - NSYSCALL];
+	} else {
 		sysp = &systrace_sysent[n];
+		syp = &sysent[n];
+	}
 
-	seq_printf(seq, "%s %3d %7llu %s\n",
+	seq_printf(seq, "%s%s %p %p %3d %8llu %s\n",
 		n >= NSYSCALL ? "x32" : "x64",
-		n >= NSYSCALL ? n - NSYSCALL : n,
+		syp->sy_callc == sysp->stsy_underlying ? " " : "*",
+		syp->sy_callc, sysp->stsy_underlying,
+		(int) (n >= NSYSCALL ? n - NSYSCALL : n),
 		sysp->stsy_count,
 		n >= NSYSCALL ? syscallnames32[n - NSYSCALL] : syscallnames[n]);
 	return 0;

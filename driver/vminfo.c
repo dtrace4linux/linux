@@ -89,7 +89,7 @@ void vminfo_init(void)
 	/*   Need  to figure out what vm_event_addr()  */
 	/*   maps to. Be conservative for now.	       */
 	/***********************************************/
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38) // temporary
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) // temporary
 
 #  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 #	define	vm_event_addr(x) &vm_event_states.event[x]
@@ -168,6 +168,6 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(THP_SPLIT), "vminfo:::thp_split");
 # endif
 	dtrace_parse_kernel(vminfo_instr_callback);
-# endif /* if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38) */
+# endif /* if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) */
 
 }

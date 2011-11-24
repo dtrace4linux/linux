@@ -38,7 +38,6 @@ int
 cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 {	uchar_t *pc = tp->ct_instr_buf;
 	greg_t *sp;
-	int	keep_going;
 
 	pc = cpu_skip_prefix(pc);
 
@@ -78,21 +77,26 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
 	  	return FALSE;
 		}
+
+	  case 0xcf: { //iret
+	  	greg_t *flp = (greg_t *) (&regs->r_rfl + 3 * sizeof(greg_t));
+dtrace_printf("iret rfl=%p\n", regs->r_rfl);
+		regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF));
+//		*flp = (*flp & ~X86_EFLAGS_IF) | X86_EFLAGS_TF;
+	  	return FALSE;
+		}
 	  }
 
 	/***********************************************/
-	/*   Dont undo IF flag for IRET instruction.   */
-	/*   For others, put back the IF flag the way  */
-	/*   it  was  before we turned off interrupts  */
-	/*   for  the single step. Also, turn off the  */
-	/*   TF  flag  because  we will have finished  */
-	/*   single stepping.			       */
+	/*   Put  back  the  IF  flag  the way it was  */
+	/*   before  we turned off interrupts for the  */
+	/*   single  step. Also, turn off the TF flag  */
+	/*   because  we  will  have  finished single  */
+	/*   stepping.				       */
 	/***********************************************/
-	if (*pc != 0xcf)
-		regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF|X86_EFLAGS_IF)) | 
-			(tp->ct_eflags & (X86_EFLAGS_IF));
+	regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF|X86_EFLAGS_IF)) | 
+		(tp->ct_eflags & (X86_EFLAGS_IF));
 
-	keep_going = FALSE;
 	switch (*pc) {
 	  case 0x70: case 0x71: case 0x72: case 0x73:
 	  case 0x74: case 0x75: case 0x76: case 0x77:
@@ -125,13 +129,10 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	  case 0xcd: //int $n -- hope we dont do this in kernel space.
 	  case 0xce: //into -- hope we dont do this in kernel space.
 	  	break;
-	  case 0xcf: { //iret
-	  	greg_t *flp = (greg_t *) (&regs->r_rfl + 3 * sizeof(greg_t));
-//dtrace_printf("rfl=%p\n", regs->r_rfl);
-		regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF));
-		*flp = (*flp & ~X86_EFLAGS_IF) | X86_EFLAGS_TF;
-	  	break;
-		}
+
+#if 0
+	  case 0xcf: // iret - NOTREACHED - see above
+#endif
 
 	  case 0xe0: // LOOP rel8 - jump if count != 0
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
@@ -176,8 +177,8 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 
 	  case 0xf2: // REPZ -- need to keep going
 	  	if ((regs->r_rfl & X86_EFLAGS_ZF) == 0 && regs->r_rcx) {
-		  	keep_going = TRUE;
 			regs->r_pc = (greg_t) tp->ct_instr_buf;
+			return TRUE;
 		} else {
 			regs->r_pc = (greg_t) tp->ct_orig_pc;
 		}
@@ -185,8 +186,8 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 
 	  case 0xf3: // REPNZ -- need to keep going
 	  	if (regs->r_rfl & X86_EFLAGS_ZF && regs->r_rcx) {
-		  	keep_going = TRUE;
 			regs->r_pc = (greg_t) tp->ct_instr_buf;
+			return TRUE;
 		} else {
 			regs->r_pc = (greg_t) tp->ct_orig_pc;
 		}
@@ -245,7 +246,8 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 //regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF|X86_EFLAGS_IF)) | (this_cpu->cpuc_eflags & (X86_EFLAGS_IF));
 		break;
 	  }
-	return keep_going;
+
+	return FALSE;
 }
 /**********************************************************************/
 /*   In  the  single  step  trap handler, get ready to step over the  */

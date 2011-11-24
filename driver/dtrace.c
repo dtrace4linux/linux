@@ -75,7 +75,7 @@
 # undef ASSERT
 # define ASSERT(x) { \
 	if (!(x)) { \
-		dtrace_printf("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x); \
+		dtrace_linux_panic("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x); \
 		dump_stack(); \
 	}}
 # define KERNELBASE 0

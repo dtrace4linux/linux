@@ -87,7 +87,14 @@ int driver_initted;
 
 asmlinkage int
 printk(const char *fmt, ...)
-{
+{	char	buf[200];
+	va_list	ap;
+
+	va_start(ap, fmt);
+	vsprintf(buf, fmt, ap);
+	va_end(ap);
+
+	dtrace_printf("%s", buf);
 	return 0;
 }
 /**********************************************************************/

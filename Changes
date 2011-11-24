@@ -1,3 +1,11 @@
+Thu Nov 24 23:48:02 2011  fox
+
+     592* cpu_x86.c: Remove curious code handler for iret.
+
+     591* dtrace_linux.c: Map printk to dtrace_printf.
+
+     590* vminfo.c: Got if..endif conditional wrong.
+
 Wed Nov 23 21:04:52 2011  fox
 
      589* syscalls.c: Avoid hanging on sys64.

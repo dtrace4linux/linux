@@ -190,6 +190,14 @@ static struct notifier_block n_module_load = {
 	.notifier_call = dtrace_module_loaded,
 	};
 
+/**********************************************************************/
+/*   Hold  on  to the ecbs during a large teardown, so we can delete  */
+/*   in one go.							      */
+/**********************************************************************/
+# define FAST_PROBE_TEARDOWN 1
+static dtrace_ecb_t *hd_free_ecb;
+static mutex_t	mutex_teardown;
+
 # endif
 /*
  * DTrace External Variables
@@ -6181,7 +6189,7 @@ HERE();
 				void *activity = &state->dts_activity;
 				dtrace_activity_t scurrent;
 
-//printk("tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
+//printk("deadman tmp=%llu alive=%llu =%llu dead=%llu\n", now, state->dts_alive, now -state->dts_alive, dtrace_deadman_timeout);
 				do {
 					scurrent = state->dts_activity;
 				} while (dtrace_cas32(activity, scurrent,
@@ -10397,7 +10405,13 @@ HERE();
 	 * that all CPUs have seen the change before returning.
 	 */
 HERE();
+#if FAST_PROBE_TEARDOWN
+	/***********************************************/
+	/*   Save syncs up for later.		       */
+	/***********************************************/
+#else
 	dtrace_sync();
+#endif
 
 HERE();
 	if (probe->dtpr_ecb == NULL) {
@@ -10406,22 +10420,18 @@ HERE();
 		 * cache ID for the probe, disable it and sync one more time
 		 * to assure that we'll never hit it again.
 		 */
-# if !linux
 		dtrace_provider_t *prov = probe->dtpr_provider;
-# endif
 
 		ASSERT(ecb->dte_next == NULL);
 		ASSERT(probe->dtpr_ecb_last == NULL);
 		probe->dtpr_predcache = DTRACE_CACHEIDNONE;
-# if linux
-		/***********************************************/
-		/*   We    rip    out    the    provider   in  */
-		/*   dtrace_ecb_disable2(),  so  dont need to  */
-		/*   do this here.			       */
-		/***********************************************/
-# else
 		prov->dtpv_pops.dtps_disable(prov->dtpv_arg,
 		    probe->dtpr_id, probe->dtpr_arg);
+# if FAST_PROBE_TEARDOWN
+		/***********************************************/
+		/*   Save syncs up for later.		       */
+		/***********************************************/
+# else
 		dtrace_sync();
 # endif
 	} else {
@@ -10446,47 +10456,6 @@ HERE();
 	}
 }
 
-#if defined(linux)
-/**********************************************************************/
-/*   Before   removing   a   probe,  rip  out  the  providers  patch  */
-/*   instruction, so that as we slowly call dtrace_sync, we dont get  */
-/*   flustered  by  the amount of breakpoint traffic trying to smack  */
-/*   probes,  e.g.  when  doing:  fbt:::.  This function is based on  */
-/*   dtrace_ecb_disable(),     above,    but    just    calls    the  */
-/*   provider-disable  function.  All  other  plumbing  is  left for  */
-/*   dtrace_ecb_disable  to  do  the real work, unphased that probes  */
-/*   will fire and slow down the dtrace_sync()s.		      */
-/**********************************************************************/
-static void
-dtrace_ecb_disable2(dtrace_ecb_t *ecb)
-{
-	/*
-	 * We disable the ECB by removing it from its probe.
-	 */
-	dtrace_probe_t *probe = ecb->dte_probe;
-
-	ASSERT(MUTEX_HELD(&dtrace_lock));
-
-	if (probe == NULL) {
-		/*
-		 * This is the NULL probe; there is nothing to disable.
-		 */
-		return;
-	}
-
-	if (probe->dtpr_ecb == ecb && ecb->dte_next == NULL) {
-		/*
-		 * That was the last ECB on the probe; clear the predicate
-		 * cache ID for the probe, disable it and sync one more time
-		 * to assure that we'll never hit it again.
-		 */
-		dtrace_provider_t *prov = probe->dtpr_provider;
-		prov->dtpv_pops.dtps_disable(prov->dtpv_arg,
-		    probe->dtpr_id, probe->dtpr_arg);
-	}
-}
-#endif
-
 static void
 dtrace_ecb_destroy(dtrace_ecb_t *ecb)
 {
@@ -10507,7 +10476,19 @@ dtrace_ecb_destroy(dtrace_ecb_t *ecb)
 	ASSERT(state->dts_ecbs[epid - 1] == ecb);
 	state->dts_ecbs[epid - 1] = NULL;
 
+	/***********************************************/
+	/*   Defer  the freeing of the ecb, so we can  */
+	/*   avoid  dtrace_sync  calls  when  tearing  */
+	/*   down a large number of probes.	       */
+	/***********************************************/
+#if FAST_PROBE_TEARDOWN
+	mutex_enter(&mutex_teardown);
+	ecb->dte_next = hd_free_ecb;
+	hd_free_ecb = ecb;
+	mutex_exit(&mutex_teardown);
+#else
 	kmem_free(ecb, sizeof (dtrace_ecb_t));
+#endif
 }
 
 static dtrace_ecb_t *
@@ -13636,34 +13617,12 @@ HERE();
 	 * ECBs:  in the first, we disable just DTRACE_PRIV_KERNEL probes, and
 	 * in the second we disable whatever is left over.
 	 */
-dtrace_printf("clear %llu\n", dtrace_gethrtime());
-#if linux
-	/***********************************************/
-	/*   Rip  out  the  probes  in  one  big  hit  */
-	/*   without calling dtrace_sync. Second time  */
-	/*   through,  we  can avoid a lot of traffic  */
-	/*   whilst  we  are  dismantling and calling  */
-	/*   dtrace_sync/xcall.			       */
-	/***********************************************/
-	for (match = DTRACE_PRIV_KERNEL; ; match = 0) {
-		for (i = 0; i < state->dts_necbs; i++) {
-			if ((ecb = state->dts_ecbs[i]) == NULL)
-				continue;
 
-			if (match && ecb->dte_probe != NULL) {
-				dtrace_probe_t *probe = ecb->dte_probe;
-				dtrace_provider_t *prov = probe->dtpr_provider;
+extern unsigned long cnt_xcall1;
+hrtime_t s = dtrace_gethrtime();
+dtrace_printf("[cpu%d] teardown start %llu.%09llu xcalls=%lu\n", smp_processor_id(), s / (1000 * 1000 * 1000), s % (1000 * 1000 * 1000), cnt_xcall1);
 
-				if (!(prov->dtpv_priv.dtpp_flags & match))
-					continue;
-			}
-			dtrace_ecb_disable2(ecb);
-		}
-
-		if (!match)
-			break;
-	}
-#endif
+	dtrace_sync();
 
 	for (match = DTRACE_PRIV_KERNEL; ; match = 0) {
 		for (i = 0; i < state->dts_necbs; i++) {
@@ -13685,8 +13644,29 @@ dtrace_printf("clear %llu\n", dtrace_gethrtime());
 		if (!match)
 			break;
 	}
+#if FAST_PROBE_TEARDOWN
+	/***********************************************/
+	/*   We are finally going to free the probes.  */
+	/*   We  didnt  dtrace_sync() around each one  */
+	/*   before,  but  now we should to ensure no  */
+	/*   other  cpu  is touching the ecb. By now,  */
+	/*   on  a  large  free-up,  the  other  cpus  */
+	/*   should  notice  the  ecb  is  no  longer  */
+	/*   attached  to  the  probes and the probes  */
+	/*   have  probably  been  disabled  if these  */
+	/*   were the only events on the probes.       */
+	/***********************************************/
+	dtrace_sync();
+	mutex_enter(&mutex_teardown);
+	while ((ecb = hd_free_ecb) != NULL) {
+		hd_free_ecb = ecb->dte_next;
+		kmem_free(ecb, sizeof (dtrace_ecb_t));
+	}
+	mutex_exit(&mutex_teardown);
+#endif
 HERE();
-dtrace_printf("done  %llu\n", dtrace_gethrtime());
+hrtime_t e = dtrace_gethrtime() - s;
+dtrace_printf("[cpu%d] teardown done %llu.%09llu xcalls=%lu\n", smp_processor_id(), e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1);
 
 	/*
 	 * Before we free the buffers, perform one more sync to assure that

@@ -210,7 +210,7 @@ d:
 	int cnt_1ms, cnt_1s;
 	tick-1ms { cnt_1ms++; } 
 	tick-1s { cnt_1s++; 
-		printf("got %d + %d\n", cnt_1ms, cnt_1s);
+		printf("tick-1ms=%d tick-1s=%d", cnt_1ms, cnt_1s);
 		}
 	tick-5s { 
 		printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
@@ -228,7 +228,7 @@ d:
 	tick-1ms { cnt_1ms++; } 
 	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { cnt_1s++; 
-		printf("got %d + %d\n", cnt_1ms, cnt_1s);
+		printf("tick-1ms=%d tick-1s=%d", cnt_1ms, cnt_1s);
 		}
 	tick-5s { 
 		printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
@@ -242,7 +242,7 @@ d:
 	fbt::: {cnt_fbt++;}
 	tick-1ms { cnt_1ms++; } 
 	tick-1s { cnt_1s++; 
-		printf("got %d + %d, fbt=%d\n", cnt_1ms, cnt_1s, cnt_fbt);
+		printf("tick-1ms=%d tick-1s=%d fbt=%d", cnt_1ms, cnt_1s, cnt_fbt);
 		}
 	tick-5s { 
 		printf("the end: got %d + %d, fbt=%d\n", cnt_1ms, cnt_1s, cnt_fbt);
@@ -309,4 +309,43 @@ d:
 	tick-5s { 
 		exit(0); 
 		}
+
+##################################################################
+name: tick-1
+note: Some basic check of time sanity, e.g. num milliseconds in a second
+d:
+	int cnt_1ms, cnt_1s;
+	tick-1ms {
+	        cnt_1ms++;
+	        printf("%d %d.%09d", cnt_1ms, timestamp / 1000000000, timestamp % (1000000000));
+	        }
+	tick-1s { cnt_1s++;
+	        printf("tick-1ms=%d tick-1s=%d", cnt_1ms, cnt_1s);
+	        }
+	tick-5s {
+	        printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
+	        exit(0);
+	        }
+
+##################################################################
+name: tick-2
+note: Make sure timers are not counting after we terminate dtrace.
+	Cant check that in the test itself, but this is designed to be
+	nasty.
+d:
+	int cnt_1ms;
+	tick-1ms { cnt_1ms++;}
+	tick-2ms { cnt_1ms++;}
+	tick-3ms { cnt_1ms++;}
+	tick-4ms { cnt_1ms++;}
+	tick-5ms { cnt_1ms++;}
+	tick-6ms { cnt_1ms++;}
+	tick-7ms { cnt_1ms++;}
+	tick-8ms { cnt_1ms++;}
+	tick-9ms { cnt_1ms++;}
+	tick-10ms { cnt_1ms++;}
+	tick-5s { 
+		exit(0); 
+		}
+
 

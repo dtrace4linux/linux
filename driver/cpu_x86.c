@@ -41,6 +41,14 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 
 	pc = cpu_skip_prefix(pc);
 
+/* Just some debug to watch flag changes...
+	if ((regs->r_rfl & X86_EFLAGS_IF) != (tp->ct_eflags & X86_EFLAGS_IF)) {
+printk("flag change: %p: %02x : %02x %02x %02x %lx %lx\n",
+tp->ct_orig_pc0, tp->ct_orig_pc0[0], *pc, 
+tp->ct_orig_pc0[1], tp->ct_orig_pc0[2], regs->r_rfl, tp->ct_eflags);
+	}
+*/
+
 	/***********************************************/
 	/*   For  some  instructions,  we  need to be  */
 	/*   careful of the IF/TF flags. So, do these  */
@@ -78,9 +86,20 @@ cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs)
 	  	return FALSE;
 		}
 
+	  case 0x9d: // popf
+	  	/***********************************************/
+	  	/*   Very  rare  - a "subroutine" starting by  */
+	  	/*   popping   the  flags.  e.g.  "not_same".  */
+	  	/*   Really  limited  to  just assembler/trap  */
+	  	/*   handler   code.  Believe  whatever  this  */
+	  	/*   instruction has done to the flags.	       */
+	  	/***********************************************/
+		regs->r_pc = (greg_t) tp->ct_orig_pc;
+		return FALSE;
+
 	  case 0xcf: { //iret
-	  	greg_t *flp = (greg_t *) (&regs->r_rfl + 3 * sizeof(greg_t));
-dtrace_printf("iret rfl=%p\n", regs->r_rfl);
+//	  	greg_t *flp = (greg_t *) (&regs->r_rfl + 3 * sizeof(greg_t));
+//dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 		regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF));
 //		*flp = (*flp & ~X86_EFLAGS_IF) | X86_EFLAGS_TF;
 	  	return FALSE;
@@ -96,6 +115,9 @@ dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 	/***********************************************/
 	regs->r_rfl = (regs->r_rfl & ~(X86_EFLAGS_TF|X86_EFLAGS_IF)) | 
 		(tp->ct_eflags & (X86_EFLAGS_IF));
+
+#define	SEE_ABOVE(opcode, text)
+#define	SEE_BELOW(opcode, text)
 
 	switch (*pc) {
 	  case 0x70: case 0x71: case 0x72: case 0x73:
@@ -115,12 +137,7 @@ dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 			regs->r_pc = (greg_t) tp->ct_orig_pc;
 		break;
 
-#if 0
-	  case 0x9c: // pushfl
-	  	/* NOTREACHED -- see above */
-	  	break;
-		}
-#endif
+	  SEE_ABOVE(0x9c, pushfl)
 
 	  case 0xc2: //ret imm16
 	  case 0xc3: //ret
@@ -130,30 +147,45 @@ dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 	  case 0xce: //into -- hope we dont do this in kernel space.
 	  	break;
 
-#if 0
-	  case 0xcf: // iret - NOTREACHED - see above
-#endif
+	  SEE_ABOVE(0x9c, iret);
 
 	  case 0xe0: // LOOP rel8 - jump if count != 0
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
-	  	if (regs->r_rcx)
+	  	if (regs->r_rcx) {
 			regs->r_pc += (char) pc[1];
-		break;
+			return FALSE;
+		}
+		regs->r_rfl |= X86_EFLAGS_TF;
+		return TRUE;
 	  case 0xe1: // LOOPZ rel8 - jump if count != 0 AND ZF=1
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
-	  	if (regs->r_rcx && regs->r_rfl & X86_EFLAGS_ZF)
+	  	if (regs->r_rcx && regs->r_rfl & X86_EFLAGS_ZF) {
 			regs->r_pc += (char) pc[1];
-		break;
+			return FALSE;
+		}
+		regs->r_rfl |= X86_EFLAGS_TF;
+		return TRUE;
 	  case 0xe2: // LOOPZ rel8 - jump if count != 0 AND ZF=0
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
-	  	if (regs->r_rcx && !(regs->r_rfl & X86_EFLAGS_ZF))
+	  	if (regs->r_rcx && !(regs->r_rfl & X86_EFLAGS_ZF)) {
 			regs->r_pc += (char) pc[1];
-		break;
+			return FALSE;
+		}
+		regs->r_rfl |= X86_EFLAGS_TF;
+		return TRUE;
 	  case 0xe3: // JRCXZ rel8 - jump if RCX == 0
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
-	  	if (regs->r_rcx == 0)
+	  	if (regs->r_rcx == 0) {
 			regs->r_pc += (char) pc[1];
-		break;
+			return FALSE;
+		}
+		regs->r_rfl |= X86_EFLAGS_TF;
+		return TRUE;
+
+	  SEE_BELOW(0xe4, in);
+	  SEE_BELOW(0xe5, in);
+	  SEE_BELOW(0xe6, out);
+	  SEE_BELOW(0xe7, in);
 
 	  case 0xe8: // CALLR nn32 call relative
 		sp = (greg_t *) stack_ptr(regs);
@@ -178,6 +210,7 @@ dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 	  case 0xf2: // REPZ -- need to keep going
 	  	if ((regs->r_rfl & X86_EFLAGS_ZF) == 0 && regs->r_rcx) {
 			regs->r_pc = (greg_t) tp->ct_instr_buf;
+			regs->r_rfl |= X86_EFLAGS_TF;
 			return TRUE;
 		} else {
 			regs->r_pc = (greg_t) tp->ct_orig_pc;
@@ -187,6 +220,7 @@ dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 	  case 0xf3: // REPNZ -- need to keep going
 	  	if (regs->r_rfl & X86_EFLAGS_ZF && regs->r_rcx) {
 			regs->r_pc = (greg_t) tp->ct_instr_buf;
+			regs->r_rfl |= X86_EFLAGS_TF;
 			return TRUE;
 		} else {
 			regs->r_pc = (greg_t) tp->ct_orig_pc;
@@ -213,6 +247,9 @@ dtrace_printf("iret rfl=%p\n", regs->r_rfl);
 	  	regs->r_rfl |= X86_EFLAGS_IF;
 		regs->r_pc = (greg_t) tp->ct_orig_pc;
 	  	break;
+
+	  SEE_BELOW(0xfc, cld);
+	  SEE_BELOW(0xfd, std);
 
 	  case 0xff:
 	  	/***********************************************/

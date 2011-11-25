@@ -1,3 +1,14 @@
+Fri Nov 25 17:26:03 2011  fox
+
+     594* driver/dtrace.c: Rework the fast-teardown code since it didnt
+          work reliably. This is potentially much better. We save
+	  up the kmem_free's of the ECBs til the end and free them up
+	  at the end.
+
+     593* cpu_x86.c: Add missing emulation for POPF (0x9d) instruction.
+          Fedora core does that in "not_same" label in this_cpu_cmpxchg16b_emu
+	  subroutine.
+
 Thu Nov 24 23:48:02 2011  fox
 
      592* cpu_x86.c: Remove curious code handler for iret.

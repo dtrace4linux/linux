@@ -241,7 +241,7 @@ static provider_t map[MAX_PROVIDER_TBL] = {
 	},
 	{
 		.p_probe = "sched:::on-cpu",
-		.p_func_name = "perf_event_task_sched_in",
+		.p_func_name = "__perf_event_task_sched_in",
 	},
 	{NULL}
 	};

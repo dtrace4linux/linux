@@ -315,6 +315,7 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 	char	*str = mp->strtab;
 	char	*name;
     	par_module_t *pmp;
+	int	ret;
 
 # if 0
 	struct module *mp = ctl->mod_mp;
@@ -529,7 +530,7 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 		/*   section  indexes). What we need to do is  */
 		/*   attempt to find the section by address.   */
 		/***********************************************/
-		int ret = instr_in_text_seg(mp, name, sym);
+		ret = instr_in_text_seg(mp, name, sym);
 		if (!ret)
 			continue;
 
@@ -802,7 +803,7 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
-		fbt->fbtp_enabled = TRUE;
+		fbt->fbtp_enabled = FALSE;
 		if (dtrace_here) {
 			printk("%s:%d: Disable %p:%s:%s\n", 
 				__func__, __LINE__, 
@@ -1191,7 +1192,7 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 	char	*modname = NULL;
 	char	name[KSYM_NAME_LEN];
 	char	ibuf[64];
-	const	char	*cp;
+	char	*cp;
 
 //printk("%s v=%p\n", __func__, v);
 	if (n == 1) {
@@ -1231,7 +1232,7 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 			fbt->fbtp_patchpoint[i] & 0xff);
 		cp += 3;
 		}
-	cp = my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
+	cp = (char *) my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
 		&size, &offset, &modname, name);
 	seq_printf(seq, "%d %04u %p %02x %d %2d %s:%s:%s %s\n", n-1, 
 		fbt->fbtp_fired,

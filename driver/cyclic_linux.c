@@ -250,6 +250,9 @@ orig_be_callback(struct hrtimer *ptr)
 }
 #endif
 
+unsigned long long cnt_timer_add;
+unsigned long long cnt_timer_remove;
+
 cyclic_id_t 
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 {	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
@@ -260,6 +263,7 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 		return 0;
 	}
 
+	cnt_timer_add++;
 	kt.tv64 = t->cyt_interval;
 	cp->c_hdlr = *hdrl;
 	cp->c_time = *t;
@@ -286,6 +290,7 @@ cyclic_remove(cyclic_id_t id)
 	if (id == 0)
 		return;
 
+	cnt_timer_remove++;
 	fn_hrtimer_cancel(&ctp->c_htp);
 
 	/***********************************************/

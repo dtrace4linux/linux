@@ -104,6 +104,7 @@ typedef struct cpu_trap_t {
 # define MAX_INSTR_LEN  16
 	unsigned char	ct_instr_buf[MAX_INSTR_LEN];
 	unsigned char	*ct_orig_pc;
+	unsigned char	*ct_orig_pc0;
 	int             ct_stepping;
 	unsigned long	ct_eflags;
 	trap_instr_t	ct_tinfo;

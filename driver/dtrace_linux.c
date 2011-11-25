@@ -269,6 +269,8 @@ static struct notifier_block panic_notifier = {
 /**********************************************************************/
 /*   Externs.							      */
 /**********************************************************************/
+extern unsigned long long cnt_timer_add;
+extern unsigned long long cnt_timer_remove;
 extern unsigned long long cnt_syscall1;
 extern unsigned long long cnt_syscall2;
 extern unsigned long long cnt_syscall3;
@@ -790,6 +792,12 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 		/***********************************************/
 		tp = &this_cpu->cpuc_trap[0];
 		tp->ct_tinfo.t_doprobe = TRUE;
+		/***********************************************/
+		/*   Save   original   location   for   debug  */
+		/*   purposes in cpu_x86.c		       */
+		/***********************************************/
+		tp->ct_orig_pc0 = regs->r_pc - 1;
+		
 		/***********************************************/
 		/*   Protect  ourselves  in case dtrace_probe  */
 		/*   causes a re-entrancy.		       */
@@ -3069,6 +3077,8 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_syscall3, "syscall3"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer1, "timer1"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer2, "timer2(rec)"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer_add, "timer_add"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer_remove, "timer_remove"},
 		{TYPE_LONG, &cnt_xcall0, "xcall0"},
 		{TYPE_LONG, &cnt_xcall1, "xcall1"},
 		{TYPE_LONG, &cnt_xcall2, "xcall2"},

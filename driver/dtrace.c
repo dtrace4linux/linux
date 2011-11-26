@@ -194,7 +194,7 @@ static struct notifier_block n_module_load = {
 /*   Hold  on  to the ecbs during a large teardown, so we can delete  */
 /*   in one go.							      */
 /**********************************************************************/
-# define FAST_PROBE_TEARDOWN 1
+# define FAST_PROBE_TEARDOWN 0
 static dtrace_ecb_t *hd_free_ecb;
 static mutex_t	mutex_teardown;
 
@@ -13620,7 +13620,7 @@ HERE();
 
 extern unsigned long cnt_xcall1;
 hrtime_t s = dtrace_gethrtime();
-dtrace_printf("[cpu%d] teardown start %llu.%09llu xcalls=%lu\n", smp_processor_id(), s / (1000 * 1000 * 1000), s % (1000 * 1000 * 1000), cnt_xcall1);
+dtrace_printf("teardown start %llu.%09llu xcalls=%lu\n", s / (1000 * 1000 * 1000), s % (1000 * 1000 * 1000), cnt_xcall1);
 
 	dtrace_sync();
 
@@ -13666,7 +13666,7 @@ dtrace_printf("[cpu%d] teardown start %llu.%09llu xcalls=%lu\n", smp_processor_i
 #endif
 HERE();
 hrtime_t e = dtrace_gethrtime() - s;
-dtrace_printf("[cpu%d] teardown done %llu.%09llu xcalls=%lu\n", smp_processor_id(), e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1);
+dtrace_printf("teardown done %llu.%09llu xcalls=%lu\n", e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1);
 
 	/*
 	 * Before we free the buffers, perform one more sync to assure that

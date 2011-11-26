@@ -1403,6 +1403,7 @@ dtrace_printf(char *fmt, ...)
 {	short	ch;
 	va_list	ap;
 	unsigned long long n;
+	unsigned long sec, nsec;
 	char	*cp;
 	short	i;
 	short	l_mode;
@@ -1410,6 +1411,8 @@ static	char	tmp[40];
 	short	zero;
 	short	width;
 static char digits[] = "0123456789abcdef";
+	hrtime_t hrt = dtrace_gethrtime();
+static hrtime_t	hrt0;
 # define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
 
 # if 0
@@ -1429,6 +1432,50 @@ static char digits[] = "0123456789abcdef";
 		va_end(ap);
 		return;
 	}
+
+	/***********************************************/
+	/*   Add in timestamp.			       */
+	/***********************************************/
+	if (hrt0 == 0)
+		hrt0 = hrt;
+	if (hrt) {
+		hrt -= hrt0;
+		sec = (unsigned long) (hrt / (1000 * 1000 * 1000));
+		nsec = (unsigned long) (hrt % (1000 * 1000 * 1000));
+		for (i = 0; ; ) {
+			tmp[i++] = (sec % 10) + '0';
+			sec /= 10;
+			if (sec == 0)
+				break;
+		}
+		for (; --i >= 0; ) {
+			ADDCH(tmp[i]);
+		}
+		ADDCH('.');
+		for (i = 0; i < 9; ) {
+			tmp[i++] = (nsec % 10) + '0';
+			nsec /= 10;
+		}
+		for (; --i >= 0; ) {
+			ADDCH(tmp[i]);
+		}
+		ADDCH(' ');
+	}
+	/***********************************************/
+	/*   Add the current CPU.		       */
+	/***********************************************/
+	ADDCH('#');
+	n = smp_processor_id();
+	for (i = 0; ; ) {
+		tmp[i++] = (n % 10) + '0';
+		n /= 10;
+		if (n == 0)
+			break;
+	}
+	for (; --i >= 0; ) {
+		ADDCH(tmp[i]);
+	}
+	ADDCH(' ');
 
 	while ((ch = *fmt++) != '\0') {
 		if (ch != '%') {
@@ -2657,7 +2704,7 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 	seqp->seq_id = 0;
 	seqp->seq_magic = SEQ_MAGIC;
 
-	dtrace_printf("vmem_create(%s) %p cpu:%d\n", name, seqp, smp_processor_id());
+	dtrace_printf("vmem_create(%s) %p\n", name, seqp);
 /*	mutex_dump(&seqp->seq_mutex);*/
 	
 	return seqp;

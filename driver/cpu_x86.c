@@ -185,7 +185,7 @@ tp->ct_orig_pc0[1], tp->ct_orig_pc0[2], regs->r_rfl, tp->ct_eflags);
 	  SEE_BELOW(0xe4, in);
 	  SEE_BELOW(0xe5, in);
 	  SEE_BELOW(0xe6, out);
-	  SEE_BELOW(0xe7, in);
+	  SEE_BELOW(0xe7, out);
 
 	  case 0xe8: // CALLR nn32 call relative
 		sp = (greg_t *) stack_ptr(regs);

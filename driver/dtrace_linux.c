@@ -1239,10 +1239,16 @@ dtrace_linux_fini(void)
 /**********************************************************************/
 /*   Utility function to dump stacks for all cpus.		      */
 /**********************************************************************/
+volatile int dumping;
+
 static void dump_cpu_stack(void)
 {
+	while (dumping)
+		;
+	dumping = 1;
 	printk("This is CPU#%d\n", smp_processor_id());
 	dump_stack();
+	dumping = 0;
 }
 void
 dump_all_stacks(void)
@@ -1256,14 +1262,12 @@ static void (*arch_trigger_all_cpu_backtrace)(void);
 	/***********************************************/
 	if (arch_trigger_all_cpu_backtrace == NULL)
 		arch_trigger_all_cpu_backtrace = get_proc_addr("arch_trigger_all_cpu_backtrace");
-	if (arch_trigger_all_cpu_backtrace)
+	if (0 && arch_trigger_all_cpu_backtrace)
 		arch_trigger_all_cpu_backtrace();
 	else {
-		set_console_on(0);
-		dump_stack();
-		SMP_CALL_FUNCTION_SINGLE(smp_processor_id() == 0 ? 1 : 0, 
-			(void (*)(void *)) dump_cpu_stack, 
-			0, FALSE);
+//		set_console_on(0);
+//		dump_stack();
+		SMP_CALL_FUNCTION((void (*)(void *)) dump_cpu_stack, 0, FALSE);
 	}
 }
 /**********************************************************************/
@@ -1397,6 +1401,7 @@ dtrace_print_regs(struct pt_regs *regs)
 /*   Internal logging mechanism for dtrace. Avoid calls to printk if  */
 /*   we are in dangerous territory).				      */
 /**********************************************************************/
+volatile int dtrace_printf_lock;
 
 void
 dtrace_printf(char *fmt, ...)
@@ -1432,6 +1437,10 @@ static hrtime_t	hrt0;
 		va_end(ap);
 		return;
 	}
+
+	while (dtrace_printf_lock)
+		;
+	dtrace_printf_lock = 1;
 
 	/***********************************************/
 	/*   Add in timestamp.			       */
@@ -1499,6 +1508,20 @@ static hrtime_t	hrt0;
 				break;
 		}
 		l_mode = FALSE;
+		if (ch == '*') {
+			width = (int) va_arg(ap, int);
+			if ((ch = *fmt++) == '\0')
+				break;
+		}
+		if (ch == '.') {
+			if ((ch = *fmt++) == '\0')
+				break;
+		}
+		if (ch == '*') {
+			width = (int) va_arg(ap, int);
+			if ((ch = *fmt++) == '\0')
+				break;
+		}
 		if (ch == 'l') {
 			l_mode = TRUE;
 			if ((ch = *fmt++) == '\0')
@@ -1567,10 +1590,16 @@ static hrtime_t	hrt0;
 				cp = "(null)";
 			while (*cp) {
 				ADDCH(*cp++);
+				if (width >= 0) {
+					if (--width < 0)
+						break;
+				}
 			}
 		  	break;
 		  }
 	}
+
+	dtrace_printf_lock = 0;
 
 	va_end(ap);
 }
@@ -3185,6 +3214,19 @@ static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
 	*start = page;
 	return n;
 }
+/**********************************************************************/
+/*   Special hack for debugging.				      */
+/**********************************************************************/
+static int proc_dtrace_trace_write_proc(struct file *file, const char __user *buffer,
+	size_t count, void *pda)
+{	int	n = count > 32 ? 32 : count;
+
+	dtrace_printf("proc_dtrace_trace_write_proc: %*.*s\n", n, n, buffer);
+	if (strncmp(buffer, "stack", 5) == 0)
+		dump_all_stacks();
+
+	return count;
+}
 
 static int dtracedrv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {	int	ret;
@@ -3330,6 +3372,7 @@ static struct proc_dir_entry *dir;
 
 	ent = create_proc_entry("trace", S_IFREG | S_IRUGO | S_IWUGO, dir);
 	ent->read_proc = proc_dtrace_trace_read_proc;
+	ent->write_proc = proc_dtrace_trace_write_proc;
 
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */

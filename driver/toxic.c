@@ -49,6 +49,8 @@
 /*   for them.							      */
 /**********************************************************************/
 char toxic_probe_tbl[] = {
+//"ack_APIC_irq "
+
 	"__atomic_notifier_call_chain "
 	"__kmalloc "
 	"__kprobes_text_start"

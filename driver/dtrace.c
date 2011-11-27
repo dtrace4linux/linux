@@ -195,7 +195,8 @@ static struct notifier_block n_module_load = {
 /*   in one go.							      */
 /**********************************************************************/
 # define FAST_PROBE_TEARDOWN 0
-static dtrace_ecb_t *hd_free_ecb;
+static unsigned long long cnt_free1;
+static volatile dtrace_ecb_t *hd_free_ecb = -1;
 static mutex_t	mutex_teardown;
 
 # endif
@@ -5911,7 +5912,24 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/***********************************************/
 	if (dtrace_shutdown)
 		return;
-
+{
+extern void xcall_slave2(void);
+if ((int) hd_free_ecb >= 0 && hd_free_ecb == smp_processor_id()) {
+//dtrace_printf("->%s\n", dtrace_probes[id-1]->dtpr_func);
+	return;
+}
+if ((int) hd_free_ecb >= 0) {
+	unsigned long cnt = 0;
+//dtrace_printf("->%s\n", dtrace_probes[id-1]->dtpr_func);
+	while ((int) hd_free_ecb >= 0) {
+		xcall_slave2();
+//		asm("pause\n");
+		if (cnt++ >= smp_processor_id() * 10000) {
+			break;
+			}
+		}
+}
+}
 	if (id == dtrace_probeid_error) {
 		__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
 		return;
@@ -10487,6 +10505,9 @@ dtrace_ecb_destroy(dtrace_ecb_t *ecb)
 	hd_free_ecb = ecb;
 	mutex_exit(&mutex_teardown);
 #else
+if ((int) hd_free_ecb < 0)
+	cnt_free1 = cnt_probes;
+hd_free_ecb = smp_processor_id();
 	kmem_free(ecb, sizeof (dtrace_ecb_t));
 #endif
 }
@@ -13620,7 +13641,8 @@ HERE();
 
 extern unsigned long cnt_xcall1;
 hrtime_t s = dtrace_gethrtime();
-dtrace_printf("teardown start %llu.%09llu xcalls=%lu\n", s / (1000 * 1000 * 1000), s % (1000 * 1000 * 1000), cnt_xcall1);
+dtrace_printf("teardown start %llu.%09llu xcalls=%lu probes=%llu\n", s / (1000 * 1000 * 1000), s % (1000 * 1000 * 1000), cnt_xcall1,
+cnt_probes - cnt_free1);
 
 	dtrace_sync();
 
@@ -13663,10 +13685,14 @@ dtrace_printf("teardown start %llu.%09llu xcalls=%lu\n", s / (1000 * 1000 * 1000
 		kmem_free(ecb, sizeof (dtrace_ecb_t));
 	}
 	mutex_exit(&mutex_teardown);
+#else
+hd_free_ecb = -1;
 #endif
 HERE();
 hrtime_t e = dtrace_gethrtime() - s;
-dtrace_printf("teardown done %llu.%09llu xcalls=%lu\n", e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1);
+dtrace_printf("teardown done %llu.%09llu xcalls=%lu probes=%llu\n", e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1,
+cnt_probes - cnt_free1);
+
 
 	/*
 	 * Before we free the buffers, perform one more sync to assure that

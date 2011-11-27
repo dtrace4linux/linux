@@ -1,3 +1,14 @@
+Sun Nov 27 17:36:18 2011  fox
+
+     596* dtrace.c, dtrace_linux.c: Add simple lock around dtrace_printf,
+          so we dont get interleaved output. Add "stack" command to
+	  /proc/dtrace/trace. Modify the fast-teardown to try and stop at
+	  a red light, the other cpus. We use the original mechanism but
+	  we try to prevent the flood of probes during teardown. 
+	  Appox 20m probes could happen when fbt::: with 50,000+ probes
+	  are enabled. This reduces it to may 1m. See /proc/dtrace/trace
+	  for the results.
+
 Sat Nov 26 21:40:32 2011  fox
 
      595* dtrace_linux.c: Add timestamp and cpu# to all /proc/dtrace/trace

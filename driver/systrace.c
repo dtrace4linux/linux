@@ -837,18 +837,18 @@ init_syscalls(void)
 	for (i = 0; i < NSYSCALL; i++) {
 		syscall_info[i].s_template = cp;
 		if (IS_PTREG_SYSCALL(i)) {
-			memcpy(cp, syscall_ptreg_template, syscall_ptreg_template_size);
+			dtrace_memcpy(cp, syscall_ptreg_template, syscall_ptreg_template_size);
 			*(int *) (cp + offset2) = i;
 			cp += syscall_ptreg_template_size;
 		} else {
-			memcpy(cp, syscall_template, syscall_template_size);
+			dtrace_memcpy(cp, syscall_template, syscall_template_size);
 			*(int *) (cp + offset1) = i;
 			cp += syscall_template_size;
 		}
 	}
 	for (i = 0; i < NSYSCALL32; i++) {
 		syscall_info[i].s_template32 = cp;
-		memcpy(cp, syscall_template, syscall_template_size);
+		dtrace_memcpy(cp, syscall_template, syscall_template_size);
 		*(int *) (cp + offset1) = i;
 		cp += syscall_template_size;
 	}

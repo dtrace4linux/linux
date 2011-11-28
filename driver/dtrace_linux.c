@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 14-May-2011 1.10 $ 			      */
+/*   $Header: Last edited: 28-Nov-2011 1.11 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -87,14 +87,11 @@ int driver_initted;
 
 asmlinkage int
 printk(const char *fmt, ...)
-{	char	buf[200];
-	va_list	ap;
+{	va_list	ap;
 
 	va_start(ap, fmt);
-	vsprintf(buf, fmt, ap);
+	dtrace_vprintf(fmt, ap);
 	va_end(ap);
-
-	dtrace_printf("%s", buf);
 	return 0;
 }
 /**********************************************************************/
@@ -1401,12 +1398,19 @@ dtrace_print_regs(struct pt_regs *regs)
 /*   Internal logging mechanism for dtrace. Avoid calls to printk if  */
 /*   we are in dangerous territory).				      */
 /**********************************************************************/
-volatile int dtrace_printf_lock;
+volatile int dtrace_printf_lock = -1;
 
 void
-dtrace_printf(char *fmt, ...)
-{	short	ch;
+dtrace_printf(const char *fmt, ...)
+{
 	va_list	ap;
+	va_start(ap, fmt);
+	dtrace_vprintf(fmt, ap);
+	va_end(ap);
+}
+void
+dtrace_vprintf(const char *fmt, va_list ap)
+{	short	ch;
 	unsigned long long n;
 	unsigned long sec, nsec;
 	char	*cp;
@@ -1431,16 +1435,14 @@ static hrtime_t	hrt0;
 	if (dtrace_printf_disable)
 		return;
 
-	va_start(ap, fmt);
-	if (dtrace_printk) {
-		vprintk(fmt, ap);
-		va_end(ap);
-		return;
-	}
-
-	while (dtrace_printf_lock)
+	/***********************************************/
+	/*   Try  and  avoid intermingled output from  */
+	/*   the  other  cpus.  Dont  do  this  if we  */
+	/*   interrupt our own cpu.		       */
+	/***********************************************/
+	while (dtrace_printf_lock >= 0 && dtrace_printf_lock != smp_processor_id())
 		;
-	dtrace_printf_lock = 1;
+	dtrace_printf_lock = smp_processor_id();
 
 	/***********************************************/
 	/*   Add in timestamp.			       */
@@ -1599,9 +1601,8 @@ static hrtime_t	hrt0;
 		  }
 	}
 
-	dtrace_printf_lock = 0;
+	dtrace_printf_lock = -1;
 
-	va_end(ap);
 }
 
 /**********************************************************************/

@@ -803,7 +803,6 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 # endif
 
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
-		fbt->fbtp_enabled = FALSE;
 		if (dtrace_here) {
 			printk("%s:%d: Disable %p:%s:%s\n", 
 				__func__, __LINE__, 
@@ -825,6 +824,8 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		if (*fbt->fbtp_patchpoint == fbt->fbtp_patchval) {
 			if (1 || memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
 				*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+			fbt->fbtp_enabled = FALSE;
+fbt->fbtp_enabled = TRUE;
 		}
 	}
 }

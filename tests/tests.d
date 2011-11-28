@@ -317,10 +317,12 @@ d:
 	int cnt_1ms, cnt_1s;
 	tick-1ms {
 	        cnt_1ms++;
-	        printf("%d %d.%09d", cnt_1ms, timestamp / 1000000000, timestamp % (1000000000));
+	        printf("%d %d.%09d", cnt_1ms, timestamp / 1000000000, 
+			timestamp % (1000000000));
 	        }
 	tick-1s { cnt_1s++;
 	        printf("tick-1ms=%d tick-1s=%d", cnt_1ms, cnt_1s);
+		cnt_1ms = 0;
 	        }
 	tick-5s {
 	        printf("the end: got %d + %d\n", cnt_1ms, cnt_1s);
@@ -347,5 +349,21 @@ d:
 	tick-5s { 
 		exit(0); 
 		}
+
+##################################################################
+name: tick-3
+note: 1s worth of 1m ticks.
+d:
+	int cnt_1ms;
+	tick-1ms {
+	        cnt_1ms++;
+	        }
+	tick-1s {
+	        printf("cnt_1ms=%d in 1 second", cnt_1ms);
+		cnt_1ms = 0;
+	        }
+	tick-5s {
+		exit(0);
+	        }
 
 

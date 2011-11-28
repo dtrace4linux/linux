@@ -1,3 +1,15 @@
+Mon Nov 28 22:18:05 2011  fox
+
+     599* sdt_linux.c, systrace.c: Avoid kernel memcpy function (cleanup
+          rather than a bug fix).
+
+     598* dtrace_linux.c: dtrace_printf/printk: Avoid calling vprintk,
+          since we can get a recursion deadlock if we try and probe
+	  fbt::form*:. Now we are detached from the kernel.
+
+     597* dtrace_linux.c: dtrace_printf: Avoid deadlock if we interrupt
+          our own cpu doing a printf.
+
 Sun Nov 27 17:36:18 2011  fox
 
      596* dtrace.c, dtrace_linux.c: Add simple lock around dtrace_printf,

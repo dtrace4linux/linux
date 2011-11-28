@@ -242,9 +242,9 @@ static char buf3[1024];
 		fname = "(unknown)";
 	}
 	name = strrchr(fname, '/');
-	memcpy(buf2, "<unknown>", 10);
+	dtrace_memcpy(buf2, "<unknown>", 10);
 	if (fname && name) {
-		memcpy(buf2, fname, name - fname);
+		dtrace_memcpy(buf2, fname, name - fname);
 		buf2[name - fname] = '\0';
 	}
 

@@ -16,6 +16,7 @@ use POSIX;
 
 my $exit_code = 0;
 my $ctrl_c = 0;
+my $master_dmesg;
 
 #######################################################################
 #   Command line switches.					      #
@@ -59,6 +60,9 @@ sub do_child
 		wait;
 	}
 }
+######################################################################
+#   Read the tests.d file and run each test.			     #
+######################################################################
 sub do_tests
 {
 	my @tests;
@@ -128,6 +132,19 @@ sub do_tests
 
 	print "Tests:\n";
 	foreach my $info (@tests) {
+		my $dm = get_dmesg();
+		if ($dm ne $master_dmesg) {
+			my $fh = new FileHandle(">/tmp/dmesg.orig");
+			print $fh $master_dmesg;
+			$fh = new FileHandle(">/tmp/dmesg.now");
+			print $fh $dm;
+			$fh->close();
+			system("diff /tmp/dmesg.orig /tmp/dmesg.now");
+
+			print "Warning: dmesg output changed...aborting tests so you can verify\n";
+			exit(1);
+		}
+
 		if (@ARGV) {
 			my $found = 0;
 			foreach my $arg (@ARGV) {
@@ -161,6 +178,19 @@ sub dump_stats
 		print "$name=$val\n";
 	}
 }
+
+######################################################################
+#   Read kernel messages so we can detect something happening.	     #
+######################################################################
+sub get_dmesg
+{
+	my $fh = new FileHandle("dmesg | ");
+	my $str = '';
+	while (<$fh>) {
+		$str .= $_;
+	}
+}
+
 ######################################################################
 #   Main entry point.						     #
 ######################################################################
@@ -220,6 +250,12 @@ EOF
 		print "dtrace driver does not appear to be loaded.\n";
 		exit(1);
 	}
+
+	###############################################
+	#   Grab   a  copy  of  dmesg.  If  anything  #
+	#   changes during testing, abort the tests.  #
+	###############################################
+	$master_dmesg = get_dmesg();
 
 	for (my $i = 0; $i < $opts{count}; $i++) {
 		do_tests();
@@ -310,11 +346,21 @@ Usage: tests.pl [<test-name>]
 
   When run with no arguments, the list of test names is listed.
 
+  Testing will be aborted if this script detects a problem, e.g.
+  kernel messages as a result of probing.
+
 Switches:
 
   -child      Just run the child test - dont run dtrace at same time.
   -loop NN    Loop NN times instead of max $opts{loop} times.
-  -count NN   Repeat all tests NN times (default 1).
+  -count NN   Repeat all (or specified) tests NN times (default 1).
+
+Examples:
+
+   \$ tests.pl
+   	Run all tests
+   \$ tests.pl -count 20 BEGIN-fbt:exec-time
+        Run specified test 20 times.
 
 EOF
 

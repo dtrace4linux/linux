@@ -1,5 +1,6 @@
 # if !defined(DTRACE_PROTO_H)
 # define	DTRACE_PROTO_H
+
 /**********************************************************************/
 /*   Prototypes  we  *used*  to need because we split dtrace.c up to  */
 /*   make it easier to debug.   				      */
@@ -37,7 +38,8 @@ void	trap(struct pt_regs *rp, caddr_t addr, processorid_t cpu);
 int	dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *);
 void dtrace_cpu_emulate(int instr, int opcode, struct pt_regs *regs);
 void	dtrace_print_regs(struct pt_regs *);
-void	dtrace_printf(char *fmt, ...);
+void	dtrace_vprintf(const char *fmt, va_list ap);
+void	dtrace_printf(const char *fmt, ...);
 
 int dtrace_user_probe(int, struct pt_regs *rp, caddr_t addr, processorid_t cpuid);
 void	fbt_provide_kernel(void);

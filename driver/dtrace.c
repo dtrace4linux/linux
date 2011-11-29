@@ -196,8 +196,7 @@ static struct notifier_block n_module_load = {
 /**********************************************************************/
 # define FAST_PROBE_TEARDOWN 0
 static unsigned long long cnt_free1;
-static volatile dtrace_ecb_t *hd_free_ecb = -1;
-static mutex_t	mutex_teardown;
+static volatile int lock_teardown = -1;
 
 # endif
 /*
@@ -5912,24 +5911,38 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/***********************************************/
 	if (dtrace_shutdown)
 		return;
-{
-extern void xcall_slave2(void);
-if ((int) hd_free_ecb >= 0 && hd_free_ecb == smp_processor_id()) {
-//dtrace_printf("->%s\n", dtrace_probes[id-1]->dtpr_func);
-	return;
-}
-if ((int) hd_free_ecb >= 0) {
-	unsigned long cnt = 0;
-//dtrace_printf("->%s\n", dtrace_probes[id-1]->dtpr_func);
-	while ((int) hd_free_ecb >= 0) {
-		xcall_slave2();
-//		asm("pause\n");
-		if (cnt++ >= smp_processor_id() * 10000) {
-			break;
+
+	/***********************************************/
+	/*   If someone else is tearing down, and its  */
+	/*   us, then just drop the probe.	       */
+	/***********************************************/
+	if (lock_teardown >= 0 && lock_teardown == smp_processor_id()) {
+		//dtrace_printf("->%s\n", dtrace_probes[id-1]->dtpr_func);
+		return;
+	}
+
+	/***********************************************/
+	/*   Is  some other cpu tearing down? Try and  */
+	/*   slow  down  a  bit  so we arent swamping  */
+	/*   with  new  probes  and  causing  lots of  */
+	/*   xcall delays.			       */
+	/***********************************************/
+	if (lock_teardown >= 0) {
+		unsigned long cnt = 0;
+		//dtrace_printf("->%s\n", dtrace_probes[id-1]->dtpr_func);
+		/***********************************************/
+		/*   Slow  down  a bit, and keep seeing if we  */
+		/*   can drain any pending xcalls.	       */
+		/***********************************************/
+		while (lock_teardown >= 0) {
+			extern void xcall_slave2(void);
+			xcall_slave2();
+			if (cnt++ >= smp_processor_id() * 10000) {
+				break;
+				}
 			}
-		}
-}
-}
+	}
+
 	if (id == dtrace_probeid_error) {
 		__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
 		return;
@@ -10495,21 +10508,17 @@ dtrace_ecb_destroy(dtrace_ecb_t *ecb)
 	state->dts_ecbs[epid - 1] = NULL;
 
 	/***********************************************/
-	/*   Defer  the freeing of the ecb, so we can  */
+	/*   Mark us as the teardown leader, and keep  */
+	/*   track of how many probes as we started.   */
 	/*   avoid  dtrace_sync  calls  when  tearing  */
 	/*   down a large number of probes.	       */
 	/***********************************************/
-#if FAST_PROBE_TEARDOWN
-	mutex_enter(&mutex_teardown);
-	ecb->dte_next = hd_free_ecb;
-	hd_free_ecb = ecb;
-	mutex_exit(&mutex_teardown);
-#else
-if ((int) hd_free_ecb < 0)
-	cnt_free1 = cnt_probes;
-hd_free_ecb = smp_processor_id();
+	if (lock_teardown < 0) {
+		cnt_free1 = cnt_probes;
+		lock_teardown = smp_processor_id();
+	}
+
 	kmem_free(ecb, sizeof (dtrace_ecb_t));
-#endif
 }
 
 static dtrace_ecb_t *
@@ -13666,32 +13675,21 @@ cnt_probes - cnt_free1);
 		if (!match)
 			break;
 	}
-#if FAST_PROBE_TEARDOWN
+
 	/***********************************************/
-	/*   We are finally going to free the probes.  */
-	/*   We  didnt  dtrace_sync() around each one  */
-	/*   before,  but  now we should to ensure no  */
-	/*   other  cpu  is touching the ecb. By now,  */
-	/*   on  a  large  free-up,  the  other  cpus  */
-	/*   should  notice  the  ecb  is  no  longer  */
-	/*   attached  to  the  probes and the probes  */
-	/*   have  probably  been  disabled  if these  */
-	/*   were the only events on the probes.       */
+	/*   Exit the 'critical' region for teardown.  */
 	/***********************************************/
-	dtrace_sync();
-	mutex_enter(&mutex_teardown);
-	while ((ecb = hd_free_ecb) != NULL) {
-		hd_free_ecb = ecb->dte_next;
-		kmem_free(ecb, sizeof (dtrace_ecb_t));
+	lock_teardown = -1;
+
+	/***********************************************/
+	/*   Dump some stats on how long the teardown  */
+	/*   took.				       */
+	/***********************************************/
+	{
+		hrtime_t e = dtrace_gethrtime() - s;
+		dtrace_printf("teardown done %llu.%09llu xcalls=%lu probes=%llu\n", e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1,
+			cnt_probes - cnt_free1);
 	}
-	mutex_exit(&mutex_teardown);
-#else
-hd_free_ecb = -1;
-#endif
-HERE();
-hrtime_t e = dtrace_gethrtime() - s;
-dtrace_printf("teardown done %llu.%09llu xcalls=%lu probes=%llu\n", e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1,
-cnt_probes - cnt_free1);
 
 
 	/*

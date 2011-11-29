@@ -158,6 +158,10 @@ sub do_tests
 		my $d = $info->{d};
 		my $loop = $opts{loop};
 		$d =~ s/\${loop}/$loop/g;
+		if ($d eq '') {
+			print "Something wrong with this test. Came out as blank!\n";
+			exit(1);
+		}
 		my $cmd = $opts{dtrace} ? "dtrace -n '$d'" : "build/dtrace -n '$d'";
 		my $ret = spawn($cmd, $info->{name});
 		$exit_code ||= $ret;

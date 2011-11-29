@@ -15,6 +15,8 @@ typedef unsigned long long uint64_t;
 # define	DATAMODEL_LP64 2
 # define	DATAMODEL_NATIVE 2
 
+uchar_t *dtrace_instr_modrm(uchar_t *instr);
+
 static int
 dtrace_dis_get_byte(void *p)
 {
@@ -63,7 +65,7 @@ int main(int argc, char **argv)
 	x.d86_data = (void **)&bufp;
 	x.d86_get_byte = dtrace_dis_get_byte;
 	x.d86_check_func = NULL;
-	x.d86_sym_lookup = lookup;
+	x.d86_sym_lookup = (void *) lookup;
 	x.d86_sprintf_func = snprintf;
 
 	dtrace_disx86(&x, mode);
@@ -71,7 +73,7 @@ int main(int argc, char **argv)
 	dtrace_disx86_str(&x, mode, 0, ibuf, sizeof ibuf);
 	printf("  %s\n", ibuf);
 	bp = dtrace_instr_modrm(buf);
-	printf("  modrm: %d\n", bp - buf);
+	printf("  modrm: %d\n", (int) (bp - buf));
 }
 size_t 
 strlcat(char *dst, const char *src, size_t len)

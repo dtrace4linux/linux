@@ -33,10 +33,10 @@
 typedef unsigned int uint_t;
 typedef unsigned long long uint64_t;
 typedef unsigned char uchar_t;
-typedef unsigned int size_t;
 typedef unsigned char uint8_t;
 # define uintptr_t unsigned long
-# define NULL 0
+#include <stdio.h>
+#include <string.h>
 
 # define	DATAMODEL_LP64 2
 # define	DATAMODEL_NATIVE 2
@@ -209,7 +209,7 @@ dtrace_instr_dump(char *label, uint8_t *insn)
 	*cp++ = '\n';
 #endif
 	*cp++ = '\0';
-	printk(buf);
+	printk("%s", buf);
 }
 #endif
 # if 0

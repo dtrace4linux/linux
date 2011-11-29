@@ -72,6 +72,7 @@ do_cmds:
 	cd librtld ; $(MAKE) $(NOPWD)
 	cd cmd/dtrace ; $(MAKE) $(NOPWD)
 	cd cmd/ctfconvert ; $(MAKE) $(NOPWD)
+	cd cmd/instr ; $(MAKE) $(NOPWD)
 	cd usdt/c ; $(MAKE) $(NOPWD)
 kernel:
 	tools/mkdriver.pl all

@@ -832,11 +832,16 @@ prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo
 			break;
 	}
 
+	/***********************************************/
+	/*   We  didnt  find  it  -  but  that may be  */
+	/*   normal,  depending  on  the order of the  */
+	/*   invop chain.			       */
+	/***********************************************/
 	if (pp->p_probe == NULL) {
 		static int cnt;
-		if (cnt++ < 50)
-			printk("dtrace: [cpu%d] prov_common: cannot map %p\n", 
-				smp_processor_id(), (void *) stack0);
+		if (cnt++ < 10)
+			printk("dtrace: prov_common: cannot map %p\n", 
+				(void *) stack0);
 		return 0;
 	}
 	/***********************************************/

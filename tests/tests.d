@@ -249,6 +249,44 @@ d:
 		exit(0); 
 		}
 ##################################################################
+name: profile-6
+note: Lots of severe timers whilst doing heavy fbt stuff. Attempt to
+	track for race conditions in timer destruction.
+d:
+	fbt:::{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;} tick-1ms{cnt++;}
+	tick-5s { 
+		exit(0); 
+		}
+
+##################################################################
 name: quantize-1
 note: Some random quantize invocations
 d:

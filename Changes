@@ -1,3 +1,14 @@
+Tue Nov 29 09:00:40 2011  fox
+
+     602* cmd/instr: New utility for getting instruction encodings.
+
+     601* cyclic_linux.c: Avoid race conditions during timer closedown.
+          We might have the timer active whilst trying to kill it, and
+	  corrupt memory leading to a panic later on.
+
+     600* dtrace_linux.c: Search fbt probes before instr, since we are likely
+          to hit them first. (Minor optimisation).
+
 Mon Nov 28 22:18:05 2011  fox
 
      599* sdt_linux.c, systrace.c: Avoid kernel memcpy function (cleanup

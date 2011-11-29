@@ -37,10 +37,15 @@ typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 typedef long long int64_t;
 typedef unsigned char uchar_t;
-typedef unsigned int size_t;
 typedef unsigned char uint8_t;
 # define uintptr_t unsigned long
-# define NULL 0
+#	if defined(USERMODE)
+#		include <string.h>
+#		include <stdio.h>
+#	else
+		typedef unsigned int size_t;
+#		define NULL 0
+#	endif
 #endif
 
 #include	"dis_tables.h"
@@ -67,7 +72,7 @@ typedef unsigned char uint8_t;
 /*
  * These functions must be provided for the consumer to do disassembly.
  */
-#ifdef DIS_TEXT
+#if defined(DIS_TEXT) && !defined(USERMODE)
 extern char *strncpy(char *, const char *, size_t);
 extern size_t strlen(const char *);
 extern int strcmp(const char *, const char *);
@@ -3517,7 +3522,7 @@ print_imm(dis86_t *dis, uint64_t usv, uint64_t mask, char *buf,
 
 
 static int
-log2(int size)
+dis_log2(int size)
 {
 	switch (size) {
 	case 1: return (0);
@@ -3584,7 +3589,7 @@ dtrace_disx86_str(dis86_t *dis, uint_t mode, uint64_t pc, char *buf,
 		/* d86_value_size and d86_imm_bytes are in bytes */
 		if (op->d86_mode == MODE_SIGNED ||
 		    op->d86_mode == MODE_IMPLIED)
-			mask = masks[log2(op->d86_value_size)];
+			mask = masks[dis_log2(op->d86_value_size)];
 
 		switch (op->d86_mode) {
 

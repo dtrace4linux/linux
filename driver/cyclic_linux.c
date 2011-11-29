@@ -39,6 +39,10 @@
 
 unsigned long long cnt_timer1;
 unsigned long long cnt_timer2;
+unsigned long long cnt_timer3;
+unsigned long long cnt_timer_add;
+unsigned long long cnt_timer_remove;
+
 
 # if MODE == CYCLIC_SUN
 // needed if we go the Sun route..
@@ -108,11 +112,18 @@ static int (*fn_hrtimer_cancel)(struct hrtimer *);
 static int (*fn_hrtimer_start)(struct hrtimer *timer, ktime_t tim,
                          const enum hrtimer_mode mode);
 
+#define	TMR_ALIVE       1
+#define	TMR_RUNNING     2
 struct c_timer {
 	struct hrtimer	c_htp;	/* Must be first item in structure */
 	cyc_handler_t	c_hdlr;
 	cyc_time_t	c_time;
+	unsigned long	c_sec;
+	unsigned long	c_nsec;
 	struct c_timer	*c_next;
+	volatile int		c_state;
+	int		c_dying;
+	int		c_queued;
 	};
 spinlock_t lock_timers;
 struct c_timer *hd_timers;
@@ -164,8 +175,11 @@ static void cyclic_tasklet_func(unsigned long arg)
 			hd_timers = cp->c_next;
 		else
 			hd_timers = NULL;
-		if (cp)
+		if (cp) {
+			cp->c_state = TMR_RUNNING;
 			cp->c_next = NULL;
+			cp->c_queued = FALSE;
+			}
 		spin_unlock_irqrestore(&lock_timers, flags);
 		if (cp == NULL)
 			break;
@@ -177,8 +191,22 @@ static void cyclic_tasklet_func(unsigned long arg)
 		/***********************************************/
 		if (cpu_core[smp_processor_id()].cpuc_probe_level)
 			cnt_timer2++;
-		cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
 
+		/***********************************************/
+		/*   Someone may be trying to kill the timer,  */
+		/*   so handle that if we can.		       */
+		/***********************************************/
+		if (cp->c_dying) {
+			cp->c_state = TMR_ALIVE;
+			continue;
+		}
+		cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
+		if (cp->c_dying) {
+			cp->c_state = TMR_ALIVE;
+			continue;
+		}
+
+# if 0
 		/***********************************************/
 		/*   Bit   annoying   this   --   in  2.6.28,  */
 		/*   "expires" gets renamed to "_expires" and  */
@@ -197,6 +225,8 @@ static void cyclic_tasklet_func(unsigned long arg)
 		ptr->expires = ktime_add_ns(ptr->expires, kt.tv64);
 #endif
 		fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+# endif
+		cp->c_state = TMR_ALIVE;
 	}
 }
 DECLARE_TASKLET( cyclic_tasklet, cyclic_tasklet_func, 0 );
@@ -206,28 +236,49 @@ be_callback(struct hrtimer *ptr)
 {	struct c_timer *cp;
 	unsigned long flags;
 	
-	spin_lock_irqsave(&lock_timers, flags);
+	/***********************************************/
+	/*   Add  it to the tasklet runq, but dont do  */
+	/*   it if already on the queue.	       */
+	/***********************************************/
 	cp = (struct c_timer *) ptr;
-	cp->c_next = hd_timers;
-	hd_timers = cp;
+	if (cp->c_dying) {
+		return HRTIMER_NORESTART;
+	}
+	spin_lock_irqsave(&lock_timers, flags);
+	if (!cp->c_queued) {
+		cp->c_next = hd_timers;
+		hd_timers = cp;
+		cp->c_queued = TRUE;
+	}
 	spin_unlock_irqrestore(&lock_timers, flags);
+
+	/***********************************************/
+	/*   Get ready for the next timer interval.    */
+	/***********************************************/
+	hrtimer_forward_now(ptr, ktime_set(cp->c_sec, cp->c_nsec));
 
 	tasklet_schedule(&cyclic_tasklet);
 	
-	return HRTIMER_NORESTART;
+	return HRTIMER_RESTART;
 }
 #if 0
 static enum hrtimer_restart
-orig_be_callback(struct hrtimer *ptr)
+be_callback(struct hrtimer *ptr)
 {
 	struct c_timer *cp = (struct c_timer *) ptr;
 	ktime_t kt;
 
+	if (cp->c_dying) {
+		return HRTIMER_NORESTART;
+	}
 	kt.tv64 = cp->c_time.cyt_interval;
 	/***********************************************/
 	/*   Invoke the callback.		       */
 	/***********************************************/
 	cp->c_hdlr.cyh_func(cp->c_hdlr.cyh_arg);
+	if (cp->c_dying) {
+		return HRTIMER_NORESTART;
+	}
 
 	/***********************************************/
 	/*   Bit   annoying   this   --   in  2.6.28,  */
@@ -250,9 +301,6 @@ orig_be_callback(struct hrtimer *ptr)
 }
 #endif
 
-unsigned long long cnt_timer_add;
-unsigned long long cnt_timer_remove;
-
 cyclic_id_t 
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 {	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
@@ -267,6 +315,9 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 	kt.tv64 = t->cyt_interval;
 	cp->c_hdlr = *hdrl;
 	cp->c_time = *t;
+	cp->c_sec = kt.tv64 / (1000 * 1000 * 1000);
+	cp->c_nsec = kt.tv64 % (1000 * 1000 * 1000);
+	cp->c_state = TMR_ALIVE;
 
 	fn_hrtimer_init(&cp->c_htp, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 /*	cp->c_htp.cb_mode = HRTIMER_CB_SOFTIRQ;*/
@@ -291,6 +342,7 @@ cyclic_remove(cyclic_id_t id)
 		return;
 
 	cnt_timer_remove++;
+	ctp->c_dying = TRUE;
 	fn_hrtimer_cancel(&ctp->c_htp);
 
 	/***********************************************/
@@ -310,7 +362,19 @@ cyclic_remove(cyclic_id_t id)
 	}
 	spin_unlock_irqrestore(&lock_timers, flags);
 
-	kfree(ctp);
+	/***********************************************/
+	/*   Timer  may  be  firing, so delay freeing  */
+	/*   the timer til its finished running.       */
+	/***********************************************/
+	if (ctp->c_state == TMR_RUNNING) {
+		int	cnt = 0;
+		cnt_timer3++;
+		while (ctp->c_state == TMR_RUNNING && cnt < 10000000)
+			;
+		if (ctp->c_state != TMR_ALIVE)
+			dtrace_printf("Timer still in running state.\n");
+	}
+//	kfree(ctp);
 }
 
 # endif

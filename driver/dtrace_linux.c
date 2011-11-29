@@ -284,6 +284,7 @@ extern unsigned long cnt_nmi1;
 extern unsigned long cnt_nmi2;
 extern unsigned long long cnt_timer1;
 extern unsigned long long cnt_timer2;
+extern unsigned long long cnt_timer3;
 
 /**********************************************************************/
 /*   Prototypes.						      */
@@ -1442,6 +1443,15 @@ static hrtime_t	hrt0;
 	/***********************************************/
 	while (dtrace_printf_lock >= 0 && dtrace_printf_lock != smp_processor_id())
 		;
+	/***********************************************/
+	/*   Allow a blank string - dont generate any  */
+	/*   output.  We  often  use this to add some  */
+	/*   slowdown  to paths of code. We will wait  */
+	/*   for  any  locks,  but not grab the lock,  */
+	/*   just for a bit more entropy.	       */
+	/***********************************************/
+	if (*fmt == '\0')
+		return;
 	dtrace_printf_lock = smp_processor_id();
 
 	/***********************************************/
@@ -3154,6 +3164,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_syscall3, "syscall3"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer1, "timer1"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer2, "timer2(rec)"},
+		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer3, "timer3(defer-cancel)"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer_add, "timer_add"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_timer_remove, "timer_remove"},
 		{TYPE_LONG, &cnt_xcall0, "xcall0"},
@@ -3386,9 +3397,9 @@ static struct proc_dir_entry *dir;
 	ctf_init();
 	fasttrap_init();
 	systrace_init();
-	fbt_init();
 	instr_init();
 	dtrace_profile_init();
+	fbt_init();
 /*	dtrace_prcom_init();
 	sdt_init();
 	ctl_init();*/

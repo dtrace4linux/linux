@@ -63,10 +63,7 @@ extern int ipi_vector;
 /*   cpu.							      */
 /*   								      */
 /*   The  xcalls array is our main work queue. Each cpu can invoke a  */
-/*   call  to  every other cpu. We run with interrupts enabled, so a  */
-/*   single  xcall  can  be  interrupted  (typically  the timer) and  */
-/*   invoke  another.  So we keep a record of what to do for all the  */
-/*   permutations. This helps to reduce locking contention.	      */
+/*   call to every other cpu.					      */
 /**********************************************************************/
 # define XC_IDLE	0	/* Owned by us. */
 # define XC_WORKING     1	/* Waiting for the target cpu to finish. */
@@ -74,7 +71,7 @@ static struct xcalls {
 	dtrace_xcall_t	xc_func;
 	void		*xc_arg;
 	volatile int	xc_state;
-	} xcalls[2 * NCPU][NCPU] __cacheline_aligned;
+	} xcalls[NCPU][NCPU] __cacheline_aligned;
 static int xcall_levels[NCPU];
 
 unsigned long cnt_xcall0;
@@ -192,10 +189,10 @@ orig_dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 /**********************************************************************/
 int
 ack_wait(int c, int attempts)
-{	int	intr = in_interrupt() ? 1 : 0;
+{
 	unsigned long cnt = 0;
 	int	cnt1 = 0;
-	volatile struct xcalls *xc = &xcalls[smp_processor_id() * 2 + intr][c];
+	volatile struct xcalls *xc = &xcalls[smp_processor_id()][c];
 
 	/***********************************************/
 	/*   Avoid holding on to a stale cache line.   */
@@ -331,7 +328,6 @@ void
 dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {	int	c;
 	int	cpu_id = smp_processor_id();
-	int	intr = in_interrupt() ? 1 : 0;
 	int	cpus_todo = 0;
 # if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
 typedef struct cpumask cpumask_t;
@@ -389,7 +385,7 @@ typedef struct cpumask cpumask_t;
 	/***********************************************/
 	cpus_clear(mask);
 	for (c = 0; c < nr_cpus; c++) {
-		struct xcalls *xc = &xcalls[cpu_id * 2 + intr][c];
+		struct xcalls *xc = &xcalls[cpu_id][c];
 		unsigned int cnt;
 
 		/***********************************************/
@@ -573,8 +569,7 @@ xcall_slave(void)
 }
 void 
 xcall_slave2(void)
-{
-	int	i, j;
+{	int	i;
 
 	/***********************************************/
 	/*   Check  each slot for this cpu - one from  */
@@ -583,12 +578,10 @@ xcall_slave2(void)
 	/*   each cpu.				       */
 	/***********************************************/
 	for (i = 0; i < nr_cpus; i++) {
-		for (j = 0; j < 2; j++) {
-			struct xcalls *xc = &xcalls[i * 2 + j][smp_processor_id()];
-			if (xc->xc_state == XC_WORKING) {
-				(*xc->xc_func)(xc->xc_arg);
-				xc->xc_state = XC_IDLE;
-			}
+		struct xcalls *xc = &xcalls[i][smp_processor_id()];
+		if (xc->xc_state == XC_WORKING) {
+			(*xc->xc_func)(xc->xc_arg);
+			xc->xc_state = XC_IDLE;
 		}
 	}
 }

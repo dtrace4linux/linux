@@ -102,7 +102,8 @@ typedef struct fbt_probe {
 	dtrace_id_t	fbtp_id;
 	char		*fbtp_name;
 	struct modctl	*fbtp_ctl;
-	int		fbtp_loadcnt;
+	short		fbtp_loadcnt;
+	char		fbtp_overrun;
 	int		fbtp_symndx;
 	unsigned int	fbtp_fired;
 //	int		fbtp_primary;
@@ -160,7 +161,29 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinfo)
 if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
 if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
-		if (fbt->fbtp_enabled && (uintptr_t)fbt->fbtp_patchpoint == addr) {
+		if ((uintptr_t)fbt->fbtp_patchpoint != addr)
+			continue;
+
+		/***********************************************/
+		/*   If  probe  is  not  enabled,  but  still  */
+		/*   fired,  then it overran. Likely cause is  */
+		/*   cpu cache consistency issue - some other  */
+		/*   CPU  hasnt  seen  the  breakpoint  being  */
+		/*   removed.  Flag  it  so  we  can  show in  */
+		/*   /proc/dtrace/fbt.			       */
+		/***********************************************/
+		if (!fbt->fbtp_enabled)
+			fbt->fbtp_overrun = TRUE;
+
+		/***********************************************/
+		/*   Always  handle  the  probe - if we dont,  */
+		/*   nobody  else  will  know what to do with  */
+		/*   it. Its possible somebody else does want  */
+		/*   it,  e.g.  INSTR,  but we cant know who.  */
+		/*   Probably  need  to  call  all providers,  */
+		/*   rather than just the first one.	       */
+		/***********************************************/
+		if (1) {
 			tinfo->t_opcode = fbt->fbtp_savedval;
 			tinfo->t_inslen = fbt->fbtp_inslen;
 			tinfo->t_modrm = fbt->fbtp_modrm;
@@ -824,8 +847,14 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		if (*fbt->fbtp_patchpoint == fbt->fbtp_patchval) {
 			if (1 || memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
 				*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+
+			/***********************************************/
+			/*   "Logically"  mark  probe  as gone. So we  */
+			/*   can  detect overruns. But even tho it is  */
+			/*   disabled,  doesnt  mean we cannot handle  */
+			/*   it.				       */
+			/***********************************************/
 			fbt->fbtp_enabled = FALSE;
-fbt->fbtp_enabled = TRUE;
 		}
 	}
 }
@@ -1204,7 +1233,10 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 		return 0;
 
 	/***********************************************/
-	/*   Find first probe.			       */
+	/*   Find  first  probe.  This  is incredibly  */
+	/*   slow  and  inefficient, but we dont want  */
+	/*   to waste memory keeping a list (an extra  */
+	/*   ptr for each probe).		       */
 	/***********************************************/
 	target = n;
 	for (i = 0; target > 0 && i < fbt_probetab_size; i++) {
@@ -1235,8 +1267,9 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 		}
 	cp = (char *) my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
 		&size, &offset, &modname, name);
-	seq_printf(seq, "%d %04u %p %02x %d %2d %s:%s:%s %s\n", n-1, 
+	seq_printf(seq, "%d %04u%c %p %02x %d %2d %s:%s:%s %s\n", n-1, 
 		fbt->fbtp_fired,
+		fbt->fbtp_overrun ? '*' : ' ',
 		fbt->fbtp_patchpoint,
 		fbt->fbtp_savedval,
 		fbt->fbtp_inslen,
@@ -1305,7 +1338,7 @@ int fbt_init(void)
 	fbt_probetab =
 	    kmem_zalloc(fbt_probetab_size * sizeof (fbt_probe_t *), KM_SLEEP);
 
-	dtrace_invop_add(fbt_invop);
+/*	dtrace_invop_add(fbt_invop);*/
 	
 	ent = create_proc_entry("dtrace/fbt", 0444, NULL);
 	if (ent)
@@ -1320,6 +1353,17 @@ int fbt_init(void)
 
 	return 0;
 }
+/**********************************************************************/
+/*   This  gets  called last so that FBT tries to get first crack at  */
+/*   the  probes,  since it has the most likelihood of being used or  */
+/*   hit.							      */
+/**********************************************************************/
+void
+fbt_init2(void)
+{
+	dtrace_invop_add(fbt_invop);
+}
+
 void fbt_exit(void)
 {
 	remove_proc_entry("dtrace/fbt", 0);

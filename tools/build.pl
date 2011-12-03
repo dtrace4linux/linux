@@ -132,8 +132,8 @@ sub find_binary
 		}
 	}
 	print "Sorry - but I cannot find " . join(" or ", @bins) . " on your system.\n";
-	print "You may need to install more packages. See tools/get-deps.pl\n";
-	print "for a script to semi-automate this for you.\n";
+	print "You may need to install more packages. See tools/get-deps.pl, or\n";
+	print "tools/get-deps-fedora.pl which can automate package installation.\n";
 	print "Continue ? [y/n] ";
 	my $ans = <STDIN>;
 	exit(1) if $ans !~ /^y/;

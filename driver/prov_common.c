@@ -10,7 +10,7 @@
 /*   								      */
 /*   License: GPL3						      */
 /*   								      */
-/*   $Header: Last edited: 04-Apr-2011 1.11 $ 			      */
+/*   $Header: Last edited: 03-Dec-2011 1.12 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -329,7 +329,7 @@ dtrace_parse_function(pf_info_t *infp, uint8_t *instr, uint8_t *limit)
 	/*   too  much  printk() output and swamp the  */
 	/*   log daemon.			       */
 	/***********************************************/
-//	do_print = strncmp(infp->name, "vfs_read", 9) == 0;
+	//do_print = strncmp(infp->name, "flush_old_exec", 9) == 0;
 
 #ifdef __amd64
 // am not happy with 0xe8 CALLR instructions, so disable them for now.
@@ -485,16 +485,19 @@ if (*instr == 0xe8) return;
 		size = dtrace_instr_size(instr);
 		if (do_print) {
 			int i;
-			printk("%p: sz=%2d ", instr, size);
+			char	buf[128];
+			sprintf(buf, "%p: sz=%2d ", instr, size);
 			for (i = 0; i < size; i++) {
-				printk(" %02x", instr[i] & 0xff);
+				sprintf(buf + strlen(buf), " %02x", instr[i] & 0xff);
 			}
-			printk("\n");
+			sprintf(buf + strlen(buf), "\n");
+			printk(buf);
 		}
 		if (size <= 0)
 			return;
 
 
+#if 0
 		/***********************************************/
 		/*   Handle  the BUG_ON macro which generates  */
 		/*   a  ud2a  instruction  followed by a long  */
@@ -504,12 +507,27 @@ if (*instr == 0xe8) return;
 		/*   and  does  the appropriate lookup and we  */
 		/*   need   to   skip   over   these   pseudo  */
 		/*   instructions.			       */
+		/*   20111203  No  - there isnt the line/file  */
+		/*   info  immediately after the instruction.  */
+		/*   Certainly   the   2.6.32   kernels,  and  */
+		/*   probably  prior,  put this data into the  */
+		/*   __bug_table   section,   not   the  text  */
+		/*   section.  Dont  know  why I thought this  */
+		/*   happened.   This  caused  us  a  parsing  */
+		/*   glitch in FC16/64 whereby flush_old_exec  */
+		/*   would  cause  us  to put a breakpoint in  */
+		/*   the middle of a call instruction.	       */
+		//   0xffffffff8112e725:  ud2
+		//   0xffffffff8112e727:  mov    %r15,%rdi
+		//   0xffffffff8112e72a:  callq  0xffffffff8105aaa0
 		/***********************************************/
 		if (*instr == 0x0f && instr[1] == 0x0b) {
 	                size = 2 + 8 + 2;
 	                /*printk("got a bugon: %p\n", instr);*/
 	                continue;
 	        }
+#endif
+
 		
 #define	FBT_RET			0xc3
 #define	FBT_RET_IMM16		0xc2
@@ -840,8 +858,8 @@ prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo
 	if (pp->p_probe == NULL) {
 		static int cnt;
 		if (cnt++ < 10)
-			printk("dtrace: prov_common: cannot map %p\n", 
-				(void *) stack0);
+			printk("dtrace: prov_common: cannot map addr=%p stk0=%p\n", 
+				(void *) addr, (void *) stack0);
 		return 0;
 	}
 	/***********************************************/

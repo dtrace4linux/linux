@@ -310,6 +310,7 @@ int	dtrace_profile_fini(void);
 int	fasttrap_init(void);
 void	fasttrap_exit(void);
 int	fbt_init(void);
+int	fbt_init2(void);
 void	fbt_exit(void);
 int	instr_init(void);
 void	instr_exit(void);
@@ -2657,6 +2658,7 @@ syms_write(struct file *file, const char __user *buf,
 		hunt_init();
 		dtrace_linux_init();
 
+  		dtrace_profile_init();
 		dtrace_prcom_init();
 		sdt_init();
 		ctl_init();
@@ -2664,6 +2666,17 @@ syms_write(struct file *file, const char __user *buf,
 		/*   Initialise the io provider.	       */
 		/***********************************************/
 		io_prov_init();
+		instr_init();
+
+		/***********************************************/
+		/*   Try  and  keep  this at the end, so that  */
+		/*   the fbt_invop handler is at the front of  */
+		/*   the  callback  list.  This  is a speedup  */
+		/*   optimisation  since  fbt  is  likely the  */
+		/*   most   common   provider   to  call  for  */
+		/*   breakpoint traps.			       */
+		/***********************************************/
+		fbt_init2();
 	}
 	return orig_count;
 }
@@ -3397,8 +3410,11 @@ static struct proc_dir_entry *dir;
 	ctf_init();
 	fasttrap_init();
 	systrace_init();
-	instr_init();
-	dtrace_profile_init();
+	/***********************************************/
+	/*   Arm  the  fbt provider early, because it  */
+	/*   receives  the  symbol table updates, but  */
+	/*   dont do the invop hook yet.	       */
+	/***********************************************/
 	fbt_init();
 /*	dtrace_prcom_init();
 	sdt_init();

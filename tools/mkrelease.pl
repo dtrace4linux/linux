@@ -93,6 +93,7 @@ sub main
 			"--exclude=tags " .
 			"--exclude=lwn " .
 			"--exclude=.dtrace.nobug " .
+			"--exclude=.test.prompt " .
 			"dtrace-$rel | bzip2 >/tmp/dtrace-$rel.tar.bz2");
 	rename("dtrace-$rel", "dtrace");
 

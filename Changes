@@ -1,3 +1,33 @@
+Sat Dec  3 08:56:10 2011  fox
+
+     608* dtrace_linux.c, fbt_linux.c: Arrange for fbt to be first in the
+          invop chain (optimisation).
+
+     607* x_call.c: Remove the per-interrupt xcall state. I think it was
+          potentially wrong, as we were using our interrupt state instead
+	  of the other cpu state. I am not sure it matters, because
+	  we try to call xslave2 during fast-teardown to empty any
+	  pending buffers, so the amount of contention should be reduced.
+
+     606* instr_linux.c: Small parsing optimisation and opcode name fix
+          for repnz.
+
+     605* instr_linux.c: Add ud2 instructions to the INSTR provider. Would allow us to
+          take a probe when a BUG_ON is hit in the kernel. (The
+	  kernel will kill the calling process anyhow and dump a stack,
+	  but at least we could do something useful if we were interested).
+
+     604* prov_common.c: We were incorrectly assuming the file/line info
+          for the BUG_ON/ud2 instruction followed the instruction. This
+	  caused random disassembly failure leading to problems when that
+	  code was executed. (FC16 flush_exec_old function would kill
+	  new processes).
+	  Avoid print mangling when debug enabled for tracing disassembler.
+
+Wed Nov 30 22:12:40 2011  fox
+
+     603* fbt_linux.c: Add an overrun indicator to /proc/dtrace/fbt ("*")
+
 Tue Nov 29 09:00:40 2011  fox
 
      602* cmd/instr: New utility for getting instruction encodings.

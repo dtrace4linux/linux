@@ -482,10 +482,12 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 # define INSTR(val, opcode_name) do {if (instr[0] == val) { \
 	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
 	name = name_buf; \
+	goto do_instr; \
 	}} while (0)
 # define INSTR2(instr, tbl, opcode_name) do {if (instr_cmp(instr, tbl)) { \
 	snprintf(name_buf, sizeof name_buf, "%s-%s", orig_name, opcode_name); \
 	name = name_buf; \
+	goto do_instr; \
 	}} while (0)
 
 	for (; instr < limit; instr += size) {
@@ -506,6 +508,14 @@ if (*instr == 0xf0) {
 printk("lock %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
 }
 #endif
+		/***********************************************/
+		/*   Add UD2 instructions (BUG_ON).	       */
+		/***********************************************/
+		if (*instr == 0x0f && instr[1] == 0x0b) {
+			snprintf(name_buf, sizeof name_buf, "%s-ud2", orig_name); \
+			name = name_buf;
+			goto do_instr;
+		}
 
 		INSTR(0x70, "jo");
 		INSTR(0x71, "jno");
@@ -545,7 +555,7 @@ printk("lock %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
 
 		INSTR(0xf0, "lock");
 		INSTR(0xf1, "icebp");
-		INSTR(0xf2, "repz");
+		INSTR(0xf2, "repnz");
 		INSTR(0xf3, "repz");
 		INSTR(0xfa, "cli");
 		INSTR(0xfb, "sti");
@@ -554,6 +564,7 @@ printk("lock %p %02x %02x %02x\n", instr, instr[0], instr[1], instr[2]);
 			continue;
 		}
 
+do_instr:
 		sprintf(pred_buf, "0x%p", instr);
 		/***********************************************/
 		/*   Make  sure  this  doesnt overlap another  */

@@ -72,7 +72,7 @@ dtrace_printf("%p mutex recursive, dflag=%d %d\n", mp, dflag, mp->m_type);
 
         for (cnt = 0; dtrace_casptr(&mp->m_count, 0, (void *) 1) == (void *) 1; ) {
                 if (cnt++ > 10 * 1000 * 1000) {
-			dtrace_printf("mutex_enter: breaking out of stuck loop cpu=%\n", smp_processor_id());
+			dtrace_printf("mutex_enter: breaking out of stuck loop\n");
                         dtrace_interrupt_enable(flags);
                         cnt_mtx3++;
 			break;

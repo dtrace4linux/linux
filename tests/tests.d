@@ -404,4 +404,11 @@ d:
 		exit(0);
 	        }
 
-
+##################################################################
+name:	instr-1
+note:	Some checks on the instruction provider. Helps us to determine
+	if the single step works properly, and recursion. Much more
+	invasive than fbt (because there are more probes).
+d:
+	instr::a*-j*: { cnt++;}
+	tick-1ms {exit(0);}

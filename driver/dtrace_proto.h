@@ -63,6 +63,7 @@ void	prcom_add_function(char *probe, char *func);
 void	dtrace_parse_kernel(void (*callback)(uint8_t *, int));
 void	dtrace_instr_dump(char *label, uint8_t *insn);
 dtrace_icookie_t dtrace_interrupt_get(void);
+void	xcall_slave2(void);
 
 # endif
 

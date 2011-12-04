@@ -75,8 +75,12 @@
 # undef ASSERT
 # define ASSERT(x) { \
 	if (!(x)) { \
+		static int once = TRUE; \
 		dtrace_linux_panic("%s:%s:%d: assertion failure %s\n", __FILE__, __func__, __LINE__, #x); \
+		if (once) { \
+			once = FALSE; \
 		dump_stack(); \
+		} \
 	}}
 # define KERNELBASE 0
 # endif
@@ -5937,7 +5941,9 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		while (lock_teardown >= 0) {
 			extern void xcall_slave2(void);
 			xcall_slave2();
-			if (cnt++ >= smp_processor_id() * 10000) {
+dcnt[0]++;
+			if (cnt++ >= smp_processor_id() * 10/*000*/) {
+dcnt[1]++;
 				break;
 				}
 			}
@@ -13650,8 +13656,7 @@ HERE();
 
 extern unsigned long cnt_xcall1;
 hrtime_t s = dtrace_gethrtime();
-dtrace_printf("teardown start %llu.%09llu xcalls=%lu probes=%llu\n", s / (1000 * 1000 * 1000), s % (1000 * 1000 * 1000), cnt_xcall1,
-cnt_probes - cnt_free1);
+dtrace_printf("teardown start xcalls=%lu probes=%llu\n", cnt_xcall1, cnt_probes - cnt_free1);
 
 	dtrace_sync();
 

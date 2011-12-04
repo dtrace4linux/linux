@@ -44,6 +44,20 @@ dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinf
 {
 	dtrace_invop_hdlr_t *hdlr;
 	int rval;
+static int once = TRUE;
+
+	/***********************************************/
+	/*   Let  us see the handler chain, so we can  */
+	/*   check  if its in the right logical order  */
+	/*   for performance reasons.		       */
+	/***********************************************/
+	if (once) {
+		once = FALSE;
+		dtrace_printf("hdlr chain:\n");
+		for (hdlr = dtrace_invop_hdlr; hdlr != NULL; hdlr = hdlr->dtih_next) {
+			dtrace_printf("  %p\n", hdlr->dtih_func);
+		}
+	}
 
 	for (hdlr = dtrace_invop_hdlr; hdlr != NULL; hdlr = hdlr->dtih_next) {
 		if ((rval = hdlr->dtih_func(addr, stack, eax, tinfo)) != 0)

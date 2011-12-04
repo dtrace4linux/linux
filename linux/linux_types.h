@@ -270,7 +270,7 @@ typedef unsigned long long hrtime_t;
 		int		m_type;
 		} mutex_t;
 	#define kmutex_t mutex_t
-	#define MUTEX_DEFINE(name) mutex_t name
+	#define MUTEX_DEFINE(name) mutex_t name = {.m_initted = 2 }
 	void dmutex_init(mutex_t *mp);
 	void dmutex_enter(mutex_t *mp);
 	void dmutex_exit(mutex_t *mp);

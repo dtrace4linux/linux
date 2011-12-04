@@ -1,3 +1,29 @@
+Sun Dec  4 12:03:45 2011  fox
+
+     614* dtrace.c: Tone down the teardown logic to avoid two
+          dtraces fighting each other in a death match.
+
+     613* mutex.c: Dont break out of mutex_enter, and dont dump
+          stacks, as this can lead to inter-cpu corruption and assertion
+	  failure.
+
+     612* dtrace.c: When hitting an assertion/panic issue, avoid
+          problems if another panic hits at the same time, to avoid
+	  frantic console scrolling (we only allow the message once).
+
+     611* Archive: 1.0130
+
+     610* mutex.c: Dtrace is *NOT* expecting the mutexes to be recursive.
+          By disabling recursion, we fix the "dtrace -l & dtrace -l &"
+	  issue which would cause deadlock or assertions. We increased
+	  the break-out check - we need to turn this off. Under very
+	  heavy load (eg two copies of fbt::: running), the mutex
+	  might believe somethings broke and panic dtrace, effectively
+	  disabling it.
+
+     609* dtrace_subr.c: Dump out the hdlr chain so we can diagnose
+          if fbt is not at the front of the list.
+
 Sat Dec  3 08:56:10 2011  fox
 
      608* dtrace_linux.c, fbt_linux.c: Arrange for fbt to be first in the

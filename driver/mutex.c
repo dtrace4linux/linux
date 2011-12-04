@@ -28,7 +28,7 @@
 /*   when allocating memory if the irqs_disabled() function disagree  */
 /*   with the allocation flags.					      */
 /*--------------------------------------------------------------------*/
-/*  $Header: Last edited: 18-Nov-2011 1.2 $ 			      */
+/*  $Header: Last edited: 04-Dec-2011 1.3 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -48,95 +48,202 @@ dmutex_init(mutex_t *mp)
 	mp->m_initted = TRUE;
 }
 
+/**********************************************************************/
+/*   Do the work of acquiring and blocking on a mutex. "mutex_enter"  */
+/*   is  for  normal  upper-layer  code,  e.g.  the ioctl(), whereas  */
+/*   "dmutex_enter" is for interrupt level code.		      */
+/*   								      */
+/*   We  could  probably  coalesce  the functions and use the kernel  */
+/*   irqs_disabled()  and  hard_irq_count()  functions, but we dont,  */
+/*   for now.							      */
+/**********************************************************************/
 void
 mutex_enter_common(mutex_t *mp, int dflag)
 {       unsigned long flags;
-        unsigned long cnt;
+	unsigned long cnt;
 
-        if (!mp->m_initted)
-                dmutex_init(mp);
+	if (!mp->m_initted) {
+		/***********************************************/
+		/*   Special  debug:  detect  a dynamic mutex  */
+		/*   being  used  (one  coming from a kmalloc  */
+		/*   type block of memory), vs the statically  */
+		/*   defined ones).			       */
+		/***********************************************/
+		if (mp->m_initted != 2) {
+			dtrace_printf("initting a mutex\n");
+			dump_stack();
+		}
+	    dmutex_init(mp);
+	    }
 
-        /***********************************************/
-        /*   Check for recursive mutex.                */
-        /***********************************************/
-        if (mp->m_count && mp->m_cpu == smp_processor_id()) {
-dtrace_printf("%p mutex recursive, dflag=%d %d\n", mp, dflag, mp->m_type);
-                mp->m_level++;
-                return;
-                }
+	/***********************************************/
+	/*   Check  for  recursive  mutex.  Theres  a  */
+	/*   number of scenarios.		       */
+	/*   					       */
+	/*   Non-intr followed by an intr: we have to  */
+	/*   allow the intr.			       */
+	/*   					       */
+	/*   Non-intr  followed  by  non-intr: normal  */
+	/*   recursive mutex.			       */
+	/*   					       */
+	/*   Intr   followed  by  an  intr:  shouldnt  */
+	/*   happen.				       */
+	/*   					       */
+	/*   We  mustnt allow us to be put on another  */
+	/*   cpu,  else  we  will lose track of which  */
+	/*   cpu has the mutex.			       */
+	/*   					       */
+	/*   Now  that  the mutex code is working, we  */
+	/*   mustnt  allow  recursive  mutexes.  This  */
+	/*   causes  problems  for  two  dtrace  user  */
+	/*   space  apps  running  at  the same time.  */
+	/*   Turn  off  for  now.  Later  on,  we can  */
+	/*   delete the code below.		       */
+	/***********************************************/
+	if (0 && mp->m_count && mp->m_cpu == smp_processor_id()) {
+		static int x;
+		if (x++ < 4 || (x < 1000000 && (x % 5000) == 0))
+		    dtrace_printf("%p mutex recursive, dflag=%d %d [%d]\n", mp, dflag, mp->m_type, x);
+		mp->m_level++;
+		return;
+	}
 
-        if (dflag)
-                flags = dtrace_interrupt_disable();
+	if (dflag)
+	    flags = dtrace_interrupt_disable();
 	else
-		flags = dtrace_interrupt_get();
+	      flags = dtrace_interrupt_get();
 
-        for (cnt = 0; dtrace_casptr(&mp->m_count, 0, (void *) 1) == (void *) 1; ) {
-                if (cnt++ > 10 * 1000 * 1000) {
-			dtrace_printf("mutex_enter: breaking out of stuck loop\n");
-                        dtrace_interrupt_enable(flags);
-                        cnt_mtx3++;
-			break;
+	for (cnt = 0; dtrace_casptr(&mp->m_count, 0, (void *) 1) == (void *) 1; ) {
+		/***********************************************/
+		/*   We  are  waiting  for  the lock. Someone  */
+		/*   else  has  it.  Someone  else  might  be  */
+		/*   waiting  for us (xcall), so occasionally  */
+		/*   empty the xcall queue for us.	       */
+		/***********************************************/
+		if ((cnt++ % 100) == 0)
+			xcall_slave2();
+		/***********************************************/
+		/*   We  want  to avoid locking the kernel if  */
+		/*   something  is  broken, but if we do exit  */
+		/*   prematurely,  we  will  have  the caller  */
+		/*   race against someone else (eg syscall:::  */
+		/*   and   fbt:::  in  a  continuous  restart  */
+		/*   loop).  For  now,  we  will hang til the  */
+		/*   traffic jam is passed.		       */
+		/***********************************************/
+		if (cnt++ == 1500 * 1000 * 1000) {
+			dtrace_printf("mutex_enter: taking a long time to grab lock mtx3=%llu\n", cnt_mtx3);
+			xcall_slave2();
+			cnt_mtx3++;
+//			break;
+/*			dtrace_interrupt_enable(flags);
+			dtrace_linux_panic("mutex");
+			break;*/
 		}
 	}
+//preempt_disable();
 	mp->m_flags = flags;
 	mp->m_cpu = smp_processor_id();
 	mp->m_level = 1;
 	mp->m_type = dflag;
 }
+
+/**********************************************************************/
+/*   Enter from interrupt context, interrupts might be disabled.      */
+/**********************************************************************/
 void
 dmutex_enter(mutex_t *mp)
 {
 	cnt_mtx1++;
 	mutex_enter_common(mp, TRUE);
 }
+
+/**********************************************************************/
+/*   Enter  from  the  upper-level  of  the  kernel, with interrupts  */
+/*   enabled.							      */
+/**********************************************************************/
 void
 mutex_enter(mutex_t *mp)
 {
-mutex_t imp = *mp;
+	mutex_t imp = *mp;
+/*static int f;
+if (f++ == 70) {
+	int c = smp_processor_id();
+	unsigned long x = 0;
+	for (x = 0; x < 4000000000UL; x++) {
+		if (c != smp_processor_id())
+			break;
+	}
+	dtrace_printf("FIRST CPU SW: %d x=%lu\n", c, x);
 
-	if (mp->m_count && mp->m_type) {
+}*/
+	/***********************************************/
+	/*   Try  and  detect a nested call from this  */
+	/*   cpu whilst the mutex is held.	       */
+	/***********************************************/
+	if (mp->m_count && mp->m_type && mp->m_cpu == smp_processor_id()) {
 		dtrace_printf("%p mutex...fail in mutex_enter count=%d type=%d\n", mp, mp->m_count, mp->m_type);
 	}
 
 	cnt_mtx2++;
 	mutex_enter_common(mp, FALSE);
 	if (irqs_disabled()) {
-		dtrace_printf("%p: mutex_enter with irqs disabled fl:%lx level:%d cpu:%d\n", 
-			mp, mp->m_flags, mp->m_level, mp->m_cpu);
+		dtrace_printf("%p: mutex_enter with irqs disabled fl:%lx level:%d cpu:%d\n",
+		    mp, mp->m_flags, mp->m_level, mp->m_cpu);
 		dtrace_printf("orig: init=%d fl:%lx cpu:%d\n", imp.m_initted, imp.m_flags, imp.m_cpu);
 	}
 }
 
+/**********************************************************************/
+/*   Release mutex, called by interrupt context.		      */
+/**********************************************************************/
 void
 dmutex_exit(mutex_t *mp)
-{
-	if (--mp->m_level)
-		return;
+{	unsigned long fl = mp->m_flags;
 
-	dtrace_interrupt_enable(mp->m_flags);
+	if (--mp->m_level)
+	    return;
+
+	/*
+	if (mp->m_cpu != smp_processor_id())
+		dtrace_printf("dmutex_exit:: cross cpu %d count=%d\n", mp->m_cpu, mp->m_count);
+	*/
+
 	mp->m_count = 0;
+	dtrace_interrupt_enable(fl);
+//preempt_enable_no_resched();
 }
 
+/**********************************************************************/
+/*   Release mutex, called by upper-half of kernel.		      */
+/**********************************************************************/
 void
 mutex_exit(mutex_t *mp)
 {
 	if (--mp->m_level)
-		return;
+	    return;
+
+
+	/*
+	if (mp->m_cpu != smp_processor_id()) {
+	static int xx;
+		dtrace_printf("mutex_exit:: cross cpu %d\n", mp->m_cpu);
+	if (xx++ < 5)
+		dump_stack();
+	}
+	preempt_enable_no_resched();
+	*/
 
 	mp->m_count = 0;
 }
 
+/**********************************************************************/
+/*   Used by the assertion code MUTEX_LOCKED in dtrace.c	      */
+/**********************************************************************/
 int
 dmutex_is_locked(mutex_t *mp)
 {
 	return mp->m_count != NULL;
-
-/*# if defined(HAVE_SEMAPHORE_ATOMIC_COUNT)
-	return atomic_read(&mp->m_sem.count) == 0;
-# else
-	return mp->m_sem.count == 0;
-#endif	
-*/
 }
 
 /**********************************************************************/
@@ -146,6 +253,6 @@ void
 mutex_dump(mutex_t *mp)
 {
 	dtrace_printf("mutex: %p initted=%d count=%p flags=%lx cpu=%d type=%d level=%d\n",
-		mp, mp->m_initted, mp->m_count, mp->m_flags, mp->m_cpu, mp->m_type, 
-		mp->m_level);
+	    mp, mp->m_initted, mp->m_count, mp->m_flags, mp->m_cpu, mp->m_type,
+	    mp->m_level);
 }

@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 28-Nov-2011 1.11 $ 			      */
+/*   $Header: Last edited: 06-Dec-2011 1.12 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -65,18 +65,13 @@ int dtrace_unhandled;
 module_param(dtrace_unhandled, int, 0);
 int fbt_name_opcodes;
 module_param(fbt_name_opcodes, int, 0);
-int dtrace_printk;
-module_param(dtrace_printk, int, 0);
 int grab_panic;
 module_param(grab_panic, int, 0);
 
-/**********************************************************************/
-/*   dtrace_printf() buffer and state.				      */
-/**********************************************************************/
-#define	LOG_BUFSIZ (64 * 1024)
-char	dtrace_buf[LOG_BUFSIZ];
-int	dbuf_i;
-int	dtrace_printf_disable;
+extern char dtrace_buf[];
+extern const int log_bufsiz;
+extern int dtrace_printf_disable;
+extern int dbuf_i;
 
 /**********************************************************************/
 /*   TRUE when we have called dtrace_linux_init(). After that point,  */
@@ -85,15 +80,6 @@ int	dtrace_printf_disable;
 /**********************************************************************/
 int driver_initted;
 
-asmlinkage int
-printk(const char *fmt, ...)
-{	va_list	ap;
-
-	va_start(ap, fmt);
-	dtrace_vprintf(fmt, ap);
-	va_end(ap);
-	return 0;
-}
 /**********************************************************************/
 /*   Stuff we stash away from /proc/kallsyms.			      */
 /**********************************************************************/
@@ -1396,226 +1382,6 @@ dtrace_print_regs(struct pt_regs *regs)
 
 }
 # endif
-/**********************************************************************/
-/*   Internal logging mechanism for dtrace. Avoid calls to printk if  */
-/*   we are in dangerous territory).				      */
-/**********************************************************************/
-volatile int dtrace_printf_lock = -1;
-
-void
-dtrace_printf(const char *fmt, ...)
-{
-	va_list	ap;
-	va_start(ap, fmt);
-	dtrace_vprintf(fmt, ap);
-	va_end(ap);
-}
-void
-dtrace_vprintf(const char *fmt, va_list ap)
-{	short	ch;
-	unsigned long long n;
-	unsigned long sec, nsec;
-	char	*cp;
-	short	i;
-	short	l_mode;
-static	char	tmp[40];
-	short	zero;
-	short	width;
-static char digits[] = "0123456789abcdef";
-	hrtime_t hrt = dtrace_gethrtime();
-static hrtime_t	hrt0;
-# define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
-
-# if 0
-	/***********************************************/
-	/*   Temp: dont wrap buffer - because we want  */
-	/*   to see first entries.		       */
-	/***********************************************/
-	if (dbuf_i >= LOG_BUFSIZ - 2048)
-		return;
-# endif
-	if (dtrace_printf_disable)
-		return;
-
-	/***********************************************/
-	/*   Try  and  avoid intermingled output from  */
-	/*   the  other  cpus.  Dont  do  this  if we  */
-	/*   interrupt our own cpu.		       */
-	/***********************************************/
-	while (dtrace_printf_lock >= 0 && dtrace_printf_lock != smp_processor_id())
-		;
-	/***********************************************/
-	/*   Allow a blank string - dont generate any  */
-	/*   output.  We  often  use this to add some  */
-	/*   slowdown  to paths of code. We will wait  */
-	/*   for  any  locks,  but not grab the lock,  */
-	/*   just for a bit more entropy.	       */
-	/***********************************************/
-	if (*fmt == '\0')
-		return;
-	dtrace_printf_lock = smp_processor_id();
-
-	/***********************************************/
-	/*   Add in timestamp.			       */
-	/***********************************************/
-	if (hrt0 == 0)
-		hrt0 = hrt;
-	if (hrt) {
-		hrt -= hrt0;
-		sec = (unsigned long) (hrt / (1000 * 1000 * 1000));
-		nsec = (unsigned long) (hrt % (1000 * 1000 * 1000));
-		for (i = 0; ; ) {
-			tmp[i++] = (sec % 10) + '0';
-			sec /= 10;
-			if (sec == 0)
-				break;
-		}
-		for (; --i >= 0; ) {
-			ADDCH(tmp[i]);
-		}
-		ADDCH('.');
-		for (i = 0; i < 9; ) {
-			tmp[i++] = (nsec % 10) + '0';
-			nsec /= 10;
-		}
-		for (; --i >= 0; ) {
-			ADDCH(tmp[i]);
-		}
-		ADDCH(' ');
-	}
-	/***********************************************/
-	/*   Add the current CPU.		       */
-	/***********************************************/
-	ADDCH('#');
-	n = smp_processor_id();
-	for (i = 0; ; ) {
-		tmp[i++] = (n % 10) + '0';
-		n /= 10;
-		if (n == 0)
-			break;
-	}
-	for (; --i >= 0; ) {
-		ADDCH(tmp[i]);
-	}
-	ADDCH(' ');
-
-	while ((ch = *fmt++) != '\0') {
-		if (ch != '%') {
-			ADDCH(ch);
-			continue;
-		}
-
-		zero = ' ';
-		width = -1;
-
-		if ((ch = *fmt++) == '\0')
-			break;
-		if (ch == '0')
-			zero = '0';
-		while (ch >= '0' && ch <= '9') {
-			if (width < 0)
-				width = ch - '0';
-			else
-				width = 10 * width + ch - '0';
-			if ((ch = *fmt++) == '\0')
-				break;
-		}
-		l_mode = FALSE;
-		if (ch == '*') {
-			width = (int) va_arg(ap, int);
-			if ((ch = *fmt++) == '\0')
-				break;
-		}
-		if (ch == '.') {
-			if ((ch = *fmt++) == '\0')
-				break;
-		}
-		if (ch == '*') {
-			width = (int) va_arg(ap, int);
-			if ((ch = *fmt++) == '\0')
-				break;
-		}
-		if (ch == 'l') {
-			l_mode = TRUE;
-			if ((ch = *fmt++) == '\0')
-				break;
-			if (ch == 'l') {
-				l_mode++;
-				if ((ch = *fmt++) == '\0')
-			  		break;
-			}
-		}
-		switch (ch) {
-		  case 'c':
-		  	ch = (char) va_arg(ap, int);
-			ADDCH(ch);
-		  	break;
-		  case 'd':
-		  case 'u':
-			if (l_mode) {
-			  	n = va_arg(ap, unsigned long);
-			} else {
-			  	n = va_arg(ap, unsigned int);
-			}
-			if (ch == 'd' && (long) n < 0) {
-				ADDCH('-');
-				n = -n;
-			}
-			for (i = 0; i < 40; i++) {
-				tmp[i] = '0' + (n % 10);
-				n /= 10;
-				if (n == 0)
-					break;
-			}
-			while (i >= 0)
-				ADDCH(tmp[i--]);
-		  	break;
-		  case 'p':
-#if defined(__i386)
-		  	width = 8;
-#else
-		  	width = 16;
-#endif
-			zero = '0';
-			l_mode = TRUE;
-			// fallthru...
-		  case 'x':
-			if (l_mode) {
-			  	n = va_arg(ap, unsigned long);
-			} else {
-			  	n = va_arg(ap, unsigned int);
-			}
-			for (i = 0; ; ) {
-				tmp[i++] = digits[(n & 0xf)];
-				n >>= 4;
-				if (n == 0)
-					break;
-			}
-			width -= i;
-			while (width-- > 0)
-				ADDCH(zero);
-			while (--i >= 0)
-				ADDCH(tmp[i]);
-		  	break;
-		  case 's':
-		  	cp = va_arg(ap, char *);
-			if (cp == NULL)
-				cp = "(null)";
-			while (*cp) {
-				ADDCH(*cp++);
-				if (width >= 0) {
-					if (--width < 0)
-						break;
-				}
-			}
-		  	break;
-		  }
-	}
-
-	dtrace_printf_lock = -1;
-
-}
-
 /**********************************************************************/
 /*   Make this public so that xcall can short-circuit the call if we  */
 /*   are safe.							      */
@@ -2936,14 +2702,14 @@ dtracedrv_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 	if (*off)
 		return 0;
 
-	j = (dbuf_i + 1) % LOG_BUFSIZ;
+	j = (dbuf_i + 1) % log_bufsiz;
 	while (len > 0 && j != dbuf_i) {
 		if (dtrace_buf[j]) {
 			*buf++ = dtrace_buf[j];
 			len--;
 			n++;
 		}
-		j = (j + 1) % LOG_BUFSIZ;
+		j = (j + 1) % log_bufsiz;
 	}
 	*off += n;
 	return n;
@@ -3221,18 +2987,18 @@ static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
 	int	n = 0;
 	char	*buf = page;
 
-	if (off >= LOG_BUFSIZ) {
+	if (off >= log_bufsiz) {
 		*eof = 1;
 		return 0;
 	}
 
-	j = (dbuf_i + 1) % LOG_BUFSIZ;
+	j = (dbuf_i + 1) % log_bufsiz;
 	while (pos < off + count && n < count && j != dbuf_i) {
 		if (dtrace_buf[j] && pos++ >= off) {
 			*buf++ = dtrace_buf[j];
 			n++;
 		}
-		j = (j + 1) % LOG_BUFSIZ;
+		j = (j + 1) % log_bufsiz;
 	}
 	if (j == dbuf_i)
 		*eof = 1;

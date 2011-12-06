@@ -28,7 +28,7 @@ dtracedrv-objs := \
 	intr_x86-64.o \
 	libc.o \
 	missing.o \
-	panic.o \
+	printf.o \
 	profile.o \
 	prov_common.o \
 	sdt_linux.o \

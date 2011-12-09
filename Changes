@@ -1,3 +1,32 @@
+Fri Dec  9 20:01:25 2011  fox
+
+     621* tools/tail.pl: Tool to do tail -f on any file, but specific
+          char special device files. Defaults to /proc/dtrace/trace.
+
+     620* Archive: 1.0131
+
+     619* dtrace.c: Added some monitoring around the kmem_free in 
+          dtrace_state_destroy. Not needed, but something to watch.
+
+     618* x_call.c: Whilst priming the other cpus for action, attempt
+          to drawin any pending call against ourselves. Reduce the
+	  poll time (ack_wait) a little, to try and gain better performance.
+
+     617* mutex.c: Dont disable interrupts for interrupt level mutexes.
+          (And, by implication, we dont need to restore them). Parameterise
+	  this change.
+	  Every 500m iterations, dump a "taking a long time message". Havent
+	  seen this get hit.
+
+Thu Dec  8 21:44:49 2011  fox
+
+     616* toxic.c: Re-enable more of the functions. We shouldnt have the old
+          problems anymore.
+
+Wed Dec  7 20:57:52 2011  fox
+
+     615* tools/cpustuck.pl: Simple tool to look for stuck cpus.
+
 Sun Dec  4 12:03:45 2011  fox
 
      614* dtrace.c: Tone down the teardown logic to avoid two

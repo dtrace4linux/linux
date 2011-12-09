@@ -40,6 +40,8 @@ unsigned long cnt_mtx1;
 unsigned long cnt_mtx2;
 unsigned long cnt_mtx3;
 
+static const int disable_ints;
+
 void
 dmutex_init(mutex_t *mp)
 {
@@ -60,7 +62,7 @@ dmutex_init(mutex_t *mp)
 void
 mutex_enter_common(mutex_t *mp, int dflag)
 {       unsigned long flags;
-	unsigned long cnt;
+	unsigned int  cnt;
 
 	if (!mp->m_initted) {
 		/***********************************************/
@@ -108,7 +110,7 @@ mutex_enter_common(mutex_t *mp, int dflag)
 		return;
 	}
 
-	if (dflag)
+	if (disable_ints && dflag)
 	    flags = dtrace_interrupt_disable();
 	else
 	      flags = dtrace_interrupt_get();
@@ -122,23 +124,16 @@ mutex_enter_common(mutex_t *mp, int dflag)
 		/***********************************************/
 		if ((cnt++ % 100) == 0)
 			xcall_slave2();
+
 		/***********************************************/
-		/*   We  want  to avoid locking the kernel if  */
-		/*   something  is  broken, but if we do exit  */
-		/*   prematurely,  we  will  have  the caller  */
-		/*   race against someone else (eg syscall:::  */
-		/*   and   fbt:::  in  a  continuous  restart  */
-		/*   loop).  For  now,  we  will hang til the  */
-		/*   traffic jam is passed.		       */
+		/*   If  we  start locking up the kernel, let  */
+		/*   user  know  something  bad is happening.  */
+		/*   Probably  pointless  if mutex is working  */
+		/*   correctly.				       */
 		/***********************************************/
-		if (cnt++ == 1500 * 1000 * 1000) {
+		if ((cnt++ % (500 * 1000 * 1000)) == 0) {
 			dtrace_printf("mutex_enter: taking a long time to grab lock mtx3=%llu\n", cnt_mtx3);
-			xcall_slave2();
 			cnt_mtx3++;
-//			break;
-/*			dtrace_interrupt_enable(flags);
-			dtrace_linux_panic("mutex");
-			break;*/
 		}
 	}
 //preempt_disable();
@@ -187,7 +182,7 @@ if (f++ == 70) {
 
 	cnt_mtx2++;
 	mutex_enter_common(mp, FALSE);
-	if (irqs_disabled()) {
+	if (disable_ints && irqs_disabled()) {
 		dtrace_printf("%p: mutex_enter with irqs disabled fl:%lx level:%d cpu:%d\n",
 		    mp, mp->m_flags, mp->m_level, mp->m_cpu);
 		dtrace_printf("orig: init=%d fl:%lx cpu:%d\n", imp.m_initted, imp.m_flags, imp.m_cpu);
@@ -210,7 +205,8 @@ dmutex_exit(mutex_t *mp)
 	*/
 
 	mp->m_count = 0;
-	dtrace_interrupt_enable(fl);
+	if (disable_ints)
+		dtrace_interrupt_enable(fl);
 //preempt_enable_no_resched();
 }
 

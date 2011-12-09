@@ -5941,9 +5941,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		while (lock_teardown >= 0) {
 			extern void xcall_slave2(void);
 			xcall_slave2();
-dcnt[0]++;
 			if (cnt++ >= smp_processor_id() * 10/*000*/) {
-dcnt[1]++;
 				break;
 				}
 			}
@@ -10524,7 +10522,32 @@ dtrace_ecb_destroy(dtrace_ecb_t *ecb)
 		lock_teardown = smp_processor_id();
 	}
 
+#if linux
+	/***********************************************/
+	/*   Put  some  timings  around  the free. We  */
+	/*   dont need this, but its interesting when  */
+	/*   monitoring /proc/dtrace/trace.	       */
+	/***********************************************/
+	{static unsigned cnt;
+	static hrtime_t max_t;
+	hrtime_t s = dtrace_gethrtime();
+
+	cnt++;
+
 	kmem_free(ecb, sizeof (dtrace_ecb_t));
+
+	s = dtrace_gethrtime() - s;
+	if (s > max_t) {
+		max_t = s;
+		dtrace_printf("kmem_free t=%s (%d)\n", hrtime_str(s), cnt);
+	} else if ((cnt % 10000) == 0) {
+		dtrace_printf("kmem_free cnt=%d\n", cnt);
+	}
+	}
+
+#else
+	kmem_free(ecb, sizeof (dtrace_ecb_t));
+#endif
 }
 
 static dtrace_ecb_t *
@@ -13654,7 +13677,7 @@ HERE();
 	 * in the second we disable whatever is left over.
 	 */
 
-extern unsigned long cnt_xcall1;
+{extern unsigned long cnt_xcall1;
 hrtime_t s = dtrace_gethrtime();
 dtrace_printf("teardown start xcalls=%lu probes=%llu\n", cnt_xcall1, cnt_probes - cnt_free1);
 
@@ -13690,12 +13713,11 @@ dtrace_printf("teardown start xcalls=%lu probes=%llu\n", cnt_xcall1, cnt_probes 
 	/*   Dump some stats on how long the teardown  */
 	/*   took.				       */
 	/***********************************************/
-	{
-		hrtime_t e = dtrace_gethrtime() - s;
-		dtrace_printf("teardown done %llu.%09llu xcalls=%lu probes=%llu\n", e / (1000 * 1000 * 1000), e % (1000 * 1000 * 1000), cnt_xcall1,
-			cnt_probes - cnt_free1);
-	}
-
+	s = dtrace_gethrtime() - s;
+	dtrace_printf("teardown done %s xcalls=%lu probes=%llu\n", hrtime_str(s),
+		cnt_xcall1,
+		cnt_probes - cnt_free1);
+}
 
 	/*
 	 * Before we free the buffers, perform one more sync to assure that

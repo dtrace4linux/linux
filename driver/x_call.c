@@ -28,7 +28,7 @@
 
 
 extern void dtrace_sync_func(void);
-int 	in_xcall;
+int 	in_xcall = -1;
 char	nmi_masks[NCPU];
 
 /**********************************************************************/
@@ -295,35 +295,18 @@ dtrace_xcall1(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {
 
 	/***********************************************/
-	/*   We  dont disable interrupts whilst doing  */
-	/*   an xcall. We may have two cpus trying to  */
-	/*   do  this at the same time, so we need to  */
-	/*   run in a lockless mode.		       */
-	/*   					       */
-	/*   We  do run with preempt_disable to avoid  */
-	/*   any  chance  of rescheduling the calling  */
-	/*   process  whilst we wait for long periods  */
-	/*   of  time.  (Note  that  disable  is  not  */
-	/*   nested;  does  this  matter  if  we have  */
-	/*   multiple  cpus  coming  in  at  the same  */
-	/*   time?				       */
-	/***********************************************/
-//	preempt_disable();
-
-	/***********************************************/
 	/*   Just  track re-entrancy events - we will  */
 	/*   be lockless in dtrace_xcall2.	       */
 	/***********************************************/
-	if (in_xcall) {
+	if (in_xcall >= 0 && (cnt_xcall0 < 500 || (cnt_xcall0 % 50) == 0)) {
+		dtrace_printf("x_call: re-entrant call in progress (%d) other=%d.\n", cnt_xcall0, in_xcall); 
 		cnt_xcall0++; 
-		if (cnt_xcall0 < 10 || (cnt_xcall0 % 50) == 0)
-			dtrace_printf("x_call: re-entrant call in progress (%d).\n", cnt_xcall0); 
-//dump_all_stacks();
 	}
-	in_xcall = 1;
+	in_xcall = smp_processor_id();
+//int flags = dtrace_interrupt_disable();
 	dtrace_xcall2(cpu, func, arg);
-	in_xcall = 0;
-//	preempt_enable();
+//dtrace_interrupt_enable(flags);
+	in_xcall = -1;
 }
 void
 dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
@@ -434,6 +417,7 @@ typedef struct cpumask cpumask_t;
 				dtrace_printf("[%d] cpu%d in wrong state (state=%d)\n",
 					smp_processor_id(), c, xc->xc_state);
 			}
+//			xcall_slave2();
 			if (cnt == 100 * 1000 * 1000) {
 				dtrace_printf("[%d] cpu%d - busting lock\n",
 					smp_processor_id(), c);
@@ -485,7 +469,6 @@ typedef struct cpumask cpumask_t;
 	/*   us whilst we are calling them.	       */
 	/***********************************************/
 	while (cpus_todo > 0) {
-//static int first = 1;
 		for (c = 0; c < nr_cpus && cpus_todo > 0; c++) {
 			xcall_slave2();
 			if (c == cpu_id || (cpu & (1 << c)) == 0)
@@ -495,17 +478,12 @@ typedef struct cpumask cpumask_t;
 			/*   Wait  a  little  while  for  this cpu to  */
 			/*   respond before going on to the next one.  */
 			/***********************************************/
-			if (ack_wait(c, 1000)) {
+			if (ack_wait(c, 100)) {
 				cpus_todo--;
 				cpu &= ~(1 << c);
 			}
 		}
-/*if (cpus_todo > 0 && first) { 
-cnt_xcall8++;
-void dump_all_stacks(void); first = FALSE; dtrace_printf("xcall deadlock:\n"); }
-*/
 	}
-
 //	smp_mb();
 
 	xcall_levels[cpu_id]--;

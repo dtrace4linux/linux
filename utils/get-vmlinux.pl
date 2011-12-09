@@ -51,7 +51,9 @@ sub main
 	###############################################
 	#   Read system.map.			      #
 	###############################################
+	print "Reading: $system_map\n";
 	$fh = new FileHandle($system_map);
+	die "Cannot open $system_map -- $!\n" if !$fh;
 	my %syms;
 	my %addr;
 	while (<$fh>) {

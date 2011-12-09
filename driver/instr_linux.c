@@ -112,7 +112,7 @@ instr_is_patched(char *name, uint8_t *addr)
 
 	for (; fbt != NULL; fbt = fbt->insp_hashnext) {
 		if (fbt->insp_patchpoint == addr) {
-			dtrace_printf("fbt:dup patch: %p %s\n", addr, name);
+			dtrace_printf("instr:dup patch: %p %s\n", addr, name);
 			return 1;
 		}
 	}
@@ -475,7 +475,7 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	char	pred_buf[128];
 
 # define UNHANDLED_FBT() if (do_print || dtrace_unhandled) { \
-		printk("fbt:unhandled instr %s:%p %02x %02x %02x %02x\n", \
+		printk("instr:unhandled instr %s:%p %02x %02x %02x %02x\n", \
 			name, instr, instr[0], instr[1], instr[2], instr[3]); \
 			}
 

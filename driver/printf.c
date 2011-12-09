@@ -198,7 +198,11 @@ static hrtime_t	hrt0;
 	dtrace_printf_int(smp_processor_id());
 	ADDCH(' ');
 	dtrace_printf_int(get_current()->pid);
-	ADDCH(':');
+	if (irqs_disabled()) {
+		ADDCH('-');
+	} else {
+		ADDCH(':');
+	}
 
 	while ((ch = *fmt++) != '\0') {
 		if (ch != '%') {

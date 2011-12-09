@@ -56,12 +56,12 @@ char toxic_probe_tbl[] = {
 	"__kprobes_text_start"
 	"__mod_timer "
 	"__show_registers "
-	"__mutex_init "
-	"__mutex_lock_interruptible_slowpath "
-	"__mutex_lock_killable_slowpath "
-	"__mutex_lock_slowpath "
-	"__mutex_trylock_slowpath "
-	"__mutex_unlock_slowpath "
+//	"__mutex_init "
+//	"__mutex_lock_interruptible_slowpath "
+//	"__mutex_lock_killable_slowpath "
+//	"__mutex_lock_slowpath "
+//	"__mutex_trylock_slowpath "
+//	"__mutex_unlock_slowpath "
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 	"__tasklet_hi_schedule "
 	"__tasklet_schedule "
@@ -95,8 +95,8 @@ char toxic_probe_tbl[] = {
 	"kmem_cache_free "
 	"level3_kernel_pgt " // this is a data element in the code segment
 	"level2_kernel_pgt " // this is a data element in the code segment
-	"mutex_lock "
-	"mutex_unlock "
+//	"mutex_lock "
+//	"mutex_unlock "
 	"native_get_debugreg "
 	"on_each_cpu " 		// Needed by dtrace_xcall
 	"oops_exit "

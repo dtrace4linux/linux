@@ -126,12 +126,22 @@ mutex_enter_common(mutex_t *mp, int dflag)
 			xcall_slave2();
 
 		/***********************************************/
+		/*   If  we  are running in the upper half of  */
+		/*   the   kernel,   periodically   let   the  */
+		/*   scheduler  run,  to  avoid deadlock when  */
+		/*   running N+1 copies of dtrace on an N CPU  */
+		/*   system.				       */
+		/***********************************************/
+		if (/*!dflag &&*/ (cnt % 2000) == 0)
+			schedule();
+
+		/***********************************************/
 		/*   If  we  start locking up the kernel, let  */
 		/*   user  know  something  bad is happening.  */
 		/*   Probably  pointless  if mutex is working  */
 		/*   correctly.				       */
 		/***********************************************/
-		if ((cnt++ % (500 * 1000 * 1000)) == 0) {
+		if ((cnt % (500 * 1000 * 1000)) == 0) {
 			dtrace_printf("mutex_enter: taking a long time to grab lock mtx3=%llu\n", cnt_mtx3);
 			cnt_mtx3++;
 		}

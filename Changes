@@ -1,3 +1,8 @@
+Sun Dec 11 21:23:47 2011  fox
+
+     622* mutex.c: Call scheduler periodically to avoid deadlock when
+          number of dtrace's exceeds number of physical cpus.
+
 Fri Dec  9 20:01:25 2011  fox
 
      621* tools/tail.pl: Tool to do tail -f on any file, but specific

@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use FileHandle;
+use POSIX;
 
 #######################################################################
 #   Command line switches.					      #
@@ -16,9 +17,28 @@ sub main
 {
 	$| = 1;
 	if (defined($ARGV[0])) {
+		my $n = 0;
+		my $old_t = 0;
+
+		my $tmo = 1.0;
+
 		while (1) {
-			print "$ARGV[0]";
-			sleep(1);
+			if ($ARGV[0]) {
+				print "$ARGV[0]";
+				select(undef, undef, undef, $tmo);
+				next;
+			}
+
+			my $t = strftime("%H:%M:%S", localtime());
+			if (substr($t, 0, 5) eq substr($old_t, 0, 5)) {
+				print $ARGV[0];
+				select(undef, undef, undef, $tmo);
+				next;
+			}
+			$old_t = $t;
+
+			print "\n" . $old_t . " " . $ARGV[0];
+			select(undef, undef, undef, $tmo);
 		}
 	}
 

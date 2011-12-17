@@ -1,3 +1,16 @@
+Sat Dec 17 13:53:47 2011  fox
+
+     625* Archive: 1.0132
+
+Fri Dec 16 20:27:53 2011  fox
+
+     624* sys/systm.h: Use correct sysconf() mapping #defines.
+
+Mon Dec 12 23:58:33 2011  fox
+
+     623* dtrace.c, dtrace.h, dtrace_impl.h: Upgrade to Jolent 201111
+          extras. (ECB delayed removal, vmreg support).
+
 Sun Dec 11 21:23:47 2011  fox
 
      622* mutex.c: Call scheduler periodically to avoid deadlock when

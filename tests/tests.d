@@ -412,3 +412,31 @@ note:	Some checks on the instruction provider. Helps us to determine
 d:
 	instr::a*-j*: { cnt++;}
 	tick-1ms {exit(0);}
+
+##################################################################
+name:	llquantize-1
+note:	test llquantize parsing works
+d:
+	tick-1ms
+	{
+		/*
+		 * A log-linear quantization with factor of 10 ranging from magnitude
+		 * 0 to magnitude 6 (inclusive) with twenty steps per magnitude
+		 */
+		@ = llquantize(i++, 10, 0, 6, 20);
+	}
+	tick-1ms
+	/i == 1500/
+	{
+		exit(0);
+	}
+
+##################################################################
+name:	ctf-print-1
+note:	demonstrate printing a structure based on the ctf data description.
+	We use an arbitrary (stupid) symbol (this is a code symbol).
+d:
+	BEGIN {
+		print(*((struct file *)&`dtrace_match_nonzero)); 
+		exit(0);
+	}

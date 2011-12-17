@@ -27,7 +27,7 @@
 #ifndef	_DT_PROC_H
 #define	_DT_PROC_H
 
-#pragma ident	"@(#)dt_proc.h	1.8	07/05/18 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <libproc.h>
 #include <dtrace.h>

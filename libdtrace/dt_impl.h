@@ -18,15 +18,19 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2011, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #ifndef	_DT_IMPL_H
 #define	_DT_IMPL_H
-
-#pragma ident	"@(#)dt_impl.h	1.22	08/01/29 SMI"
 
 #include <sys/param.h>
 #include <sys/objfs.h>
@@ -34,6 +38,7 @@
 #include <libctf.h>
 #include <dtrace.h>
 #include <gelf.h>
+#include <synch.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -183,6 +188,7 @@ typedef struct dt_lib_depend {
 	char *dtld_libpath;		/* library pathname */
 	uint_t dtld_finish;		/* completion time in tsort for lib */
 	uint_t dtld_start;		/* starting time in tsort for lib */
+	uint_t dtld_loaded;		/* boolean: is this library loaded */
 	dt_list_t dtld_dependencies;	/* linked-list of lib dependencies */
 	dt_list_t dtld_dependents;	/* linked-list of lib dependents */
 } dt_lib_depend_t;
@@ -235,6 +241,8 @@ struct dtrace_hdl {
 	dtrace_aggdesc_t **dt_aggdesc; /* aggregation descriptions */
 	int dt_maxformat;	/* max format ID */
 	void **dt_formats;	/* pointer to format array */
+	int dt_maxstrdata;	/* max strdata ID */
+	char **dt_strdata;	/* pointer to strdata array */
 	dt_aggregate_t dt_aggregate; /* aggregate */
 	dtrace_bufdesc_t dt_buf; /* staging buffer */
 	struct dt_pfdict *dt_pfdict; /* dictionary of printf conversions */
@@ -271,6 +279,7 @@ struct dtrace_hdl {
 	int dt_cdefs_fd;	/* file descriptor for C CTF debugging cache */
 	int dt_ddefs_fd;	/* file descriptor for D CTF debugging cache */
 	int dt_stdout_fd;	/* file descriptor for saved stdout */
+	FILE *dt_freopen_fp;	/* file pointer for freopened stdout */
 	dtrace_handle_err_f *dt_errhdlr; /* error handler, if any */
 	void *dt_errarg;	/* error handler argument */
 	dtrace_prog_t *dt_errprog; /* error handler program, if any */
@@ -412,6 +421,7 @@ struct dtrace_hdl {
 #define	DT_ACT_UMOD		DT_ACT(26)	/* umod() action */
 #define	DT_ACT_UADDR		DT_ACT(27)	/* uaddr() action */
 #define	DT_ACT_SETOPT		DT_ACT(28)	/* setopt() action */
+#define	DT_ACT_PRINT		DT_ACT(29)	/* print() action */
 
 /*
  * Sentinel to tell freopen() to restore the saved stdout.  This must not
@@ -496,7 +506,8 @@ enum {
 	EDT_BADSETOPT,		/* invalid setopt library action */
 	EDT_BADSTACKPC,		/* invalid stack program counter size */
 	EDT_BADAGGVAR,		/* invalid aggregation variable identifier */
-	EDT_OVERSION		/* client is requesting deprecated version */
+	EDT_OVERSION,		/* client is requesting deprecated version */
+	EDT_ENABLING_ERR	/* failed to enable probe */
 };
 
 /*
@@ -566,18 +577,17 @@ extern int dt_buffered_flush(dtrace_hdl_t *, dtrace_probedata_t *,
 extern void dt_buffered_disable(dtrace_hdl_t *);
 extern void dt_buffered_destroy(dtrace_hdl_t *);
 
+extern uint64_t dt_stddev(uint64_t *, uint64_t);
+
 extern int dt_rw_read_held(pthread_rwlock_t *);
 extern int dt_rw_write_held(pthread_rwlock_t *);
 extern int dt_mutex_held(pthread_mutex_t *);
-
-extern uint64_t dt_stddev(uint64_t *, uint64_t);
-
-#define	DT_RW_READ_HELD(x)	dt_rw_read_held(x)
-#define	DT_RW_WRITE_HELD(x)	dt_rw_write_held(x)
-#define	DT_RW_LOCK_HELD(x)	(DT_RW_READ_HELD(x) || DT_RW_WRITE_HELD(x))
-#define	DT_MUTEX_HELD(x)	dt_mutex_held(x)
-
 extern int dt_options_load(dtrace_hdl_t *);
+
+#define DT_RW_READ_HELD(x)	dt_rw_read_held(x)
+#define DT_RW_WRITE_HELD(x)	dt_rw_write_held(x)
+#define DT_RW_LOCK_HELD(x)	(DT_RW_READ_HELD(x) || DT_RW_WRITE_HELD(x))
+#define DT_MUTEX_HELD(x)	dt_mutex_held(x)
 
 extern void dt_dprintf(const char *, ...);
 
@@ -603,9 +613,14 @@ extern void dt_aggid_destroy(dtrace_hdl_t *);
 extern void *dt_format_lookup(dtrace_hdl_t *, int);
 extern void dt_format_destroy(dtrace_hdl_t *);
 
+extern const char *dt_strdata_lookup(dtrace_hdl_t *, int);
+extern void dt_strdata_destroy(dtrace_hdl_t *);
+
 extern int dt_print_quantize(dtrace_hdl_t *, FILE *,
     const void *, size_t, uint64_t);
 extern int dt_print_lquantize(dtrace_hdl_t *, FILE *,
+    const void *, size_t, uint64_t);
+extern int dt_print_llquantize(dtrace_hdl_t *, FILE *,
     const void *, size_t, uint64_t);
 extern int dt_print_agg(const dtrace_aggdata_t *, void *);
 
@@ -628,7 +643,7 @@ extern int yyintdecimal;	/* int token is decimal (1) or octal/hex (0) */
 # if defined(sun) || defined(HAVE_LEX_YYTEXT_ARRAY)
 extern char yytext[];		/* lex input buffer */
 # else
-extern char *yytext;		/* lex input buffer */
+extern char *yytext;            /* lex input buffer */
 # endif
 extern int yylineno;		/* lex line number */
 extern int yydebug;		/* lex debugging */
@@ -653,7 +668,7 @@ extern int _dtrace_debug;		/* debugging messages enabled */
 extern size_t _dtrace_bufsize;		/* default dt_buf_create() size */
 extern int _dtrace_argmax;		/* default maximum probe arguments */
 
-char *dt_get_libdir(void);		/* default library directory */
+extern const char *_dtrace_libdir;	/* default library directory */
 extern const char *_dtrace_moddir;	/* default kernel module directory */
 
 #ifdef	__cplusplus

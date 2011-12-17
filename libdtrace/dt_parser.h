@@ -26,7 +26,7 @@
 #ifndef	_DT_PARSER_H
 #define	_DT_PARSER_H
 
-#pragma ident	"@(#)dt_parser.h	1.11	07/11/12 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <sys/dtrace.h>

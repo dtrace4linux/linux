@@ -15,6 +15,7 @@ all: $(LIB)
 	@/bin/true
 
 $(LIB): \
+	$(LIB)(cpu_status.o) \
 	$(LIB)(getopt.o) \
 	$(LIB)(gmatch.o) \
 	$(LIB)(proc.o) \

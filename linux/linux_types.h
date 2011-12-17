@@ -221,6 +221,7 @@ typedef unsigned long long hrtime_t;
 
 	#define	KM_SLEEP GFP_KERNEL
 	#define	KM_NOSLEEP GFP_ATOMIC
+	#define KM_NORMALPRI 0
 
 	#define	CE_WARN	0
 	#define	CE_NOTE	1

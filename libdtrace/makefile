@@ -19,6 +19,7 @@ H = \
 	./dt_impl.h		\
 	./dt_inttab.h		\
 	./dt_list.h		\
+	./dt_linux.h		\
 	./dt_module.h		\
 	./dt_parser.h		\
 	./dt_pid.h		\
@@ -64,6 +65,7 @@ $(LIB): \
 	$(LIB)(dt_pcb.o) \
 	$(LIB)(dt_pid.o) \
 	$(LIB)(dt_pragma.o) \
+	$(LIB)(dt_print.o) \
 	$(LIB)(dt_printf.o) \
 	$(LIB)(dt_proc.o) \
 	$(LIB)(dt_program.o) \

@@ -18,12 +18,11 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
- *
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_lex.l	1.12	07/11/12 SMI"
+/*
+ * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
+ */
 
 #include <string.h>
 #include <stdlib.h>

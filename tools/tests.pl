@@ -265,7 +265,7 @@ EOF
 		do_tests();
 	}
 	print time_string() . "All tests completed.\n";
-	print <<EOF;
+	print <<EOF if $print_msg;
 
 You can look at /proc/dtrace/stats to see the number of interrupts
 and probes executed. You really want "probe_recursion" to be a small
@@ -281,7 +281,7 @@ pf:   page faults. will see these for badaddr probes, e.g. copyinstr(arg)
 snp:  segment not present. (Shouldnt see these normally).
 
 EOF
-	dump_stats();
+#	dump_stats();
 	exit($exit_code);
 }
 ######################################################################

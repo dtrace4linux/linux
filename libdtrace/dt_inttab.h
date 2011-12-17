@@ -27,7 +27,7 @@
 #ifndef	_DT_INTTAB_H
 #define	_DT_INTTAB_H
 
-#pragma ident	"@(#)dt_inttab.h	1.2	05/06/08 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <dtrace.h>
 

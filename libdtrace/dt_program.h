@@ -27,7 +27,7 @@
 #ifndef	_DT_PROGRAM_H
 #define	_DT_PROGRAM_H
 
-#pragma ident	"@(#)dt_program.h	1.2	06/03/30 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {

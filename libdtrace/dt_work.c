@@ -25,7 +25,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_work.c	1.8	06/02/08 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <dt_impl.h>
 #include <stddef.h>
@@ -79,25 +79,25 @@ dtrace_sleep(dtrace_hdl_t *dtp)
 
 	if (earliest < now) {
 		(void) pthread_mutex_unlock(&dph->dph_lock);
-//printf("time passed %llu %llu %lld: time=%lu\n", earliest, now, now - earliest, time(NULL));
 		return; /* sleep duration has already past */
 	}
 
 	tv.tv_sec = (earliest - now) / NANOSEC;
 	tv.tv_nsec = (earliest - now) % NANOSEC;
-//printf("waiting for %d.%06u\n", tv.tv_sec, tv.tv_nsec);
+
 	/*
 	 * Wait for either 'tv' nanoseconds to pass or to receive notification
 	 * that a process is in an interesting state.  Regardless of why we
 	 * awaken, iterate over any pending notifications and process them.
 	 */
-	i = pthread_cond_reltimedwait_np(&dph->dph_cv, &dph->dph_lock, &tv);
+	(void) pthread_cond_reltimedwait_np(&dph->dph_cv, &dph->dph_lock, &tv);
 
 	while ((dprn = dph->dph_notify) != NULL) {
 		if (dtp->dt_prochdlr != NULL) {
 			char *err = dprn->dprn_errmsg;
 			if (*err == '\0')
 				err = NULL;
+
 			dtp->dt_prochdlr(dprn->dprn_dpr->dpr_proc, err,
 			    dtp->dt_procarg);
 		}

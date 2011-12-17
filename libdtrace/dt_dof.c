@@ -20,13 +20,10 @@
  */
 
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
-#pragma ident	"@(#)dt_dof.c	1.13	06/04/28 SMI"
-
-#include <sys/bitmap.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 
@@ -43,6 +40,7 @@
 #include <dt_provider.h>
 #include <dt_xlator.h>
 #include <dt_dof.h>
+#include "dt_linux.h"
 
 void
 dt_dof_init(dtrace_hdl_t *dtp)
@@ -758,16 +756,23 @@ dtrace_dof_create(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t flags)
 				dofa[i].dofa_difo = DOF_SECIDX_NONE;
 
 			/*
-			 * If the first action in a statement has format data,
-			 * add the format string to the global string table.
+			 * If the first action in a statement has string data,
+			 * add the string to the global string table.  This can
+			 * be due either to a printf() format string
+			 * (dtsd_fmtdata) or a print() type string
+			 * (dtsd_strdata).
 			 */
 			if (sdp != NULL && ap == sdp->dtsd_action) {
 				if (sdp->dtsd_fmtdata != NULL) {
 					(void) dtrace_printf_format(dtp,
 					    sdp->dtsd_fmtdata, fmt, maxfmt + 1);
 					strndx = dof_add_string(ddo, fmt);
-				} else
+				} else if (sdp->dtsd_strdata != NULL) {
+					strndx = dof_add_string(ddo,
+					    sdp->dtsd_strdata);
+				} else {
 					strndx = 0; /* use dtad_arg instead */
+				}
 
 				if ((next = dt_list_next(next)) != NULL)
 					sdp = next->ds_desc;
@@ -835,7 +840,6 @@ dtrace_dof_create(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t flags)
 	 */
 	h.dofh_secnum = ddo->ddo_nsecs;
 	ssize = sizeof (h) + dt_buf_len(&ddo->ddo_secs);
-	assert(ssize == sizeof (h) + sizeof (dof_sec_t) * ddo->ddo_nsecs);
 
 	h.dofh_loadsz = ssize +
 	    dt_buf_len(&ddo->ddo_ldata) +
@@ -861,6 +865,7 @@ dtrace_dof_create(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t flags)
 
 	sp = dt_buf_ptr(&ddo->ddo_secs);
 	assert(sp[ddo->ddo_strsec].dofs_type == DOF_SECT_STRTAB);
+	assert(ssize == sizeof (h) + sizeof (dof_sec_t) * ddo->ddo_nsecs);
 
 	sp[ddo->ddo_strsec].dofs_offset = ssize + dt_buf_len(&ddo->ddo_ldata);
 	sp[ddo->ddo_strsec].dofs_size = dt_buf_len(&ddo->ddo_strs);

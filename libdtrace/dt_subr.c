@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,16 +18,16 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_subr.c	1.12	05/11/29 SMI"
-
+#if defined(sun)
 #include <sys/sysmacros.h>
+#endif
 
-#include <sys/bitmap.h>
 #include <strings.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -37,10 +36,18 @@
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
+#if defined(sun)
 #include <alloca.h>
+#elif defined(linux)
+#include "dt_linux.h"
+#else
+#include <sys/sysctl.h>
+#include <libproc_compat.h>
+#endif
 #include <assert.h>
 #include <libgen.h>
 #include <limits.h>
+#include <stdint.h>
 
 #include <dt_impl.h>
 
@@ -58,8 +65,8 @@ int
 dtrace_xstr2desc(dtrace_hdl_t *dtp, dtrace_probespec_t spec,
     const char *s, int argc, char *const argv[], dtrace_probedesc_t *pdp)
 {
-	size_t off, len, vlen;
-	const char *p, *q, *v;
+	size_t off, len, vlen, wlen;
+	const char *p, *q, *v, *w;
 
 	char buf[32]; /* for id_t as %d (see below) */
 
@@ -75,6 +82,8 @@ dtrace_xstr2desc(dtrace_hdl_t *dtp, dtrace_probespec_t spec,
 
 		q = p + 1;
 		vlen = 0;
+		w = NULL;
+		wlen = 0;
 
 		if ((v = strchr(q, '$')) != NULL && v < q + len) {
 			/*
@@ -99,14 +108,14 @@ dtrace_xstr2desc(dtrace_hdl_t *dtp, dtrace_probespec_t spec,
 			}
 
 			if (isdigit(v[1])) {
-				char *end;
 				long i;
 
 				errno = 0;
-				i = strtol(v + 1, &end, 10);
+				i = strtol(v + 1, (char **)&w, 10);
 
-				if (i < 0 || i >= argc ||
-				    errno != 0 || end != v + vlen)
+				wlen = vlen - (w - v);
+
+				if (i < 0 || i >= argc || errno != 0)
 					return (dt_set_errno(dtp, EDT_BADSPCV));
 
 				v = argv[i];
@@ -142,7 +151,7 @@ dtrace_xstr2desc(dtrace_hdl_t *dtp, dtrace_probespec_t spec,
 		off = dtrace_probespecs[spec--].dtps_offset;
 		bcopy(q, (char *)pdp + off, len);
 		bcopy(v, (char *)pdp + off + len, vlen);
-
+		bcopy(w, (char *)pdp + off + len + vlen, wlen);
 	} while (--p >= s);
 
 	pdp->dtpd_id = DTRACE_IDNONE;
@@ -472,6 +481,11 @@ dt_ioctl(dtrace_hdl_t *dtp, int val, void *arg)
 {
 	const dtrace_vector_t *v = dtp->dt_vector;
 
+#if !defined(sun)
+	/* Avoid sign extension. */
+	val &= 0xffffffff;
+#endif
+
 	if (v != NULL)
 		return (v->dtv_ioctl(dtp->dt_varg, val, arg));
 
@@ -487,8 +501,22 @@ dt_status(dtrace_hdl_t *dtp, processorid_t cpu)
 {
 	const dtrace_vector_t *v = dtp->dt_vector;
 
-	if (v == NULL)
+	if (v == NULL) {
+#if defined(sun)
 		return (p_online(cpu, P_STATUS));
+#elif defined(linux)
+		{extern int cpu_online(int);
+		return cpu_online(cpu);
+		}
+#else
+		int maxid = 0;
+		size_t len = sizeof(maxid);
+		if (sysctlbyname("kern.smp.maxid", &maxid, &len, NULL, 0) != 0)
+			return (cpu == 0 ? 1 : -1);
+		else
+			return (cpu <= maxid ? 1 : -1);
+#endif
+	}
 
 	return (v->dtv_status(dtp->dt_varg, cpu));
 }
@@ -497,37 +525,9 @@ long
 dt_sysconf(dtrace_hdl_t *dtp, int name)
 {
 	const dtrace_vector_t *v = dtp->dt_vector;
-	FILE	*fp;
-static	int	ncpu = -1;
 
-	if (v == NULL) {
-		/***********************************************/
-		/*   On  my  Linux  boxes,  eg.  Ubuntu/FC8 -  */
-		/*   sysconf seems broken. Who cares!	       */
-		/***********************************************/
-		switch (name) {
-		  case _SC_CPUID_MAX: {
-		  	/***********************************************/
-		  	/*   Return  cpuid  of  the  max cpu, not the  */
-		  	/*   count of cpus.			       */
-		  	/***********************************************/
-			char	buf[BUFSIZ];
-
-			if (ncpu >= 0)
-				return ncpu;
-
-		  	fp = fopen("/proc/cpuinfo", "r");
-			while (fgets(buf, sizeof buf, fp)) {
-				if (strncmp(buf, "processor", 9) == 0)
-					ncpu++;
-				}
-			fclose(fp);
-			return ncpu;
-			}
-		  }
-
+	if (v == NULL)
 		return (sysconf(name));
-		}
 
 	return (v->dtv_sysconf(dtp->dt_varg, name));
 }
@@ -582,6 +582,16 @@ dt_printf(dtrace_hdl_t *dtp, FILE *fp, const char *format, ...)
 {
 	va_list ap;
 	int n;
+
+#if !defined(sun)
+	/*
+	 * On FreeBSD, check if output is currently being re-directed
+	 * to another file. If so, output to that file instead of the
+	 * one the caller has specified.
+	 */
+	if (dtp->dt_freopen_fp != NULL)
+		fp = dtp->dt_freopen_fp;
+#endif
 
 	va_start(ap, format);
 
@@ -673,6 +683,7 @@ dt_printf(dtrace_hdl_t *dtp, FILE *fp, const char *format, ...)
 	}
 
 	n = vfprintf(fp, format, ap);
+	fflush(fp);
 	va_end(ap);
 
 	if (n < 0) {
@@ -722,6 +733,11 @@ dt_zalloc(dtrace_hdl_t *dtp, size_t size)
 {
 	void *data;
 
+	if (size > 16 * 1024 * 1024) {
+		(void) dt_set_errno(dtp, EDT_NOMEM);
+		return (NULL);
+	}
+
 	if ((data = malloc(size)) == NULL)
 		(void) dt_set_errno(dtp, EDT_NOMEM);
 	else
@@ -734,6 +750,11 @@ void *
 dt_alloc(dtrace_hdl_t *dtp, size_t size)
 {
 	void *data;
+
+	if (size > 16 * 1024 * 1024) {
+		(void) dt_set_errno(dtp, EDT_NOMEM);
+		return (NULL);
+	}
 
 	if ((data = malloc(size)) == NULL)
 		(void) dt_set_errno(dtp, EDT_NOMEM);
@@ -793,15 +814,14 @@ dt_basename(char *str)
 ulong_t
 dt_popc(ulong_t x)
 {
-#ifdef _ILP32
+#if defined(_ILP32)
 	x = x - ((x >> 1) & 0x55555555UL);
 	x = (x & 0x33333333UL) + ((x >> 2) & 0x33333333UL);
 	x = (x + (x >> 4)) & 0x0F0F0F0FUL;
 	x = x + (x >> 8);
 	x = x + (x >> 16);
 	return (x & 0x3F);
-#endif
-#ifdef _LP64
+#elif defined(_LP64)
 	x = x - ((x >> 1) & 0x5555555555555555ULL);
 	x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
 	x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
@@ -809,6 +829,8 @@ dt_popc(ulong_t x)
 	x = x + (x >> 16);
 	x = x + (x >> 32);
 	return (x & 0x7F);
+#else
+/* This should be a #warning but for now ignore error. Err: "need td_popc() implementation" */
 #endif
 }
 
@@ -832,6 +854,7 @@ dt_popcb(const ulong_t *bp, ulong_t n)
 	return (popc + dt_popc(bp[maxw] & ((1UL << maxb) - 1)));
 }
 
+#if defined(sun)
 struct _rwlock;
 struct _lwp_mutex;
 
@@ -848,12 +871,17 @@ dt_rw_write_held(pthread_rwlock_t *lock)
 	extern int _rw_write_held(struct _rwlock *);
 	return (_rw_write_held((struct _rwlock *)lock));
 }
+#endif
 
 int
 dt_mutex_held(pthread_mutex_t *lock)
 {
+#if defined(sun)
 	extern int _mutex_held(struct _lwp_mutex *);
 	return (_mutex_held((struct _lwp_mutex *)lock));
+#else
+	return (1);
+#endif
 }
 
 static int
@@ -934,7 +962,7 @@ dtrace_uaddr2str(dtrace_hdl_t *dtp, pid_t pid,
 		P = dt_proc_grab(dtp, pid, PGRAB_RDONLY | PGRAB_FORCE, 0);
 
 	if (P == NULL) {
-		(void) snprintf(c, sizeof (c), "0x%llx", addr);
+	  (void) snprintf(c, sizeof (c), "0x%jx", (uintmax_t)addr);
 		return (dt_string2str(c, str, nbytes));
 	}
 
@@ -951,11 +979,11 @@ dtrace_uaddr2str(dtrace_hdl_t *dtp, pid_t pid,
 		} else {
 			(void) snprintf(c, sizeof (c), "%s`%s", obj, name);
 		}
-	} else if (Pobjname(P, addr, objname, sizeof (objname)) != NULL) {
-		(void) snprintf(c, sizeof (c), "%s`0x%llx",
-		    dt_basename(objname), addr);
+	} else if (Pobjname(P, addr, objname, sizeof (objname)) != 0) {
+		(void) snprintf(c, sizeof (c), "%s`0x%jx",
+				dt_basename(objname), (uintmax_t)addr);
 	} else {
-		(void) snprintf(c, sizeof (c), "0x%llx", addr);
+	  (void) snprintf(c, sizeof (c), "0x%jx", (uintmax_t)addr);
 	}
 
 	dt_proc_unlock(dtp, P);

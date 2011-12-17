@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)sched.d	1.4	06/04/21 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma D depends_on module unix
 #pragma D depends_on provider sched

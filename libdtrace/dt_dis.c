@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_dis.c	1.6	05/07/31 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <strings.h>
 #include <stdio.h>
@@ -419,7 +419,7 @@ dt_dis(const dtrace_difo_t *dp, FILE *fp)
 	ulong_t i = 0;
 	char type[DT_TYPE_NAMELEN];
 
-	(void) fprintf(fp, "\nDIFO %p returns %s\n", (void *)dp,
+	(void) fprintf(fp, "\nDIFO 0x%p returns %s\n", (void *)dp,
 	    dt_dis_typestr(&dp->dtdo_rtype, type, sizeof (type)));
 
 	(void) fprintf(fp, "%-3s %-8s    %s\n",

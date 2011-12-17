@@ -27,7 +27,7 @@
 #ifndef	_DT_DOF_H
 #define	_DT_DOF_H
 
-#pragma ident	"@(#)dt_dof.h	1.4	06/03/30 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <dtrace.h>
 

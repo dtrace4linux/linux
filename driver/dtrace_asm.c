@@ -15,6 +15,28 @@
 
 extern dtrace_id_t		dtrace_probeid_error;	/* special ERROR probe */
 
+
+/*ARGSUSED*/
+uint64_t
+dtrace_getvmreg(uint32_t reg, volatile uint16_t *flags)
+{
+#if defined(__amd64)
+	uint64_t ret;
+
+	__asm(
+		"movq	%%rdi, %%rdx\n"
+		"vmread	%%rdx, %%rax\n"
+		: "=a" (ret)
+	);
+	return ret;
+
+#elif defined(__i386)
+
+	*flags |= CPU_DTRACE_ILLOP;
+	return 0;
+#endif	/* __i386 */
+}
+
 /**********************************************************************/
 /*   Return callers frame pointer.				      */
 /**********************************************************************/

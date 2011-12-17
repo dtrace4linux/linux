@@ -27,7 +27,7 @@
 #ifndef	_DT_REGSET_H
 #define	_DT_REGSET_H
 
-#pragma ident	"@(#)dt_regset.h	1.2	05/06/08 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 

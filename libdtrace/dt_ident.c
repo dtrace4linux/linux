@@ -20,11 +20,8 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
  */
-
-#pragma ident	"@(#)dt_ident.c	1.16	07/06/29 SMI"
 
 #include <sys/sysmacros.h>
 #include <strings.h>
@@ -41,6 +38,7 @@
 #include <dt_provider.h>
 #include <dt_strtab.h>
 #include <dt_impl.h>
+#include "dt_linux.h"
 
 /*
  * Common code for cooking an identifier that uses a typed signature list (we
@@ -181,8 +179,7 @@ dt_idcook_func(dt_node_t *dnp, dt_ident_t *idp, int argc, dt_node_t *args)
 		int i = 0;
 
 		assert(idp->di_iarg != NULL);
-		s = alloca(strlen(idp->di_iarg) + 1);
-		(void) strcpy(s, idp->di_iarg);
+		s = strdupa(idp->di_iarg);
 
 		if ((p2 = strrchr(s, ')')) != NULL)
 			*p2 = '\0'; /* mark end of parameter list string */

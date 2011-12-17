@@ -27,7 +27,7 @@
 #ifndef	_DT_AS_H
 #define	_DT_AS_H
 
-#pragma ident	"@(#)dt_as.h	1.3	05/07/31 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <sys/dtrace.h>

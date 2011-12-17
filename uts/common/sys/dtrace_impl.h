@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,15 +18,18 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2011, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_DTRACE_IMPL_H
 #define	_SYS_DTRACE_IMPL_H
-
-//#pragma ident	"@(#)dtrace_impl.h	1.10	04/11/22 SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -108,7 +110,7 @@ struct dtrace_probe {
 	dtrace_probe_t *dtpr_prevfunc;		/* previous in function hash */
 	dtrace_probe_t *dtpr_nextname;		/* next in name hash */
 	dtrace_probe_t *dtpr_prevname;		/* previous in name hash */
-        dtrace_genid_t dtpr_gen;                /* probe generation ID */
+	dtrace_genid_t dtpr_gen;		/* probe generation ID */
 };
 
 typedef int dtrace_probekey_f(const char *, const char *, int);
@@ -419,8 +421,11 @@ typedef struct dtrace_buffer {
 	uint32_t dtb_errors;			/* number of errors */
 	uint32_t dtb_xamot_errors;		/* errors in inactive buffer */
 #ifndef _LP64
-	uint64_t dtb_pad1;
+	uint64_t dtb_pad1;			/* pad out to 64 bytes */
 #endif
+	uint64_t dtb_switched;			/* time of last switch */
+	uint64_t dtb_interval;			/* observed switch interval */
+	uint64_t dtb_pad2[6];			/* pad to avoid false sharing */
 } dtrace_buffer_t;
 
 /*
@@ -924,6 +929,8 @@ typedef struct dtrace_mstate {
  * Access flag used by dtrace_mstate.dtms_access.
  */
 #define	DTRACE_ACCESS_KERNEL	0x1		/* the priv to read kmem */
+#define	DTRACE_ACCESS_PROC	0x2		/* the priv for proc state */
+#define	DTRACE_ACCESS_ARGS	0x4		/* the priv to examine args */
 
 /*
  * DTrace Activity
@@ -946,21 +953,22 @@ typedef struct dtrace_mstate {
  *                                    |                          |  |  |
  *                                    v                          |  |  |
  *                               +----------+     exit() action  |  |  |
- *                               | DRAINING |<-------------------+  |  |
- *                               +----------+                       |  |
- *                                    |                             |  |
- *                     dtrace_stop(), |                             |  |
- *                       before END   |                             |  |
- *                                    |                             |  |
- *                                    v                             |  |
- * +---------+                   +----------+                       |  |
- * | STOPPED |<------------------| COOLDOWN |<----------------------+  |
- * +---------+   dtrace_stop(),  +----------+     dtrace_stop(),       |
- *                 after END                       before END          |
- *                                                                     |
- *                                +--------+                           |
- *                                | KILLED |<--------------------------+
- *                                +--------+     deadman timeout
+ * +-----------------------------| DRAINING |<-------------------+  |  |
+ * |                             +----------+                       |  |
+ * |                                  |                             |  |
+ * |                   dtrace_stop(), |                             |  |
+ * |                     before END   |                             |  |
+ * |                                  |                             |  |
+ * |                                  v                             |  |
+ * | +---------+                 +----------+                       |  |
+ * | | STOPPED |<----------------| COOLDOWN |<----------------------+  |
+ * | +---------+  dtrace_stop(), +----------+     dtrace_stop(),       |
+ * |                after END                       before END         |
+ * |                                                                   |
+ * |                              +--------+                           |
+ * +----------------------------->| KILLED |<--------------------------+
+ *       deadman timeout or       +--------+     deadman timeout or
+ *        killed consumer                         killed consumer
  *
  * Note that once a DTrace consumer has stopped tracing, there is no way to
  * restart it; if a DTrace consumer wishes to restart tracing, it must reopen
@@ -973,7 +981,7 @@ typedef enum dtrace_activity {
 	DTRACE_ACTIVITY_DRAINING,		/* before stopping */
 	DTRACE_ACTIVITY_COOLDOWN,		/* while stopping */
 	DTRACE_ACTIVITY_STOPPED,		/* after stopping */
-	DTRACE_ACTIVITY_KILLED			/* killed due to deadman */
+	DTRACE_ACTIVITY_KILLED			/* killed */
 } dtrace_activity_t;
 
 /*
@@ -1049,12 +1057,12 @@ typedef struct dtrace_helptrace {
 /*
  * DTrace Credentials
  *
- * In probe context, we don't have the flexibility to examine the credentials
- * of the DTrace consumer that created a particular enabling.  Instead, we use
- * the Least Privilege interfaces to cache the consumer's credentials in a
- * dtrace_cred_t structure. That structure contains two important sets of
- * credentials that limit the consumer's breadth of visibility and what
- * actions the consumer may take.
+ * In probe context, we have limited flexibility to examine the credentials
+ * of the DTrace consumer that created a particular enabling.  We use
+ * the Least Privilege interfaces to cache the consumer's cred pointer and
+ * some facts about that credential in a dtrace_cred_t structure. These
+ * can limit the consumer's breadth of visibility and what actions the
+ * consumer may take.
  */
 #define	DTRACE_CRV_ALLPROC		0x01
 #define	DTRACE_CRV_KERNEL		0x02
@@ -1128,7 +1136,7 @@ struct dtrace_state {
 	char **dts_formats;			/* format string array */
 	dtrace_optval_t dts_options[DTRACEOPT_MAX]; /* options */
 	dtrace_cred_t dts_cred;			/* credentials */
-        size_t dts_nretained;                   /* number of retained enabs */
+	size_t dts_nretained;			/* number of retained enabs */
 #if linux
         uint64_t dts_arg_error_illval;
 #endif
@@ -1140,7 +1148,7 @@ struct dtrace_provider {
 	dtrace_pops_t dtpv_pops;		/* provider operations */
 	char *dtpv_name;			/* provider name */
 	void *dtpv_arg;				/* provider argument */
-	uint_t dtpv_defunct;			/* boolean: defunct provider */
+	hrtime_t dtpv_defunct;			/* when made defunct */
 	struct dtrace_provider *dtpv_next;	/* next provider */
 };
 
@@ -1166,16 +1174,16 @@ struct dtrace_meta {
  * generations.
  */
 typedef struct dtrace_enabling {
-        dtrace_ecbdesc_t **dten_desc;           /* all ECB descriptions */
-        int dten_ndesc;                         /* number of ECB descriptions */
-        int dten_maxdesc;                       /* size of ECB array */
-        dtrace_vstate_t *dten_vstate;           /* associated variable state */
-        dtrace_genid_t dten_probegen;           /* matched probe generation */
-        dtrace_ecbdesc_t *dten_current;         /* current ECB description */
-        int dten_error;                         /* current error value */
-        int dten_primed;                        /* boolean: set if primed */
-        struct dtrace_enabling *dten_prev;      /* previous enabling */
-        struct dtrace_enabling *dten_next;      /* next enabling */
+	dtrace_ecbdesc_t **dten_desc;		/* all ECB descriptions */
+	int dten_ndesc;				/* number of ECB descriptions */
+	int dten_maxdesc;			/* size of ECB array */
+	dtrace_vstate_t *dten_vstate;		/* associated variable state */
+	dtrace_genid_t dten_probegen;		/* matched probe generation */
+	dtrace_ecbdesc_t *dten_current;		/* current ECB description */
+	int dten_error;				/* current error value */
+	int dten_primed;			/* boolean: set if primed */
+	struct dtrace_enabling *dten_prev;	/* previous enabling */
+	struct dtrace_enabling *dten_next;	/* next enabling */
 } dtrace_enabling_t;
 
 /*
@@ -1243,9 +1251,11 @@ extern void *dtrace_casptr(void *, void *, void *);
 extern void dtrace_copyin(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
 extern void dtrace_copyinstr(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
 extern void dtrace_copyout(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
-extern void dtrace_copyoutstr(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
+extern void dtrace_copyoutstr(uintptr_t, uintptr_t, size_t,
+    volatile uint16_t *);
 extern void dtrace_getpcstack(pc_t *, int, int, uint32_t *);
-extern ulong_t dtrace_getreg(struct pt_regs *, uint_t);
+extern ulong_t dtrace_getreg(struct regs *, uint_t);
+extern uint64_t dtrace_getvmreg(uint_t, volatile uint16_t *);
 extern int dtrace_getstackdepth(int);
 extern void dtrace_getupcstack(uint64_t *, int);
 extern void dtrace_getufpstack(uint64_t *, uint64_t *, int);
@@ -1268,7 +1278,7 @@ extern uint_t dtrace_getotherwin(void);
 extern uint_t dtrace_getfprs(void);
 #else
 extern void dtrace_copy(uintptr_t, uintptr_t, size_t);
-extern void dtrace_copystr(uintptr_t, uintptr_t, size_t, volatile uint16_t *flags);
+extern void dtrace_copystr(uintptr_t, uintptr_t, size_t, volatile uint16_t *);
 #endif
 
 /*

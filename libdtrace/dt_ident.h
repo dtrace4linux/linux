@@ -27,7 +27,7 @@
 #ifndef	_DT_IDENT_H
 #define	_DT_IDENT_H
 
-#pragma ident	"@(#)dt_ident.h	1.8	05/11/29 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <libctf.h>
 #include <dtrace.h>

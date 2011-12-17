@@ -27,7 +27,7 @@
 #ifndef	_DT_STRTAB_H
 #define	_DT_STRTAB_H
 
-#pragma ident	"@(#)dt_strtab.h	1.4	06/09/19 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 

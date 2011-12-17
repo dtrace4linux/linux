@@ -28,7 +28,7 @@
 #ifndef	_DT_PID_H
 #define	_DT_PID_H
 
-#pragma ident	"@(#)dt_pid.h	1.7	06/02/08 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <libproc.h>
 #include <sys/fasttrap.h>

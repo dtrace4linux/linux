@@ -27,7 +27,7 @@
 #ifndef	_DT_DECL_H
 #define	_DT_DECL_H
 
-#pragma ident	"@(#)dt_decl.h	1.5	05/06/08 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <libctf.h>

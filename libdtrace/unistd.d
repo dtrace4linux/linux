@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)unistd.d	1.4	07/02/20 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 inline int DTRACEFLT_UNKNOWN = 0;	/* Unknown fault */
 #pragma D binding "1.0" DTRACEFLT_UNKNOWN

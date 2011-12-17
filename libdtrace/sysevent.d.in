@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)sysevent.d.in	1.1	07/01/24 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma D depends_on module unix
 

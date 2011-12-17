@@ -18,12 +18,10 @@
  *
  * CDDL HEADER END
  */
-/*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
 
-//#pragma ident	"@(#)dt_module.c	1.13	07/08/07 SMI"
+/*
+ * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
+ */
 
 #include <sys/types.h>
 #include <sys/modctl.h>
@@ -719,9 +717,24 @@ dt_module_unload(dtrace_hdl_t *dtp, dt_module_t *dmp)
 void
 dt_module_destroy(dtrace_hdl_t *dtp, dt_module_t *dmp)
 {
+	uint_t h = dt_strtab_hash(dmp->dm_name, NULL) % dtp->dt_modbuckets;
+	dt_module_t **dmpp = &dtp->dt_mods[h];
+
 	dt_list_delete(&dtp->dt_modlist, dmp);
 	assert(dtp->dt_nmods != 0);
 	dtp->dt_nmods--;
+
+	/*
+	 * Now remove this module from its hash chain.  We expect to always
+	 * find the module on its hash chain, so in this loop we assert that
+	 * we don't run off the end of the list.
+	 */
+	while (*dmpp != dmp) {
+		dmpp = &((*dmpp)->dm_next);
+		assert(*dmpp != NULL);
+	}
+
+	*dmpp = dmp->dm_next;
 
 	dt_module_unload(dtp, dmp);
 	free(dmp);
@@ -999,43 +1012,6 @@ asmap[i]->st_size);*/
  * Update our module cache by adding an entry for the specified module 'name'.
  * We create the dt_module_t and populate it using /system/object/<name>/.
  */
-struct Elf
-{
-  /* Address to which the file was mapped.  NULL if not mapped.  */
-  void *map_address;
-
-  /* When created for an archive member this points to the descriptor
-     for the archive. */
-  Elf *parent;
-  Elf *next;             /* Used in list of archive descriptors.  */
-
-  /* What kind of file is underneath (ELF file, archive...).  */
-  Elf_Kind kind;
-
-  /* Command used to create this descriptor.  */
-  Elf_Cmd cmd;
-
-  /* The binary class.  */
-  unsigned int class;
-
-  /* The used file descriptor.  -1 if not available anymore.  */
-  int fildes;
-
-  /* Offset in the archive this file starts or zero.  */
-  off_t start_offset;
-
-  /* Size of the file in the archive or the entire file size, or ~0
-     for an (yet) unknown size.  */
-  size_t maximum_size;
-
-  /* Describes the way the memory was allocated and if the dirty bit is
-     signalled it means that the whole file has to be rewritten since
-     the layout changed.  */
-  int flags;
-
-  /* Reference counting for the descriptor.  */
-  int ref_count;
-};
 static void
 dt_module_update(dtrace_hdl_t *dtp, const char *name)
 {

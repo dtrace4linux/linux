@@ -27,7 +27,7 @@
 #ifndef	_DT_PROVIDER_H
 #define	_DT_PROVIDER_H
 
-#pragma ident	"@(#)dt_provider.h	1.8	06/03/30 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <dt_impl.h>
 #include <dt_ident.h>

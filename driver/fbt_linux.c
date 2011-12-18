@@ -33,6 +33,10 @@
 #include <linux/list.h>
 #include <linux/kallsyms.h>
 #include <linux/seq_file.h>
+#define regs pt_regs
+#include <sys/stack.h>
+#include <sys/frame.h>
+#include <sys/privregs.h>
 
 # undef NULL
 # define NULL 0
@@ -191,6 +195,7 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 				return fbt->fbtp_rval;
 			fbt->fbtp_fired++;
 			if (fbt->fbtp_roffset == 0) {
+				struct pt_regs *ptregs = (struct pt_regs *) stack;
 				/*
 				 * When accessing the arguments on the stack,
 				 * we must protect against accessing beyond
@@ -199,14 +204,15 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 				 * disabled.
 				 */
 				DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
-				CPU->cpu_dtrace_caller = stack[0];
-				stack0 = stack[1];
-				stack1 = stack[2];
-				stack2 = stack[3];
-				stack3 = stack[4];
-				stack4 = stack[5];
+				CPU->cpu_dtrace_caller = ptregs->r_rip;
+				stack0 = ptregs->c_arg0;
+				stack1 = ptregs->c_arg1;
+				stack2 = ptregs->c_arg2;
+				stack3 = ptregs->c_arg3;
+				stack4 = ptregs->c_arg4;
 				DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT |
 				    CPU_DTRACE_BADADDR);
+
 				dtrace_probe(fbt->fbtp_id, stack0, stack1,
 				    stack2, stack3, stack4);
 

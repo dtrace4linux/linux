@@ -1,3 +1,9 @@
+Sun Dec 18 00:17:43 2011  fox
+
+     626* fbt_linux.c: Fix the arg0, .., arg4 args. We were relying
+          on solaris stack layout and not linux. (Thanks Nigel for pointing
+	  this out).
+
 Sat Dec 17 13:53:47 2011  fox
 
      625* Archive: 1.0132

@@ -5,7 +5,7 @@ gcc -DUSERMODE -Dprintk=printf -DDIS_TEXT -I. -o /tmp/instr ../tests/instr.c ins
 #include <string.h>
 
 #define uint_t unsigned int
-typedef unsigned long size_t;
+//typedef unsigned long size_t;
 typedef unsigned char uchar_t;
 typedef unsigned long long uint64_t;
 

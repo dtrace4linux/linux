@@ -25,7 +25,17 @@ dtrace_getvmreg(uint32_t reg, volatile uint16_t *flags)
 
 	__asm(
 		"movq	%%rdi, %%rdx\n"
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+		/***********************************************/
+		/*   This  is  real  gas/gcc  dependent,  not  */
+		/*   kernel  dependent,  but  we'll  take the  */
+		/*   tactic  that  old kernels are likely not  */
+		/*   that interesting.			       */
+		/***********************************************/
+		".byte 0x0f, 0x78, 0xd0\n"
+#else
 		"vmread	%%rdx, %%rax\n"
+#endif
 		: "=a" (ret)
 	);
 	return ret;

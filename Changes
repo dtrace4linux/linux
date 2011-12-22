@@ -1,3 +1,45 @@
+Thu Dec 22 14:43:40 2011  fox
+
+     638* driver/intr_x86-32.S/intr_x86-64.S: We werent allowing 
+          user breakpoint traps to be detected by USDT. This works
+	  again.
+
+     637* Archive: 1.0133
+
+     636* cmd/dtrace/dtrace.c: Add support for -arch [i386|x86_64], similar
+          to Apple's dtrace.
+
+     635* usdt/c/makefile: Fix so that build/simple-c can run from anywhere.
+
+     634* libdtrace/dt_link.c: process_obj: For ELF32, write the SHT_REL entry
+          back to the appropriate section, not the SHT_RELA section. Seems
+	  like a Solaris symmetry bug.
+
+	  We now get USDT probes, but nobody is garbage collection them. Strange....
+
+Wed Dec 21 09:19:53 2011  fox
+
+     633* dtrace.c: Temp remove the module-loaded chain because of fault
+          on a reload.
+
+     632* dtrace_linux.c: prfind(): Map pid to pid structure, and then
+          lookup.
+
+     631* ctl.c, driver_linux.c: Ensure fn_pid_task is setup, so prfind
+          doesnt die on USDT probe.
+
+     630* sys/dtrace.h: Fix for 32b build.
+
+     629* cmd/instr.c: Fix size_t issue.
+
+Mon Dec 19 21:48:57 2011  fox
+
+     628* ctf_struct.c: Avoid referring to user32 struct so we can
+          compile on RH4 kernel.
+
+     627* dtrace_asm.c: Avoid compiler issue for old gcc/linux kernels
+          for VMREAD instruction.
+
 Sun Dec 18 00:17:43 2011  fox
 
      626* fbt_linux.c: Fix the arg0, .., arg4 args. We were relying

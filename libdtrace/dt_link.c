@@ -105,6 +105,10 @@ typedef struct dof_elf32 {
 	uint32_t de_global;		/* index of the first global symbol */
 } dof_elf32_t;
 
+#if linux
+char * dt_get_libdir(void);
+#endif
+
 static int
 prepare_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf32_t *dep)
 {
@@ -1283,6 +1287,7 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 
 			s = (char *)data_str->d_buf + rsym.st_name;
 
+//printf("looking at %d: r_info=%x '%s'\n", i, GELF_R_SYM(rela.r_info), s);
 			if (strncmp(s, dt_prefix, sizeof (dt_prefix) - 1) != 0)
 				continue;
 
@@ -1553,10 +1558,28 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 			/*   now.				       */
 			/***********************************************/
 			rela.r_info = 0;
-			rela.r_offset = 0;
-			rela.r_addend = 0;
-			(void) gelf_update_rela(data_rel, i, &rela);
 
+			/***********************************************/
+			/*   20111221 Dont set the offset to zero. If  */
+			/*   we  do,  in  FC16,  and/or  the  current  */
+			/*   libelf  release,  will null out the call  */
+			/*   location,  and  /dev/dtrace_helper  wont  */
+			/*   see any valid probes.		       */
+			/***********************************************/
+//			rela.r_offset = 0;
+			rela.r_addend = 0;
+
+			/***********************************************/
+			/*   Write back the appropriate reloc entry.   */
+			/***********************************************/
+			if (shdr_rel.sh_type == SHT_RELA) {
+				(void) gelf_update_rela(data_rel, i, &rela);
+			} else {
+				GElf_Rel rel;
+				rel.r_offset = rela.r_offset;
+				rel.r_info = rela.r_info;
+				(void) gelf_update_rel(data_rel, i, &rel);
+			}
 			if (rsym.st_shndx != SHN_SUNW_IGNORE) {
 				rsym.st_shndx = sh_text+1;
 				(void) gelf_update_sym(data_sym, ndx, &rsym);

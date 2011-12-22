@@ -2300,7 +2300,10 @@ extern void dtrace_getfsr(uint64_t *);
 #define	DTRACE_INVOP_NOP		4
 #define	DTRACE_INVOP_RET		5
 
-#define DTRACE_INVOP_ANY                6
+#if linux
+#define DTRACE_INVOP_RET_IMM16		6
+#define DTRACE_INVOP_ANY                7
+#endif
 
 #endif
 

@@ -19,7 +19,7 @@
 /*   Author: Paul Fox						      */
 /*   								      */
 /*   Date: May 2009						      */
-/*   $Header: Last edited: 06-Apr-2011 1.1 $ 			      */
+/*   $Header: Last edited: 22-Dec-2011 1.2 $ 			      */
 /**********************************************************************/
 
 /*
@@ -71,7 +71,7 @@
 /**********************************************************************/
 /*   Wrap all the interrupts into a single macro.		      */
 /**********************************************************************/
-.macro INTERRUPT nr, fault, ign_user, func, handler, kernel_handler
+.macro INTERRUPT nr, fault, allow_user, func, handler, kernel_handler
 	FUNCTION \func
 \func:
 	/***********************************************/
@@ -79,7 +79,7 @@
 	/*   Just   passthru   the  interrupt  if  it  */
 	/*   occurred in user space.		       */
 	/***********************************************/
-.if \ign_user == 0
+.if \allow_user == 0
 	.if \fault == 1
 	cmp $__KERNEL_CS,16(%rsp)
 	.else
@@ -229,7 +229,7 @@ INTERRUPT  1, 0, 0, dtrace_int1, dtrace_int1_handler, kernel_int1_handler
 /**********************************************************************/
 /*   Breakpoint instruction.					      */
 /**********************************************************************/
-INTERRUPT  3, 0, 0, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
+INTERRUPT  3, 0, 1, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
 
 /**********************************************************************/
 /*   Double fault.						      */

@@ -60,9 +60,15 @@
 /**********************************************************************/
 /*   Wrap all the interrupts into a single macro.		      */
 /**********************************************************************/
-.macro INTERRUPT nr, fault, func, handler, kernel_handler
+.macro INTERRUPT nr, fault, allow_user, func, handler, kernel_handler
 	FUNCTION \func
 \func:
+	/***********************************************/
+	/*   Some interrupts are for the kernel only.  */
+	/*   Just   passthru   the  interrupt  if  it  */
+	/*   occurred in user space.		       */
+	/***********************************************/
+.if \allow_user == 0
 	/***********************************************/
 	/*   Ensure  consistent  stack  frame setup -  */
 	/*   some   interrupts  have  an  error  code  */
@@ -79,6 +85,8 @@
 
 	je 1f
 	jmp *\kernel_handler
+.endif
+
 1:
 
 	/***********************************************/
@@ -186,32 +194,32 @@
 /**********************************************************************/
 /*   Single step trap.						      */
 /**********************************************************************/
-INTERRUPT  1, 0, dtrace_int1, dtrace_int1_handler, kernel_int1_handler
+INTERRUPT  1, 0, 0, dtrace_int1, dtrace_int1_handler, kernel_int1_handler
 
 /**********************************************************************/
 /*   Breakpoint instruction.					      */
 /**********************************************************************/
-INTERRUPT  3, 0, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
+INTERRUPT  3, 0, 1, dtrace_int3, dtrace_int3_handler, kernel_int3_handler
 
 /**********************************************************************/
 /*   Double fault.						      */
 /**********************************************************************/
-INTERRUPT  8, 1, dtrace_double_fault, dtrace_double_fault_handler, kernel_double_fault_handler
+INTERRUPT  8, 1, 0, dtrace_double_fault, dtrace_double_fault_handler, kernel_double_fault_handler
 
 /**********************************************************************/
 /*   Segment not present.					      */
 /**********************************************************************/
-INTERRUPT  11, 1, dtrace_int11, dtrace_int11_handler, kernel_int11_handler
+INTERRUPT  11, 1, 0, dtrace_int11, dtrace_int11_handler, kernel_int11_handler
 
 /**********************************************************************/
 /*   General protection fault.					      */
 /**********************************************************************/
-INTERRUPT  13, 1, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
+INTERRUPT  13, 1, 0, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
 
 /**********************************************************************/
 /*   Page fault.						      */
 /**********************************************************************/
-INTERRUPT  14, 1, dtrace_page_fault, dtrace_int_page_fault_handler, kernel_page_fault_handler
+INTERRUPT  14, 1, 0, dtrace_page_fault, dtrace_int_page_fault_handler, kernel_page_fault_handler
 
 /**********************************************************************/
 /*   Handle  the  IPI  interrupt - inter-process subroutine call. We  */

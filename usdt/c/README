@@ -1,4 +1,26 @@
 C code test/example of a USDT. Just make and run - and it should show
 up in the 'dtrace -l' list.
 
+Run ../../build/simple-c from the usdt/c directory. (We need
+to adjust the LD_LIBRARY_PATH searching, so at the moment, run it
+from here).
 
+This will simply display something like:
+
+...
+PID:1290 52: here on line 25: crc=000083cf
+PID:1290 here on line 27
+PID:1290 here on line 29
+PID:1290 here on line 31
+PID:1290 53: here on line 25: crc=000083cf
+PID:1290 here on line 27
+PID:1290 here on line 29
+PID:1290 here on line 31
+...
+
+If a dtrace probe is placed on this process' probe, then you
+will see the crc change, indicating a breakpoint got placed.
+
+A test, might be to use gdb to place a breakpoint at the same place
+as the usdt and see what happens. (Dtrace will assume it belongs
+to it, whilst the process is running).

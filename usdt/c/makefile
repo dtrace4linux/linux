@@ -12,7 +12,8 @@ all:	$(BINDIR)/simple-c
 
 $(BINDIR)/simple-c: $(BINDIR)/simple_probes.o $(BINDIR)/simple.o \
 	$(BINDIR)/shlib.so $(DTRACE_DRTI_O) $(DTRACE_LIB)
-	$(CC) -Wl,-rpath `pwd` -o $(BINDIR)/simple-c $(BITS) $(BINDIR)/simple_probes.o $(BINDIR)/simple.o $(BINDIR)/shlib.so -ldl
+	cd $(BINDIR) ; \
+	$(CC) -Wl,-rpath `pwd -P` -Wl,--library-path `pwd -P` -o simple-c $(BITS) simple_probes.o simple.o shlib.so -ldl
 
 $(BINDIR)/simple_probes.o: $(BINDIR)/simple.o simple_probes.d $(DTRACE_DRTI_O) $(DTRACE_LIB)
 	@. $(BINDIR)/config.sh ; \

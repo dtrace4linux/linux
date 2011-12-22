@@ -81,7 +81,6 @@ present.
 #define PCSZONE  30L    /* set zoneid from zoneid_t argument */
 #define PCSCREDX 31L    /* as PCSCRED but with supplemental groups */
 
-void *(*fn_pid_task)(void *, int);                                                      
 void *(*fn_get_pid_task)(void *, int); 
 
 /**********************************************************************/
@@ -189,7 +188,6 @@ return;
 
 	proc_pident_lookup = get_proc_addr("proc_pident_lookup");
 	proc_pident_readdir = get_proc_addr("proc_pident_readdir");
-	fn_pid_task = get_proc_addr("pid_task");
 	fn_get_pid_task = get_proc_addr("get_pid_task");
 	if ((ptr_proc_info_file_operations = get_proc_addr("proc_info_file_operations")) == NULL) {
 		printk("ctl.c: Cannot locate proc_info_file_operations\n");

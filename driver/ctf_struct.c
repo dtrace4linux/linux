@@ -35,6 +35,7 @@
 #include <linux/user.h>
 #include <linux/stat.h>
 #include <linux/mount.h>
+#include <linux/interrupt.h>
 
 #include <linux/in.h>
 #include <linux/icmp.h>
@@ -83,13 +84,14 @@ int	dtrace_cpu_id;
 struct tcp_sock 	tcp_sock;
 struct udp_sock 	udp_sock;
 struct user		user;
-struct user32		user32;
+//struct user32		user32; not there in RH4
 struct thread_info 	thread_info;
 struct icmphdr 		icmphdr;
 struct icmp_filter 	icmp_filter;
 struct socket		socket;
 struct proto_ops	proto_ops;
 struct vfsmount		vfsmount;
+struct irqaction	irqaction;
 
 void
 ctf_setup(void)

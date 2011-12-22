@@ -115,13 +115,22 @@ dtrace_dof_init(void)
 		return;
 
 # if defined(linux)
-	{char *modname = NULL;
+	{
 	char	buf[PATH_MAX];
 	FILE	*fp;
+
+	/***********************************************/
+	/*   Initialise this, but its wrong - we need  */
+	/*   RTLD_SELF  under  Linux.  We  may  be an  */
+	/*   instrumented   shlib,   rather  than  an  */
+	/*   executable.			       */
+	/***********************************************/
+	lmid = 0;
 
 	snprintf(buf, sizeof buf, "/proc/%d/maps", (int) getpid());
 	if ((fp = fopen(buf, "r")) == NULL) {
 		dprintf1(0, "drti: failed to open %s\n", buf);
+		return;
 		}
 	while (fgets(buf, sizeof buf, fp)) {
 		char	*s1 = strtok(buf, "-");
@@ -157,24 +166,6 @@ dtrace_dof_init(void)
 	if (strchr(modname, '/'))
 		modname = strrchr(modname, '/') + 1;
 
-	if (dof->dofh_ident[DOF_ID_MAG0] != DOF_MAG_MAG0 ||
-	    dof->dofh_ident[DOF_ID_MAG1] != DOF_MAG_MAG1 ||
-	    dof->dofh_ident[DOF_ID_MAG2] != DOF_MAG_MAG2 ||
-	    dof->dofh_ident[DOF_ID_MAG3] != DOF_MAG_MAG3) {
-		dprintf1(0, ".SUNW_dof section corrupt\n");
-		return;
-	}
-
-	dh.dofhp_dof = (uintptr_t)dof;
-	dh.dofhp_addr = elf->e_type == ET_DYN ? lmp->l_addr : 0;
-
-	if (lmid == 0) {
-		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),
-		    "%s", modname);
-	} else {
-		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),
-		    "LM%lu`%s", lmid, modname);
-	}
 	}
 # else
 //printf("dof=__SUNW_dof\n");
@@ -193,6 +184,7 @@ dtrace_dof_init(void)
 	else
 		modname++;
 
+# endif
 	if (dof->dofh_ident[DOF_ID_MAG0] != DOF_MAG_MAG0 ||
 	    dof->dofh_ident[DOF_ID_MAG1] != DOF_MAG_MAG1 ||
 	    dof->dofh_ident[DOF_ID_MAG2] != DOF_MAG_MAG2 ||
@@ -201,7 +193,9 @@ dtrace_dof_init(void)
 		return;
 	}
 
+#if defined(sun)
 	elf = (void *)lmp->l_addr;
+#endif
 
 	dh.dofhp_dof = (uintptr_t)dof;
 	dh.dofhp_addr = elf->e_type == ET_DYN ? lmp->l_addr : 0;
@@ -213,7 +207,6 @@ dtrace_dof_init(void)
 		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),
 		    "LM%lu`%s", lmid, modname);
 	}
-# endif
 
 	if ((p = getenv("DTRACE_DOF_INIT_DEVNAME")) != NULL)
 		devname = p;

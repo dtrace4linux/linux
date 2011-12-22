@@ -1035,7 +1035,7 @@ print_usage(FILE *fp, int verbose)
 	(void) fprintf(fp, "Usage: %s [-dfhlrsSt] [-u file] file\n", progname);
 #endif /* __APPLE__ */
 
-	if (verbose) {
+	if (1 || verbose) {
 		(void) fprintf(fp,
 		    "\t-d  dump data object section\n"
 		    "\t-f  dump function section\n"

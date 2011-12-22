@@ -25,6 +25,7 @@
 #include <asm/current.h>
 #include <asm/desc.h>
 #include <asm/hardirq.h>
+#include <asm/ipi.h>
 
 
 extern void dtrace_sync_func(void);
@@ -525,7 +526,9 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 	        send_IPI_mask = get_proc_addr("cluster_send_IPI_mask");
 	if (send_IPI_mask == NULL) dtrace_printf("HELP ON send_ipi_interrupt!\n"); else
 	        send_IPI_mask(*mask, vector);
-# elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
+# elif LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 28)
+	send_IPI_mask_sequence(*mask, vector);
+# elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	send_IPI_mask(*mask, vector);
 # else
 	apic->send_IPI_mask(mask, vector);

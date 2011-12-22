@@ -133,6 +133,8 @@ static void (*fn_sysrq_showregs_othercpus)(void *);
 int (*kernel_text_address_fn)(unsigned long);
 char *(*dentry_path_fn)(struct dentry *, char *, int);
 static struct module *(*fn__module_text_address)(unsigned long);
+void *(*fn_pid_task)(void *, int);
+void *(*fn_find_get_pid)(int);
 
 /**********************************************************************/
 /*   Stats    counters   for   ad   hoc   debugging;   exposed   via  */
@@ -1041,6 +1043,12 @@ dtrace_linux_init(void)
 	/*   Useful for debugging.		       */
 	/***********************************************/
 	fn_sysrq_showregs_othercpus = get_proc_addr("sysrq_showregs_othercpus");
+
+	/***********************************************/
+	/*   Used by prfind.			       */
+	/***********************************************/
+	fn_pid_task = get_proc_addr("pid_task");
+	fn_find_get_pid = get_proc_addr("find_get_pid");
 
 	/***********************************************/
 	/*   Needed by assembler trap handler.	       */
@@ -2244,17 +2252,30 @@ static int proc_notifier_trap_illop(struct notifier_block *n, unsigned long code
 /**********************************************************************/
 /*   Lookup process by proc id.					      */
 /**********************************************************************/
-extern void *(*fn_pid_task)(void *, int);
-
 proc_t *
 prfind(int p)
 {	struct task_struct *tp;
+	struct pid *pid;
 
+	if (fn_find_get_pid == NULL) {
+		dtrace_printf("prfind:find_get_pid is null (p=%d)\n", p);
+		return NULL;
+	}
+
+	if (fn_pid_task == NULL) {
+		dtrace_printf("prfind:pid_task is null (p=%d)\n", p);
+		return NULL;
+	}
+
+	if ((pid = fn_find_get_pid(p)) == NULL) {
+		dtrace_printf("prfind:find_get_pid couldnt locate pid %d\n", p);
+		return NULL;
+	}
 	/***********************************************/
 	/*   Rework  this - the first arg is a struct  */
 	/*   pid *, not a pid.			       */
 	/***********************************************/
-	tp = fn_pid_task((void *) (long) p, PIDTYPE_PID);
+	tp = fn_pid_task(pid, PIDTYPE_PID);
 	if (!tp)
 		return (proc_t *) NULL;
 HERE();

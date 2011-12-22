@@ -14882,6 +14882,7 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 	dof_stridx_t typeidx;
 	size_t typesz;
 	uint_t nprobes, j, k;
+static char buf[64];
 
 	ASSERT(sec->dofs_type == DOF_SECT_PROVIDER);
 
@@ -14930,7 +14931,9 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 
 	if (prb_sec->dofs_entsize == 0 ||
 	    prb_sec->dofs_entsize > prb_sec->dofs_size) {
-		dtrace_dof_error(dof, "invalid entry size");
+	    	snprintf(buf, sizeof buf, "invalid entry size: prbsec: %d vs %d\n",
+			(int) prb_sec->dofs_entsize, (int) prb_sec->dofs_size);
+		dtrace_dof_error(dof, buf);
 		return (-1);
 	}
 
@@ -14940,7 +14943,9 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 	}
 
 	if (off_sec->dofs_entsize != sizeof (uint32_t)) {
-		dtrace_dof_error(dof, "invalid entry size");
+	    	snprintf(buf, sizeof buf, "invalid entry size: offsec: %d vs %d\n",
+			(int) off_sec->dofs_entsize, (int) sizeof(uint32_t));
+		dtrace_dof_error(dof, buf);
 		return (-1);
 	}
 
@@ -14950,7 +14955,9 @@ dtrace_helper_provider_validate(dof_hdr_t *dof, dof_sec_t *sec)
 	}
 
 	if (arg_sec->dofs_entsize != sizeof (uint8_t)) {
-		dtrace_dof_error(dof, "invalid entry size");
+	    	snprintf(buf, sizeof buf, "invalid entry size: argsec: %d vs 1\n",
+			(int) arg_sec->dofs_entsize);
+		dtrace_dof_error(dof, buf);
 		return (-1);
 	}
 
@@ -15735,14 +15742,21 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_devi = devi;
 # endif
 
+#if linux
+	/***********************************************/
+	/*   We  are paniccing on a double reload - I  */
+	/*   dont  think  kernel  is removing us from  */
+	/*   the notifier chain.		       */
+	/***********************************************/
+	printk("TODO: Fix register_module_notifier(n_module_load)\n");
+	if (0)
+		register_module_notifier(&n_module_load);
+#else
 	/***********************************************/
 	/*   These  wont  be  called  for  Linux  but  */
 	/*   compile  them  in  as we may enable at a  */
 	/*   future date.			       */
 	/***********************************************/
-#if linux
-	register_module_notifier(&n_module_load);
-#else
 	dtrace_modload = dtrace_module_loaded;
 	dtrace_modunload = dtrace_module_unloaded;
 	dtrace_cpu_init = dtrace_cpu_setup_initial;
@@ -16992,7 +17006,9 @@ printk("dtrace_unregister is causing us to fail\n");
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
 #if linux
-	unregister_module_notifier(&n_module_load);
+	printk("TODO: Fix unregister_module_notifier(n_module_load)\n");
+	if (0) 
+		unregister_module_notifier(&n_module_load);
 #endif
 
 	mutex_exit(&cpu_lock);

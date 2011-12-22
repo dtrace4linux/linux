@@ -68,7 +68,7 @@ typedef struct dtrace_cmd {
 int	dtrace_here = 1;
 
 static const char DTRACE_OPTSTR[] =
-	"3:6:aAb:Bc:CD:ef:FGhHi:I:lL:m:n:o:p:P:qs:SU:vVwx:X:Z";
+	"3:6:a:Ab:Bc:CD:ef:FGhHi:I:lL:m:n:o:p:P:qs:SU:vVwx:X:Z";
 
 static char **g_argv;
 static int g_argc;
@@ -138,6 +138,8 @@ usage(FILE *fp)
 	    "\t-32 generate 32-bit D programs and ELF files\n"
 	    "\t-64 generate 64-bit D programs and ELF files\n\n"
 	    "\t-a  claim anonymous tracing state\n"
+	    "\t-arch [i386|x86_64] Generate output files for ELF type.\n"
+	    "\t\tSame as -32 or -64\n"
 	    "\t-A  generate driver.conf(4) directives for anonymous tracing\n"
 	    "\t-b  set trace buffer size\n"
 	    "\t-c  run specified command and exit upon its completion\n"
@@ -1254,6 +1256,28 @@ main(int argc, char *argv[])
 				break;
 			case 'a':
 #if !defined(__APPLE__)
+				if (strcmp(optarg, "rch") == 0) {
+					if (optind >= argc || argv[optind][0] == '-') {
+						fprintf(stderr, "%s: -arch requires an argument value, e.g. i386 or x86_64\n",
+							argv[0]);
+						exit(1);
+					}
+					if (strcmp(argv[optind], "i386") == 0) {
+						g_oflags |= DTRACE_O_ILP32;
+						g_oflags &= ~DTRACE_O_LP64;
+						break;
+					}
+					if (strcmp(argv[optind], "x86_64") == 0) {
+						g_oflags &= ~DTRACE_O_ILP32;
+						g_oflags |= DTRACE_O_LP64;
+						break;
+					}
+					fprintf(stderr, "%s: expected 'i386' or 'x86_64' after -arch switch\n",
+						argv[0]);
+					exit(1);
+
+				}
+
 				g_grabanon++; /* also checked in pass 2 below */
 				break;
 #else

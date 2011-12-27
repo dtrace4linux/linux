@@ -1,0 +1,9 @@
+The proc provider provides high level probes which relate to
+process creation, termination, and other common and interesting
+events.
+
+The following probes are defined:
+
+proc:::create            New process has been created.
+proc:::exit              Process is terminating.
+proc:::start             New process has been created.

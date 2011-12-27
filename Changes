@@ -1,3 +1,29 @@
+Tue Dec 27 15:42:06 2011  fox
+
+     645* tools/get-deps.pl: Fix for Ubuntu 11.10/i686 - very broken
+          default install (missing /usr/include/sys).
+
+     644* linux/sys/elftypes.h: Fix for Ubuntu 11.10/i686.
+
+     643* tests/makefile: Handle 32-bit only system
+
+Sun Dec 25 00:11:37 2011  fox
+
+     642* prov_common.c: Fire for all matching probes, not just the
+          first one, so that proc:::create and proc:::start will fire
+	  together.
+
+     641* prov_common.c: Add support for 
+     	  proc:::create - Fires when a new process is created.
+	  proc:::start - Fires when process is created (same as create)
+	  proc:::end - Fires on process termination
+
+     640* dtrace/dtrace_subr.c: When looking at the invop handlers, broadcast
+          the breakpoint to all invop handlers. This allows two providers
+	  to sit on the same instruction.
+
+     639* fasttrap.c: Basic /proc/dtrace/fasttrap support.
+
 Thu Dec 22 14:43:40 2011  fox
 
      638* driver/intr_x86-32.S/intr_x86-64.S: We werent allowing 

@@ -1,0 +1,11 @@
+If you are building this, please make sure your system has
+the required dependency packages installed. There are presently
+two scripts you can use or try:
+
+tools/get-deps.pl     	   Ubuntu or other apt-get based systems
+tools/get-deps-fedora.pl   Fedora Core, or other yum based install systems
+
+Run these as root. Ubuntu 11.x/32 based systems will need to run the 
+get-deps as this fixes an install issue with missing /usr/include/sys
+directory.
+============================================= Paul Fox Dec 2012

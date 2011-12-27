@@ -29,6 +29,8 @@
 # if linux
 #include "dtrace_linux.h"
 #include <sys/zone.h>
+#include <linux/seq_file.h>
+#include <linux/proc_fs.h>
 #include <sys/fasttrap.h>
 #include <sys/fasttrap_impl.h>
 #include <sys/fasttrap_isa.h>
@@ -1665,7 +1667,8 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
 
-/*printk("retire: pid=%d name=%s\n", pid, name);*/
+int dtrace_here = 1;
+printk("retire: pid=%d name=%s\n", pid, name);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
@@ -1678,6 +1681,7 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	}
 
 	if (fp == NULL) {
+printk("didnt find pid\n");
 		dmutex_exit(&bucket->ftb_mtx);
 		return;
 	}
@@ -1727,6 +1731,7 @@ HERE();
 
 	dmutex_exit(&bucket->ftb_mtx);
 
+printk("%s:%d: calling pid cleanup\n", __func__, __LINE__);
 	fasttrap_pid_cleanup();
 }
 
@@ -1925,6 +1930,81 @@ no_mem:
 
 	return (ENOMEM);
 }
+
+/**********************************************************************/
+/*   Code for /proc/dtrace/fasttrap     			      */
+/**********************************************************************/
+#if linux
+static void *fasttrap_seq_start(struct seq_file *seq, loff_t *pos)
+{
+	if (*pos > fasttrap_total)
+		return 0;
+	return (void *) (*pos + 1);
+}
+static void *fasttrap_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+{	long	n = (long) v;
+//printk("%s pos=%p mcnt=%d\n", __func__, *pos, mcnt);
+	++*pos;
+
+	return (void *) (n - 2 > fasttrap_total ? NULL : (void *) (n + 1));
+}
+static void fasttrap_seq_stop(struct seq_file *seq, void *v)
+{
+//printk("%s v=%p\n", __func__, v);
+}
+static int fasttrap_seq_show(struct seq_file *seq, void *v)
+{
+	int	i;
+	int	n = (int) (long) v;
+	int	target;
+
+//printk("%s v=%p\n", __func__, v);
+	if (n == 1) {
+		seq_printf(seq, "# PID VirtAddr\n");
+		return 0;
+	}
+	if (n > fasttrap_total)
+		return 0;
+
+	/***********************************************/
+	/*   Find  first  probe.  This  is incredibly  */
+	/*   slow  and  inefficient, but we dont want  */
+	/*   to waste memory keeping a list (an extra  */
+	/*   ptr for each probe).		       */
+	/***********************************************/
+	target = n;
+	for (i = 0; i < fasttrap_tpoints.fth_nent; i++) {
+		fasttrap_tracepoint_t *tp;
+		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
+		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
+			if (--target < 0) {
+				seq_printf(seq, "%d %p\n",
+					(int) tp->ftt_pid,
+					(void *) tp->ftt_pc);
+				return 0;
+				}
+		}
+	}
+	return 0;
+}
+static struct seq_operations seq_ops = {
+	.start = fasttrap_seq_start,
+	.next = fasttrap_seq_next,
+	.stop = fasttrap_seq_stop,
+	.show = fasttrap_seq_show,
+	};
+static int fasttrap_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &seq_ops);
+}
+static const struct file_operations fasttrap_proc_fops = {
+        .owner   = THIS_MODULE,
+        .open    = fasttrap_seq_open,
+        .read    = seq_read,
+        .llseek  = seq_lseek,
+        .release = seq_release,
+};
+#endif
 
 /*ARGSUSED*/
 static void *
@@ -2127,6 +2207,7 @@ fasttrap_meta_remove(void *arg, dtrace_helper_provdesc_t *dhpv, pid_t pid)
 	 */
 	fasttrap_provider_retire(pid, dhpv->dthpv_provname, 1);
 }
+
 
 static dtrace_mops_t fasttrap_mops = {
 	fasttrap_meta_create_probe,
@@ -2352,6 +2433,7 @@ fasttrap_attach(void)
 {
 	ulong_t nent = 1000;
 	int	i;
+	struct proc_dir_entry *ent;
 
 # if defined(sun)
 	switch (cmd) {
@@ -2450,6 +2532,9 @@ HERE();
 	}
 
 HERE();
+	ent = create_proc_entry("dtrace/fasttrap", 0444, NULL);
+	if (ent)
+		ent->proc_fops = &fasttrap_proc_fops;
 	(void) dtrace_meta_register("fasttrap", &fasttrap_mops, NULL,
 	    &fasttrap_meta_id);
 HERE();
@@ -2467,6 +2552,8 @@ fasttrap_detach(void)
 {
 	int i, fail = 0;
 	timeout_id_t tmp;
+
+	remove_proc_entry("dtrace/fasttrap", 0);
 
 # if defined(sun)
 	switch (cmd) {
@@ -2511,9 +2598,7 @@ HERE();
 		}
 	}
 
-HERE();
 	fasttrap_cleanup_work = 0;
-HERE();
 	dmutex_exit(&fasttrap_cleanup_mtx);
 HERE();
 

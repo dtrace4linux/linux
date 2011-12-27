@@ -62,24 +62,6 @@ static int initted;
 
 int fasttrap_init(void)
 {	int	ret;
-# if 0
-	struct proc_dir_entry *ent;
-static struct proc_dir_entry *dir;
-
-	/***********************************************/
-	/*   Create the parent directory.	       */
-	/***********************************************/
-	if (!dir) {
-		dir = proc_mkdir("dtrace", NULL);
-		if (!dir) {
-			printk("Cannot create /proc/dtrace\n");
-			return -1;
-		}
-	}
-
-	ent = create_proc_entry("fasttrap", S_IFREG | S_IRUGO, dir);
-	ent->read_proc = fasttrap_read_proc;
-# endif
 
 	ret = misc_register(&fasttrap_dev);
 	if (ret) {

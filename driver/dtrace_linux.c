@@ -1191,7 +1191,11 @@ dtrace_linux_fini(void)
 	gate_t *idt_table;
 
 	if (fn_profile_event_unregister) {
-		(*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
+		int pret = (*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
+		if (pret) {
+			printk("profile_event_unregister=%d\n", pret);
+			return -1;
+		}
 	} else {
 		printk(KERN_WARNING "dtracedrv: Cannot call profile_event_unregister\n");
 		ret = 0;
@@ -2217,22 +2221,33 @@ static int
 proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 {
 	struct task_struct *task = (struct task_struct *) ptr;
-	proc_t *p;
+	sol_proc_t sol_proc;
 
-//printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
+printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
 	/***********************************************/
 	/*   See  if  we know this proc - if so, need  */
 	/*   to let fasttrap retire the probes.	       */
 	/***********************************************/
-	if (dtrace_fasttrap_exit_ptr &&
-	    (p = par_find_thread(task)) != NULL) {
-HERE();
-		dtrace_fasttrap_exit_ptr(p);
-HERE();
-	}
+	if (dtrace_fasttrap_exit_ptr == NULL)
+		return 0;
+
+	/***********************************************/
+	/*   Set up a fake proc_t for this process.    */
+	/***********************************************/
+	memset(&sol_proc, 0, sizeof sol_proc);
+	sol_proc.p_pid = current->pid;
+	curthread = &sol_proc;
+
+	dmutex_init(&sol_proc.p_lock);
+	dmutex_enter(&sol_proc.p_lock);
+
+	dtrace_fasttrap_exit_ptr(&sol_proc);
+
+	dmutex_exit(&sol_proc.p_lock);
 
 	return 0;
 }
+
 /**********************************************************************/
 /*   Handle illegal instruction trap for fbt/sdt.		      */
 /**********************************************************************/

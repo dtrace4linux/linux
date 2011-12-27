@@ -37,7 +37,7 @@ SUDO=setuid root
 ######################################################################
 DRIVERS = dtrace 
 
-notice:
+notice: .first-time
 	echo rel=$(rel)
 	@echo "make all        - build everything - auto-detect (32 or 64 bit)"
 	@echo "make clean      - clean out *.o/*.a and binaries"
@@ -47,6 +47,9 @@ notice:
 	@echo "make unload     - remove the driver"
 	@echo "make test       - run cmd/dtrace regression tests."
 
+.first-time:
+	cat doc/README.first
+	touch .first-time
 release:
 	tools/mkrelease.pl $$REL
 

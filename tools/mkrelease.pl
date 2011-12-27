@@ -94,6 +94,7 @@ sub main
 			"--exclude=lwn " .
 			"--exclude=.dtrace.nobug " .
 			"--exclude=.test.prompt " .
+			"--exclude=.first-time " .
 			"dtrace-$rel | bzip2 >/tmp/dtrace-$rel.tar.bz2");
 	rename("dtrace-$rel", "dtrace");
 

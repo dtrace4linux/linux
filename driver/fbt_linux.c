@@ -170,14 +170,18 @@ if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->f
 
 		/***********************************************/
 		/*   If  probe  is  not  enabled,  but  still  */
-		/*   fired,  then it overran. Likely cause is  */
+		/*   fired,  then it *might have* overran. Likely cause is  */
 		/*   cpu cache consistency issue - some other  */
 		/*   CPU  hasnt  seen  the  breakpoint  being  */
 		/*   removed.  Flag  it  so  we  can  show in  */
 		/*   /proc/dtrace/fbt.			       */
+		/*   Additionally, another provider (eg prov)  */
+		/*   is  sitting  on the same function, so we  */
+		/*   have to broadcast to both/all providers.  */
 		/***********************************************/
-		if (!fbt->fbtp_enabled)
+		if (!fbt->fbtp_enabled) {
 			fbt->fbtp_overrun = TRUE;
+		}
 
 		/***********************************************/
 		/*   Always  handle  the  probe - if we dont,  */

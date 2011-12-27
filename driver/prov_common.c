@@ -243,6 +243,18 @@ static provider_t map[MAX_PROVIDER_TBL] = {
 		.p_probe = "sched:::on-cpu",
 		.p_func_name = "__perf_event_task_sched_in",
 	},
+	{
+		.p_probe = "proc:::create",
+		.p_func_name = "wake_up_new_task",
+	},
+	{
+		.p_probe = "proc:::start",
+		.p_func_name = "wake_up_new_task",
+	},
+	{
+		.p_probe = "proc:::exit",
+		.p_func_name = "do_exit",
+	},
 	{NULL}
 	};
 static int probe_cnt;
@@ -820,18 +832,19 @@ prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo
 	uintptr_t stack0, stack1, stack2, stack3, stack4, n;
 	struct pt_regs *regs;
 	provider_t *pp;
-
-	/***********************************************/
-	/*   Dont fire probe if this is unsafe.	       */
-	/***********************************************/
-	if (!tinfo->t_doprobe)
-		return (DTRACE_INVOP_NOP);
+	int	ret = 0;
 
 	/***********************************************/
 	/*   Some probes are matching on the value of  */
 	/*   arg1   (shared   dispatch).   Get   arg1  */
 	/*   (stack0)  early  so we can use it in the  */
 	/*   loop below.			       */
+	/***********************************************/
+
+	/***********************************************/
+	/*   We need to hash the addresses since they  */
+	/*   are  likely  rarely to fire, yet we will  */
+	/*   get called for all FBT traffic.	       */
 	/***********************************************/
 	regs = (struct pt_regs *) stack;
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
@@ -843,57 +856,51 @@ prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo
 		if (!pp->p_enabled) {
 			continue;
 		}
-		if (!pp->p_stack0_cond)
-			break;
-		n = stack0 - pp->p_stack0_offset;
-		if (pp->p_stack0_addr == n)
-			break;
+
+		/***********************************************/
+		/*   Not  ours  if  we match the address, but  */
+		/*   dont match the condition.		       */
+		/***********************************************/
+		if (pp->p_stack0_cond && pp->p_stack0_addr != stack0 - pp->p_stack0_offset)
+			continue;
+
+		/***********************************************/
+		/*   We  will  process  all  the matches, not  */
+		/*   just the first one.		       */
+		/***********************************************/
+		/***********************************************/
+		/*   Dont fire probe if this is unsafe.	       */
+		/***********************************************/
+		if (!tinfo->t_doprobe)
+			return (DTRACE_INVOP_ANY);
+
+		/***********************************************/
+		/*   Signal that we fired at least once.       */
+		/***********************************************/
+		ret = DTRACE_INVOP_ANY;
+		tinfo->t_opcode = pp->p_patchval;
+		tinfo->t_inslen = pp->p_inslen;
+		tinfo->t_modrm = pp->p_modrm;
+
+		/***********************************************/
+		/*   Get  remaining arguments, in a protected  */
+		/*   fashion.				       */
+		/***********************************************/
+		DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+		stack1 = regs->c_arg1;
+		stack2 = regs->c_arg2;
+		stack3 = regs->c_arg3;
+		stack4 = regs->c_arg4;
+		DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT | CPU_DTRACE_BADADDR);
+
+		stack0 = prcom_getarg(pp, pp->p_id, NULL, 0, 0);
+		stack1 = prcom_getarg(pp, pp->p_id, NULL, 1, 0);
+
+	//printk("common probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);
+		dtrace_probe(pp->p_id, stack0, stack0, stack0, 0, 0);
 	}
 
-	/***********************************************/
-	/*   We  didnt  find  it  -  but  that may be  */
-	/*   normal,  depending  on  the order of the  */
-	/*   invop chain.			       */
-	/***********************************************/
-	if (pp->p_probe == NULL) {
-		static int cnt;
-		if (cnt++ < 10)
-			printk("dtrace: prov_common: cannot map addr=%p stk0=%p\n", 
-				(void *) addr, (void *) stack0);
-		return 0;
-	}
-	/***********************************************/
-	/*   Bubble  up  entries  to  the  top of the  */
-	/*   list.				       */
-	/***********************************************/
-	if (pp != map && 0) {
-		provider_t t = pp[-1];
-		pp[-1] = *pp;
-		*pp = t;
-	}
-
-	tinfo->t_opcode = pp->p_patchval;
-	tinfo->t_inslen = pp->p_inslen;
-	tinfo->t_modrm = pp->p_modrm;
-
-	/***********************************************/
-	/*   Get  remaining arguments, in a protected  */
-	/*   fashion.				       */
-	/***********************************************/
-	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
-	stack1 = regs->c_arg1;
-	stack2 = regs->c_arg2;
-	stack3 = regs->c_arg3;
-	stack4 = regs->c_arg4;
-	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT | CPU_DTRACE_BADADDR);
-
-	stack0 = prcom_getarg(pp, pp->p_id, NULL, 0, 0);
-	stack1 = prcom_getarg(pp, pp->p_id, NULL, 1, 0);
-
-//printk("common probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);
-	dtrace_probe(pp->p_id, stack0, stack0, stack0, 0, 0);
-
-	return (DTRACE_INVOP_NOP);
+	return ret;
 }
 
 /*ARGSUSED*/
@@ -917,6 +924,7 @@ prcom_enable(void *arg, dtrace_id_t id, void *parg)
 	prcom_init();
 
 	pp->p_enabled = TRUE;
+//printk("prcom_enable %p %x\n", pp->p_func_addr, pp->p_func_addr ? *(unsigned char *) pp->p_func_addr : 0);
 	if (pp->p_func_addr &&
 	    *(unsigned char *) pp->p_func_addr != PATCHVAL) {
 		*(unsigned char *) pp->p_func_addr = PATCHVAL;

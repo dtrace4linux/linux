@@ -15744,13 +15744,10 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 
 #if linux
 	/***********************************************/
-	/*   We  are paniccing on a double reload - I  */
-	/*   dont  think  kernel  is removing us from  */
-	/*   the notifier chain.		       */
+	/*   Detect       new      modules      being  */
+	/*   loaded/unloaded.			       */
 	/***********************************************/
-	printk("TODO: Fix register_module_notifier(n_module_load)\n");
-	if (0)
-		register_module_notifier(&n_module_load);
+	register_module_notifier(&n_module_load);
 #else
 	/***********************************************/
 	/*   These  wont  be  called  for  Linux  but  */
@@ -17006,9 +17003,7 @@ printk("dtrace_unregister is causing us to fail\n");
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
 #if linux
-	printk("TODO: Fix unregister_module_notifier(n_module_load)\n");
-	if (0) 
-		unregister_module_notifier(&n_module_load);
+	unregister_module_notifier(&n_module_load);
 #endif
 
 	mutex_exit(&cpu_lock);

@@ -3,3 +3,56 @@ The "notifier" provider provides a means to intercept the kernel
 notification to interested parties. Drivers can define their own notifier
 lists, and the kernel provides a number of default notifiers, e.g. to
 notify when a task exits, or a cpu switch occurs.
+
+The meaning of these is mostly embedded in the kernel. It
+allows the kernel to broadcast interesting events to interested
+drivers.
+
+The list of probes is a function of the kernel. The "notifier" provider
+attempts to locate the appropriate definitions in the kernel, but
+older or newer kernels may make these unavailable.
+
+The following probes are available:
+
+notifier::atomic:die_chain
+notifier::atomic:hci_notifier
+notifier::atomic:idle_notifier
+notifier::atomic:inet6addr_chain
+notifier::atomic:keyboard_notifier_list
+notifier::atomic:mn10300_die_chain
+notifier::atomic:netevent_notif_chain
+notifier::atomic:panic_notifier_list
+notifier::atomic:task_free_notifier
+notifier::atomic:thread_notify_head
+notifier::atomic:vt_notifier_list
+notifier::atomic:xaction_notifier_list
+notifier::blocking:acpi_bus_notify_list
+notifier::blocking:acpi_chain_head
+notifier::blocking:acpi_lid_notifier
+notifier::blocking:adb_client_list
+notifier::blocking:cpu_dma_lat_notifier
+notifier::blocking:cpufreq_policy_notifier_list
+notifier::blocking:crypto_chain
+notifier::blocking:dca_provider_chain
+notifier::blocking:dnaddr_chain
+notifier::blocking:fb_notifier_list
+notifier::blocking:inetaddr_chain
+notifier::blocking:ipcns_chain
+notifier::blocking:memory_chain
+notifier::blocking:module_notify_list
+notifier::blocking:munmap_notifier
+notifier::blocking:network_lat_notifier
+notifier::blocking:network_throughput_notifier
+notifier::blocking:oom_notify_list
+notifier::blocking:pSeries_reconfig_chain
+notifier::blocking:pm_chain_head
+notifier::blocking:reboot_notifier_list
+notifier::blocking:spu_switch_notifier
+notifier::blocking:task_exit_notifier
+notifier::blocking:ubi_notifiers
+notifier::blocking:usb_notifier_list
+notifier::blocking:wf_client_list
+notifier::blocking:xenstore_chain
+notifier::raw:clockevents_chain
+notifier::raw:cpu_chain
+notifier::raw:netdev_chain

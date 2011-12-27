@@ -39,11 +39,18 @@ typedef struct dtrace_invop_hdlr {
 
 dtrace_invop_hdlr_t *dtrace_invop_hdlr;
 
+/**********************************************************************/
+/*   On a breakpoint trap, see which provider or providers will take  */
+/*   the  trap.  Because of our prov provider, we can end up hitting  */
+/*   the  same  probe  instruction  from  fbt  and  prov  (or  other  */
+/*   providers).  We  need  to  let each provider have a go, not the  */
+/*   first provider, to avoid FBT covering up for a later provider.   */
+/**********************************************************************/
 int
 dtrace_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 {
 	dtrace_invop_hdlr_t *hdlr;
-	int rval;
+	int rval = 0;
 static int once = TRUE;
 
 	/***********************************************/
@@ -60,11 +67,12 @@ static int once = TRUE;
 	}
 
 	for (hdlr = dtrace_invop_hdlr; hdlr != NULL; hdlr = hdlr->dtih_next) {
-		if ((rval = hdlr->dtih_func(addr, stack, eax, tinfo)) != 0)
-			return (rval);
+		int	ret;
+		if ((ret = hdlr->dtih_func(addr, stack, eax, tinfo)) != 0)
+			rval = 1;
 	}
 
-	return (0);
+	return rval;
 }
 
 void

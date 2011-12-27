@@ -6,5 +6,13 @@ BINDIR=../$(BUILD_DIR)
 #   binaries. More for my benefit.				     #
 ######################################################################
 all:
-	-$(CC) -m64 -g -o $(BINDIR)/sys64 syscalls.c
-	-$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c
+	case `uname -m` in \
+	  x86_64) \
+		$(CC) -m64 -g -o $(BINDIR)/sys64 syscalls.c ; \
+		$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c ; \
+		;; \
+	  i686) \
+		$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c ; \
+		;; \
+	esac
+

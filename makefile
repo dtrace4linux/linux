@@ -8,6 +8,10 @@
 rel=`if [ -z $$REL ] ; then date +%Y%m%d ; else echo $$REL ; fi`
 RELDIR=dtrace
 
+######################################################################
+#   Avoid UTF quoted strings from gcc.				     #
+######################################################################
+LANG=C
 UNAME_M=`uname -m`
 NOPWD = --no-print-directory
 MAKEFLAGS += --no-print-directory

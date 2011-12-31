@@ -321,4 +321,22 @@ static hrtime_t	hrt0;
 
 }
 
+/**********************************************************************/
+/*   Utility  routine  for debugging, mostly not needed. Turn on all  */
+/*   writes  to the console - may be needed when debugging low level  */
+/*   interrupts which crash the box.   				      */
+/**********************************************************************/
+void
+set_console_on(int flag)
+{	int	mode = flag ? 7 : 0;
+static	int first_time = TRUE;
+static	int *console_printk;
+	
+	if (first_time) {
+		console_printk = get_proc_addr("console_printk");
+		first_time = FALSE;
+	}
 
+	if (console_printk)
+		console_printk[0] = mode;
+}

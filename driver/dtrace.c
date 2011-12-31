@@ -3294,7 +3294,7 @@ dtrace_printf("%s(%d): TODO!!\n", __func__, __LINE__);
 		    state, mstate));
 # else
 # undef comm /* Avoid redef issue here - defined in dtrace_linux.h */
-		return (uint64_t) get_current()->comm;
+		return (uint64_t) (void *) get_current()->comm;
 # endif
 
 	case DIF_VAR_ZONENAME:

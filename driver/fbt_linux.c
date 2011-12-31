@@ -808,9 +808,10 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 	for (; fbt != NULL; fbt = fbt->fbtp_next) {
 		fbt->fbtp_enabled = TRUE;
 		if (dtrace_here) 
-			printk("fbt_enable:patch %p p:%02x\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval);
-		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
+			printk("fbt_enable:patch %p p:%02x %s\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval, fbt->fbtp_name);
+		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE)) {
 			*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
+		}
 	}
 	return 0;
 }

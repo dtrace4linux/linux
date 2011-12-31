@@ -673,7 +673,7 @@ continue;
 			char	*cp1;
 			char	*cp_start = cp;
 
-	                printf("%04lx: ", cp - fp);
+	                printf("%04x: ", (int) (cp - fp));
 			op = *cp++;
 			opa = op & 0x3f;
 			if (op & 0xc0)

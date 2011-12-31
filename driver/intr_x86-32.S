@@ -19,7 +19,7 @@
 /*   Author: Paul Fox						      */
 /*   								      */
 /*   Date: May 2009						      */
-/*   $Header: Last edited: 19-Jun-2011 1.2 $ 			      */
+/*   $Header: Last edited: 29-Dec-2011 1.3 $ 			      */
 /**********************************************************************/
 
 /*
@@ -48,6 +48,7 @@
 # if defined(__i386)
 
 # include <asm/segment.h>
+#include <linux/version.h>
 
 # define NOTIFY_DONE	0
 
@@ -69,14 +70,6 @@
 	/*   occurred in user space.		       */
 	/***********************************************/
 .if \allow_user == 0
-	/***********************************************/
-	/*   Ensure  consistent  stack  frame setup -  */
-	/*   some   interrupts  have  an  error  code  */
-	/*   pushed, others do not. Short circuit the  */
-	/*   common  case  where  its a user trap and  */
-	/*   not    a    kernel    one,   and   avoid  */
-	/*   pushing/popping all the regs.	       */
-	/***********************************************/
 	.if \fault == 1
 	cmp $__KERNEL_CS,8(%esp)
 	.else
@@ -152,6 +145,14 @@
 	pop %ds
 	pop %es
 	pop %fs
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
+	/***********************************************/
+	/*   struct  pt_regs  suddenly  got  the  %gs  */
+	/*   field,  so  we need to ensure the layout  */
+	/*   of the stack agrees.		       */
+	/***********************************************/
+	pop %gs
+#endif
 	.if \fault == 0
 	pop %eax
 	.endif
@@ -168,6 +169,14 @@
 	.endif
 
 	cld
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
+	/***********************************************/
+	/*   struct  pt_regs  suddenly  got  the  %gs  */
+	/*   field,  so  we need to ensure the layout  */
+	/*   of the stack agrees.		       */
+	/***********************************************/
+	push %gs
+#endif
 	push %fs
 	push %es
 	push %ds

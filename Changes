@@ -1,3 +1,31 @@
+Sat Dec 31 00:01:52 2011  fox
+
+     652* Archive: 1.0.135
+
+     651* driver/intr.c: Move the interrupt/idt code to its own file.
+          During driver init, swap out the old idt, make updates and
+	  swap back in the new idt. Avoids funny crashes on driver
+	  reload. 
+
+	  Added /proc/dtrace/idt driver to see the IDT table.
+
+     650* Archive: 1.0134
+
+     649* dtrace_linux.c: set_idt_entry: Grab the existing IDT
+          entry and just set the new address; dont lose/change the
+	  dpl or type of the gate.
+
+     648* printf.c, dtrace_linux.c: Move set_console() to printf.c
+
+     647* makefile: Set LANG=C to avoid UTF-8 output from gcc.
+
+Thu Dec 29 10:23:49 2011  fox
+
+     646* driver/intr_x86-32.S: Kernels >= 2.6.31 save the %GS
+          register on the stack, so we need to do this so that pt_regs
+	  agrees. This fixes the horror of Ubuntu 11.10/i686 not
+	  working properly.
+
 Tue Dec 27 15:42:06 2011  fox
 
      645* tools/get-deps.pl: Fix for Ubuntu 11.10/i686 - very broken

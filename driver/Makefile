@@ -24,6 +24,7 @@ dtracedrv-objs := \
 	fasttrap_linux.o \
 	fbt_linux.o \
 	instr_linux.o \
+	intr.o \
 	intr_x86-32.o \
 	intr_x86-64.o \
 	libc.o \

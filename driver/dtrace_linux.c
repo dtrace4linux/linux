@@ -42,17 +42,7 @@ MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACEDRV Driver");
 
-# if !defined(CONFIG_NR_CPUS)
-#	define	CONFIG_NR_CPUS	1
-# endif
-
 # define	TRACE_ALLOC	0
-
-# define	NOTIFY_KERNEL	1
-
-#if !defined(X86_PLATFORM_IPI_VECTOR)
-#	define	X86_PLATFORM_IPI_VECTOR GENERIC_INTERRUPT_VECTOR
-#endif
 
 /**********************************************************************/
 /*   Turn on HERE() macro tracing.				      */
@@ -70,7 +60,6 @@ module_param(grab_panic, int, 0);
 
 extern char dtrace_buf[];
 extern const int log_bufsiz;
-extern int dtrace_printf_disable;
 extern int dbuf_i;
 
 /**********************************************************************/
@@ -180,19 +169,6 @@ int dtrace_shutdown;
 /**********************************************************************/
 sol_proc_t	*shadow_procs;
 
-/**********************************************************************/
-/*   We need this to be in an executable page. kzalloc doesnt return  */
-/*   us  one  of  these, and havent yet fixed this so we can make it  */
-/*   executable,  so  for  now, this will do. As of 3.x kernels, BSS  */
-/*   pages  are not executable. We should use a GCC __attribute__ to  */
-/*   mark  this  in  an  executable  section  (.text?)  but .text is  */
-/*   execute/no-write.    We    change    the    page    perms    in  */
-/*   dtrace_linux_init.						      */
-/**********************************************************************/
-static cpu_core_t	cpu_core_exec[NCPU];
-# define THIS_CPU() &cpu_core_exec[cpu_get_id()]
-//# define THIS_CPU() &cpu_core[cpu_get_id()]
-
 MUTEX_DEFINE(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
@@ -278,14 +254,6 @@ extern unsigned long long cnt_timer3;
 /*   Prototypes.						      */
 /**********************************************************************/
 void ctf_setup(void);
-int dtrace_double_fault(void);
-int dtrace_int1(void);
-int dtrace_int3(void);
-int dtrace_int11(void);
-int dtrace_int13(void);
-int dtrace_page_fault(void);
-int dtrace_int_ipi(void);
-int dtrace_int_nmi(void);
 static void * par_lookup(void *ptr);
 # define	cas32 dtrace_cas32
 uint32_t dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new);
@@ -302,6 +270,8 @@ int	fbt_init2(void);
 void	fbt_exit(void);
 int	instr_init(void);
 void	instr_exit(void);
+int	intr_init(void);
+void	intr_exit(void);
 int	dtrace_prcom_init(void);
 void	dtrace_prcom_exit(void);
 int	sdt_init(void);
@@ -309,7 +279,7 @@ void	sdt_exit(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 void	io_prov_init(void);
-static void print_pte(pte_t *pte, int level);
+//static void print_pte(pte_t *pte, int level);
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 void clflush(void *ptr);
@@ -391,11 +361,6 @@ void
 atomic_add_64(uint64_t *p, int n)
 {
 	*p += n;
-}
-cpu_core_t *
-cpu_get_this(void)
-{
-	return THIS_CPU();
 }
 /**********************************************************************/
 /*   We cannot call do_gettimeofday, or ktime_get_ts or any of their  */
@@ -579,444 +544,6 @@ dtrace_data_model(proc_t *p)
 return DATAMODEL_LP64;
 	return p->p_model;
 }
-/**********************************************************************/
-/*   Pointers to the real interrupt handlers so we can daisy chain.   */
-/**********************************************************************/
-void *kernel_int1_handler;
-void *kernel_int3_handler;
-void *kernel_int11_handler;
-void *kernel_int13_handler;
-void *kernel_double_fault_handler;
-void *kernel_page_fault_handler;
-int ipi_vector = 0xea-1-16; // very temp hack - need to find a free interrupt
-void (*kernel_nmi_handler)(void);
-
-/**********************************************************************/
-/*   Kernel independent gate definitions.			      */
-/**********************************************************************/
-# define CPU_GATE_INTERRUPT 	0xE
-# define GATE_DEBUG_STACK	0
-
-/**********************************************************************/
-/*   x86-64 gate structure.					      */
-/**********************************************************************/
-struct gate64 {
-        u16 offset_low;
-        u16 segment;
-        unsigned ist : 3, zero0 : 5, type : 5, dpl : 2, p : 1;
-        u16 offset_middle;
-        u32 offset_high;
-        u32 zero1;
-} __attribute__((packed));
-
-struct gate32 {
-        u16		base0;
-        u16		segment;
-
-	unsigned char	zero;
-	unsigned char	flags;
-	u16		base1;
-} __attribute__((packed));
-
-# if defined(__amd64)
-typedef struct gate64 gate_t;
-
-# elif defined(__i386)
-typedef struct gate32 gate_t;
-
-# else
-#   error "Dont know how to handle GATEs on this cpu"
-# endif
-
-# if 0
-void
-set_idt_entry(int intr, unsigned long func)
-{
-gate_desc *idt_table = get_proc_addr("idt_table");
-gate_desc s;
-//printk("patch idt %p vec %d func %p\n", idt_table, intr, func);
-pack_gate(&s, GATE_INTERRUPT, func, 3, DEBUG_STACK, __KERNEL_CS);
-
-memory_set_rw(idt_table, 1, TRUE);
-write_idt_entry(idt_table, intr, &s);
-return;
-}
-# else
-void
-set_idt_entry(int intr, unsigned long func)
-{
-
-	gate_t *idt_table = get_proc_addr("idt_table");
-static	gate_t s;
-	int	type = CPU_GATE_INTERRUPT;
-	int	dpl = 3;
-	int	seg = __KERNEL_CS;
-
-	dtrace_bzero(&s, sizeof s);
-
-#if defined(__amd64)
-	s.offset_low = PTR_LOW(func);
-	s.segment = seg;
-        s.ist = GATE_DEBUG_STACK;
-        s.p = 1;
-        s.dpl = dpl;
-        s.zero0 = 0;
-        s.zero1 = 0;
-        s.type = type;
-        s.offset_middle = PTR_MIDDLE(func);
-        s.offset_high = PTR_HIGH(func);
-
-#elif defined(__i386)
-	s.segment = seg;
-	s.base0 = (u16) (func & 0xffff);
-	s.base1 = (u16) ((func & 0xffff0000) >> 16);
-	s.flags =	0x80 |		// present
-			(dpl << 5) |
-			type;		// CPU_GATE_INTERRUPT
-
-#else
-#  error "set_idt_entry: please help me"
-#endif
-
-	if (dtrace_here)
-		printk("set_idt_entry %p %p sz=%d %lx %lx\n", 
-			&idt_table[intr], &s, (int) sizeof s, 
-			((long *) &idt_table[intr])[0], 
-			((long *) &idt_table[intr])[1]);
-
-	idt_table[intr] = s;
-
-}
-#endif
-
-/**********************************************************************/
-/*   'ipl'  function inside a probe - let us know if interrupts were  */
-/*   enabled or not.						      */
-/**********************************************************************/
-int
-dtrace_getipl(void)
-{	cpu_core_t *this_cpu = THIS_CPU();
-
-	return this_cpu->cpuc_regs->r_rfl & X86_EFLAGS_IF ? 0 : 1;
-}
-/**********************************************************************/
-/*   Interrupt  handler  for a double fault. (We may not enable this  */
-/*   if we dont see a need).					      */
-/**********************************************************************/
-int 
-dtrace_double_fault_handler(int type, struct pt_regs *regs)
-{
-static int cnt;
-
-dtrace_printf("double-fault[%lu]: CPU:%d PC:%p\n", cnt++, smp_processor_id(), (void *) regs->r_pc-1);
-	return NOTIFY_KERNEL;
-}
-/**********************************************************************/
-/*   Handle  a  single step trap - hopefully ours, as we step past a  */
-/*   probe, but, if not, it belongs to someone else.		      */
-/**********************************************************************/
-int 
-dtrace_int1_handler(int type, struct pt_regs *regs)
-{	cpu_core_t *this_cpu = THIS_CPU();
-	cpu_trap_t	*tp;
-
-//dtrace_printf("int1 PC:%p regs:%p CPU:%d\n", (void *) regs->r_pc-1, regs, smp_processor_id());
-	/***********************************************/
-	/*   Did  we expect this? If not, back to the  */
-	/*   kernel.				       */
-	/***********************************************/
-	if (this_cpu->cpuc_mode != CPUC_MODE_INT1)
-		return NOTIFY_KERNEL;
-
-	/***********************************************/
-	/*   Yup - its ours, so we can finish off the  */
-	/*   probe.				       */
-	/***********************************************/
-	tp = &this_cpu->cpuc_trap[0];
-
-	/***********************************************/
-	/*   We  may  need to repeat the single step,  */
-	/*   e.g. for REP prefix instructions.	       */
-	/***********************************************/
-	if (cpu_adjust(this_cpu, tp, regs) == FALSE)
-		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
-
-	/***********************************************/
-	/*   Dont let the kernel know this happened.   */
-	/***********************************************/
-//printk("int1-end: CPU:%d PC:%p\n", smp_processor_id(), (void *) regs->r_pc-1);
-	return NOTIFY_DONE;
-}
-/**********************************************************************/
-/*   Called  from  intr_<cpu>.S -- see if this is a probe for us. If  */
-/*   not,  let  kernel  use  the normal notifier chain so kprobes or  */
-/*   user land debuggers can have a go.				      */
-/**********************************************************************/
-static unsigned long cnt_int3_1;
-static unsigned long cnt_int3_2;
-static unsigned long cnt_int3_3;
-int dtrace_int_disable;
-int 
-dtrace_int3_handler(int type, struct pt_regs *regs)
-{	cpu_core_t *this_cpu = THIS_CPU();
-	cpu_trap_t	*tp;
-	int	ret;
-
-//dtrace_printf("#%lu INT3 PC:%p REGS:%p CPU:%d mode:%d\n", cnt_int3_1, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
-//preempt_disable();
-	cnt_int3_1++;
-
-	/***********************************************/
-	/*   Are  we idle, or already single stepping  */
-	/*   a probe?				       */
-	/***********************************************/
-	if (dtrace_int_disable)
-		goto switch_off;
-
-	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE) {
-		/***********************************************/
-		/*   Is this one of our probes?		       */
-		/***********************************************/
-		tp = &this_cpu->cpuc_trap[0];
-		tp->ct_tinfo.t_doprobe = TRUE;
-		/***********************************************/
-		/*   Save   original   location   for   debug  */
-		/*   purposes in cpu_x86.c		       */
-		/***********************************************/
-		tp->ct_orig_pc0 = regs->r_pc - 1;
-		
-		/***********************************************/
-		/*   Protect  ourselves  in case dtrace_probe  */
-		/*   causes a re-entrancy.		       */
-		/***********************************************/
-		this_cpu->cpuc_mode = CPUC_MODE_INT1;
-		this_cpu->cpuc_regs_old = this_cpu->cpuc_regs;
-		this_cpu->cpuc_regs = regs;
-
-		/***********************************************/
-		/*   Now try for a probe.		       */
-		/***********************************************/
-//dtrace_printf("CPU:%d ... calling invop\n", cpu_get_id());
-		ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
-			regs->r_rax, &tp->ct_tinfo);
-		if (ret) {
-			cnt_int3_2++;
-			/***********************************************/
-			/*   Let  us  know  on  return  we are single  */
-			/*   stepping.				       */
-			/***********************************************/
-			this_cpu->cpuc_mode = CPUC_MODE_INT1;
-			/***********************************************/
-			/*   Copy  instruction  in its entirety so we  */
-			/*   can step over it.			       */
-			/***********************************************/
-			cpu_copy_instr(this_cpu, tp, regs);
-//preempt_enable_no_resched();
-//dtrace_printf("INT3 %p called CPU:%d good finish flags:%x\n", regs->r_pc-1, cpu_get_id(), regs->r_rfl);
-			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
-			return NOTIFY_DONE;
-		}
-		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
-
-		/***********************************************/
-		/*   Not  fbt/sdt,  so lets see if its a USDT  */
-		/*   (user space probe).		       */
-		/***********************************************/
-//preempt_enable_no_resched();
-		if (dtrace_user_probe(3, regs, (caddr_t) regs->r_pc, smp_processor_id())) {
-			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
-			HERE();
-			return NOTIFY_DONE;
-		}
-
-		/***********************************************/
-		/*   Not ours, so let the kernel have it.      */
-		/***********************************************/
-//dtrace_printf("INT3 %p called CPU:%d hand over\n", regs->r_pc-1, cpu_get_id());
-		this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
-		return NOTIFY_KERNEL;
-	}
-
-	/***********************************************/
-	/*   If   we   get  here,  we  hit  a  nested  */
-	/*   breakpoint,  maybe  a  page  fault hit a  */
-	/*   probe.  Sort  of  bad  news  really - it  */
-	/*   means   the   core   of  dtrace  touched  */
-	/*   something  that we shouldnt have. We can  */
-	/*   handle  that  by disabling the probe and  */
-	/*   logging  the  reason  so we can at least  */
-	/*   find evidence of this.		       */
-	/*   We  need to find the underlying probe so  */
-	/*   we can unpatch it.			       */
-	/***********************************************/
-	cnt_int3_3++;
-dtrace_printf("recursive-int[%lu]: CPU:%d PC:%p\n", cnt_int3_3, smp_processor_id(), (void *) regs->r_pc-1);
-dtrace_printf_disable = 1;
-
-switch_off:
-	tp = &this_cpu->cpuc_trap[1];
-	tp->ct_tinfo.t_doprobe = FALSE;
-	ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
-		regs->r_rax, &tp->ct_tinfo);
-//preempt_enable_no_resched();
-	if (ret) {
-		((unsigned char *) regs->r_pc)[-1] = tp->ct_tinfo.t_opcode;
-		regs->r_pc--;
-//preempt_enable();
-		return NOTIFY_DONE;
-	}
-
-	/***********************************************/
-	/*   Not ours, so let the kernel have it.      */
-	/***********************************************/
-	return NOTIFY_KERNEL;
-}
-/**********************************************************************/
-/*   Segment not present interrupt. Not sure if we really care about  */
-/*   these, but lets see what happens.				      */
-/**********************************************************************/
-static unsigned long cnt_snp1;
-static unsigned long cnt_snp2;
-int 
-dtrace_int11_handler(int type, struct pt_regs *regs)
-{
-	cnt_snp1++;
-	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
-		cnt_snp2++;
-		/***********************************************/
-		/*   Bad user/D script - set the flag so that  */
-		/*   the   invoking   code   can   know  what  */
-		/*   happened,  and  propagate  back  to user  */
-		/*   space, dismissing the interrupt here.     */
-		/***********************************************/
-        	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
-	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
-		return NOTIFY_DONE;
-		}
-
-	return NOTIFY_KERNEL;
-}
-/**********************************************************************/
-/*   Detect  us  causing a GPF, before we ripple into a double-fault  */
-/*   and  a hung kernel. If we trace something incorrectly, this can  */
-/*   happen.  If it does, just disable as much of us as we can so we  */
-/*   can diagnose. If its not our GPF, then let the kernel have it.   */
-/*   								      */
-/*   Additionally, dtrace.c will tell this code that we are about to  */
-/*   do  a dangerous probe, e.g. "copyinstr()" from an unvalidatable  */
-/*   address.   This   is   allowed   to  trigger  a  GPF,  but  the  */
-/*   DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT)  avoids  this  become  a  */
-/*   user  core  dump  or  kernel  panic.  Honor  this  bit  setting  */
-/*   appropriately for a safe journey through dtrace.		      */
-/**********************************************************************/
-static unsigned long cnt_gpf1;
-static unsigned long cnt_gpf2;
-int 
-dtrace_int13_handler(int type, struct pt_regs *regs)
-{	cpu_core_t *this_cpu = THIS_CPU();
-
-	cnt_gpf1++;
-
-	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
-		cnt_gpf2++;
-		/***********************************************/
-		/*   Bad user/D script - set the flag so that  */
-		/*   the   invoking   code   can   know  what  */
-		/*   happened,  and  propagate  back  to user  */
-		/*   space, dismissing the interrupt here.     */
-		/***********************************************/
-        	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
-	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
-		regs->r_pc += dtrace_instr_size((uchar_t *) regs->r_pc);
-//printk("int13 - gpf - %p\n", read_cr2_register());
-		return NOTIFY_DONE;
-		}
-
-	/***********************************************/
-	/*   If we are idle, it couldnt have been us.  */
-	/***********************************************/
-	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE)
-		return NOTIFY_KERNEL;
-
-	/***********************************************/
-	/*   This could be due to a page fault whilst  */
-	/*   single stepping. We need to let the real  */
-	/*   page fault handler have a chance (but we  */
-	/*   prey it wont fire a probe, but it can).   */
-	/***********************************************/
-	this_cpu->cpuc_regs_old = this_cpu->cpuc_regs;
-	this_cpu->cpuc_regs = regs;
-	
-	dtrace_printf("INT13:GPF %p called\n", regs->r_pc-1);
-	dtrace_printf_disable = 1;
-	dtrace_int_disable = TRUE;
-
-	this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
-	return NOTIFY_DONE;
-}
-/**********************************************************************/
-/*   Handle  a  page  fault  - if its us being faulted, else we will  */
-/*   pass  on  to  the kernel to handle. We dont care, except we can  */
-/*   have  issues  if  a  fault fires whilst we are trying to single  */
-/*   step the kernel.						      */
-/**********************************************************************/
-unsigned long cnt_pf1;
-unsigned long cnt_pf2;
-int 
-dtrace_int_page_fault_handler(int type, struct pt_regs *regs)
-{
-//dtrace_printf("PGF %p called pf%d\n", regs->r_pc-1, cnt_pf1);
-	cnt_pf1++;
-	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
-		cnt_pf2++;
-/*
-if (0) {
-set_console_on(1);
-//dump_stack();
-printk("dtrace cpu#%d PGF %p err=%p cr2:%p %02x %02x %02x %02x\n", 
-	cpu_get_id(), regs->r_pc, regs->r_trapno, read_cr2_register(), 
-	((unsigned char *) regs->r_pc)[0],
-	((unsigned char *) regs->r_pc)[1],
-	((unsigned char *) regs->r_pc)[2],
-	((unsigned char *) regs->r_pc)[3]
-	);
-}
-*/
-		/***********************************************/
-		/*   Bad user/D script - set the flag so that  */
-		/*   the   invoking   code   can   know  what  */
-		/*   happened,  and  propagate  back  to user  */
-		/*   space, dismissing the interrupt here.     */
-		/***********************************************/
-        	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
-	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
-
-		/***********************************************/
-		/*   Skip the offending instruction, which is  */
-		/*   probably just a MOV instruction.	       */
-		/***********************************************/
-		regs->r_pc += dtrace_instr_size((uchar_t *) regs->r_pc);
-		return NOTIFY_DONE;
-		}
-
-	return NOTIFY_KERNEL;
-}
-/**********************************************************************/
-/*   Intercept  SMP  IPI  inter-cpu  interrupts  so we can implement  */
-/*   xcall.							      */
-/**********************************************************************/
-extern unsigned long cnt_ipi1;
-/**********************************************************************/
-/*   Saved copies of idt_table[n] for when we get unloaded.	      */
-/**********************************************************************/
-gate_t saved_double_fault;
-gate_t saved_int1;
-gate_t saved_int2;
-gate_t saved_int3;
-gate_t saved_int11;
-gate_t saved_int13;
-gate_t saved_page_fault;
-gate_t saved_ipi;
 
 /**********************************************************************/
 /*   This  gets  called  once we have been told what missing symbols  */
@@ -1027,7 +554,6 @@ gate_t saved_ipi;
 static void
 dtrace_linux_init(void)
 {	hrtime_t	t, t1;
-	gate_t *idt_table;
 
 	if (driver_initted)
 		return;
@@ -1051,25 +577,8 @@ dtrace_linux_init(void)
 	fn_find_get_pid = get_proc_addr("find_get_pid");
 
 	/***********************************************/
-	/*   Needed by assembler trap handler.	       */
+	/*   Initialise the interrupt vectors.	       */
 	/***********************************************/
-	kernel_int1_handler = get_proc_addr("debug");
-	kernel_int3_handler = get_proc_addr("int3");
-	kernel_int11_handler = get_proc_addr("segment_not_present");
-	kernel_int13_handler = get_proc_addr("general_protection");
-	kernel_double_fault_handler = get_proc_addr("double_fault");
-	kernel_page_fault_handler = get_proc_addr("page_fault");
-	kernel_nmi_handler = get_proc_addr("nmi");
-
-	/***********************************************/
-	/*   cpu_core_exec  is  sitting  in  the  BSS  */
-	/*   segment.  We  need to make it executable  */
-	/*   for 3.x kernels, so do this here.	       */
-	/***********************************************/
-	memory_set_rw(cpu_core_exec, sizeof cpu_core_exec / PAGE_SIZE, TRUE);
-{printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
-__supported_pte_mask &= ~_PAGE_NX;
-}
 	
 	/***********************************************/
 	/*   Needed   for  validating  module  symbol  */
@@ -1120,67 +629,17 @@ __supported_pte_mask &= ~_PAGE_NX;
 	tsc_max_delta = t1 - t;
 
 	/***********************************************/
-	/*   Following gives us a direct patch to the  */
-	/*   INT3  interrupt  vector, so we can avoid  */
-	/*   recursive  issues  in  kprobes and other  */
-	/*   parts  of  the  kernel  which get called  */
-	/*   before the notifier callback is invoked.  */
+	/*   Update the IDT so we get first chance at  */
+	/*   the breakpoint and pagefault interrupts.  */
 	/***********************************************/
-	idt_table = get_proc_addr("idt_table");
-	if (idt_table == NULL) {
-		printk("dtrace: idt_table: not found - cannot patch INT3 handler\n");
-	} else {
-		saved_double_fault = idt_table[8];
-		saved_int1 = idt_table[1];
-		saved_int2 = idt_table[2];
-		saved_int3 = idt_table[3];
-		saved_int11 = idt_table[11];
-		saved_int13 = idt_table[13];
-		saved_page_fault = idt_table[14];
-		saved_ipi = idt_table[ipi_vector];
-#if 0 && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
-		set_idt_entry(8, (unsigned long) dtrace_double_fault);
-#endif
-		set_idt_entry(1, (unsigned long) dtrace_int1); // single-step
-		set_idt_entry(3, (unsigned long) dtrace_int3); // breakpoint
-		set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
-		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
-		set_idt_entry(14, (unsigned long) dtrace_page_fault);
-
-		/***********************************************/
-		/*   ipi  vector  needed by xcall code if our  */
-		/*   'new'  code  is  used.  Turn off for now  */
-		/*   since  we havent got the API to allocate  */
-		/*   a  free irq. And we dont seem to need it  */
-		/*   in xcall.c.			       */
-		/***********************************************/
-/*
-{int *first_v = get_proc_addr("first_system_vector");
-set_bit(ipi_vector, used_vectors);
-if (*first_v > ipi_vector)
-	*first_v = ipi_vector;
-}
-*/
-		if (ipi_vector)
-			set_idt_entry(ipi_vector, (unsigned long) dtrace_int_ipi);
-		/***********************************************/
-		/*   Intercept  NMI.  We  used  to use it for  */
-		/*   unblocking  xcall  IPI calls, but now we  */
-		/*   must  avoid  NMI  propagating  into  the  */
-		/*   kernel  because  we  cannot have a probe  */
-		/*   fire from an NMI.			       */
-		/***********************************************/
-		set_idt_entry(2, (unsigned long) dtrace_int_nmi);
-	}
+	intr_init();
 
 	/***********************************************/
 	/*   Let  us  grab  the  panics  if we are in  */
 	/*   debug mode.			       */
 	/***********************************************/
-#if 0
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
-#endif
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -1188,7 +647,6 @@ if (*first_v > ipi_vector)
 static int
 dtrace_linux_fini(void)
 {	int	ret = 1;
-	gate_t *idt_table;
 
 	if (fn_profile_event_unregister) {
 		int pret = (*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
@@ -1208,29 +666,8 @@ dtrace_linux_fini(void)
 	/***********************************************/
 	driver_initted = FALSE;
 
-	/***********************************************/
-	/*   Lose  the  grab  on the interrupt vector  */
-	/*   table.				       */
-	/***********************************************/
-	idt_table = get_proc_addr("idt_table");
-	if (idt_table) {
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
-//		idt_table[8] = saved_double_fault;
-#endif
-		idt_table[1] = saved_int1;
-		idt_table[2] = saved_int2;
-		idt_table[3] = saved_int3;
-		idt_table[11] = saved_int11;
-		idt_table[13] = saved_int13;
-		idt_table[14] = saved_page_fault;
-		if (ipi_vector)
-	 		idt_table[ipi_vector] = saved_ipi;
-	}
-
-#if 0
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
-#endif
 	return ret;
 }
 /**********************************************************************/
@@ -1810,7 +1247,7 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
-	int dump_tree = FALSE;
+#define dump_tree FALSE
 
 	pp->pp_valid = FALSE;
 	pp->pp_addr = addr;
@@ -1842,14 +1279,14 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	if (pte_none(*pte))
 		return 0;
 
-	if (dump_tree) {
-		printk("yy -- begin\n");
-		print_pte((pte_t *) pgd, 0);
-		print_pte((pte_t *) pmd, 1);
-		print_pte((pte_t *) pud, 2);
-		print_pte(pte, 3);
-		printk("yy -- end\n");
-	}
+# if dump_tree
+	printk("yy -- begin\n");
+	print_pte((pte_t *) pgd, 0);
+	print_pte((pte_t *) pmd, 1);
+	print_pte((pte_t *) pud, 2);
+	print_pte(pte, 3);
+	printk("yy -- end\n");
+# endif
 
 	pp->pp_valid = TRUE;
 	pp->pp_pgd = *pgd;
@@ -1927,11 +1364,31 @@ memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
 #if defined(__i386)
 	int level;
 	pte_t *pte;
+static int first_time = TRUE;
 
 static pte_t *(*lookup_address)(void *, int *);
+static int (*set_memory_rw)(unsigned long, int);
 
-	if (lookup_address == NULL)
+	if (first_time) {
+		set_memory_rw = get_proc_addr("set_memory_rw");
 		lookup_address = get_proc_addr("lookup_address");
+		first_time = FALSE;
+	}
+
+	/***********************************************/
+	/*   Cant     use     set_memory_rw     since  */
+	/*   pageattr.c/static_protections, will stop  */
+	/*   us  making  the range [__start_rodata ..  */
+	/*   __end_rodata] from being made writable.   */
+	/***********************************************/
+	if (set_memory_rw && 0) {
+		int	ret;
+		addr = (void *) ((unsigned long) addr & PAGE_MASK);
+		ret = set_memory_rw((unsigned long) addr, num_pages);
+printk("set_memory_rw(%p, %d) := %d\n", addr, num_pages, ret);
+		return 1;
+		}
+
 	if (lookup_address == NULL) {
 		printk("dtrace:systrace.c: sorry - cannot locate lookup_address()\n");
 		return 0;
@@ -1940,7 +1397,7 @@ static pte_t *(*lookup_address)(void *, int *);
 	for (i = 0; i <= num_pages; i++) {
 		pte = lookup_address(addr, &level);
 		if ((pte_val(*pte) & _PAGE_RW) == 0) {
-# if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
 			pte->pte_low |= _PAGE_RW;
 # else
 			pte->pte |= _PAGE_RW;
@@ -2088,7 +1545,7 @@ par_free(int domain, void *ptr)
 {	par_alloc_t *p = (par_alloc_t *) ptr;
 	par_alloc_t *p1;
 
-return NULL;
+return;
 	dmutex_enter(&par_mutex);
 	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;
@@ -2186,6 +1643,7 @@ par_setup_thread2()
 /**********************************************************************/
 /*   For debugging...						      */
 /**********************************************************************/
+#if 0
 static void
 print_pte(pte_t *pte, int level)
 {
@@ -2211,6 +1669,8 @@ print_pte(pte_t *pte, int level)
 
 		);
 }
+#endif
+
 /**********************************************************************/
 /*   Call on proc exit, so we can detach ourselves from the proc. We  */
 /*   may  have  a  USDT  enabled app dying, so we need to remove the  */
@@ -2220,7 +1680,6 @@ print_pte(pte_t *pte, int level)
 static int 
 proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 {
-	struct task_struct *task = (struct task_struct *) ptr;
 	sol_proc_t sol_proc;
 
 printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
@@ -2305,25 +1764,6 @@ void
 rw_exit(krwlock_t *p)
 {
 	TODO();
-}
-/**********************************************************************/
-/*   Utility  routine  for debugging, mostly not needed. Turn on all  */
-/*   writes  to the console - may be needed when debugging low level  */
-/*   interrupts which crash the box.   				      */
-/**********************************************************************/
-void
-set_console_on(int flag)
-{	int	mode = flag ? 7 : 0;
-static	int first_time = TRUE;
-static	int *console_printk;
-	
-	if (first_time) {
-		console_printk = get_proc_addr("console_printk");
-		first_time = FALSE;
-	}
-
-	if (console_printk)
-		console_printk[0] = mode;
 }
 /**********************************************************************/
 /*   Allow us to see stuff from /dev/fbt.			      */
@@ -2944,14 +2384,26 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
+	extern unsigned long cnt_gpf1;
+	extern unsigned long cnt_gpf2;
+	extern unsigned long long cnt_int3_1;
+	extern unsigned long long cnt_int3_2;
+	extern unsigned long long cnt_int3_3;
+	extern unsigned long cnt_ipi1;
 	extern unsigned long long cnt_probe_recursion;
 	extern unsigned long cnt_probes;
 	extern unsigned long cnt_mtx1;
 	extern unsigned long cnt_mtx2;
 	extern unsigned long cnt_mtx3;
+	extern unsigned long long cnt_pf1;
+	extern unsigned long long cnt_pf2;
+	extern unsigned long cnt_snp1;
+	extern unsigned long cnt_snp2;
 # define TYPE_LONG 0
 # define TYPE_INT  1
 # define TYPE_LONG_LONG 2
+
+#define	LONG_LONG(var, name) {TYPE_LONG_LONG, (unsigned long *) &var, name}
 	static struct map {
 		int	type;
 		unsigned long *ptr;
@@ -2959,19 +2411,19 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		} stats[] = {
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
 		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
-		{TYPE_LONG, &cnt_int3_1, "int3_1"},
-		{TYPE_LONG, &cnt_int3_2, "int3_2(ours)"},
-		{TYPE_LONG, &cnt_int3_3, "int3_3(reentr)"},
-		{TYPE_LONG, &cnt_gpf1, "gpf1"},
-		{TYPE_LONG, &cnt_gpf2, "gpf2"},
+		LONG_LONG(cnt_int3_1, "int3_1"),
+		LONG_LONG(cnt_int3_2, "int3_2(ours)"),
+		LONG_LONG(cnt_int3_3, "int3_3(reentr)"),
+		LONG_LONG(cnt_gpf1, "gpf1"),
+		LONG_LONG(cnt_gpf2, "gpf2"),
 		{TYPE_LONG, &cnt_ipi1, "ipi1"},
 		{TYPE_LONG, &cnt_mtx1, "mtx1"},
 		{TYPE_LONG, &cnt_mtx2, "mtx2"},
 		{TYPE_LONG, &cnt_mtx3, "mtx3"},
 		{TYPE_LONG, &cnt_nmi1, "nmi1"},
 		{TYPE_LONG, &cnt_nmi2, "nmi2"},
-		{TYPE_LONG, &cnt_pf1, "pf1"},
-		{TYPE_LONG, &cnt_pf2, "pf2"},
+		LONG_LONG(cnt_pf1, "pf1"),
+		LONG_LONG(cnt_pf2, "pf2"),
 		{TYPE_LONG, &cnt_snp1, "snp1"},
 		{TYPE_LONG, &cnt_snp2, "snp2"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_syscall1, "syscall1"},
@@ -3045,7 +2497,7 @@ static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
 /*   Special hack for debugging.				      */
 /**********************************************************************/
 static int proc_dtrace_trace_write_proc(struct file *file, const char __user *buffer,
-	size_t count, void *pda)
+	unsigned long count, void *pda)
 {	int	n = count > 32 ? 32 : count;
 
 	dtrace_printf("proc_dtrace_trace_write_proc: %*.*s\n", n, n, buffer);
@@ -3253,6 +2705,7 @@ static void __exit dtracedrv_exit(void)
 		return;
 	}
 
+	intr_exit();
 	ctl_exit();
 	sdt_exit();
 	dtrace_profile_fini();

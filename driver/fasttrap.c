@@ -1667,8 +1667,8 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
 
-int dtrace_here = 1;
-printk("retire: pid=%d name=%s\n", pid, name);
+//int dtrace_here = 1;
+//printk("retire: pid=%d name=%s\n", pid, name);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
@@ -1681,7 +1681,7 @@ printk("retire: pid=%d name=%s\n", pid, name);
 	}
 
 	if (fp == NULL) {
-printk("didnt find pid\n");
+//printk("didnt find pid\n");
 		dmutex_exit(&bucket->ftb_mtx);
 		return;
 	}

@@ -1,1 +1,0 @@
-VBoxManage snapshot  "Ubuntu 10.04-64bit"  take "Snapshot 1"

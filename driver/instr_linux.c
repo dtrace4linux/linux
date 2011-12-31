@@ -223,6 +223,12 @@ static int first_time = TRUE;
 	caddr_t a, aend;
 	char	name[KSYM_NAME_LEN];
 
+	/***********************************************/
+	/*   In case we disabled the instr provider.   */
+	/***********************************************/
+	if (instr_probetab == NULL)
+		return;
+
 	if (first_time) {
 		first_time = FALSE;
 		ktext = get_proc_addr("_text");
@@ -286,6 +292,7 @@ instr_provide_module(void *arg, struct modctl *ctl)
     	par_module_t *pmp;
 
 	int	init;
+
 	/***********************************************/
 	/*   Possible  memleak  here...we  allocate a  */
 	/*   parallel  struct, but need to free if we  */

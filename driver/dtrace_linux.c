@@ -1208,7 +1208,6 @@ validate_ptr(const void *ptr)
 
 	return ret;
 }
-# if defined(__amd64)
 # if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 11)
 	/***********************************************/
 	/*   Note  sure  which  version of the kernel  */
@@ -1247,6 +1246,7 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
+	unsigned long perms1;
 #define dump_tree FALSE
 
 	pp->pp_valid = FALSE;
@@ -1298,9 +1298,18 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	/*   Avoid  touching/flushing  page  table if  */
 	/*   this is a no-op.			       */
 	/***********************************************/
-	if ((pmd->pmd & perms) != perms ||
+# if defined(__i386)
+	perms1 = pmd->pud.pgd.pgd;
+# else
+	perms1 = pmd->pmd;
+# endif
+	if ((perms1 & perms) != perms ||
 	    (pte->pte & (perms | _PAGE_NX)) != perms) {
+# if defined(__i386)
+		pmd->pud.pgd.pgd |= perms;
+# else
 		pmd->pmd |= perms;
+# endif
 		/***********************************************/
 		/*   Make  page  executable. Ideally we would  */
 		/*   pass in the and+or perms to set.	       */
@@ -1343,7 +1352,7 @@ mem_unset_writable(page_perms_t *pp)
 	return TRUE;
 }
 # endif
-# endif
+
 /**********************************************************************/
 /*   i386:							      */
 /*   Set  an  address  to be writeable. Need this because kernel may  */
@@ -1361,7 +1370,12 @@ int
 memory_set_rw(void *addr, int num_pages, int is_kernel_addr)
 {	int	i;
 
-#if defined(__i386)
+#if defined(__i386xxx)
+	/***********************************************/
+	/*   Use  the 64b mechanism, for commonality.  */
+	/*   We  have problems with set_memory_rw and  */
+	/*   ensuring fbt + syscall work together.     */
+	/***********************************************/
 	int level;
 	pte_t *pte;
 static int first_time = TRUE;
@@ -1380,8 +1394,9 @@ static int (*set_memory_rw)(unsigned long, int);
 	/*   pageattr.c/static_protections, will stop  */
 	/*   us  making  the range [__start_rodata ..  */
 	/*   __end_rodata] from being made writable.   */
+	/*   Will panic if you do syscall:::	       */
 	/***********************************************/
-	if (set_memory_rw && 0) {
+	if (set_memory_rw) {
 		int	ret;
 		addr = (void *) ((unsigned long) addr & PAGE_MASK);
 		ret = set_memory_rw((unsigned long) addr, num_pages);

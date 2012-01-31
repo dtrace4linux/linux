@@ -45,6 +45,13 @@ install_dependencies()
    		elfutils libdwarf-dev libelf-dev libc6-dev libc-dev \
 		linux-libc-dev \
 		$i386_pkgs
+	###############################################
+	#   Thanks  to Sunny Fugate for pointing out  #
+	#   how   to  ensure  <gnu/stubs-32.h>  gets  #
+	#   resolved  when  compiling the syscalls.c  #
+	#   test.				      #
+	###############################################
+	sudo apt-get install g++-multilib
 }
 
 build()

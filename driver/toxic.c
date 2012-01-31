@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*  $Header: Last edited: 15-Jul-2010 1.2 $ 			      */
+/*  $Header: Last edited: 31-Jan-2012 1.3 $ 			      */
 /**********************************************************************/
 
 /**********************************************************************/
@@ -66,7 +66,6 @@ char toxic_probe_tbl[] = {
 	"__tasklet_hi_schedule "
 	"__tasklet_schedule "
         "kprobe_fault_handler kprobe_handler kprobe_flush_task post_kprobe_handler "
-	"page_fault "
 	"scheduler_tick "
 #endif
 	"atomic_notifier_call_chain " // [ind] used by us registering INT3 handler

@@ -121,6 +121,7 @@ static int			fbt_probetab_size;
 static int			fbt_probetab_mask;
 static int			fbt_verbose = 0;
 static int			num_probes;
+static int			invop_loaded;
 
 extern int dtrace_unhandled;
 extern int fbt_name_opcodes;
@@ -1040,7 +1041,8 @@ static dtrace_pops_t fbt_pops = {
 static void
 fbt_cleanup(dev_info_t *devi)
 {
-	dtrace_invop_remove(fbt_invop);
+	if (invop_loaded)
+		dtrace_invop_remove(fbt_invop);
 	if (fbt_id)
 		dtrace_unregister(fbt_id);
 
@@ -1372,6 +1374,7 @@ int fbt_init(void)
 void
 fbt_init2(void)
 {
+	invop_loaded = TRUE;
 	dtrace_invop_add(fbt_invop);
 }
 

@@ -5,9 +5,9 @@
 /*   Date: December 2011					      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   License: CDDL						      */
+/*   License: GPLv2						      */
 /*   								      */
-/*   $Header: Last edited: 06-Dec-2011 1.12 $ 			      */
+/*   $Header: Last edited: 31-Jan-2012 1.14 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -26,6 +26,14 @@
 #include <asm/tlbflush.h>
 #include <linux/kallsyms.h>
 #include <linux/seq_file.h>
+
+/**********************************************************************/
+/*   Backwards compat for older kernels.			      */
+/**********************************************************************/
+#if !defined(store_gdt)
+#define store_gdt(ptr) asm volatile("sgdt %0":"=m" (*ptr))
+#define store_idt(ptr) asm volatile("sidt %0":"=m" (*ptr))
+#endif
 
 /**********************************************************************/
 /*   Define  something  so  the  intr routines know whether to route  */
@@ -159,9 +167,11 @@ static gate_t s;
 	/*   dont perturb these (dpl, stack, type).    */
 	/***********************************************/
 	s = *(gate_t *) &idt_table_ptr[intr];
-//	s.segment = seg;
+//	s.segment = __KERNEL_CS;
 	s.base0 = (u16) (func & 0xffff);
 	s.base1 = (u16) ((func & 0xffff0000) >> 16);
+//	int dpl = 3;
+//	int type = CPU_GATE_INTERRUPT;
 //	s.flags =	0x80 |		// present
 //			(dpl << 5) |
 //			type;		// CPU_GATE_INTERRUPT
@@ -193,6 +203,7 @@ static gate_t s;
 
 	idt_table_ptr[intr] = s;
 }
+
 /**********************************************************************/
 /*   Return the per-cpu area for the current cpu.		      */
 /**********************************************************************/
@@ -270,9 +281,22 @@ unsigned long long cnt_int3_1;
 unsigned long long cnt_int3_2;
 unsigned long long cnt_int3_3;
 int dtrace_int_disable;
+
+void
+recint(void)
+{
+	/***********************************************/
+	/*   In  vmware/gdb,  we can put a breakpoint  */
+	/*   here  and  decode  the stack to find out  */
+	/*   what  nested  us. Just a temporary debug  */
+	/*   utility.				       */
+	/***********************************************/
+	dtrace_printf("");
+}
 int 
 dtrace_int3_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
+	cpu_trap_t	trap_info;
 	cpu_trap_t	*tp;
 	int	ret;
 
@@ -281,12 +305,16 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	cnt_int3_1++;
 
 	/***********************************************/
-	/*   Are  we idle, or already single stepping  */
-	/*   a probe?				       */
+	/*   If  we  decided  to  abort doing probes,  */
+	/*   just give up.			       */
 	/***********************************************/
 	if (dtrace_int_disable)
 		goto switch_off;
 
+	/***********************************************/
+	/*   Are  we idle, or already single stepping  */
+	/*   a probe?				       */
+	/***********************************************/
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE) {
 		/***********************************************/
 		/*   Is this one of our probes?		       */
@@ -328,6 +356,7 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 //preempt_enable_no_resched();
 //dtrace_printf("INT3 %p called CPU:%d good finish flags:%x\n", regs->r_pc-1, cpu_get_id(), regs->r_rfl);
 			this_cpu->cpuc_regs = this_cpu->cpuc_regs_old;
+this_cpu->cpuc_trap[0] = *tp;
 			return NOTIFY_DONE;
 		}
 		this_cpu->cpuc_mode = CPUC_MODE_IDLE;
@@ -360,19 +389,58 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	/*   handle  that  by disabling the probe and  */
 	/*   logging  the  reason  so we can at least  */
 	/*   find evidence of this.		       */
+	/*   					       */
 	/*   We  need to find the underlying probe so  */
 	/*   we can unpatch it.			       */
+	/*   					       */
+	/*   If  we  trace  page_fault  -  the kernel  */
+	/*   handler,  then  we  can  have  fbt_invop  */
+	/*   invoke  dtrace_probe,  which in turn can  */
+	/*   cause  a  page_fault (PTE syncing rather  */
+	/*   than  a  genuine  page  fault). We would  */
+	/*   like  to  allow page_fault to be probed,  */
+	/*   but  we  need  to  avoid a runaway if we  */
+	/*   nest.				       */
+	/*   					       */
+	/*   To  do  this properly requires we do the  */
+	/*   cpu_copy_instr()  code,  like above, and  */
+	/*   single  step, but we are possibly single  */
+	/*   stepping  already.  Chances  are high we  */
+	/*   are  faulting  in the invop/dtrace_probe  */
+	/*   code. If we are, we can single step this  */
+	/*   nested  trap.  If  not,  then the single  */
+	/*   step  code is causing the problem and we  */
+	/*   cannot do this without requiring a stack  */
+	/*   of int1 areas to step over.	       */
 	/***********************************************/
 	cnt_int3_3++;
-dtrace_printf("recursive-int[%lu]: CPU:%d PC:%p\n", cnt_int3_3, smp_processor_id(), (void *) regs->r_pc-1);
-dtrace_printf_disable = 1;
+recint();
+dtrace_printf("recursive-int[%lu]: PC:%p\n", cnt_int3_3, (void *) regs->r_pc-1);
+
+	/***********************************************/
+	/*   We  used  to  set  this  to  disable all  */
+	/*   future probes. I dont think we need it -  */
+	/*   we will just disable nested probes. This  */
+	/*   allows   us   to   have  something  like  */
+	/*   page_fault  nest  on us, but not disable  */
+	/*   all  of the other probes. Not ideal. See  */
+	/*   comment above.			       */
+	/***********************************************/
+	//dtrace_printf_disable = 1;
 
 switch_off:
-	tp = &this_cpu->cpuc_trap[1];
+//	tp = &this_cpu->cpuc_trap[1];
+	tp = &trap_info;
 	tp->ct_tinfo.t_doprobe = FALSE;
 	ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
 		regs->r_rax, &tp->ct_tinfo);
 //preempt_enable_no_resched();
+	/***********************************************/
+	/*   If  we  own  the  breakpoint  area, then  */
+	/*   unpatch  the instruction so we will lose  */
+	/*   all future control. Better than panicing  */
+	/*   the kernel.			       */
+	/***********************************************/
 	if (ret) {
 		((unsigned char *) regs->r_pc)[-1] = tp->ct_tinfo.t_opcode;
 		regs->r_pc--;
@@ -381,7 +449,10 @@ switch_off:
 	}
 
 	/***********************************************/
-	/*   Not ours, so let the kernel have it.      */
+	/*   Not ours, so let the kernel have it. For  */
+	/*   example,    someone    else   is   doing  */
+	/*   breakpoints,  and  we already fired on a  */
+	/*   breakpoint belonging to us.	       */
 	/***********************************************/
 	return NOTIFY_KERNEL;
 }
@@ -476,6 +547,7 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 /**********************************************************************/
 unsigned long long cnt_pf1;
 unsigned long long cnt_pf2;
+
 int 
 dtrace_int_page_fault_handler(int type, struct pt_regs *regs)
 {
@@ -483,19 +555,7 @@ dtrace_int_page_fault_handler(int type, struct pt_regs *regs)
 	cnt_pf1++;
 	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_NOFAULT)) {
 		cnt_pf2++;
-/*
-if (0) {
-set_console_on(1);
-//dump_stack();
-printk("dtrace cpu#%d PGF %p err=%p cr2:%p %02x %02x %02x %02x\n", 
-	cpu_get_id(), regs->r_pc, regs->r_trapno, read_cr2_register(), 
-	((unsigned char *) regs->r_pc)[0],
-	((unsigned char *) regs->r_pc)[1],
-	((unsigned char *) regs->r_pc)[2],
-	((unsigned char *) regs->r_pc)[3]
-	);
-}
-*/
+
 		/***********************************************/
 		/*   Bad user/D script - set the flag so that  */
 		/*   the   invoking   code   can   know  what  */
@@ -524,6 +584,109 @@ extern unsigned long cnt_ipi1;
 /**********************************************************************/
 /*   Code to implement /proc/dtrace/idt.			      */
 /**********************************************************************/
+static void *gdt_seq_start(struct seq_file *seq, loff_t *pos)
+{
+	if (*pos > GDT_ENTRIES)
+		return 0;
+	return (void *) (long) (*pos + 1);
+}
+static void *gdt_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+{	long	n = (long) v;
+	++*pos;
+
+	return (void *) (n - 2 > GDT_ENTRIES ? NULL : (void *) (n + 1));
+}
+static void gdt_seq_stop(struct seq_file *seq, void *v)
+{
+}
+/**********************************************************************/
+/*   This  code  was  designed  to  help me debug page fault handler  */
+/*   issues.  Its  not  complete  (no amd64 output), and the i386 is  */
+/*   questionable.						      */
+/**********************************************************************/
+static int gdt_seq_show(struct seq_file *seq, void *v)
+{	int	n = (int) (long) v;
+	unsigned long *g;
+	unsigned long *gdt_table_ptr;
+	struct desc_ptr desc;
+
+	store_gdt(&desc);
+	if (n == 1) {
+		seq_printf(seq, "GDT: %p entries=%d\n",
+			(void *) desc.address, desc.size);
+		seq_printf(seq, "#Ent base limit flags...\n");
+		return 0;
+	}
+	if (n > GDT_ENTRIES + 1)
+		return 0;
+
+	gdt_table_ptr = (unsigned long *) desc.address;
+	g = &gdt_table_ptr[(n - 2) * 2];
+# if defined(__amd64)
+
+# elif defined(__i386)
+	{
+	unsigned long base0 = (g[0] & 0xffff0000) >> 16;
+	unsigned long base1 = (g[1] & 0xff000000) >> 24;
+	unsigned long base2 =  g[1] & 0x000000ff;
+	unsigned long lim0 = g[1] & 0xffff;
+	unsigned long lim1 = (g[0] >> 16) & 0x0f;
+	unsigned long lim = (lim1 << 16) | lim0;
+	unsigned int access = (g[1] & 0xff00) >> 8;
+	unsigned int flags = (g[1] >> 20) & 0x0f;
+	unsigned long addr = base0 | (base1 << 16) | (base2 << 24);
+	if ((g[0] & 0x8000) == 0) {
+		seq_printf(seq, "%02x not-present\n", n - 2);
+		return 0;
+	}
+	if ((flags & 0x08) == 0) {
+		lim <<= 12;
+		lim |= 0xfff;
+	}
+	seq_printf(seq, "%02x %s base=%p lim=%08lx %s pr=%d %s %s %s %s %s %s\n",
+		n-2,
+		(access & (0x08 | 0x02)) == (0x08 | 0x02) ? "CodeRW" :
+		(access & (0x08 | 0x02)) == (0x08       ) ? "CodeRO" :
+		(access & (0x08 | 0x02)) == (       0x02) ? "DataRW" :
+		(access & (0x08 | 0x02)) == (       0000) ? "DataRO" : "????",
+		(void *) addr,
+		lim,
+		access & 0x80 ? " P" : "NP",
+		(access & 0x60) >> 5,
+		access & 0x08 ? "ex" : "nx",
+		access & 0x04 ? " dc" : "ndc",
+		access & 0x02 ? "rw" : "ro",
+		access & 0x01 ? "ac" : "na",
+		flags & 0x08 ? "1b" : "4k",
+		flags & 0x04 ? "16" : "32"
+		);
+	}
+# else
+# 	error "Please implement /proc/dtrace/gdt"
+# endif
+	return 0;
+}
+static struct seq_operations gdt_seq_ops = {
+	.start = gdt_seq_start,
+	.next = gdt_seq_next,
+	.stop = gdt_seq_stop,
+	.show = gdt_seq_show,
+	};
+static int gdt_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &gdt_seq_ops);
+}
+static const struct file_operations gdt_proc_fops = {
+        .owner   = THIS_MODULE,
+        .open    = gdt_seq_open,
+        .read    = seq_read,
+        .llseek  = seq_lseek,
+        .release = seq_release,
+};
+
+/**********************************************************************/
+/*   Code to implement /proc/dtrace/idt.			      */
+/**********************************************************************/
 static void *idt_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	if (*pos > IDT_ENTRIES)
@@ -548,17 +711,21 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 	unsigned long offset;
 	char	*modname = NULL;
 	char	name[KSYM_NAME_LEN];
+	struct desc_ptr desc;
+	gate_t	*idt_table_ptr;
 
+	store_idt(&desc);
 	if (n == 1) {
+		seq_printf(seq, "IDT: %p entries=%d\n",
+			(void *) desc.address, desc.size);
+		seq_printf(seq, "CR3: %p\n", (void *) read_cr3());
 		seq_printf(seq, "#Ent seg:addr dpl type func\n");
 		return 0;
 	}
 	if (n > IDT_ENTRIES + 1)
 		return 0;
 
-	/***********************************************/
-	/*   Hack: Only for i386 at present.	       */
-	/***********************************************/
+	idt_table_ptr = (gate_t *) desc.address;
 	g = &idt_table_ptr[n - 2];
 # if defined(__amd64)
 	addr = ((unsigned long) g->offset_high << 32) | 
@@ -566,7 +733,7 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 		g->offset_low;
 	cp = (char *) my_kallsyms_lookup(addr,
 		&size, &offset, &modname, name);
-	seq_printf(seq, "%02x %04x:%p p=%d ist=%d dpl=%d type=%x %s:%s\n",
+	seq_printf(seq, "%02x %04x:%p p=%d ist=%d dpl=%d type=%x %s %s:%s\n",
 		n-2,
 		g->segment,
 		(void *) addr, 
@@ -574,23 +741,33 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 		g->ist,
 		g->dpl,
 		g->type,
+		g->type == 0xe ? "intr" :
+		g->type == 0xf ? "trap" :
+		g->type == 0xc ? "call" :
+		g->type == 0x5 ? "task" : "????",
 		modname ? modname : "kernel",
 		cp ? cp : "");
 
 # elif defined(__i386)
+	{int type = g->flags & 0x1f;
 	addr = ((unsigned long) g->base1 << 16) | g->base0;
 	cp = (char *) my_kallsyms_lookup(addr,
 		&size, &offset, &modname, name);
-	seq_printf(seq, "%02x %04x:%p p=%d dpl=%d type=%x %s:%s\n",
+	seq_printf(seq, "%02x %p %04x:%p p=%d dpl=%d type=%x %s %s:%s\n",
 		n-2,
+		g,
 		g->segment,
 		(void *) addr, 
 		g->flags & 0x80 ? 1 : 0,
 		(g->flags >> 5) & 0x3,
-		g->flags & 0x1f,
+		type,
+		type == 0xe ? "intr" :
+		type == 0xf ? "trap" :
+		type == 0xc ? "call" :
+		type == 0x5 ? "task" : "????",
 		modname ? modname : "kernel",
 		cp ? cp : "");
-
+	}
 # else
 # 	error "Please implement /proc/dtrace/idt"
 # endif
@@ -627,14 +804,127 @@ gate_t saved_page_fault;
 gate_t saved_ipi;
 
 /**********************************************************************/
-/*   Called  by the SMP_CALL_FUNCTION to ensure all CPUs are in sync  */
-/*   on the IDT to use.						      */
+/*   Utility  function,  based on lookup_address() in the kernel, to  */
+/*   walk a page table to find an entry. lookup_address() assumes we  */
+/*   are  looking  at  the kernel page table - where an address will  */
+/*   exist. We want to lookup in the context of a single process, as  */
+/*   we  validate  that the process is mapping our dtrace_page_fault  */
+/*   handler.							      */
 /**********************************************************************/
-static void
-reload_idt(void *ptr)
+#if defined(__i386)
+static pte_t *
+lookup_address_mm(struct mm_struct *mm, unsigned long address, unsigned int *level)
 {
-	__flush_tlb_all();
-	load_idt(ptr);
+        pgd_t *pgd;
+        pud_t *pud;
+        pmd_t *pmd;
+
+        *level = PG_LEVEL_NONE;
+	if (mm == NULL)
+		return NULL;
+	pgd = pgd_offset(mm, address);
+
+        if (pgd_none(*pgd))
+               return NULL;
+
+        pud = pud_offset(pgd, address);
+        if (pud_none(*pud))
+               return NULL;
+
+        *level = PG_LEVEL_1G;
+        if (pud_large(*pud) || !pud_present(*pud))
+               return (pte_t *)pud;
+
+        pmd = pmd_offset(pud, address);
+        if (pmd_none(*pmd))
+               return NULL;
+
+        *level = PG_LEVEL_2M;
+        if (pmd_large(*pmd) || !pmd_present(*pmd))
+               return (pte_t *)pmd;
+
+        *level = PG_LEVEL_4K;
+
+        return pte_offset_kernel(pmd, address);
+}
+#endif
+
+/**********************************************************************/
+/*   This  function  syncs  the page table entry for an address from  */
+/*   the  kernel  (swapper_pg_dir)  into the target mm struct (where  */
+/*   the  mm  is  the  process we are looking at). This prevents the  */
+/*   problem  of the page fault handler causing a runaway page fault  */
+/*   escalation.  This  code  is  based on vmalloc_sync_one() in the  */
+/*   kernel.							      */
+/*   								      */
+/*   Maybe  we  can us vmalloc_sync_all() - which appears to only be  */
+/*   called if the system is panicing, but I havent checked.	      */
+/*   								      */
+/*   amd64  has  sync_global_pgds()  function  which  appear  to  do  */
+/*   something  similar,  but  looks  like  it is designed to handle  */
+/*   pluggable memory.						      */
+/**********************************************************************/
+static inline pmd_t *
+sync_swapper_pte(struct mm_struct *mm, unsigned long address)
+{
+//typedef struct { pgdval_t pgd; } pgd_t;
+#if defined(swapper_pg_dir)
+	Old kernels, or some compile options may #define this as NULL.
+	return 0;
+#else
+static pgd_t *swapper_pg_dir;
+        unsigned index = pgd_index(address);
+	pgd_t	*pgd;
+        pgd_t	*pgd_k;
+        pud_t	*pud, *pud_k;
+        pmd_t	*pmd, *pmd_k;
+
+	/***********************************************/
+	/*   If  its  a system process, we can ignore  */
+	/*   the scenario.			       */
+	/***********************************************/
+	if ((pgd = mm->pgd) == NULL)
+		return NULL;
+
+	if (swapper_pg_dir == NULL)
+		swapper_pg_dir = get_proc_addr("swapper_pg_dir");
+
+        pgd += index;
+        pgd_k = swapper_pg_dir + index;
+
+        if (!pgd_present(*pgd_k)) {
+               return NULL;
+	}
+
+        /*
+        * set_pgd(pgd, *pgd_k); here would be useless on PAE
+        * and redundant with the set_pmd() on non-PAE. As would
+        * set_pud.
+        */
+        pud = pud_offset(pgd, address);
+        pud_k = pud_offset(pgd_k, address);
+        if (!pud_present(*pud_k)) {
+               return NULL;
+	}
+
+        pmd = pmd_offset(pud, address);
+        pmd_k = pmd_offset(pud_k, address);
+        if (!pmd_present(*pmd_k)) {
+               return NULL;
+	}
+
+//printk("pmd=%p\n", pmd);
+	if (pmd == 0)
+		return NULL;
+//printk("*pmd=%p\n", *pmd);
+        if (!pmd_present(*pmd))
+		set_pmd(pmd, *pmd_k);
+        else
+               BUG_ON(pmd_page(*pmd) != pmd_page(*pmd_k));
+//printk("pmd_k=%p\n", pmd_k);
+
+        return pmd_k;
+#endif
 }
 
 /**********************************************************************/
@@ -642,10 +932,9 @@ reload_idt(void *ptr)
 /**********************************************************************/
 void
 intr_exit(void)
-{	char *saved_idt;
-static struct desc_ptr idt_descr2;
-
+{
 	remove_proc_entry("dtrace/idt", 0);
+	remove_proc_entry("dtrace/gdt", 0);
 
 	/***********************************************/
 	/*   Lose  the  grab  on the interrupt vector  */
@@ -653,16 +942,6 @@ static struct desc_ptr idt_descr2;
 	/***********************************************/
 	if (idt_table_ptr == NULL)
 		return;
-
-	/***********************************************/
-	/*   Flip  all  cpus  to  look away whilst we  */
-	/*   unhook the vectors.		       */
-	/***********************************************/
-	saved_idt = (char *) __get_free_page(GFP_KERNEL);
-	memcpy(saved_idt, idt_table_ptr, idt_descr_ptr->size);
-	idt_descr2.size = idt_descr_ptr->size;
-	idt_descr2.address = (unsigned long) saved_idt;
-//	on_each_cpu(reload_idt, &idt_descr2, 1);
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
 //	idt_table_ptr[8] = saved_double_fault;
@@ -675,21 +954,87 @@ static struct desc_ptr idt_descr2;
 	idt_table_ptr[14] = saved_page_fault;
 	if (ipi_vector)
  		idt_table_ptr[ipi_vector] = saved_ipi;
-
-	/***********************************************/
-	/*   Now  get  all the cpus to switch back to  */
-	/*   the updated original IDT.		       */
-	/***********************************************/
-//	on_each_cpu(reload_idt, idt_descr_ptr, 1);
-
-	free_page((unsigned long) saved_idt);
 }
 
+
+/**********************************************************************/
+/*   This    function   implements   the   logic   to   ensure   the  */
+/*   dtrace_int_page_fault_handler interrupt routine exists in every  */
+/*   processes  page  table.  System procs wont have an mm->pgd, but  */
+/*   will  be using the init_mm.pgd. We just need to ensure that all  */
+/*   other  procs  can  suffer  a  page  fault once we take over the  */
+/*   vector. ("The impossible to debug" bug).			      */
+/**********************************************************************/
+void
+my_vmalloc_sync_all(void)
+{
+# if defined(__i386)
+	struct task_struct *t;
+	unsigned int	level;
+struct map {
+	char *name;
+	unsigned long addr;
+	};
+#define	ENTRY(func) {#func, (unsigned long) func}
+static struct map tbl[] = {
+	ENTRY(dtrace_int_page_fault_handler),
+	ENTRY(dtrace_page_fault),
+	ENTRY(dtrace_int1_handler),
+	ENTRY(dtrace_int3_handler),
+	ENTRY(dtrace_int1),
+	ENTRY(dtrace_int3),
+	};
+
+        if (SHARED_KERNEL_PMD)
+               return;
+
+	/***********************************************/
+	/*   We  lock  the process table - we wont be  */
+	/*   long, but, just in case. This may not be  */
+	/*   sufficient,   maybe   we  need  to  stop  */
+	/*   scheduling.  But  its only during driver  */
+	/*   load.				       */
+	/***********************************************/
+	rcu_read_lock();
+	for_each_process(t) {
+		struct mm_struct *mm;
+		int	i;
+		pte_t *p;
+		pmd_t	*pmd;
+
+		if ((mm = t->mm) == NULL)
+			continue;
+# undef comm
+		/***********************************************/
+		/*   Make  sure both the page fault interrupt  */
+		/*   handler,  and the C companion are in the  */
+		/*   page  table.  We need to be very careful  */
+		/*   the  page  fault C code does not jump to  */
+		/*   other pages which we have not mapped (eg  */
+		/*   dtrace_print  etc).  Even  if  we do, we  */
+		/*   might  get  away  with it, since the bug  */
+		/*   scenario is very obscure.		       */
+		/***********************************************/
+		for (i = 0; i < (int) (sizeof tbl / sizeof tbl[0]); i++) {
+			p = lookup_address_mm(mm, tbl[i].addr, &level);
+			if (p == NULL) {
+				pmd = sync_swapper_pte(mm, tbl[i].addr);
+				printk("lockpf: %s pid%d %s %p\n", tbl[i].name, (int) t->pid, t->comm, pmd);
+			}
+		}
+	}
+	rcu_read_unlock();
+#endif
+}
+
+/**********************************************************************/
+/*   Called on loading the module to intercept the various interrupt  */
+/*   handlers.							      */
+/**********************************************************************/
 void
 intr_init(void)
 {	struct proc_dir_entry *ent;
-	char *saved_idt;
-static struct desc_ptr idt_descr2;
+static	struct desc_ptr desc1;
 
 	my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
 
@@ -699,7 +1044,7 @@ static struct desc_ptr idt_descr2;
 	/*   for 3.x kernels, so do this here.	       */
 	/***********************************************/
 	memory_set_rw(cpu_core_exec, sizeof cpu_core_exec / PAGE_SIZE, TRUE);
-{printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
+{//printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
 __supported_pte_mask &= ~_PAGE_NX;
 }
 	/***********************************************/
@@ -726,6 +1071,35 @@ __supported_pte_mask &= ~_PAGE_NX;
 	ent = create_proc_entry("dtrace/idt", 0444, NULL);
 	if (ent)
 		ent->proc_fops = &idt_proc_fops;
+	ent = create_proc_entry("dtrace/gdt", 0444, NULL);
+	if (ent)
+		ent->proc_fops = &gdt_proc_fops;
+
+	/***********************************************/
+	/*   Lock   the   page   fault  handler  into  */
+	/*   everyones MMU. Linux does on-demand sync  */
+	/*   from do_page_fault, so we need to ensure  */
+	/*   a  pgfault  doesnt  cause a cascade when  */
+	/*   the     newly    loaded    page    fault  */
+	/*   (dtrace_page_fault                   and  */
+	/*   dtrace_int_page_fault_handler)  are  not  */
+	/*   visible.				       */
+	/***********************************************/
+	{ void (*vmalloc_sync_all)(void) = get_proc_addr("vmalloc_sync_all");
+	if (vmalloc_sync_all) {
+		vmalloc_sync_all();
+	} else {
+		/***********************************************/
+		/*   my_vmalloc_sync_all() is not necessarily  */
+		/*   as  good  as the kernel one, or it might  */
+		/*   be,  depending  on  when  you  read this  */
+		/*   comment.  We wrote a load of code before  */
+		/*   we discovered vmalloc_sync_all(), so may  */
+		/*   as well use it.			       */
+		/***********************************************/
+		my_vmalloc_sync_all();
+	}
+	}
 
 	/***********************************************/
 	/*   Now patch the interrupt descriptor table  */
@@ -743,34 +1117,9 @@ __supported_pte_mask &= ~_PAGE_NX;
 	/*   double   faults  or  other  segmentation  */
 	/*   errors.				       */
 	/***********************************************/
-	idt_table_ptr = get_proc_addr("idt_table");
-	if (idt_table_ptr == NULL) {
-		printk("dtrace: idt_table: not found - cannot patch INT3 handler\n");
-		return;
-	}
-
-	/***********************************************/
-	/*   IDT  needs  to be on a page boundary. We  */
-	/*   need  to relocate the IDT away whilst we  */
-	/*   make  changes,  then switch back when we  */
-	/*   are done.				       */
-	/*   					       */
-	/*   http://stackoverflow.com/questions/2497919/changing-the-interrupt-descriptor-table				       */
-	/***********************************************/
-	idt_descr_ptr = get_proc_addr("idt_descr");
-
-	/***********************************************/
-	/*   Copy the existing IDT.		       */
-	/***********************************************/
-	saved_idt = (char *) __get_free_page(GFP_KERNEL);
-	memcpy(saved_idt, idt_table_ptr, idt_descr_ptr->size);
-	idt_descr2.size = idt_descr_ptr->size;
-	idt_descr2.address = (unsigned long) saved_idt;
-
-	/***********************************************/
-	/*   Now, all cpus, look away.		       */
-	/***********************************************/
-	on_each_cpu(reload_idt, &idt_descr2, 1);
+	store_idt(&desc1);
+	idt_table_ptr = (gate_t *) desc1.address;
+	idt_descr_ptr = &desc1;
 
 	/***********************************************/
 	/*   Save the original vectors.		       */
@@ -826,12 +1175,4 @@ if (*first_v > ipi_vector)
 	/***********************************************/
 	set_idt_entry(2, (unsigned long) dtrace_int_nmi);
 
-	/***********************************************/
-	/*   Tell  the other cpus its safe to see the  */
-	/*   updated IDT.			       */
-	/***********************************************/
-	on_each_cpu(reload_idt, idt_descr_ptr, 1);
-
-	free_page((unsigned long) saved_idt);
 }
-

@@ -1,3 +1,57 @@
+Tue Jan 31 20:31:24 2012  fox
+
+     665* driver/toxic.c: Allow "page_fault" on earlier kernels.
+
+     664* driver/intr.c: Avoid problems when store_gdt/store_idt are
+          not available.
+
+     663* intr.c: Avoid problem when swapper_pg_dir is a #define on older
+          kernels.
+
+     662* mkport.pl, dtrace_linux.c: Dont compile against atomic_notifier_chain_register
+          if its not available.
+
+Mon Jan 30 20:33:20 2012  fox
+
+     661* Archive: 1.0136
+
+     660* driver/dtrace_linux.c: Move intr_init() so we do it last, so
+          we can maximise the effect of ensuring all page tables are in sync.
+
+     659* driver/intr.c: Solution for the big impossible problem. Call
+          vmalloc_sync_all if possible, else a half-hearted emulation.
+	  (We could just copy vmalloc_sync_all from the kernel but its
+	  GPL, so we will think about a better solution based
+	  on the kernel one; only a problem for older i386 kernels).
+
+     658* driver/intr-x86-32.S: Ensure we setup %gs for kernels >= 2.6.31.
+          Else user space apps die, because %gs can be corrupted when
+	  returning back to app.
+
+     657* driver/dtrace.c: Remove workaround for what I thought was a compiler
+          bug. Avoid dtrace/memcpy_with_error - this was working around the
+	  wrong issue. If the page fault handler works properly, then these
+	  two things were bogus.
+
+Wed Jan 25 21:49:03 2012  fox
+
+     656* tools/tty.pl: Fix defunct process leakage.
+
+Wed Jan 11 23:33:51 2012  fox
+
+     655* instr_linux.c: Add -ltr instructions.
+
+Fri Jan  6 22:11:05 2012  fox
+
+     654* instr_linux.c: Add support for detecting rd/wr to GDT and writing
+          to CR3 register. (Trying to find where the page table gets set
+	  in the kernel to debug the page_fault problem for i386).
+
+Mon Jan  2 23:16:35 2012  fox
+
+     653* driver/instr_linux.c: Add support for SIDT instruction and fix
+	  encoding for LIDT.
+
 Sat Dec 31 00:01:52 2011  fox
 
      652* Archive: 1.0.135

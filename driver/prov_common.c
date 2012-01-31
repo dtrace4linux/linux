@@ -829,7 +829,7 @@ prcom_add_function(char *probe, char *func)
 static int
 prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo)
 {
-	uintptr_t stack0, stack1, stack2, stack3, stack4, n;
+	uintptr_t stack0, stack1, stack2, stack3, stack4;
 	struct pt_regs *regs;
 	provider_t *pp;
 	int	ret = 0;

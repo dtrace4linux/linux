@@ -87,6 +87,17 @@
 	/*   order.				       */
 	/***********************************************/
 	PUSH_REGS \fault
+
+#if defined(__KERNEL_STACK_CANARY)
+	/***********************************************/
+	/*   2.6.31 and above define this. If we dont  */
+	/*   do  this,  then we get strange user land  */
+	/*   segmentation   violations  when  %gs  is  */
+	/*   touched/used (or maybe destroyed even).   */
+	/***********************************************/
+	mov $(__KERNEL_STACK_CANARY),%eax
+	mov %eax,%gs
+#endif
 	
 	/***********************************************/
 	/*   dtrace_XXX_handler(nr, regs)	       */
@@ -131,10 +142,7 @@
 /**********************************************************************/
 
 .macro POP_REGS fault
-//	testl %ebx, %ebx
-//	jz 3f
-//	swapgs
-//3:
+
 	pop %ebx
 	pop %ecx
 	pop %edx

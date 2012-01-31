@@ -93,6 +93,9 @@ sub main
 	if (have("per_cpu__cpu_number", "/proc/kallsyms")) {
 		$inc .= "# define HAVE_PER_CPU__CPU_NUMBER 1\n";
 	}
+	if (have("atomic_notifier_chain_register", "/proc/kallsyms")) {
+		$inc .= "# define HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER 1\n";
+	}
 	if (have(" cpu_number", "/proc/kallsyms")) {
 		$inc .= "# define HAVE_CPU_NUMBER 1\n";
 	}

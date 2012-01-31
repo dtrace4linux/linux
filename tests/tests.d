@@ -440,3 +440,9 @@ d:
 		print(*((struct file *)&`dtrace_match_nonzero)); 
 		exit(0);
 	}
+##################################################################
+name:	page_fault
+note:	See if we can probe this successfully
+d:
+	fbt::page_fault:{printf("%s", execname);}
+	tick-5s: { exit(0); }

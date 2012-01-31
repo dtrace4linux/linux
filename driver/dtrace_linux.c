@@ -629,17 +629,13 @@ dtrace_linux_init(void)
 	tsc_max_delta = t1 - t;
 
 	/***********************************************/
-	/*   Update the IDT so we get first chance at  */
-	/*   the breakpoint and pagefault interrupts.  */
-	/***********************************************/
-	intr_init();
-
-	/***********************************************/
 	/*   Let  us  grab  the  panics  if we are in  */
 	/*   debug mode.			       */
 	/***********************************************/
+#if HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
+#endif
 }
 /**********************************************************************/
 /*   Cleanup notifications before we get unloaded.		      */
@@ -666,8 +662,10 @@ dtrace_linux_fini(void)
 	/***********************************************/
 	driver_initted = FALSE;
 
+#if HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
+#endif
 	return ret;
 }
 /**********************************************************************/
@@ -1316,6 +1314,9 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 		/***********************************************/
 		pte->pte = (pte->pte | perms) & ~_PAGE_NX;
 
+		/***********************************************/
+		/*   clflush only on >=2.6.28 kernels.	       */
+		/***********************************************/
 		clflush(pmd);
 		clflush(pte);
 	}
@@ -1697,7 +1698,7 @@ proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 {
 	sol_proc_t sol_proc;
 
-printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
+//printk("proc_exit_notifier: code=%lu ptr=%p\n", code, ptr);
 	/***********************************************/
 	/*   See  if  we know this proc - if so, need  */
 	/*   to let fasttrap retire the probes.	       */
@@ -1934,6 +1935,18 @@ syms_write(struct file *file, const char __user *buf,
 		/*   breakpoint traps.			       */
 		/***********************************************/
 		fbt_init2();
+
+		/***********************************************/
+		/*   Update the IDT so we get first chance at  */
+		/*   the breakpoint and pagefault interrupts.  */
+		/*   We   do   this   after   all  the  other  */
+		/*   providers,  so  that memory allocated by  */
+		/*   the  providers  can  now  be mapped into  */
+		/*   each    processes    page    map   table  */
+		/*   (vmalloc_sync_all).		       */
+		/***********************************************/
+		intr_init();
+
 	}
 	return orig_count;
 }

@@ -341,6 +341,17 @@ EOF
 		system("$SUDO sh -c \"cat /etc/dtrace.conf >/dev/dtrace\"");
 	}
 	print time_string() . "Time: ", time() - $tstart, "s\n";
+
+	###############################################
+	#   For  my  personal benefit - make sure we  #
+	#   have  an upto date symtab when using the  #
+	#   vmware/gdb combination.		      #
+	###############################################
+	if (-f ".copy-kallsyms") {
+		system("root cat /proc/kallsyms >/tmp/k");
+		system("scp /tmp/k dixxy:/tmp");
+	}
+
 }
 #####################################################################
 #   If  the  /dev entries are not there then maybe we are on an old

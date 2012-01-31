@@ -17,9 +17,7 @@
 /*   Date: June 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   $Header: Last edited: 07-Jun-2009 1.2 $ 			      */
-/*
-*/
+/*   $Header: Last edited: 02-Jan-2012 1.3 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -448,7 +446,43 @@ struct masks {
 struct masks lidt_masks[] = {
 	{0, 0xff, 0x0f},
 	{1, 0xff, 0x01},
-	{2, 0xff, 0x4c},
+	{2, 0xf8, 0x18},
+	{0, 0, 0},
+	};
+struct masks sidt_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x01},
+	{2, 0xf8, 0x08},
+	{0, 0, 0},
+	};
+struct masks lgdt_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x01},
+	{2, 0xf8, 0x10},
+	{0, 0, 0},
+	};
+struct masks sgdt_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x01},
+	{2, 0xf8, 0x00},
+	{0, 0, 0},
+	};
+struct masks wr_cr3_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x22},
+	{2, 0xf8, 0xd8},
+	{0, 0, 0},
+	};
+struct masks ltr_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x00},
+	{2, 0xf8, 0x58},
+	{0, 0, 0},
+	};
+struct masks ltr2_masks[] = {
+	{0, 0xff, 0x0f},
+	{1, 0xff, 0x00},
+	{2, 0xf8, 0x18},
 	{0, 0, 0},
 	};
 /*   35ad4:       f0 ff 43 20             lock incl 0x20(%rbx) */
@@ -508,6 +542,12 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 		name_buf[0] = '\0';
 
 		INSTR2(instr, lidt_masks, "lidt");
+		INSTR2(instr, sidt_masks, "sidt");
+		INSTR2(instr, lgdt_masks, "lgdt");
+		INSTR2(instr, sgdt_masks, "sgdt");
+		INSTR2(instr, wr_cr3_masks, "wr_cr3");
+		INSTR2(instr, ltr_masks, "ltr");
+		INSTR2(instr, ltr2_masks, "ltr");
 		/* lock-inc (32b) */
 #if 0
 		INSTR2(instr, inc_masks, "inc");

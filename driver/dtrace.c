@@ -473,14 +473,7 @@ dtrace_load##bits(uintptr_t addr)					\
 	    &cpu_core[cpu_get_id()].cpuc_dtrace_flags;			\
 	                                                                \
         *flags |= CPU_DTRACE_NOFAULT;                                   \
-	if (dtrace_memcpy_with_error(&rval, (void *) addr, sizeof(rval)) == 0) { \
-        	*flags &= ~CPU_DTRACE_NOFAULT;                          \
-		*flags |= CPU_DTRACE_BADADDR;				\
-		TRACE_BADADDR(addr);                                    \
-		cpu_core[cpu_get_id()].cpuc_dtrace_illval = addr;	\
-		return (0);						\
-	}								\
-									\
+	rval = *((volatile uint##bits##_t *)addr);			\
 	*flags &= ~CPU_DTRACE_NOFAULT;					\
 									\
 	return (!(*flags & CPU_DTRACE_FAULT) ? rval : 0);		\
@@ -3294,7 +3287,10 @@ dtrace_printf("%s(%d): TODO!!\n", __func__, __LINE__);
 		    state, mstate));
 # else
 # undef comm /* Avoid redef issue here - defined in dtrace_linux.h */
-		return (uint64_t) (void *) get_current()->comm;
+		{
+		uint64_t p = (uint64_t) (void *) (get_current() ? get_current()->comm : "(noproc)");
+		return p;
+		}
 # endif
 
 	case DIF_VAR_ZONENAME:
@@ -6663,7 +6659,6 @@ HERE();
 
 			val = dtrace_dif_emulate(dp, &mstate, vstate, state);
 HERE();
-//printk("val=%lx\n", val);
 
 			if (*flags & CPU_DTRACE_ERROR)
 				continue;
@@ -6834,30 +6829,10 @@ HERE();
 					int intuple = act->dta_intuple;
 					size_t s;
 
-//printk("size=%d val=%p act=%p\n", size, val, act);
 					for (s = 0; s < size; s++) {
 						if (c != '\0')
 							c = dtrace_load8(val++);
 
-#if linux	
-						/***********************************************/
-						/*   This  pointless  code,  which will never  */
-						/*   fire,  is  to work around a gcc compiler  */
-						/*   bug  which  causes  a page fault because  */
-						/*   'act' gets overwritten. I havent exactly  */
-						/*   figured  out  whats  going  on here, but  */
-						/*   turning off optimisation (which is not a  */
-						/*   good  plan  for  __dtrace_probe())  isnt  */
-						/*   viable. I have seen this on Ubuntu 8.04,  */
-						/*   gcc 4.2.4, i386.			       */
-						/***********************************************/
-						if (act == (dtrace_action_t *) valoffs) {
-							printk("defeat compiler bug! %p act=%lx s=%lx/%p %lx %lx\n", 
-								&act, (long) valoffs, 
-								end, act, 
-								(long) s, (long) size);
-						}
-#endif
 						DTRACE_STORE(uint8_t, tomax,
 						    valoffs++, c);
 
@@ -6871,6 +6846,7 @@ HERE();
 
 HERE();
 				while (valoffs < end) {
+//printk("q: tomax=%p valoffs=%p end=%p val=%p\n", tomax, valoffs, end, val);
 					DTRACE_STORE(uint8_t, tomax, valoffs++,
 					    dtrace_load8(val++));
 				}
@@ -16810,6 +16786,14 @@ PRINT_CASE(DTRACEIOC_CONF);
 		uint64_t nerrs;
 
 //PRINT_CASE(DTRACEIOC_STATUS);
+		/***********************************************/
+		/*   If  we  paniced over something, let user  */
+		/*   see  we  stopped  responding.  They will  */
+		/*   have  to  reload  the driver to continue  */
+		/*   operation.				       */
+		/***********************************************/
+		if (dtrace_shutdown)
+			return ENODEV;
 		/*
 		 * See the comment in dtrace_state_deadman() for the reason
 		 * for setting dts_laststatus to INT64_MAX before setting

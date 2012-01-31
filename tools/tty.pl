@@ -14,6 +14,7 @@ sub commify {
 }
 sub main
 {
+	$SIG{CLD} =  'IGNORE';
 	if ($ARGV[0] && $ARGV[0] =~ /-(\d+)/) {
 		$ENV{CPUS} = $1;
 		shift;

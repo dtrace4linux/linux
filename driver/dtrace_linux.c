@@ -1233,6 +1233,11 @@ typedef struct page_perms_t {
 static int
 mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 {
+#if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+	typedef struct { unsigned long long pte; } pte_t;
+#	undef pte_none
+#	define pte_none(p) (p).pte == 0
+#endif
 	/***********************************************/
 	/*   Dont   think  we  need  this  for  older  */
 	/*   kernels  where  everything  is writable,  */
@@ -1290,7 +1295,7 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	pp->pp_pgd = *pgd;
 	pp->pp_pud = *pud;
 	pp->pp_pmd = *pmd;
-	pp->pp_pte = *pte;
+	*(pte_t *) &pp->pp_pte = *pte; /* Horror for <= 2.6.24 kernels */
 
 	/***********************************************/
 	/*   Avoid  touching/flushing  page  table if  */

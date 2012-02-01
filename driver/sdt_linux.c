@@ -233,7 +233,7 @@ static char buf3[1024];
 	finfo.b.b_addr = uaddr;
 	finfo.b.b_bcount = len;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 	fname = d_path(&file->f_path, buf, sizeof buf);
 #else
         fname = d_path(file->f_dentry, file->f_vfsmnt, buf, sizeof buf);

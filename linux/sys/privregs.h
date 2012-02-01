@@ -274,11 +274,19 @@ struct regs {
 #  define c_arg4 r_r8
 #  define c_arg5 r_r9
 #else /* i386 */
-#  define c_arg0 bx
-#  define c_arg1 cx
-#  define c_arg2 dx
-#  define c_arg3 si
-#  define c_arg4 di
+#  if defined(HAVE_EBX_REGISTER)
+#     define c_arg0 ebx
+#     define c_arg1 ecx
+#     define c_arg2 edx
+#     define c_arg3 esi
+#     define c_arg4 edi
+#  else
+#     define c_arg0 bx
+#     define c_arg1 cx
+#     define c_arg2 dx
+#     define c_arg3 si
+#     define c_arg4 di
+#  endif
 #  define c_arg5 ebp
 #endif
 

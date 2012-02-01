@@ -255,6 +255,11 @@ be_callback(struct hrtimer *ptr)
 	/***********************************************/
 	/*   Get ready for the next timer interval.    */
 	/***********************************************/
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+# define hrtimer_forward_now(timer, interval) \
+	hrtimer_forward(timer, timer->base->get_time(), interval)
+#endif
+
 	hrtimer_forward_now(ptr, ktime_set(cp->c_sec, cp->c_nsec));
 
 	tasklet_schedule(&cyclic_tasklet);

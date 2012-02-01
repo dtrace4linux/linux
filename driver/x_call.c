@@ -314,7 +314,7 @@ dtrace_xcall2(processorid_t cpu, dtrace_xcall_t func, void *arg)
 {	int	c;
 	int	cpu_id = smp_processor_id();
 	int	cpus_todo = 0;
-# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
+# if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 typedef struct cpumask cpumask_t;
 //#define cpu_set(c, mask) cpumask_set_cpu(c, &(mask))
 //#define cpus_clear(mask) cpumask_clear(&mask)

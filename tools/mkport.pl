@@ -11,6 +11,7 @@
 # 06-Jul-2010 PDF Add 'nonatomic' as a way to autodetect FUNC_SMP_CALL_FUNCTION_SINGLE_5_ARGS on Centos 5.5
 # 15-Jul-2010 PDF Better parsing for SMP_CALL_FUNCTION_SINGLE_ARGS and SMP_CALL_FUNCTION_ARGS
 # 20-Mar-2011 PDF Add better HAVE_ELF_GETSHDRSTRNDX detection for FC-14.
+# 01-Feb-2012 PDF Handle ebx vs. bx register name for i386
 
 use strict;
 use warnings;
@@ -87,6 +88,12 @@ sub main
 	}
 
 	###############################################
+	#   Look  for  whether  we  are bx or ebx in  #
+	#   i386/ptrace.h.			      #
+	###############################################
+	$inc .= check_bx_vs_ebx();
+
+	###############################################
 	#   Handle  differing  naming conventions of  #
 	#   the per-cpu data structures.	      #
 	###############################################
@@ -102,6 +109,14 @@ sub main
 	if (have("pda_cpunumber", "include/asm/offset.h")) {
 		$inc .= "# define HAVE_INCLUDE_ASM_OFFSET_H 1\n";
 		$inc .= "# define HAVE_PDA_CPUNUMBER 1\n";
+	}
+
+	###############################################
+	#   Avoid  complexity  in  intr.c  for older  #
+	#   i386 kernels.			      #
+	###############################################
+	if (have("vmalloc_sync_all", "/proc/kallsyms")) {
+		$inc .= "# define HAVE_VMALLOC_SYNC_ALL 1\n";
 	}
 
 	###############################################
@@ -220,6 +235,30 @@ sub main
 	die "Cannot create $ENV{BUILD_DIR}/port.h" if !$fh;
 	print $fh $inc;
 
+}
+
+######################################################################
+#   Seems  to  be some confusion on BX vs EBX register for i386. In  #
+#   the  middle  of  the  2.6.2x  series,  it seemed to temporarily  #
+#   change  name.  Probably  at  the point the i386 got merged into  #
+#   asm-x86.							     #
+######################################################################
+sub check_bx_vs_ebx
+{
+	my $file;
+
+	$file = "$kern/include/asm-i386/ptrace.h";
+	return "# define HAVE_BX_REGISTER 1\n" if -f $file;
+	$file = "$kern/include/asm-x86/ptrace.h";
+	return "# define HAVE_BX_REGISTER 1\n" if ! -f $file;
+
+	my $fh = new FileHandle($file);
+	while (<$fh>) {
+		if (/\<bx;/) {
+			return "# define HAVE_BX_REGISTER 1\n";
+		}
+	}
+	return "# define HAVE_EBX_REGISTER 1\n";
 }
 ######################################################################
 #   Determine  the  type of yytext so that libdtrace/dt_lex.l works  #

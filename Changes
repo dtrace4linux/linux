@@ -1,3 +1,17 @@
+Wed Feb  1 20:14:09 2012  fox
+
+     670* x_call.c: Fix for 2.6.24 kernel in cpumask_t
+
+     669* intr.c, tools/mkport.pl: Remove private vmalloc_sync_all if kernel
+          supports it.
+
+     668* linux/sys/privregs.h, tools/mkport.pl: Add autodetect of
+          BX vs EBX register for i386/2.6.24 type kernels.
+
+     667* driver/cyclic_linux.c: Fix for 2.6.24/debian-4 kernel.
+
+     666* driver/intr.c: Fix commenting error for older kernels.
+
 Tue Jan 31 20:31:24 2012  fox
 
      665* driver/toxic.c: Allow "page_fault" on earlier kernels.

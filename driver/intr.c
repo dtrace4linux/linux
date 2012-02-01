@@ -35,6 +35,11 @@
 #define store_idt(ptr) asm volatile("sidt %0":"=m" (*ptr))
 #endif
 
+struct x86_descriptor {
+        unsigned short size;
+        unsigned long address;
+} __attribute__((packed)) ;
+
 /**********************************************************************/
 /*   Define  something  so  the  intr routines know whether to route  */
 /*   back to the kernel, ie it is theirs, vs ours (NOTIFY_DONE).      */
@@ -44,7 +49,7 @@
 /**********************************************************************/
 /*   Pointer to the IDT size/address structure.			      */
 /**********************************************************************/
-static struct desc_ptr *idt_descr_ptr;
+static struct x86_descriptor *idt_descr_ptr;
 
 /**********************************************************************/
 /*   We need this to be in an executable page. kzalloc doesnt return  */
@@ -608,7 +613,7 @@ static int gdt_seq_show(struct seq_file *seq, void *v)
 {	int	n = (int) (long) v;
 	unsigned long *g;
 	unsigned long *gdt_table_ptr;
-	struct desc_ptr desc;
+	struct x86_descriptor desc;
 
 	store_gdt(&desc);
 	if (n == 1) {
@@ -711,7 +716,7 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 	unsigned long offset;
 	char	*modname = NULL;
 	char	name[KSYM_NAME_LEN];
-	struct desc_ptr desc;
+	struct x86_descriptor desc;
 	gate_t	*idt_table_ptr;
 
 	store_idt(&desc);
@@ -811,7 +816,7 @@ gate_t saved_ipi;
 /*   we  validate  that the process is mapping our dtrace_page_fault  */
 /*   handler.							      */
 /**********************************************************************/
-#if defined(__i386)
+#if defined(__i386) && !defined(HAVE_VMALLOC_SYNC_ALL)
 static pte_t *
 lookup_address_mm(struct mm_struct *mm, unsigned long address, unsigned int *level)
 {
@@ -864,12 +869,16 @@ lookup_address_mm(struct mm_struct *mm, unsigned long address, unsigned int *lev
 /*   something  similar,  but  looks  like  it is designed to handle  */
 /*   pluggable memory.						      */
 /**********************************************************************/
+#include <asm/page.h>
 static inline pmd_t *
 sync_swapper_pte(struct mm_struct *mm, unsigned long address)
 {
 //typedef struct { pgdval_t pgd; } pgd_t;
 #if defined(swapper_pg_dir)
-	Old kernels, or some compile options may #define this as NULL.
+	/***********************************************/
+	/*   Old kernels, or some compile options may  */
+	/*   #define this as NULL.		       */
+	/***********************************************/
 	return 0;
 #else
 static pgd_t *swapper_pg_dir;
@@ -968,7 +977,7 @@ intr_exit(void)
 void
 my_vmalloc_sync_all(void)
 {
-# if defined(__i386)
+# if defined(__i386) && !defined(HAVE_VMALLOC_SYNC_ALL)
 	struct task_struct *t;
 	unsigned int	level;
 struct map {
@@ -1034,7 +1043,7 @@ static struct map tbl[] = {
 void
 intr_init(void)
 {	struct proc_dir_entry *ent;
-static	struct desc_ptr desc1;
+static	struct x86_descriptor desc1;
 
 	my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
 
@@ -1044,8 +1053,10 @@ static	struct desc_ptr desc1;
 	/*   for 3.x kernels, so do this here.	       */
 	/***********************************************/
 	memory_set_rw(cpu_core_exec, sizeof cpu_core_exec / PAGE_SIZE, TRUE);
-{//printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
-__supported_pte_mask &= ~_PAGE_NX;
+{	long long *maskp = get_proc_addr("__supported_pte_mask");
+	if (maskp)
+//printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
+		*maskp &= ~_PAGE_NX;
 }
 	/***********************************************/
 	/*   Needed  by assembler trap handler. These  */

@@ -38,8 +38,14 @@ cat .release
 pwd
 date
 echo "\$ uname -a:" ; uname -a
-echo "\$ cat /etc/lsb-release" ; cat /etc/lsb-release
-echo "\$cat /etc/motd" ; cat /etc/motd
+for f in /etc/lsb-release /etc/redhat-release
+do
+	if [ -f $f ]; then
+		echo "\$ cat $f" ; cat $f
+	fi
+done
+echo "\$ cat /etc/motd" ; cat /etc/motd
+echo "\$ cat build/port.h" ; cat build/port.h
 echo "\$ gcc -v" ; gcc -v
 echo "\$ ld -v" ; ld -v
 flex --version

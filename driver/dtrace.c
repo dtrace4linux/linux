@@ -7886,7 +7886,6 @@ HERE();
 		}
 		if (noreap)
 			RETURN(EBUSY);
-
 #if linux
 TODO();
 #else
@@ -15377,6 +15376,51 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 	if (hasprovs)
 		dtrace_helper_provider_register(to, newhelp, NULL);
 }
+
+#if linux
+/**********************************************************************/
+/*   Remove  all the helpers when we are unloading dtrace. If a USDT  */
+/*   app is running we might not remove. Solaris dtrace only removes  */
+/*   on  request via the ioctl(DTRACEHIOC_REMOVE). Seems to be a bug  */
+/*   in Solaris, but then in Solaris, they arent a loadable driver.   */
+/*   This  is  called  from  fasttrap_exit,  so that fasttrap can be  */
+/*   unloaded without any hanging helpers.			      */
+/**********************************************************************/
+void
+dtrace_helper_remove_all(void)
+{	int	p;
+	extern sol_proc_t *shadow_procs;
+
+	if (shadow_procs == NULL)
+		return;
+
+	for (p = 0; dtrace_helpers > 0 && p < PID_MAX_DEFAULT; p++) {
+		proc_t *procp = &shadow_procs[p];
+
+		/***********************************************/
+		/*   If  we  havent seen or tracked this proc  */
+		/*   yet, then just ignore it.		       */
+		/***********************************************/
+		if (procp->p_dtrace_helpers == NULL)
+			continue;
+
+		/***********************************************/
+		/*   dtrace_helpers_destroy()  needs  curproc  */
+		/*   to  be the current process. So temp swap  */
+		/*   it  around. This is probably bad, and we  */
+		/*   should just pass the parameter in.	       */
+		/***********************************************/
+		{
+		proc_t *save_proc = curproc;
+		curproc = procp;
+		
+		dtrace_helpers_destroy();
+		
+		curproc = save_proc;
+		}
+	}
+}
+#endif
 
 /*
  * DTrace Hook Functions

@@ -397,7 +397,13 @@ sub smp_call_function_single
 		}
 	}
 	if (scalar(keys(%hash)) == 0) {
-		return "# define FUNC_SMP_CALL_FUNCTION_SINGLE_MISSING 1\n";
+		###############################################
+		#   Around  2.6.18,  they  went  from 5 to 4  #
+		#   args. So lets default to 5.		      #
+		###############################################
+		return 
+			"# define FUNC_SMP_CALL_FUNCTION_SINGLE_MISSING 1\n" .
+			"# define SMP_CALL_FUNCTION_SINGLE_ARGS 51\n";
 	}
 	foreach my $k (sort(keys(%hash))) {
 		$inc .= "# define $k $hash{$k}\n";

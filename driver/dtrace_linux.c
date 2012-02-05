@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 06-Dec-2011 1.12 $ 			      */
+/*   $Header: Last edited: 05-Feb-2012 1.13 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -281,7 +281,7 @@ void	systrace_exit(void);
 void	io_prov_init(void);
 //static void print_pte(pte_t *pte, int level);
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 void clflush(void *ptr);
 # endif
 
@@ -1595,7 +1595,6 @@ static void *
 par_lookup(void *ptr)
 {	par_alloc_t *p;
 	
-return NULL;
 	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr) {

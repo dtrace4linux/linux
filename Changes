@@ -1,3 +1,16 @@
+Sun Feb  5 10:18:55 2012  fox
+
+     674* Archive: 1.0137
+
+     673* dtrace_linux.c: Fix clflush issue in <= 2.6.21 kernels
+
+     672* tools/mkport.pl: Possible fix for SMP_CALL_FUNCTION_SINGLE_ARGS for
+          2.6.18 kernel.
+
+     671* driver/dtrace.c, driver/fasttrap_linux.c: Rip out all the fasstrap
+          helpers when unloading the driver, so we dont panic on a reload
+	  if a USDT proc is still running.
+
 Wed Feb  1 20:14:09 2012  fox
 
      670* x_call.c: Fix for 2.6.24 kernel in cpumask_t

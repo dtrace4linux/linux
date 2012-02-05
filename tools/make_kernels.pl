@@ -36,6 +36,7 @@ sub main
 		'help',
 		'no32',
 		'no64',
+		'path=s',
 		'v',
 		);
 
@@ -57,7 +58,11 @@ sub main
 
 	$SIG{INT} = \&int_handler;
 
-	for my $f (glob("/lib/modules/2*")) {
+	###############################################
+	#   Iterate thru the available kernels.	      #
+	###############################################
+	$opts{path} = "/lib/modules/[23]*" if !defined($opts{path});
+	for my $f (glob($opts{path})) {
 		exit(1) if $ctrl_c;
 		my $dir = basename($f);
 
@@ -107,6 +112,10 @@ sub build_i386
 		print "Error rename: $modpost -- $!\n";
 	}
 	my $fh = new FileHandle(">$modpost");
+	if (!defined($fh)) {
+		print "ERROR: Cannot open $modpost - $!\n";
+		exit(1);
+	}
 	print $fh "touch $ENV{TOPDIR}/build/driver/dtracedrv.mod.c\n";
 	print $fh "exit 0\n";
 	$fh->close();
@@ -153,14 +162,21 @@ sub restore_asmlnk
 sub usage
 {
 	print <<EOF;
-Some help...
+make_kernels.pl -- tool to build against non-native kernels
 Usage:
+
+  Simple script designed to allow cross compile/verification against
+  any other kernels on your system
 
 Switches:
 
-  -no32     Dont build i386 kernels
-  -no64     Dont build x86-64 kernels.
+  -path <dir>   Use path to specifiy what to build.
+  -no32         Dont build i386 kernels
+  -no64         Dont build x86-64 kernels.
 
+Example:
+
+  \$ tools/make_kernels.pl -path ~/linux/linux-2.6.18.8
 EOF
 
 	exit(1);

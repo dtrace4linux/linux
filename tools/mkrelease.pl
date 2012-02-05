@@ -56,6 +56,20 @@ sub main
 	my $pwd = Cwd::cwd();
 
 	my $rel = $ARGV[0] || strftime("%Y%m%d", localtime);
+	###############################################
+	#   Handle multireleases in a day.	      #
+	###############################################
+	my $pkg = "dtrace";
+	if (-f "ENV{HOME}/release/$pkg/$pkg-$rel.tar.bz2") {
+		foreach my $letter (qw/a b c d e f g h i j k l m n o p q r s t u v w x y z/) {
+			if (! -f "$ENV{HOME}/$pkg/$pkg-$rel$letter.tar.bz2") {
+				$rel .= $letter;
+				last;
+			}
+		}
+print "hello\n";
+exit;
+	}
 	$fh = new FileHandle(".release");
 	die "Cannot open .release file -- $!\n" if !$fh;
 	my %vars;

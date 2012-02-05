@@ -120,8 +120,9 @@ NOTE: The build is complete, but build/ctfconvert is not available.
       as dtrace_cpu_t).
 
 EOF
-
 	}
+
+	spawn("sync");
 }
 sub find_binary
 {	my @bins = @_;

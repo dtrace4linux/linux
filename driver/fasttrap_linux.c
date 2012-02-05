@@ -83,6 +83,14 @@ int fasttrap_init(void)
 void fasttrap_exit(void)
 {
 	if (initted) {
+#if linux
+		/***********************************************/
+		/*   Rip  out  the  fasttrap helpers from all  */
+		/*   processes in the system.		       */
+		/***********************************************/
+		void dtrace_helper_remove_all(void);
+		dtrace_helper_remove_all();
+#endif
 		fasttrap_detach();
 		misc_deregister(&fasttrap_dev);
 	}

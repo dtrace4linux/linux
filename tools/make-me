@@ -53,6 +53,10 @@ if [ "$BUILD_ARCH" != "" ]; then
 fi
 
 if [ ! -d $build_dir ]; then
+	if [ ! -f /usr/src/linux ]; then
+		echo "ERROR: $build_dir does not exist."
+		exit 1
+	fi
 	build_dir=/usr/src/linux/
 fi
 

@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-January 2011
+February 2012
 Paul D. Fox
 fox@crisp.demon.co.uk
 http://www.twitter.com/crispeditor
@@ -16,6 +16,24 @@ Download dtrace tarballs for linux here:
    http://dl.dropbox.com/u/45405441/dtrace-latest.tar.gz
    ftp://crisp.dynalias.com/pub/release/website/dtrace
 
+Introduction
+============
+
+This is a port of the Sun DTrace user and kernel code to Linux.
+No linux kernel code is touched in this build, but what is produced
+is a dynamically loadable kernel module. This avoids licensing
+issues and allows people to load and update dtrace as they desire.
+
+The goal of this project is to ensure dtrace is everywhere - so
+that we can all benefit from faster systems and software,
+better kernels and generally be a good citizen to the user and
+administrators systems.
+
+If this works for you, great. If not, feel free to feedback
+what/why it doesnt work and we may be able to address the
+issues.
+
+  
 PayPal
 ======
 If you want to make a donation for this software, feel free to do so.
@@ -27,57 +45,37 @@ use this reference for donations:
 
    foxpaypal@crisp.demon.co.uk
 
-Introduction
-============
-
-This is a port of the Sun DTrace user and kernel code to Linux.
-No linux kernel code is touched in this build, but what is produced
-is a dynamically loadable kernel module. This avoids licensing
-issues and allows people to load and update dtrace as they desire.
-
-It also makes it more of a challenge than Solaris or FreeBSD or
-MacOSX, which have dtrace too, since we are trying to support old
-and new kernels, 32 and 64 bit kernels, and have to fit in with
-Linux's desire to change and evolve. So, if this works for you, great.
-If not, feel free to feedback what/why it doesnt work and we
-may be able to address the issues.
-
-The goal of this project is to ensure dtrace is everywhere - so
-that we can all benefit from faster systems and software, better
-kernels and generally be a good citizen to the user and administrators
-systems.
-  
 Licensing
 =========
 
 The majority (if not all) of this code falls under Sun's CDDL
-license. Some files or headers may originate with GPL code, e.g.
-ELF libraries from GLIBC or RedHat. The original files
-copyrights are left intact, so please honour those as appropriate.
-Any files without an attributed copyright are likely my own
-invention and can be placed under the GPLv3, but this is a mixed-mode
-project, and it is not *my* right to give Dtrace away under GPL.
+license. The original files copyrights are left intact, so
+please honour those as appropriate. Any files without an
+attributed copyright are likely my own invention and can be
+placed under the GPLv3, but this is a mixed-mode project, and
+it is not *my* right to give Dtrace away under GPL.
 
-Any mistakes or omissions in copyright attribution will be my mistake,
-so please let me know if there are such cases.
+Any mistakes or omissions in copyright attribution will be my
+mistake, so please let me know if there are such cases.
 
 The linux kernel was referred to in order to engineer the glue
 for dtrace behavior, and there is no intention of making this
-code fall under anything other than CDDL. (If Sun migrate
-to a GPL friendly license, then this port of dtrace can follow).
-I do not own the license or assert any rights on the licensing
+code fall under anything other than CDDL. (If Sun migrate to a
+GPL friendly license, then this port of dtrace can follow). I
+do not own the license or assert any rights on the licensing
 other than that expected of me as a consumer/supplier.
 
-I have no political affiliation or preference for a licensing scheme,
-simply that Sun has gracefully donated to the community a large body
-of work.
+I have no political affiliation or preference for a licensing
+scheme, simply that Sun has gracefully donated to the community
+a large body of work.
 
 My efforts are simply in glueing pieces together and as such,
-these pieces of work may be considered falling somewhere between
-GPL and CDDL. I reserve the right to change the licensing model
-for my own code at a later date, when and if someone puts forward
-a case as to the correct license agreement. I will not and can not 
-ascribe code that does not belong to me.
+these pieces of work may be considered falling somewhere
+between GPL and CDDL. I reserve the right to change the
+licensing model for my own code at a later date, when and if
+someone puts forward a case as to the correct license
+agreement. I will not and can not ascribe code that does not
+belong to me.
 
 If the code is useful to you - great. Spread it around and get
 people to use, debug and enhance it.
@@ -85,17 +83,11 @@ people to use, debug and enhance it.
 GIT Repository
 ==============
 
-  https://github.com/pdmccormick/dtrace-for-linux
+  https://github.com/dtrace4linux/dtrace
 
-Thanks to Peter McCormick for setting this up.
-
-   NOTE: This is not the master archive for dtrace. Peter has
-   kindly set this up and it may lag the master releases. See
-   the links at the top of this document for the current homepage
-   data.
-
-   As of March 2011, I dont believe the git repository is being
-   synced, so do not rely on it, or check the dates.
+(Theres an older and orphaned github repository under 
+Peter McCormicks name, please ignore this as it has not been
+updated in a long while and is no longer active).
 
 Installation
 ============

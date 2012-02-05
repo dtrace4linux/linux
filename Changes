@@ -1,5 +1,12 @@
 Sun Feb  5 10:18:55 2012  fox
 
+     676* driver/intr.c: Fix license.
+
+     675* liblinux/proc2.c: Fix to avoid leaving target USDT proc in
+          a stopped state. (We did this due to bugs in libproc handling
+	  but we shouldnt even if we are buggy). Not detecting 't'
+	  process state properly.
+
      674* Archive: 1.0137
 
      673* dtrace_linux.c: Fix clflush issue in <= 2.6.21 kernels

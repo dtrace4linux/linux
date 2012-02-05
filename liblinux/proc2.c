@@ -127,7 +127,7 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 		close(fd);
 	}
 //printf("lx_read_stat pid=%d: state='%s'\n", P->pid, state);
-	if (*state == 'T')
+	if (*state == 'T' || *state == 't')
 		pst->pr_flags |= PR_STOPPED;
 	P->status.pr_flags = pst->pr_flags;
 

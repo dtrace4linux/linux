@@ -1,0 +1,3 @@
+# This is how it is done on Apple, due to compiler/linker enhancements.
+dtrace -h -s simple_probes.d
+gcc -I../../uts/common -o simple simple.c

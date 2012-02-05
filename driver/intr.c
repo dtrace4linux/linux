@@ -5,9 +5,9 @@
 /*   Date: December 2011					      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   License: GPLv2						      */
+/*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 31-Jan-2012 1.14 $ 			      */
+/*   $Header: Last edited: 05-Feb-2012 1.15 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>

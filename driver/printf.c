@@ -6,6 +6,8 @@
 /*   								      */
 /*   Author: Paul D. Fox					      */
 /*   Date: December 2011					      */
+/*   								      */
+/*   License: CDDL						      */
 /**********************************************************************/
 
 #include <linux/mm.h>

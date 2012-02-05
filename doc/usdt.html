@@ -170,6 +170,35 @@ function and periodically dumps the checksum. If you attach to the
 probes with dtrace, the checksum will change, and as you Ctrl-C dtrace,
 the checksum will be restored.
 
+<h2>Apple/Mac OS X</h2>
+<p>
+
+Apple has done some enhancements to dtrace, which are interesting and 
+simplify the mechanism for creating a USDT enabled application.
+With Apple's dtrace mechanism, only two commands are needed to generate
+a probable executable:
+
+<pre>
+$ dtrace -h -s simple_probes.d
+$ gcc -I../../uts/common -o simple simple.c
+</pre>
+
+The dtrace command generates the header file, containing the probe
+definitions, e.g.
+
+<pre>
+define SIMPLE_SAW_LINE(arg0) \
+do { \
+        __asm__ volatile(".reference " SIMPLE_TYPEDEFS); \
+        __dtrace_probe$simple$saw__line$v1$696e74(arg0); \
+        __asm__ volatile(".reference " SIMPLE_STABILITY); \
+} while (0)
+</pre>
+
+The use of ".reference" is interesting, since this is doing the work
+of the traditional phase used to create an ELF object file with
+the probe table information.
+
 <h2>Issues</h2>
 <p>
 DTrace relies on the DTRACE_PROBE macros to create the assembler

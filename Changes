@@ -1,3 +1,11 @@
+Mon Feb  6 21:47:58 2012  fox
+
+     678* libdtrace/dt_pid.c: dt_pid_usdt_mapping: Dont call 
+          pr_open/pr_ioctl (see comment in the code). This allows
+	  us to dtrace against a USDT probe application.
+
+     677* cmd/dtrace/dtrace.c: Add some env var defns to the usage.
+
 Sun Feb  5 10:18:55 2012  fox
 
      676* driver/intr.c: Fix license.

@@ -559,6 +559,30 @@ dt_pid_usdt_mapping(void *data, const prmap_t *pmp, const char *oname)
 #else
 #  define helper_name "/dev/dtrace/helper"
 #endif
+#if defined(linux)
+		/***********************************************/
+		/*   20120206 PDF			       */
+		/*   					       */
+		/*   We  dont  need the code below. On Apple,  */
+		/*   this calls libproc.m and their code says  */
+		/*   "Not   implemented".   The   result   of  */
+		/*   pr_open()  is  a value of zero, and then  */
+		/*   pr_ioctl()  gets  called, which in turn,  */
+		/*   is not implemented either.		       */
+		/*   					       */
+		/*   In  FreeBSD 9, I cant find evidence this  */
+		/*   code  even  compiles  (no  definition of  */
+		/*   pr_open, but maybe I am wrong).	       */
+		/*   					       */
+		/*   Bottom line - whatever the scenario this  */
+		/*   function  is  designed  to handle, is an  */
+		/*   "edge"  case  -  to  do with the delayed  */
+		/*   bindings.				       */
+		/*   					       */
+		/*   By  stubbing  out  this code, "dtrace -n  */
+		/*   simple<pid>:::" works properly.	       */
+		/***********************************************/
+#else
 		if (fd == -1 &&
 		    (fd = pr_open(P, helper_name, O_RDWR, 0)) < 0) {
 			dt_dprintf("pr_open of helper device failed: %s\n",
@@ -568,6 +592,7 @@ dt_pid_usdt_mapping(void *data, const prmap_t *pmp, const char *oname)
 
 		if (pr_ioctl(P, fd, DTRACEHIOC_ADDDOF, &dh, sizeof (dh)) < 0)
 			dt_dprintf("DOF was rejected for %s\n", dh.dofhp_mod);
+#endif
 	}
 
 	if (fd != -1)

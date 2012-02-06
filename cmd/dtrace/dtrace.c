@@ -171,6 +171,17 @@ usage(FILE *fp)
 	    "\t-X  specify ISO C conformance settings for preprocessor\n"
 	    "\t-Z  permit probe descriptions that match zero probes\n");
 
+#if linux
+	(void) fprintf(stderr, "\n"
+		"Environment variables:\n"
+		"\n"
+		"    DTRACE_DEBUG     Enable libdtrace debugging messages\n"
+		"    DTRACE_DRTI_O    Name of replacement drti.o file for USDT conversion.\n"
+		"    DTRACE_DOF_INIT_DISABLE\n"
+		"                     Disable USDT publishing when running a USDT based app.\n"
+		);
+#endif
+
 	dtrace_list_options();
 
 	return (E_USAGE);

@@ -422,6 +422,10 @@ struct dtrace_hdl {
 #define	DT_ACT_UADDR		DT_ACT(27)	/* uaddr() action */
 #define	DT_ACT_SETOPT		DT_ACT(28)	/* setopt() action */
 #define	DT_ACT_PRINT		DT_ACT(29)	/* print() action */
+# if linux
+#define	DT_ACT_TEST1		DT_ACT(30)	/* experimental action */
+#define	DT_ACT_TEST2		DT_ACT(31)	/* experimental action */
+# endif
 
 /*
  * Sentinel to tell freopen() to restore the saved stdout.  This must not

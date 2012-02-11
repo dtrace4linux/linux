@@ -1032,6 +1032,20 @@ dt_action_discard(dtrace_hdl_t *dtp, dt_node_t *dnp, dtrace_stmtdesc_t *sdp)
 	ap->dtad_difo = dt_as(yypcb);
 	ap->dtad_kind = DTRACEACT_DISCARD;
 }
+#if linux
+static void
+dt_action_test1(dtrace_hdl_t *dtp, dt_node_t *dnp, dtrace_stmtdesc_t *sdp)
+{
+	dtrace_actdesc_t *ap = dt_stmt_action(dtp, sdp);
+	ap->dtad_kind = DTRACEACT_TEST1;
+}
+static void
+dt_action_test2(dtrace_hdl_t *dtp, dt_node_t *dnp, dtrace_stmtdesc_t *sdp)
+{
+	dtrace_actdesc_t *ap = dt_stmt_action(dtp, sdp);
+	ap->dtad_kind = DTRACEACT_TEST2;
+}
+#endif
 
 static void
 dt_compile_fun(dtrace_hdl_t *dtp, dt_node_t *dnp, dtrace_stmtdesc_t *sdp)
@@ -1125,6 +1139,14 @@ dt_compile_fun(dtrace_hdl_t *dtp, dt_node_t *dnp, dtrace_stmtdesc_t *sdp)
 	case DT_ACT_JSTACK:
 		dt_action_ustack(dtp, dnp->dn_expr, sdp);
 		break;
+#if linux
+	case DT_ACT_TEST1:
+		dt_action_test1(dtp, dnp->dn_expr, sdp);
+		break;
+	case DT_ACT_TEST2:
+		dt_action_test2(dtp, dnp->dn_expr, sdp);
+		break;
+#endif
 	default:
 		dnerror(dnp->dn_expr, D_UNKNOWN, "tracing function %s( ) is "
 		    "not yet supported\n", dnp->dn_expr->dn_ident->di_name);

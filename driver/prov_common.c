@@ -8,7 +8,7 @@
 /*   Date: July 2010						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
-/*   License: GPL3						      */
+/*   License: CDDL      					      */
 /*   								      */
 /*   $Header: Last edited: 03-Dec-2011 1.12 $ 			      */
 /**********************************************************************/

@@ -308,6 +308,12 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "uint16_t(uint16_t)" },
 { "normalize", DT_IDENT_ACTFUNC, 0, DT_ACT_NORMALIZE, DT_ATTR_STABCMN,
 	DT_VERS_1_0, &dt_idops_func, "void(...)" },
+#if linux
+{ "test1", DT_IDENT_ACTFUNC, 0, DT_ACT_TEST1, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_func, "int()" },
+{ "test2", DT_IDENT_ACTFUNC, 0, DT_ACT_TEST2, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_func, "int()" },
+#endif
 { "panic", DT_IDENT_ACTFUNC, 0, DT_ACT_PANIC, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void()" },
 { "pid", DT_IDENT_SCALAR, 0, DIF_VAR_PID, DT_ATTR_STABCMN, DT_VERS_1_0,

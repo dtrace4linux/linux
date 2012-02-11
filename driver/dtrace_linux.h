@@ -42,7 +42,7 @@
 /*   Set  this to GPL or CDDL if debugging the driver. Really we are  */
 /*   CDDL.							      */
 /**********************************************************************/
-# define	DRIVER_LICENSE "GPL"
+# define	DRIVER_LICENSE "CDDL"
 
 # if HAVE_INCLUDE_LINUX_SLAB_H
 #     include <linux/slab.h>

@@ -1,5 +1,15 @@
 Sat Feb 11 10:25:20 2012  fox
 
+     683* driver/dtrace_linux.h: Mark as CDDL driver.
+
+     682* driver/prov_common.c: Mark as CDDL.
+
+     681* Archive: 1.0138
+
+     680* libdtrace/dt_cc.c, dt_impl.h, dt_open.c, 
+          driver/dtrace.c, uts/common/sys/dtrace.h:
+	  Add two experimental actions, so I can play (test1() and test2()).
+
      679* dtrace_linux.c: par_alloc: Remove temporary stub-out - we werent
           providing fbt module probes.
 

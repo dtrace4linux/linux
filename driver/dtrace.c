@@ -6574,6 +6574,42 @@ HERE();
 			}
 
 			switch (act->dta_kind) {
+#if linux
+			/***********************************************/
+			/*   These  actions are subject to change and  */
+			/*   are  purely  experimental. Please ignore  */
+			/*   for now.				       */
+			/***********************************************/
+			case DTRACEACT_TEST1:
+PRINT_CASE("DTRACEACT_TEST1");
+{static int (*oprofile_start)(void);
+int err;
+if (oprofile_start == NULL)
+	oprofile_start = get_proc_addr("oprofile_start");
+if (oprofile_start) {
+	err = oprofile_start();
+	printk("oprofile_start=%d\n", err);
+} else {
+	printk("no oprofile_start loaded\n");
+}
+}
+				continue;
+			case DTRACEACT_TEST2:
+PRINT_CASE("DTRACEACT_TEST2");
+{static int (*oprofile_stop)(void);
+int err;
+if (oprofile_stop == NULL)
+	oprofile_stop = get_proc_addr("oprofile_stop");
+if (oprofile_stop) {
+	err = oprofile_stop();
+	printk("oprofile_stop=%d\n", err);
+} else {
+	printk("no oprofile_stop loaded\n");
+}
+}
+				continue;
+#endif
+
 			case DTRACEACT_STOP:
 PRINT_CASE(DTRACEACT_STOP);
 				if (dtrace_priv_proc_destructive(state,
@@ -10609,6 +10645,15 @@ PRINT_CASE("DTRACEACT_COMMIT");
 				RETURN(EINVAL);
 			break;
 		}
+
+#if linux
+		case DTRACEACT_TEST1:
+PRINT_CASE("DTRACEACT_TEST1");
+			break;
+		case DTRACEACT_TEST2:
+PRINT_CASE("DTRACEACT_TEST2");
+			break;
+#endif
 
 		default:
 			RETURN(EINVAL);

@@ -119,6 +119,7 @@ sub main
 	spawn("twit 'Release: dtrace-b$vars{build} on ftp://crisp.dyndns-server.com/pub/release/website/dtrace/dtrace-$rel.tar.gz'");
 	chdir($pwd);
 	spawn("git commit -F /tmp/msg .");
+	spawn("git push -u origin master");
 }
 sub spawn
 {	my $cmd = shift;

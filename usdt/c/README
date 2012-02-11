@@ -24,3 +24,8 @@ will see the crc change, indicating a breakpoint got placed.
 A test, might be to use gdb to place a breakpoint at the same place
 as the usdt and see what happens. (Dtrace will assume it belongs
 to it, whilst the process is running).
+
+The script, mkapple, shows that Apple does something a little 
+easier for dtrace generation. They have modified the compiler and/or
+linker to auto generate the .SUNW_dof section without needing to
+directly invoke dtrace to post process the ELF file.

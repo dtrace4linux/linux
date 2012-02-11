@@ -2,7 +2,7 @@ Linux port of DTrace
 
 February 2012
 Paul D. Fox
-fox@crisp.demon.co.uk
+paul.d.fox@gmail.com
 http://www.twitter.com/crispeditor
 http://www.crisp.demon.co.uk
 
@@ -13,71 +13,64 @@ Blog - latest news and stuff about the dtrace project:
 
 Download dtrace tarballs for linux here:
 
-   http://dl.dropbox.com/u/45405441/dtrace-latest.tar.gz
+   https://github.com/dtrace4linux/linux
    ftp://crisp.dynalias.com/pub/release/website/dtrace
+
+My public dropbox, likely out of date:
+
+   http://dl.dropbox.com/u/45405441/dtrace-latest.tar.gz
 
 Introduction
 ============
 
 This is a port of the Sun DTrace user and kernel code to Linux.
-No linux kernel code is touched in this build, but what is produced
-is a dynamically loadable kernel module. This avoids licensing
-issues and allows people to load and update dtrace as they desire.
+No  linux  kernel  code  is  touched in this build, but what is
+produced  is  a dynamically loadable kernel module. This avoids
+licensing issues and allows people to load and update dtrace as
+they desire.
 
-The goal of this project is to ensure dtrace is everywhere - so
-that we can all benefit from faster systems and software,
-better kernels and generally be a good citizen to the user and
-administrators systems.
+The  goal  of  this project is to make available DTrace for the
+Linux  platforms. By making it available for everyone, they can
+use  it  to  optimise their systems and tools, and in return, I
+get to benefit from their work.
 
-If this works for you, great. If not, feel free to feedback
-what/why it doesnt work and we may be able to address the
-issues.
-
-  
 PayPal
 ======
-If you want to make a donation for this software, feel free to do so.
-Nothing is asked of you - it is genuinely free software, but it can
-help guage interest and appreciation if you do.
+If  you want to make a donation for this software, feel free to
+do so. Nothing is asked of you - it is genuinely free software,
+but it can help guage interest and appreciation if you do.
 
-You can pay by visiting the link below and clicking on "Donate", or
-use this reference for donations:
+You  can  pay  by  visiting  the  link  below  and  clicking on
+"Donate", or use this reference for donations:
 
    foxpaypal@crisp.demon.co.uk
 
 Licensing
 =========
 
-The majority (if not all) of this code falls under Sun's CDDL
-license. The original files copyrights are left intact, so
-please honour those as appropriate. Any files without an
-attributed copyright are likely my own invention and can be
-placed under the GPLv3, but this is a mixed-mode project, and
-it is not *my* right to give Dtrace away under GPL.
+The  original  DTrace is licensed under Sun's (now Oracle) CDDL
+license.  Original  copyrights  are left intact. No GPL code is
+incorporated into the release, to avoid legal conflicts.
 
-Any mistakes or omissions in copyright attribution will be my
+Any  mistakes  or omissions in copyright attribution will be my
 mistake, so please let me know if there are such cases.
 
-The linux kernel was referred to in order to engineer the glue
-for dtrace behavior, and there is no intention of making this
-code fall under anything other than CDDL. (If Sun migrate to a
-GPL friendly license, then this port of dtrace can follow). I
-do not own the license or assert any rights on the licensing
+The  linux kernel was referred to in order to engineer the glue
+for  dtrace  behavior, and there is no intention of making this
+code fall under anything other than CDDL. (If Oracle migrate to
+a GPL friendly license, then this port of dtrace can follow). I
+do  not  own  the license or assert any rights on the licensing
 other than that expected of me as a consumer/supplier.
 
-I have no political affiliation or preference for a licensing
-scheme, simply that Sun has gracefully donated to the community
-a large body of work.
+I  have  no political affiliation or preference for a licensing
+scheme,  simply  that  Sun/Oracle has gracefully donated to the
+community a large body of work.
 
-My efforts are simply in glueing pieces together and as such,
-these pieces of work may be considered falling somewhere
-between GPL and CDDL. I reserve the right to change the
-licensing model for my own code at a later date, when and if
-someone puts forward a case as to the correct license
-agreement. I will not and can not ascribe code that does not
-belong to me.
+I  reserve  the  right to change the licensing model for my own
+code  at  a later date, when and if someone puts forward a case
+as to the correct license agreement.
 
-If the code is useful to you - great. Spread it around and get
+If  the code is useful to you - great. Spread it around and get
 people to use, debug and enhance it.
 
 GIT Repository
@@ -138,57 +131,6 @@ files and data structures. Also, from a licensing perspective it
 is not valid for dtrace to touch your sources. It is also much
 easier to not even require kernel sources - so long as 
 a kernel build environment is available.
-
-Miscellaneous
-=============
-
-This is a pre-alpha, work-in-progress port of Sun's DTrace kernel
-debugging tool for Linux. It is not prime-time and much of it
-doesnt compile.
-
-I have taken a variety of approaches to get where I am:
-
-custom include dir: 
-
-	- <linux> for user land tools which front-ends /usr/include and
-	  /usr/include/sys
-	- <sys> for the kernel drivers.
-
-makefiles are incomplete - I use 'makefile' and will clean up Suns
-Makefile and Makefile.targ and other extraneous subdirs to simplify things.
-
-make-me is a temporary script to build the kernel drivers.
-
-No top-level makefile at present. In cmd/dtrace/dtrace is a 64-bit dtrace
-binary built on RedHat FC8. Will remove that and make it buildable.
-
-Kernel drivers assume access to /usr/src/linux -- needs to be fixed.
-kernel drivers dont compile yet. Lots of use of 
-
-	# if defined(sun)
-	...
-	# endif
-
-for bits we wont want (much cribbed from the FreeBSD port).
-
-Some code has
-
-	# if linux
-	...
-	#endif
-
-where its definitely Linux time.
-
-No GPL code in here at present; all CDDL.
-
-'tags' files are CRiSP format cross-reference files. If you dont have
-CRiSP, delete them and build your own !
-
-If you see 'warn' in a makefile, its a tool which color codes gcc
-warnings and errors and makes it easier to read the output. It also
-knows how to hide the exceptionally annoying non-warning output lines
-which are impossible to fix in real life code without a gazillion
-of compiler flags.
 
 INSTALLATION
 ============

@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 05-Feb-2012 1.13 $ 			      */
+/*   $Header: Last edited: 11-Feb-2012 1.14 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -1518,7 +1518,7 @@ static mutex_t par_mutex;
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
 {	par_alloc_t *p;
-return NULL;
+
 	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {

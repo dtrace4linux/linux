@@ -11,6 +11,7 @@ dtracedrv-objs := \
 	ctl.o \
 	cpu_x86.o \
 	cyclic_linux.o \
+	dcpc.o \
 	dis_tables.o \
 	mutex.o \
 	dtrace.o \

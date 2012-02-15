@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 11-Feb-2012 1.14 $ 			      */
+/*   $Header: Last edited: 05-Feb-2012 1.13 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -261,6 +261,8 @@ int	ctf_init(void);
 void	ctf_exit(void);
 int	ctl_init(void);
 void	ctl_exit(void);
+int	dcpc_init(void);
+void	dcpc_exit(void);
 int	dtrace_profile_init(void);
 int	dtrace_profile_fini(void);
 int	fasttrap_init(void);
@@ -1518,7 +1520,7 @@ static mutex_t par_mutex;
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
 {	par_alloc_t *p;
-
+return NULL;
 	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {
@@ -1922,6 +1924,7 @@ syms_write(struct file *file, const char __user *buf,
 
   		dtrace_profile_init();
 		dtrace_prcom_init();
+		dcpc_init();
 		sdt_init();
 		ctl_init();
 		/***********************************************/
@@ -2738,6 +2741,7 @@ static void __exit dtracedrv_exit(void)
 	}
 
 	intr_exit();
+	dcpc_exit();
 	ctl_exit();
 	sdt_exit();
 	dtrace_profile_fini();

@@ -16,7 +16,7 @@
 /*   								      */
 /*   Paul Fox June 2008						      */
 /*   								      */
-/*   $Header: Last edited: 20-Mar-2011 1.3 $ 			      */
+/*   $Header: Last edited: 15-Feb-2012 1.4 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
@@ -111,6 +111,7 @@ static int (*fn_hrtimer_init)(struct hrtimer *timer, clockid_t which_clock,
 static int (*fn_hrtimer_cancel)(struct hrtimer *);
 static int (*fn_hrtimer_start)(struct hrtimer *timer, ktime_t tim,
                          const enum hrtimer_mode mode);
+static u64 (*fn_hrtimer_forward)(struct hrtimer *timer, ktime_t now, ktime_t interval);
 
 #define	TMR_ALIVE       1
 #define	TMR_RUNNING     2
@@ -144,6 +145,7 @@ init_cyclic()
 	fn_hrtimer_init   = get_proc_addr("hrtimer_init");
 	fn_hrtimer_start  = get_proc_addr("hrtimer_start");
 	fn_hrtimer_start  = get_proc_addr("hrtimer_start");
+	fn_hrtimer_forward = get_proc_addr("hrtimer_forward");
 
 	if (fn_hrtimer_start == NULL) {
 		printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
@@ -255,12 +257,8 @@ be_callback(struct hrtimer *ptr)
 	/***********************************************/
 	/*   Get ready for the next timer interval.    */
 	/***********************************************/
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
-# define hrtimer_forward_now(timer, interval) \
-	hrtimer_forward(timer, timer->base->get_time(), interval)
-#endif
-
-	hrtimer_forward_now(ptr, ktime_set(cp->c_sec, cp->c_nsec));
+	fn_hrtimer_forward(ptr, ptr->base->get_time(), 
+		ktime_set(cp->c_sec, cp->c_nsec));
 
 	tasklet_schedule(&cyclic_tasklet);
 	

@@ -13,7 +13,7 @@
 /*   each  statistic,  we  provide  a  probe  which  intercepts  the  */
 /*   increment of that data item.				      */
 /*--------------------------------------------------------------------*/
-/*  $Header: Last edited: 26-Oct-2011 1.1 $ */
+/*  $Header: Last edited: 24-Feb-2012 1.2 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -137,7 +137,7 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(ALLOCSTALL), "vminfo:::allocstall");
 	sdt_add_locator(vm_event_addr(PGROTATED), "vminfo:::pgrotated");
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+#ifdef CONFIG_COMPACTION
 	sdt_add_locator(vm_event_addr(COMPACTBLOCKS), "vminfo:::compactblocks");
 	sdt_add_locator(vm_event_addr(COMPACTPAGES), "vminfo:::compactpages");
 	sdt_add_locator(vm_event_addr(COMPACTPAGEFAILED), "vminfo:::compactpagefailed");

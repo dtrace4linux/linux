@@ -1,3 +1,16 @@
+Fri Feb 24 19:21:39 2012  fox
+
+     686* driver/vminfo.c: Use CONFIG_COMPACTION to avoid compile time errors.
+
+Fri Feb 17 23:43:53 2012  fox
+
+     685* driver/x_call.c, driver/dtrace_linux.c: Changes to workaround
+          issues with accessing the GPL symbol apic.
+
+Thu Feb 16 21:00:48 2012  fox
+
+     684* x_call.c: Make it GPL compliant.
+
 Sat Feb 11 10:25:20 2012  fox
 
      683* driver/dtrace_linux.h: Mark as CDDL driver.

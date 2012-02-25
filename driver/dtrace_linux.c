@@ -281,6 +281,7 @@ void	sdt_exit(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 void	io_prov_init(void);
+void	xcall_init(void);
 //static void print_pte(pte_t *pte, int level);
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
@@ -634,7 +635,7 @@ dtrace_linux_init(void)
 	/*   Let  us  grab  the  panics  if we are in  */
 	/*   debug mode.			       */
 	/***********************************************/
-#if HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER
+#if HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER && 0
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
 #endif
@@ -664,7 +665,7 @@ dtrace_linux_fini(void)
 	/***********************************************/
 	driver_initted = FALSE;
 
-#if HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER
+#if HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER && 0
         if (grab_panic)
                atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
 #endif
@@ -1922,6 +1923,7 @@ syms_write(struct file *file, const char __user *buf,
 		hunt_init();
 		dtrace_linux_init();
 
+		xcall_init();
   		dtrace_profile_init();
 		dtrace_prcom_init();
 		dcpc_init();

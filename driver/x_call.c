@@ -2,7 +2,20 @@
 /*   Code to implement cross-cpu calling for Dtrace.		      */
 /*   Author: Paul D. Fox					      */
 /*   Date: May 2011						      */
+/*   $Header: $							      */
 /**********************************************************************/
+
+/**********************************************************************/
+/*   Bit of madness/strangeness here. If we are not GPL, then "apic"  */
+/*   (symbol)  isnt accessible to us. We dont care, but theres a bug  */
+/*   in  gcc/ld  and  <asm/ipi.h> because of static/inline functions  */
+/*   refer  to "apic" even tho we dont use it. So, we #define it out  */
+/*   of  harms way, and then, to avoid an undefined symbol reference  */
+/*   (which  we  didnt want), we define our own "hello_apic". I told  */
+/*   you it was strange.					      */
+/**********************************************************************/
+
+#define apic hello_apic
 #include <linux/mm.h>
 # undef zone
 # define zone linux_zone
@@ -11,22 +24,13 @@
 #include "dtrace_proto.h"
 
 #include <linux/cpumask.h>
-#include <linux/errno.h>
-#include <linux/miscdevice.h>
-#include <linux/fs.h>
-#include <linux/proc_fs.h>
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/sys.h>
-#include <linux/thread_info.h>
-#include <linux/smp.h>
 #include <asm/smp.h>
-#include <linux/vmalloc.h>
-#include <asm/current.h>
-#include <asm/desc.h>
-#include <asm/hardirq.h>
 #include <asm/ipi.h>
 
+struct apic *hello_apic; /* Define this because apic.h is broken when facing a */
+			/* non-GPL driver. We get an undefined, so define it. */
+			/* We use dynamic lookup instead.		*/
+struct apic *x_apic;
 
 extern void dtrace_sync_func(void);
 int 	in_xcall = -1;
@@ -96,6 +100,21 @@ void dtrace_xcall1(processorid_t cpu, dtrace_xcall_t func, void *arg);
 static void dump_xcalls(void);
 static void send_ipi_interrupt(cpumask_t *mask, int vector);
 void xcall_slave2(void);
+
+/**********************************************************************/
+/*   Called  during driver startup to do one time initialisation, so  */
+/*   we  dont  end  up  doing symbol lookups in potentially critical  */
+/*   probe paths.						      */
+/**********************************************************************/
+void
+xcall_init(void)
+{
+	if ((x_apic = get_proc_addr("apic")) == NULL) {
+		dtrace_linux_panic("init_xcall: cannot locate 'apic'\n");
+		return;
+	}
+	x_apic = *(void **) x_apic;
+}
 
 /**********************************************************************/
 /*   Switch the interface from the orig dtrace_xcall code to the new  */
@@ -531,7 +550,7 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 # elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	send_IPI_mask(*mask, vector);
 # else
-	apic->send_IPI_mask(mask, vector);
+	x_apic->send_IPI_mask(mask, vector);
 # endif
 }
 /**********************************************************************/
@@ -547,7 +566,17 @@ xcall_slave(void)
 
 	smp_mb();
 
-	ack_APIC_irq();
+	/***********************************************/
+	/*   We  want  to  call  ack_APIC_irq, but we  */
+	/*   inline  the expansion because of the GPL  */
+	/*   symbol issue.			       */
+	/*   Once  we  do  this, we can have more IPI  */
+	/*   interrupts arrive (but not until we exit  */
+	/*   the   interrupt  routine  and  re-enable  */
+	/*   interrupts).			       */
+	/***********************************************/
+	x_apic->write(APIC_EOI, 0);
+	//ack_APIC_irq();
 }
 void 
 xcall_slave2(void)

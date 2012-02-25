@@ -6582,31 +6582,13 @@ HERE();
 			/***********************************************/
 			case DTRACEACT_TEST1:
 PRINT_CASE("DTRACEACT_TEST1");
-{static int (*oprofile_start)(void);
-int err;
-if (oprofile_start == NULL)
-	oprofile_start = get_proc_addr("oprofile_start");
-if (oprofile_start) {
-	err = oprofile_start();
-	printk("oprofile_start=%d\n", err);
-} else {
-	printk("no oprofile_start loaded\n");
-}
-}
+val = native_read_pmc(0x79);
+size = sizeof (uint64_t);
+printk("rdpmc(%p)=%p\n", arg0, val);
+				DTRACE_STORE(uint64_t, tomax, offs, val);
 				continue;
 			case DTRACEACT_TEST2:
 PRINT_CASE("DTRACEACT_TEST2");
-{static int (*oprofile_stop)(void);
-int err;
-if (oprofile_stop == NULL)
-	oprofile_stop = get_proc_addr("oprofile_stop");
-if (oprofile_stop) {
-	err = oprofile_stop();
-	printk("oprofile_stop=%d\n", err);
-} else {
-	printk("no oprofile_stop loaded\n");
-}
-}
 				continue;
 #endif
 
@@ -10649,9 +10631,11 @@ PRINT_CASE("DTRACEACT_COMMIT");
 #if linux
 		case DTRACEACT_TEST1:
 PRINT_CASE("DTRACEACT_TEST1");
+			size = sizeof (uint64_t);
 			break;
 		case DTRACEACT_TEST2:
 PRINT_CASE("DTRACEACT_TEST2");
+			size = sizeof (uint64_t);
 			break;
 #endif
 

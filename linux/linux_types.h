@@ -136,7 +136,7 @@ struct modctl;
 	#   define	stack_ptr(regs) &regs->r_rsp
 	#endif
 
-# else /* !__KERNEL */
+# else /* !__KERNEL__ */
 
 	#define	_LARGEFILE_SOURCE	1
 	#define	_LARGEFILE64_SOURCE	1

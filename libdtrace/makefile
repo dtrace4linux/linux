@@ -113,5 +113,5 @@ $(LIB)(dt_isadep.o): i386/dt_isadep.c $(H)
 	ar rv $(LIB) dt_isadep.o
 	-rm -f dt_isadep.o
 clean:
-	-rm -f dt_grammar.h dt_lex.c *.o *.a
+	-rm -f dt_errtags.c dt_names.c dt_grammar.h dt_lex.c *.o *.a
 

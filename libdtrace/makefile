@@ -79,7 +79,7 @@ $(LIB): \
 	$(LIB)(stubs.o)
 
 dt_errtags.c: dt_errtags.h mkerrtags.sh
-	mkerrtags.sh <dt_errtags.h > dt_errtags.c
+	mkerrtags.sh <dt_errtags.h > dt_errtags.c || ( rm dt_errtags.c && exit 1 )
 dt_names.c: mknames.sh
 	mknames.sh <../../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
 

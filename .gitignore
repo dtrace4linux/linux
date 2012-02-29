@@ -1,0 +1,6 @@
+libdtrace/dt_errtags.c
+libdtrace/dt_names.c
+.dtrace.nobug
+build
+build-*/
+*.swp

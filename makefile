@@ -86,7 +86,7 @@ kernel:
 	tools/mkctf.sh
 
 clean:
-	rm -rf build?*
+	rm -rf build?* .dtrace.nobug
 	rm -f usdt/*/*.o
 	rm -f usdt/*/*.so
 	cd libctf ; $(MAKE) clean

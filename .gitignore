@@ -1,0 +1,4 @@
+.dtrace.nobug
+.test.prompt
+build*
+*.swp

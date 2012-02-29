@@ -32,7 +32,6 @@ dtracedrv-objs := \
 	tcp.o \
 	toxic.o \
 	instr_size.o \
-	uncompress.o \
 	vminfo.o \
 	x_call.o
 ifdef BUILD_i386

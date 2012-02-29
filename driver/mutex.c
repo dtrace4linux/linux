@@ -45,11 +45,8 @@ static const int disable_ints;
 void
 dmutex_init(mutex_t *mp)
 {
-static DEFINE_SEMAPHORE(null_sema);
-
 	memset(mp, 0, sizeof *mp);
-	mp->m_sem = null_sema;
-//	sema_init(&mp->m_sem, 1);
+	sema_init(&mp->m_sem, 1);
 	mp->m_initted = TRUE;
 }
 

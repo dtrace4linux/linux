@@ -79,9 +79,9 @@ $(LIB): \
 	$(LIB)(stubs.o)
 
 dt_errtags.c: dt_errtags.h mkerrtags.sh
-	mkerrtags.sh <dt_errtags.h > dt_errtags.c
+	./mkerrtags.sh <dt_errtags.h > dt_errtags.c
 dt_names.c: mknames.sh
-	mknames.sh <../../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
+	./mknames.sh <../../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
 
 $(BINDIR)/dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H) 
 	../tools/yacc.pl -d dt_grammar.y

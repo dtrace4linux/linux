@@ -1,13 +1,6 @@
 
 dtracedrv-objs := \
-	ctf_hash.o \
-	ctf_lookup.o \
-	ctf_mod.o \
-	ctf_open.o \
-	ctf_struct.o \
-	ctf_subr.o \
-	ctf_types.o \
-	ctf_util.o \
+	../libctf.a \
 	ctl.o \
 	cpu_x86.o \
 	cyclic_linux.o \
@@ -39,7 +32,6 @@ dtracedrv-objs := \
 	tcp.o \
 	toxic.o \
 	instr_size.o \
-	uncompress.o \
 	vminfo.o \
 	x_call.o
 ifdef BUILD_i386

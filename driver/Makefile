@@ -1,13 +1,6 @@
 
 dtracedrv-objs := \
-	ctf_hash.o \
-	ctf_lookup.o \
-	ctf_mod.o \
-	ctf_open.o \
-	ctf_struct.o \
-	ctf_subr.o \
-	ctf_types.o \
-	ctf_util.o \
+	../libctf.a \
 	ctl.o \
 	cpu_x86.o \
 	cyclic_linux.o \

@@ -79,9 +79,9 @@ $(LIB): \
 	$(LIB)(stubs.o)
 
 dt_errtags.c: dt_errtags.h mkerrtags.sh
-	mkerrtags.sh <dt_errtags.h > dt_errtags.c || ( rm dt_errtags.c && exit 1 )
+	./mkerrtags.sh <dt_errtags.h > dt_errtags.c || ( rm dt_errtags.c && exit 1 )
 dt_names.c: mknames.sh
-	mknames.sh <../../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
+	./mknames.sh <../uts/common/sys/dtrace.h | sed -e 's/\\n/\n/g' > dt_names.c
 
 $(BINDIR)/dt_grammar.h $(LIB)(dt_grammar.o): dt_grammar.y $(H) 
 	../tools/yacc.pl -d dt_grammar.y
@@ -108,6 +108,11 @@ $(LIB)(dis_tables.o): ../driver/dis_tables.c $(H)
 	$(CC) $(CPPFLAGS) -Ii386 -I../driver -c ../driver/dis_tables.c
 	ar rv $(LIB) dis_tables.o
 	-rm -f dis_tables.o
+$(LIB)(dt_names.o): dt_names.c
+	$(CC) $(CPPFLAGS) -c dt_names.c
+	ar rv $(LIB) dt_names.o
+	-rm -f dt_names.o
+
 $(LIB)(dt_isadep.o): i386/dt_isadep.c $(H)
 	$(CC) $(CPPFLAGS) -Ii386 -I../driver -c i386/dt_isadep.c
 	ar rv $(LIB) dt_isadep.o

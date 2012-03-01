@@ -65,6 +65,10 @@
 
 # define MUTEX_HELD dtrace_mutex_is_locked
 
+# if !defined(DEFINE_SEMAPHORE)
+#   define DEFINE_SEMAPHORE(_m)  DECLARE_MUTEX(_m)
+# endif
+
 #define PRIV_EFFECTIVE          (1 << 0)
 #define PRIV_DTRACE_KERNEL      (1 << 1)
 #define PRIV_DTRACE_PROC        (1 << 2)

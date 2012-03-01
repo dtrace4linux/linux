@@ -1,0 +1,26 @@
+The tools in this directory are designed to help do a 32-bit kernel
+compile on a 64-bit x86 platform.
+
+When building dtrace, life is easier if I can cross-compile
+the driver on a single box (rather than flipping between two
+cpu architectures on different boxes), and at least validate that
+it can compile on my collection of kernels.
+
+It may not work for you - we dont really care, at this stage, about
+the quality of a cross-compiled driver, since the driver needs to be
+built with the same linux/.config options as your target.
+
+We arent in the business of putting out binary distributions (maybe
+at a later date), but thats a support nightmare, and not GPL friendly.
+
+Its possible that some of this does more or more bad things than it needs,
+but this is the hoops I had to go through to get the same errors/warnings
+as my native 32-bit machine was getting.
+
+This is needed when the 
+
+	$ make kernels
+
+target is invoked.
+
+Paul Fox May 2009

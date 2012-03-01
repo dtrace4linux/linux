@@ -1,3 +1,12 @@
+Thu Mar  1 21:52:36 2012  fox
+
+     689* driver/x_call.c: Centos 4.7 change
+
+     688* driver/dtrace.c: Avoid native_read_pmc for now - we dont need it
+          anyway.
+
+     687* driver/mutex.c: Put in workaround for Centos 4.7/Ubuntu 10.x
+
 Fri Feb 24 19:21:39 2012  fox
 
      686* driver/vminfo.c: Use CONFIG_COMPACTION to avoid compile time errors.

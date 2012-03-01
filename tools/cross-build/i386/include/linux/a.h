@@ -1,0 +1,9 @@
+#include <linux/autoconf.h>
+#undef CONFIG_64BIT
+#undef CONFIG_X86_64
+#undef CONFIG_X86_64_SMP
+#define	CONFIG_X86_32_SMP 1
+#define CONFIG_X86_32 1
+#define CONFIG_M386
+#define CONFIG_PAGE_OFFSET 0xC0000000
+#define CONFIG_ARCH_FLATMEM_ENABLE 1

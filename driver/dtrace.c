@@ -6582,7 +6582,7 @@ HERE();
 			/***********************************************/
 			case DTRACEACT_TEST1:
 PRINT_CASE("DTRACEACT_TEST1");
-val = native_read_pmc(0x79);
+val = 0; // val = native_read_pmc(0x79); Avoid kernel version issue.
 size = sizeof (uint64_t);
 printk("rdpmc(%p)=%p\n", arg0, val);
 				DTRACE_STORE(uint64_t, tomax, offs, val);

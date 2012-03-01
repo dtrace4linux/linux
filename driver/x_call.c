@@ -110,7 +110,10 @@ void
 xcall_init(void)
 {
 	if ((x_apic = get_proc_addr("apic")) == NULL) {
-		dtrace_linux_panic("init_xcall: cannot locate 'apic'\n");
+		/***********************************************/
+		/*   This might be a problem. It might not.    */
+		/***********************************************/
+		printk("init_xcall: cannot locate 'apic'\n");
 		return;
 	}
 	x_apic = *(void **) x_apic;
@@ -575,8 +578,11 @@ xcall_slave(void)
 	/*   the   interrupt  routine  and  re-enable  */
 	/*   interrupts).			       */
 	/***********************************************/
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+	ack_APIC_irq();
+# else
 	x_apic->write(APIC_EOI, 0);
-	//ack_APIC_irq();
+# endif
 }
 void 
 xcall_slave2(void)

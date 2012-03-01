@@ -1,0 +1,4 @@
+#! /bin/sh
+args=`echo $* | sed -e 's/elf_x86_64/elf_i386/'`
+#echo ld $* >/tmp/l
+exec ld $args

@@ -1,0 +1,5 @@
+#! /bin/sh
+cross_dir=`dirname $0`
+args=`echo $* | sed -e s/-m64/-m32/g -e "s/ -mcmodel=kernel//" -e "s!-include include/linux/autoconf.h!-include $cross_dir/include/linux/a.h!"`
+#echo gcc -m32 $args > /tmp/o
+exec gcc -m32 -DFORTIFY_SOURCE=0 -D_ILP32=1 -D__i386=1 $args

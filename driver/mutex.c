@@ -45,7 +45,19 @@ static const int disable_ints;
 void
 dmutex_init(mutex_t *mp)
 {
+	/***********************************************/
+	/*   Linux  changed  from MUTEX to SEMAPHORE.  */
+	/*   We  want  a very low cost mutex - mainly  */
+	/*   so  we  can avoid reentrancy issues when  */
+	/*   placing  probes  - we dont do many mutex  */
+	/*   operations,  but  they  do  have to work  */
+	/*   reliably when doing xcalls.	       */
+	/***********************************************/
+#if defined(DEFINE_SEMAPHORE)
 static DEFINE_SEMAPHORE(null_sema);
+#else
+static DECLARE_MUTEX(null_sema);
+#endif
 
 	memset(mp, 0, sizeof *mp);
 	mp->m_sem = null_sema;

@@ -1,3 +1,8 @@
+*.swp
+.first-time
+.test.prompt
+.dtrace.nobug
+doc/lwn
 build*
 tags
 checksum.lst

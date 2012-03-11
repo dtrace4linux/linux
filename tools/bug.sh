@@ -8,7 +8,7 @@ if [ "$BUG_NOBUG" != "" -o -f .dtrace.nobug ]; then
 fi
 
 export BUG_RUNNING=1
-file=/tmp/dtrace-bug.$$
+file=/tmp/dtrace-bug.$$.txt
 cat <<EOF | tee $file
 ======================
 == Sorry - but dtrace failed to compile on your system.

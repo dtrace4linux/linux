@@ -12,6 +12,7 @@
 # 15-Jul-2010 PDF Better parsing for SMP_CALL_FUNCTION_SINGLE_ARGS and SMP_CALL_FUNCTION_ARGS
 # 20-Mar-2011 PDF Add better HAVE_ELF_GETSHDRSTRNDX detection for FC-14.
 # 01-Feb-2012 PDF Handle ebx vs. bx register name for i386
+# 11-Mar-2012 PDF Default HAVE_EBX_REGISTER for <=2.6.21 kernels.
 
 use strict;
 use warnings;
@@ -24,6 +25,7 @@ use POSIX;
 
 my $kern;
 my $kern_src;
+my $build;
 
 my $username = getpwuid(getuid());
 
@@ -45,7 +47,7 @@ sub main
 
 	my $fh;
 	my $fname = "$ENV{BUILD_DIR}/port.h";
-	my $build = $ENV{BUILD_DIR};
+	$build = $ENV{BUILD_DIR};
 	$build =~ s/^build-//;
 	my $inc = "";
 	$kern = "/lib/modules/$build/build";
@@ -246,6 +248,8 @@ sub main
 sub check_bx_vs_ebx
 {
 	my $file;
+
+	return "# define HAVE_EBX_REGISTER 1\n" if $build le "2.6.21";
 
 	$file = "$kern/include/asm-i386/ptrace.h";
 	return "# define HAVE_BX_REGISTER 1\n" if -f $file;

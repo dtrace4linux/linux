@@ -348,6 +348,11 @@ sub have
 sub have_cplus_demangle
 {
 	my $fh = new FileHandle(">/tmp/demangle.c");
+	if (!$fh) {
+		print "Cannot create /tmp/demangle.c - please remove it and try again.\n";
+		print "Error: $!\n";
+		exit(1);
+	}
 	print $fh <<EOF;
 int main(int argc, char **argv)
 {

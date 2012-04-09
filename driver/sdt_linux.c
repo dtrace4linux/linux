@@ -251,14 +251,18 @@ static char buf3[1024];
 	/***********************************************/
 	/*   Problem with older (2.6.9 kernel).	       */
 	/***********************************************/
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
 	if (dentry_path_fn) {
 		mntname = dentry_path_fn(file->f_vfsmnt->mnt_mountpoint, buf3, sizeof buf3);
 	}
+#endif
 
 	finfo.f.fi_dirname = buf2;
 	finfo.f.fi_name = name ? name + 1 : "<none>";
 	finfo.f.fi_pathname = fname ? fname : "<unknown>";
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
 	finfo.f.fi_fs = file->f_vfsmnt->mnt_devname;
+#endif
 	finfo.f.fi_mount = mntname ? mntname : "<unknown>";
 
 	finfo.d.dev_major = -1;
@@ -270,7 +274,9 @@ static char buf3[1024];
 		finfo.d.dev_instance = file->f_mapping->host->i_rdev;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
 	finfo.d.dev_pathname = (char *) file->f_vfsmnt->mnt_devname;
+#endif
 	finfo.d.dev_statname = mntname;
 
 	return &finfo;

@@ -17,6 +17,9 @@ yum install \
 	libgcc.i686 \
 	zlib-devel
 
+# Optional:
+#  openssh-clients
+
 #binutils-devel
 #elfutils-libelf-devel
 #kernel-devel

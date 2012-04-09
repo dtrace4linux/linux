@@ -43,6 +43,7 @@ install_dependencies()
 	sudo apt-get install openssh-server \
    		binutils-dev zlib1g-dev flex bison \
    		elfutils libdwarf-dev libelf-dev libc6-dev libc-dev \
+		zlib1g-dev \
 		linux-libc-dev \
 		$i386_pkgs
 	###############################################

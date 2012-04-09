@@ -12,6 +12,7 @@
 #                 if this is a 64b kernel, because 64b kernel can run
 #                 32b apps.
 # 21-Jun-2011 PDF Changes to better handle asm-i386 and 2.6.18 kernels
+# 08-Apr-2012 PDF Add fix for 3.3 syscalls. (We will need to support ia-32 sometime)
 
 use strict;
 use warnings;
@@ -162,6 +163,18 @@ sub main
 sub get_unistd
 {	my $bits = shift;
 	my $ver = shift;
+
+	###############################################
+	#   Linux 3.3 handling.			      #
+	###############################################
+	if ($bits == 32 &&
+	    -f "/lib/modules/$ver/build/arch/x86/include/generated/asm/unistd_32.h") {
+	    return ("/lib/modules/$ver/build/arch/x86/include/generated/asm/unistd_32.h");
+	}
+	if ($bits == 64 &&
+	    -f "/lib/modules/$ver/build/arch/x86/include/generated/asm/unistd_64.h") {
+	    return ("/lib/modules/$ver/build/arch/x86/include/generated/asm/unistd_64.h");
+	}
 
 	###############################################
 	#   OpenSuse bizarreness.		      #

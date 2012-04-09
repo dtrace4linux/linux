@@ -1,3 +1,7 @@
+Mon Apr  9 16:01:07 2012  fox
+
+     690* driver/sdt_linux.c: Avoid compile errors on 3.3 kernels.
+
 Thu Mar  1 21:52:36 2012  fox
 
      689* driver/x_call.c: Centos 4.7 change

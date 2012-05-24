@@ -15,6 +15,7 @@ cat <<EOF | tee $file
 == Please forward the following file to:
 ==
 == file: $file
+== mail: Crisp.Editor@gmail.com
 == mail: dtrace@crisp.demon.co.uk
 ==
 == and the information provided will be used to help

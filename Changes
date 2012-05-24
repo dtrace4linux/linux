@@ -1,3 +1,14 @@
+Thu May 24 18:57:48 2012  fox
+
+     693* makefile: Dont fail on "make install" if build/linux.ctf not available.
+
+     692* dtrace_linux.c: Make par_alloc/par_free do something - remove the
+          stub, because without this, we dont get probes for modules.
+
+     691* x_call.c: Put in a warning if NCPU is too large - can cause
+          problems at driver load time (Centos 6.2 has NCPU==4096 which 
+          equates to more than 40MB of memory for the xcall array).
+
 Mon Apr  9 16:01:07 2012  fox
 
      690* driver/sdt_linux.c: Avoid compile errors on 3.3 kernels.

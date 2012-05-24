@@ -72,6 +72,9 @@ extern int ipi_vector;
 /**********************************************************************/
 # define XC_IDLE	0	/* Owned by us. */
 # define XC_WORKING     1	/* Waiting for the target cpu to finish. */
+#if NCPU > 128
+#pragma warning "NCPU is large - your module may not load (x_call.c)"
+#endif
 static struct xcalls {
 	dtrace_xcall_t	xc_func;
 	void		*xc_arg;

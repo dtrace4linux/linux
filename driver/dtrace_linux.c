@@ -1511,9 +1511,10 @@ return 0;
 	return 0;
 }
 /**********************************************************************/
-/*   Parallel allocator to avoid touching kernel data structures. We  */
-/*   need  to  make  this  a  hash  table,  and provide free/garbage  */
-/*   collection semantics.					      */
+/*   Parallel  allocator  to  avoid touching kernel data structures.  */
+/*   This  is presently used to create a shadow "struct module" - it  */
+/*   used  to  be  used  for  processes  and  threads,  but  we  use  */
+/*   shadow_procs for this purpose now.				      */
 /**********************************************************************/
 static struct par_alloc_t *hd_par;
 static mutex_t par_mutex;
@@ -1521,7 +1522,17 @@ static mutex_t par_mutex;
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
 {	par_alloc_t *p;
+
+#if 0
+/* Whilst this is NULL, we dont get dynamic module probing.
+We need to redo process par_alloc so we dont need dynamic memory from
+probe context.
+
+Need to FIX!
+*/
 return NULL;
+#endif
+
 	dmutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {
@@ -1569,7 +1580,9 @@ par_free(int domain, void *ptr)
 {	par_alloc_t *p = (par_alloc_t *) ptr;
 	par_alloc_t *p1;
 
+#if 0
 return;
+#endif
 	dmutex_enter(&par_mutex);
 	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;

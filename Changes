@@ -1,5 +1,7 @@
 Fri Jun 29 07:23:53 2012  fox
 
+     696* vminfo.c: Fix for 3.4 kernels.
+
      695* systrace.c: Fix for 3.4 kernels.
 
 Sat Jun  2 22:37:18 2012  fox

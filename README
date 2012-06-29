@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-February 2012
+June 2012
 Paul D. Fox
 paul.d.fox@gmail.com
 http://www.twitter.com/crispeditor
@@ -85,7 +85,12 @@ updated in a long while and is no longer active).
 Installation
 ============
 
-Very simple:
+You may need to grab some extra packages for building DTrace.
+Use either of the following to download extra packages. This
+list may be incomplete depending on the version of your kernel/distro.
+
+	$ tools/get-deps.pl 		# if using Ubuntu
+	$ tools/get-deps-fedora.sh	# RedHat/Fedora
 
 	$ make all
 	$ make install

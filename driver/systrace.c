@@ -55,7 +55,7 @@ Feb 2011
 /**********************************************************************/
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 14-May-2011 1.6 $ 			      */
+/* $Header: Last edited: 29-Jun-2012 1.7 $ 			      */
 
 /**********************************************************************/
 /*   Dont  define this for a 32b kernel. In a 64b kernel, we need to  */
@@ -160,7 +160,12 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
     uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
+
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,4)
+# define linux_get_syscall() get_current()->thread.trap_nr
+#else
 # define linux_get_syscall() get_current()->thread.trap_no
+#endif
 
 MUTEX_DEFINE(slock);
 static int do_slock;

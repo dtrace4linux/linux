@@ -1,3 +1,11 @@
+Fri Jun 29 07:23:53 2012  fox
+
+     695* systrace.c: Fix for 3.4 kernels.
+
+Sat Jun  2 22:37:18 2012  fox
+
+     694* README: Update install instructions to run tools/get-deps.pl
+
 Thu May 24 18:57:48 2012  fox
 
      693* makefile: Dont fail on "make install" if build/linux.ctf not available.

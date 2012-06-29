@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
-# Painless DTrace install for Ubuntu 8.04
+# Script to get packages for building.
 #
 # Author: philippe.hanrigou@gmail.com
 # Date November 2008
 #
 # Dec 2011 Dont download out of date dtrace's. Dont try to build, either.
+# 20120623 Dont load g++-multilib when on ARM.
 
 DISTRIBUTION=dtrace-20081028
 
@@ -25,7 +26,8 @@ install_dependencies()
 	# fc14: libdwarf libdwarf-devel
 	# ubuntu: linux-crashdump
 	i386_pkgs=
-	case `uname -m` in
+	arch=`uname -m`
+	case $arch in
 	  amd64)
 	  	i386_pkgs="libc6-dev-i386"
 		;;
@@ -52,7 +54,13 @@ install_dependencies()
 	#   resolved  when  compiling the syscalls.c  #
 	#   test.				      #
 	###############################################
-	sudo apt-get install g++-multilib
+	case $arch in 
+	  arm*)
+	  	;;
+	  *)
+		sudo apt-get install g++-multilib
+		;;
+	esac
 }
 
 build()

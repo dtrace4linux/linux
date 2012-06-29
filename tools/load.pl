@@ -111,7 +111,9 @@ sub main
 	print time_string() . "Loading: $dtracedrv\n";
 	my $opc_len = $opts{opcodes};
 	$opc_len = 2 if $opts{opcodes2};
-	my $ret = spawn("$SUDO /sbin/insmod $dtracedrv dtrace_here=$opts{here}" .
+	my $insmod = "/sbin/insmod";
+	$insmod = "/usr/bin/insmod" if ! -x $insmod;
+	my $ret = spawn("$SUDO $insmod $dtracedrv dtrace_here=$opts{here}" .
 		" fbt_name_opcodes=$opc_len" .
 		" dtrace_unhandled=$opts{unhandled}" .
 		" dtrace_mem_alloc=$opts{mem_alloc}" .

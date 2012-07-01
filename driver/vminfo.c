@@ -111,7 +111,7 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(PGMAJFAULT), "vminfo:::pgmajfault");
 	sdt_add_locator(vm_event_addr(PGREFILL_NORMAL), "vminfo:::pgrefill");
 	sdt_add_locator(vm_event_addr(PGREFILL_MOVABLE), "vminfo:::pgrefill");
-#  if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 4)
+#  if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 	sdt_add_locator(vm_event_addr(PGSTEAL_NORMAL), "vminfo:::pgsteal");
 	sdt_add_locator(vm_event_addr(PGSTEAL_MOVABLE), "vminfo:::pgsteal");
 	sdt_add_locator(vm_event_addr(KSWAPD_STEAL), "vminfo:::kswapd_steal");

@@ -33,7 +33,7 @@ install_dependencies()
 		;;
 	  *)
 	  	###############################################
-	  	#   Ubuntu  11.10/i386  is  very  boken.  Do  #
+	  	#   Ubuntu  11.10/i386  is  very  broken. Do  #
 	  	#   this.				      #
 	  	###############################################
 		if [ ! -d /usr/include/sys -a -d /usr/include/i386-linux-gnu/sys ]; then

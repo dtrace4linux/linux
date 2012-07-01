@@ -161,7 +161,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,4)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 # define linux_get_syscall() get_current()->thread.trap_nr
 #else
 # define linux_get_syscall() get_current()->thread.trap_no

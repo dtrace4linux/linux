@@ -1,3 +1,8 @@
+Sun Jul  1 16:22:42 2012  fox
+
+     698* driver/dtrace_linux.c: Fix for i386 3.2 and above kernels
+          in page table manipulation.
+
 Fri Jun 29 07:23:53 2012  fox
 
      697* tools/load.pl: ALlow insmod to be in /usr/bin

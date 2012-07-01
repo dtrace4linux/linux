@@ -1304,14 +1304,14 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	/*   Avoid  touching/flushing  page  table if  */
 	/*   this is a no-op.			       */
 	/***********************************************/
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 2, 0) && defined(__i386)
+# if defined(__i386) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 4)
 	perms1 = pmd->pud.pgd.pgd;
 # else
 	perms1 = pmd->pmd;
 # endif
 	if ((perms1 & perms) != perms ||
 	    (pte->pte & (perms | _PAGE_NX)) != perms) {
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 2, 0) && defined(__i386)
+# if defined(__i386) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 4)
 		pmd->pud.pgd.pgd |= perms;
 # else
 		pmd->pmd |= perms;

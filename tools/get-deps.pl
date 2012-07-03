@@ -42,7 +42,7 @@ install_dependencies()
 	  	;;
 	esac
 
-	sudo apt-get install openssh-server \
+	sudo apt-get install "$@" openssh-server \
    		binutils-dev zlib1g-dev flex bison \
    		elfutils libdwarf-dev libelf-dev libc6-dev libc-dev \
 		zlib1g-dev \
@@ -58,7 +58,7 @@ install_dependencies()
 	  arm*)
 	  	;;
 	  *)
-		sudo apt-get install g++-multilib
+		sudo apt-get install "$@" g++-multilib
 		;;
 	esac
 }
@@ -69,6 +69,6 @@ build()
 }
 
 #download
-install_dependencies
+install_dependencies "$@"
 #build
 

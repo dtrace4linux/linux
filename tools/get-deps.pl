@@ -47,6 +47,7 @@ install_dependencies()
    		elfutils libdwarf-dev libelf-dev libc6-dev libc-dev \
 		zlib1g-dev \
 		linux-libc-dev \
+		linux-headers-$(uname -r) \
 		$i386_pkgs
 	###############################################
 	#   Thanks  to Sunny Fugate for pointing out  #

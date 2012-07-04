@@ -1250,16 +1250,30 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 /*   The  list  of ptregs syscalls. Not that clone is different from  */
 /*   the rest.							      */
 /**********************************************************************/
+#if defined(NR_ia32_clone)
 FUNC_IA32(clone, sys32_clone_ptr)
+#endif
+#if defined(NR_ia32_execv)
 FUNC_IA32(execve, sys32_execve_ptr)
+#endif
+#if defined(NR_ia32_fork)
 FUNC_IA32(fork, sys_fork_ptr)
+#endif
+#if defined(NR_ia32_iopl)
 FUNC_IA32(iopl, sys_iopl_ptr)
+#endif
+#if defined(NR_ia32_rt_sigreturn)
 FUNC_IA32(rt_sigreturn, sys_rt_sigreturn_ptr)
+#endif
+#if defined(NR_ia32_sigaltstack)
 FUNC_IA32(sigaltstack, sys_sigaltstack_ptr)
+#endif
 #if defined(NR_ia32_sigreturn)
 FUNC_IA32(sigreturn, sys32_sigreturn_ptr);
 #endif
+#if defined(NR_ia32_vfork)
 FUNC_IA32(vfork, sys_vfork_ptr);
+#endif
 # endif /* defined(__amd64) */
 
 /**********************************************************************/

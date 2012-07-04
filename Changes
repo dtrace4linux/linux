@@ -1,3 +1,7 @@
+Wed Jul  4 16:03:51 2012  fox
+
+     700* systrace.c: Cater for x32 syscalls not being enabled.
+
 Sun Jul  1 16:22:42 2012  fox
 
      699* driver/dtrace_linux.c: Specialise last fix for 3.2/3.3 kernels.

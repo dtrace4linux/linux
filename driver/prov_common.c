@@ -10,7 +10,7 @@
 /*   								      */
 /*   License: CDDL      					      */
 /*   								      */
-/*   $Header: Last edited: 03-Dec-2011 1.12 $ 			      */
+/*   $Header: Last edited: 05-Jul-2012 1.13 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -62,6 +62,7 @@ typedef struct provider {
 	int			p_modrm;
 	dtrace_provider_id_t 	p_provider_id;
 	int			p_want_return;
+	int			(*p_callback)(dtrace_id_t, struct pt_regs *);
 	} provider_t;
 #define MAX_PROVIDER_TBL 1024
 static provider_t map[MAX_PROVIDER_TBL] = {
@@ -807,8 +808,13 @@ prcom_add_instruction(char *probe, uint8_t *instr)
 	probe_cnt++;
 //printk("prcom_add_instruction: %s %p\n", name, instr);
 }
+/**********************************************************************/
+/*   Add  probe  for  a function, but caller is going to do argument  */
+/*   specific   actions   before   we   take   a   real   probe  (eg  */
+/*   tcp_set_state).						      */
+/**********************************************************************/
 void
-prcom_add_function(char *probe, char *func)
+prcom_add_callback(char *probe, char *func, int (*callback)(dtrace_id_t, struct pt_regs *))
 {	uint8_t *addr;
 
 	if (probe_cnt + 1 >= MAX_PROVIDER_TBL) {
@@ -822,8 +828,17 @@ prcom_add_function(char *probe, char *func)
 	}
 	map[probe_cnt].p_probe = probe;
 	map[probe_cnt].p_instr_addr = addr;
+	map[probe_cnt].p_callback = callback;
 	probe_cnt++;
 //printk("prcom_add_instruction: %s %p\n", name, instr);
+}
+/**********************************************************************/
+/*   Add probe for a function. Convert function to address, by name.  */
+/**********************************************************************/
+void
+prcom_add_function(char *probe, char *func)
+{
+	prcom_add_callback(probe, func, NULL);
 }
 /*ARGSUSED*/
 static int
@@ -895,6 +910,16 @@ prcom_invop(uintptr_t addr, uintptr_t *stack, uintptr_t eax, trap_instr_t *tinfo
 
 		stack0 = prcom_getarg(pp, pp->p_id, NULL, 0, 0);
 		stack1 = prcom_getarg(pp, pp->p_id, NULL, 1, 0);
+
+		/***********************************************/
+		/*   Let  callback  have  a go at dispatching  */
+		/*   the probe.				       */
+		/***********************************************/
+		if (pp->p_callback) {
+			int ret = pp->p_callback(pp->p_id, regs);
+			if (ret == 0)
+				continue;
+			}
 
 	//printk("common probe %p: %p %p %p %p %p\n", &addr, stack0, stack1, stack2, stack3, stack4);
 		dtrace_probe(pp->p_id, stack0, stack0, stack0, 0, 0);

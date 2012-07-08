@@ -1,3 +1,16 @@
+Sun Jul  8 16:53:33 2012  fox
+
+     704* dtrace_linux.c: Fix the pmd hacks.
+
+     703* tcp.c: Add the accept and send/receive probes.
+
+Thu Jul  5 22:42:36 2012  fox
+
+     702* tcp.c: Add tcp::connect-established.
+
+     701* prov_common.c: Add prov_add_callback, so we can start handling
+          argument specific callbacks.
+
 Wed Jul  4 16:03:51 2012  fox
 
      700* systrace.c: Cater for x32 syscalls not being enabled.

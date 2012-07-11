@@ -1,4 +1,22 @@
+Wed Jul 11 23:02:16 2012  fox
+
+     709* driver/fasttrap_linux.c: Oops. Forgot to implement the ioctl()
+          interface, so PID provider couldnt get off the ground.
+
+     708* tools/load.pl: Make /dev/fasttrap world read/writable (not sure if
+          this is safe - but fasttrap will do its own perms checkings).
+
+     707* liblinux/proc2.c: Stupid read() call for /proc/%d/exe wrong way around.
+
+Tue Jul 10 23:28:21 2012  fox
+
+     706* liblinux/gmatch.c: Result of match was reversed. Stopped pid
+          provider from kicking in.
+
+
 Sun Jul  8 16:53:33 2012  fox
+
+     705* driver/tcp.c: Add udp:::send and udp:::receive (crude).
 
      704* dtrace_linux.c: Fix the pmd hacks.
 

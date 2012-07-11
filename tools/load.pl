@@ -10,6 +10,7 @@
 # 20090718 PDF Add System.map26 support for Arch linux.
 # 20111014 PDF Read /proc/kallsyms as root to avoid permission issue.
 # 20111028 PDF Add -panic switch so I can maybe figure out why we are dying.
+# 20120711 PDF Make /dev/fasttrap world read/writable.
 
 # Simple script to load the driver and get it ready.
 
@@ -152,6 +153,7 @@ sub main
 
 	mkdev("/dev/dtrace");
 	mkdev("/dev/dtrace_helper");
+	mkdev("/dev/fasttrap");
 	mkdev("/dev/fbt");
 	
 	###############################################

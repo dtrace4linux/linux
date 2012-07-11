@@ -121,7 +121,7 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 	sprintf(buf, "/proc/%d/exe", P->pid);
 	if ((fd = open(buf, O_RDONLY)) >= 0) {
 		pst->pr_dmodel = PR_MODEL_ILP32;
-		read(buf, 6, fd);
+		read(fd, buf, 6);
 		if (buf[4] == 2)
 			pst->pr_dmodel = PR_MODEL_LP64;
 		close(fd);

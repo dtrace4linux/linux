@@ -166,8 +166,8 @@ dt_pid_per_sym(dt_pid_probe_t *pp, const GElf_Sym *symp, const char *func)
 
 		if (off >= symp->st_size) {
 			return (dt_pid_error(dtp, pcb, dpr, ftp, D_PROC_OFF,
-			    "offset 0x%llx outside of function '%s'",
-			    (u_longlong_t)off, func));
+			    "offset 0x%llx outside of function '%s' (size=0x%lx)",
+			    (u_longlong_t)off, func, symp->st_size));
 		}
 
 		err = dt_pid_create_offset_probe(pp->dpp_pr, pp->dpp_dtp, ftp,
@@ -582,6 +582,7 @@ dt_pid_usdt_mapping(void *data, const prmap_t *pmp, const char *oname)
 		/*   By  stubbing  out  this code, "dtrace -n  */
 		/*   simple<pid>:::" works properly.	       */
 		/***********************************************/
+printf("WE WANT HELPER!\n");
 #else
 		if (fd == -1 &&
 		    (fd = pr_open(P, helper_name, O_RDWR, 0)) < 0) {

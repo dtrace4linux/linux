@@ -1,12 +1,13 @@
 /**********************************************************************/
-/*   This file contains much of the glue between the Solaris code in  */
-/*   dtrace.c  and  the linux kernel. We emulate much of the missing  */
-/*   functionality, or map into the kernel.			      */
+/*   Interface   between   Linux   /dev/fasttrap  and  the  code  in  */
+/*   fasttrap.c.  The  ioctl()  interface  is where the PID provider  */
+/*   comes into being.						      */
 /*   								      */
 /*   Date: April 2008						      */
 /*   Author: Paul D. Fox					      */
 /*   								      */
 /*   License: CDDL						      */
+/*   $Header: Last edited: 11-Jul-2012 1.1 $			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -24,6 +25,8 @@ MODULE_AUTHOR("Paul D. Fox");
 MODULE_LICENSE(DRIVER_LICENSE);
 MODULE_DESCRIPTION("DTRACE/FASTTRAP Driver");
 
+int fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
+
 /**********************************************************************/
 /*   Module interface to the kernel.				      */
 /**********************************************************************/
@@ -38,17 +41,38 @@ fasttrap_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 TODO();
 	return -EIO;
 }
-#if 0
 static int 
-fasttrap_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+fasttrap_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+{	int	ret;
+	int	rv = 0;
+
+	ret = fasttrap_ioctl(file, cmd, arg, 0, CRED(), &rv);
+        return ret ? -ret : rv;
+}
+#ifdef HAVE_UNLOCKED_IOCTL
+static long fasttrap_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-TODO();
-	return -EIO;
+	return fasttrap_linux_ioctl(NULL, file, cmd, arg);
+}
+#endif
+
+#ifdef HAVE_COMPAT_IOCTL
+static long fasttrap_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return fasttrap_linux_ioctl(NULL, file, cmd, arg);
 }
 #endif
 static const struct file_operations fasttrap_fops = {
 	.read = fasttrap_read,
-//	.ioctl = fasttrap_ioctl,
+#ifdef HAVE_OLD_IOCTL
+  	.ioctl = fasttrap_linux_ioctl,
+#endif
+#ifdef  HAVE_UNLOCKED_IOCTL
+        .unlocked_ioctl = fasttrap_unlocked_ioctl,
+#endif
+#ifdef HAVE_COMPAT_IOCTL
+        .compat_ioctl = fasttrap_compat_ioctl,
+#endif
 	.open = fasttrap_open,
 };
 

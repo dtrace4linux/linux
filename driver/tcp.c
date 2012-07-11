@@ -78,19 +78,24 @@ tcp_accept_established(dtrace_id_t id, struct pt_regs *regs)
 		}
 	return FALSE;
 }
-/**********************************************************************/
-/*   A packet was received.					      */
-/**********************************************************************/
 static int
 tcp_recv(dtrace_id_t id, struct pt_regs *regs)
 {
 	return 1;
 }
-/**********************************************************************/
-/*   We transmitted a packet.					      */
-/**********************************************************************/
 static int
 tcp_send(dtrace_id_t id, struct pt_regs *regs)
+{
+	return 1;
+}
+
+static int
+udp_recv(dtrace_id_t *id, struct pt_regs *regs)
+{
+	return 1;
+}
+static int
+udp_send(dtrace_id_t *id, struct pt_regs *regs)
 {
 	return 1;
 }
@@ -116,4 +121,11 @@ tcp_init(void)
 	prcom_add_callback("tcp:::send", "tcp_event_data_sent", tcp_send);
 	prcom_add_callback("tcp:::send", "tcp_event_new_data_sent", tcp_send);
 	prcom_add_callback("tcp:::receive", "tcp_event_data_recv", tcp_recv);
+
+	/***********************************************/
+	/*   UDP.				       */
+	/***********************************************/
+	prcom_add_callback("udp:::receive", "udp_queue_rcv_skb", udp_recv);
+	prcom_add_callback("udp:::send", "udp_sendmsg", udp_send);
+
 }

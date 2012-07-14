@@ -1253,7 +1253,7 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 #if defined(NR_ia32_clone)
 FUNC_IA32(clone, sys32_clone_ptr)
 #endif
-#if defined(NR_ia32_execv)
+#if defined(NR_ia32_execve)
 FUNC_IA32(execve, sys32_execve_ptr)
 #endif
 #if defined(NR_ia32_fork)

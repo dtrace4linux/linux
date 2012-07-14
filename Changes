@@ -1,3 +1,7 @@
+Sat Jul 14 08:32:08 2012  fox
+
+     710* driver/systrace.c: Fix typo for ia32_execve.
+
 Wed Jul 11 23:02:16 2012  fox
 
      709* driver/fasttrap_linux.c: Oops. Forgot to implement the ioctl()

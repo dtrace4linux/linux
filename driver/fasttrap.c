@@ -1489,6 +1489,7 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	proc_t *p;
 	cred_t *cred;
 
+printk("%s: here\n", __func__);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 	ASSERT(pattr != NULL);
 
@@ -1756,6 +1757,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	char *name;
 	int i, aframes = 0, whack;
 
+printk("here in fasttrap_add_probe\n");
 	/*
 	 * There needs to be at least one desired trace point.
 	 */
@@ -2233,6 +2235,7 @@ int
 fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 # endif
 {
+printk("%s:%d: here\n", __func__, __LINE__);
 	if (!dtrace_attached())
 		return (EAGAIN);
 
@@ -2244,6 +2247,7 @@ fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *
 		int ret;
 		char *c;
 
+printk("%s:%d: here\n", __func__, __LINE__);
 		if (copyin(&uprobe->ftps_noffs, &noffs,
 		    sizeof (uprobe->ftps_noffs)))
 			return (EFAULT);
@@ -2268,6 +2272,7 @@ fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *
 			return (EFAULT);
 		}
 
+printk("%s:%d: here\n", __func__, __LINE__);
 		/*
 		 * Verify that the function and module strings contain no
 		 * funny characters.

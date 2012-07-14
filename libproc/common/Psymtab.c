@@ -2378,16 +2378,19 @@ sym_by_name_binary(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
 	min = 0;
 	max = symtab->sym_count - 1;
 
+printf("sym: count=%d (looking for '%s')\n", symtab->sym_count, name);
+
 	while (min <= max) {
 		mid = (max + min) / 2;
 
 		i = byname[mid];
 		(void) symtab_getsym(symtab, i, symp);
+//printf("  %s\n", strs+symp->st_name);
 
 		if ((cmp = strcmp(name, strs + symp->st_name)) == 0) {
 			if (idp != NULL)
 				*idp = i;
-printf("sym_by_name_binary: found %s\n", name);
+printf("   => found %s\n", name);
 			return (symp);
 		}
 

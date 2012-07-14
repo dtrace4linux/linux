@@ -1008,7 +1008,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	P->state = PS_RUN;
 	P->pid = pid;
 
-#if defined(linux)
+#if defined(linux) && 0
 	/***********************************************/
 	/*   Dont  stop  or  attach to the proc if we  */
 	/*   are  in  readonly mode (eg a ustack() is  */

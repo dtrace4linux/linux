@@ -1937,7 +1937,6 @@ syms_write(struct file *file, const char __user *buf,
 		/***********************************************/
 		/*   Init any patching code.		       */
 		/***********************************************/
-		hunt_init();
 		dtrace_linux_init();
 
 		xcall_init();

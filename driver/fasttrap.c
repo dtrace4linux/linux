@@ -1661,7 +1661,7 @@ printk("retire: pid=%d name=%s\n", pid, name);
 	}
 
 	if (fp == NULL) {
-printk("didnt find pid\n");
+//printk("didnt find pid\n");
 		dmutex_exit(&bucket->ftb_mtx);
 		return;
 	}

@@ -133,7 +133,8 @@ sub main
 		);
 
 	if ($ret) {
-		my $log = -f "/var/log/messages" ? "/var/log/messages" : "/var/log/kern.log";
+		my $log = -f "/var/log/messages" ? "/var/log/messages" : 
+			-f "/var/log/kern.log" ? "/var/log/kern.log" : "/var/log/kernel.log";
 		print "\n";
 		print "An error was detected loading the driver. Refer to\n";
 		print "$log or 'dmesg' to see what the issue\n";
@@ -358,6 +359,12 @@ EOF
 	}
 	print time_string() . "Time: ", time() - $tstart, "s\n";
 
+	###############################################
+	#   Defer  setting  up  dtrace_ctl  til  the  #
+	#   symtabs are loaded.			      #
+	###############################################
+	mkdev("/dev/dtrace_ctl");
+	
 	###############################################
 	#   For  my  personal benefit - make sure we  #
 	#   have  an upto date symtab when using the  #

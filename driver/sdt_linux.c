@@ -223,7 +223,6 @@ create_buf_t(struct file *file, void *uaddr, size_t len, long long offset)
 static buf_t finfo;
 static char buf[1024];
 static char buf2[1024];
-static char buf3[1024];
 	char *name;
 	char *fname;
 	char *mntname = NULL;
@@ -253,6 +252,7 @@ static char buf3[1024];
 	/***********************************************/
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
 	if (dentry_path_fn) {
+		static char buf3[1024];
 		mntname = dentry_path_fn(file->f_vfsmnt->mnt_mountpoint, buf3, sizeof buf3);
 	}
 #endif

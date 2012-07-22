@@ -950,6 +950,9 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	return (0);
 }
 
+/**********************************************************************/
+/*   Temporary hack.						      */
+/**********************************************************************/
 #undef fasttrap_copyout
 int z = 1;
 int fff(void *a, void *b, int c, int line)
@@ -1500,7 +1503,7 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		/***********************************************/
 		addr = rp->r_pc;
 		addr = rp->r_sp - 256; /* HACK */
-printk("AAAA sp=%p\n", rp->r_sp);
+//printk("AAAA sp=%p\n", rp->r_sp);
 # else
 		klwp_t *lwp = ttolwp(curthread);
 

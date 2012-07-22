@@ -49,6 +49,7 @@
 
 # include <asm/segment.h>
 #include <linux/version.h>
+# include <sys/trap.h>
 
 # define NOTIFY_DONE	0
 

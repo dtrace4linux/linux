@@ -57,6 +57,9 @@ int fbt_name_opcodes;
 module_param(fbt_name_opcodes, int, 0);
 int grab_panic;
 module_param(grab_panic, int, 0);
+char *arg_kallsyms_lookup_name; /* Done as a string, because kernel doesnt */
+				/* like 0xfffffff12345678 as a number. */
+module_param(arg_kallsyms_lookup_name, charp, 0);
 
 extern char dtrace_buf[];
 extern const int log_bufsiz;
@@ -993,8 +996,8 @@ get_proc_addr(char *name)
 static int count;
 
 	if (xkallsyms_lookup_name == NULL) {
-		if (dtrace_here)
-			printk("get_proc_addr: No value for xkallsyms_lookup_name\n");
+		if (1 || dtrace_here)
+			printk("get_proc_addr: No value for xkallsyms_lookup_name (%s)\n", name);
 		return 0;
 		}
 
@@ -2435,6 +2438,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
+	extern unsigned long cnt_0x80;
 	extern unsigned long cnt_gpf1;
 	extern unsigned long cnt_gpf2;
 	extern unsigned long long cnt_int3_1;
@@ -2465,6 +2469,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		LONG_LONG(cnt_int3_1, "int3_1"),
 		LONG_LONG(cnt_int3_2, "int3_2(ours)"),
 		LONG_LONG(cnt_int3_3, "int3_3(reentr)"),
+		LONG_LONG(cnt_0x80, "int_0x80"),
 		LONG_LONG(cnt_gpf1, "gpf1"),
 		LONG_LONG(cnt_gpf2, "gpf2"),
 		{TYPE_LONG, &cnt_ipi1, "ipi1"},
@@ -2645,6 +2650,14 @@ static struct proc_dir_entry *dir;
 		printk("Cannot create /proc/dtrace\n");
 		return -1;
 	}
+
+	/***********************************************/
+	/*   Early bootstrap get_proc_addr(). We pass  */
+	/*   in  a  string  because  the module param  */
+	/*   functions   wont   handle  addresses  or  */
+	/*   values greater than 31-bits (yes, 31).    */
+	/***********************************************/
+	xkallsyms_lookup_name = (unsigned long (*)(char *)) simple_strtoul(arg_kallsyms_lookup_name, NULL, 0);
 
 	/***********************************************/
 	/*   Initialise   the   cpu_list   which  the  */

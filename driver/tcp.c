@@ -34,7 +34,7 @@ tcp_connect_established(dtrace_id_t id, struct pt_regs *regs)
 static int
 tcp_connect_refused(dtrace_id_t id, struct pt_regs *regs)
 {	struct sock *sk = (struct sock *) regs->c_arg0;
-	int	state = regs->c_arg2;
+//	int	state = regs->c_arg2;
 
 //printk("tcp_connect_refused st=%d\n", sk->sk_state);
 	switch (sk->sk_state) {
@@ -90,12 +90,12 @@ tcp_send(dtrace_id_t id, struct pt_regs *regs)
 }
 
 static int
-udp_recv(dtrace_id_t *id, struct pt_regs *regs)
+udp_recv(dtrace_id_t id, struct pt_regs *regs)
 {
 	return 1;
 }
 static int
-udp_send(dtrace_id_t *id, struct pt_regs *regs)
+udp_send(dtrace_id_t id, struct pt_regs *regs)
 {
 	return 1;
 }
@@ -118,8 +118,15 @@ tcp_init(void)
 	prcom_add_callback("tcp:::connect-refused", "tcp_set_state", tcp_connect_refused2);
 
 	prcom_add_callback("tcp:::accept-established", "tcp_set_state", tcp_accept_established);
+	/***********************************************/
+	/*   The  tcp_send  functions  below  changed  */
+	/*   names in the kernel.		       */
+	/***********************************************/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 	prcom_add_callback("tcp:::send", "tcp_event_data_sent", tcp_send);
+# else
 	prcom_add_callback("tcp:::send", "tcp_event_new_data_sent", tcp_send);
+# endif
 	prcom_add_callback("tcp:::receive", "tcp_event_data_recv", tcp_recv);
 
 	/***********************************************/

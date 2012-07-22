@@ -121,6 +121,7 @@
 #include <sys/privregs.h>
 
 # if linux
+#include <taskq.h>
 # undef NULL
 # define NULL 0
 # endif
@@ -577,6 +578,7 @@ static int dtrace_state_option(dtrace_state_t *, dtrace_optid_t,
     dtrace_optval_t);
 static int dtrace_ecb_create_enable(dtrace_probe_t *, void *);
 static void dtrace_helper_provider_destroy(dtrace_helper_provider_t *);
+static void dtrace_enabling_reap(void);
 
 /*
  * DTrace Probe Context Functions
@@ -7904,12 +7906,8 @@ HERE();
 		}
 		if (noreap)
 			RETURN(EBUSY);
-#if linux
-TODO();
-#else
 		(void) taskq_dispatch(dtrace_taskq,
 		    (task_func_t *)dtrace_enabling_reap, NULL, TQ_SLEEP);
-#endif
 
 		RETURN(EAGAIN);
 	}
@@ -12031,6 +12029,8 @@ dtrace_enabling_reap(void)
 	hrtime_t when;
 	int i;
 
+int dtrace_here = 1;
+HERE();
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);
 
@@ -12045,6 +12045,7 @@ dtrace_enabling_reap(void)
 
 		if ((when = prov->dtpv_defunct) == 0)
 			continue;
+HERE();
 
 		/*
 		 * We have ECBs on a defunct provider:  we want to reap these
@@ -12082,12 +12083,15 @@ dtrace_enabling_reap(void)
 			if (state->dts_speculates)
 				break;
 
+HERE();
 			if (!dtrace_buffer_consumed(buf, when))
 				break;
 
+HERE();
 			if (!dtrace_buffer_consumed(aggbuf, when))
 				break;
 
+HERE();
 			dtrace_ecb_disable(ecb);
 			ASSERT(probe->dtpr_ecb != ecb);
 			dtrace_ecb_destroy(ecb);
@@ -15503,12 +15507,8 @@ dtrace_module_loaded(struct notifier_block *nb, unsigned long val, void *data)
 		return NOTIFY_DONE;
 	}
 
-# if linux
-	TODO();
-# else
 	(void) taskq_dispatch(dtrace_taskq,
 	    (task_func_t *)dtrace_enabling_matchall, NULL, TQ_SLEEP);
-# endif
 
 	dmutex_exit(&dtrace_lock);
 
@@ -15825,10 +15825,9 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_minor = vmem_create("dtrace_minor", (void *)DTRACEMNRN_CLONE,
 	    UINT32_MAX - DTRACEMNRN_CLONE, 1, NULL, NULL, NULL, 0,
 	    VM_SLEEP | VMC_IDENTIFIER);
-#if defined(sun)
+
 	dtrace_taskq = taskq_create("dtrace_taskq", 1, maxclsyspri,
 	    1, INT_MAX, 0);
-#endif
 
 	dtrace_state_cache = kmem_cache_create("dtrace_state_cache",
 	    sizeof (dtrace_dstate_percpu_t) * NCPU, DTRACE_STATE_ALIGN,
@@ -17115,9 +17114,7 @@ printk("dtrace_unregister is causing us to fail\n");
 	 * task queue must check that DTrace is still attached before
 	 * performing any operation.
 	 */
-# if defined(sun)
 	taskq_destroy(dtrace_taskq);
-# endif
 	dtrace_taskq = NULL;
 
         return (DDI_SUCCESS);

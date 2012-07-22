@@ -103,6 +103,15 @@ sub main
 		exit(0) if $opts{unload};
 	}
 
+	###############################################
+	#   We  want  get_proc_addr() to run as soon  #
+	#   as  possible,  so  bootstrap  the symbol  #
+	#   finder.				      #
+	###############################################
+	my $kallsyms_lookup_name = `$SUDO grep -w kallsyms_lookup_name /proc/kallsyms`;
+	chomp($kallsyms_lookup_name);
+	$kallsyms_lookup_name =~ s/ .*$//;
+
 	#####################################################################
 	#   Here  goes...we could crash the kernel... We sleep for a bit at
 	#   present  since we need the /dev entries to appear. Chmod 666 so
@@ -119,7 +128,10 @@ sub main
 		" dtrace_unhandled=$opts{unhandled}" .
 		" dtrace_mem_alloc=$opts{mem_alloc}" .
 		" dtrace_printk=$opts{printk}" .
-		" grab_panic=$opts{panic}");
+		" grab_panic=$opts{panic}" .
+		" arg_kallsyms_lookup_name=0x$kallsyms_lookup_name"
+		);
+
 	if ($ret) {
 		my $log = -f "/var/log/messages" ? "/var/log/messages" : "/var/log/kern.log";
 		print "\n";

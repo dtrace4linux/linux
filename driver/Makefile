@@ -36,6 +36,7 @@ dtracedrv-objs := \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \
+	taskq.o \
 	tcp.o \
 	toxic.o \
 	instr_size.o \
@@ -61,6 +62,9 @@ endif
 obj-m := dtracedrv.o
 
 H	= dtrace_linux.h dtrace_proto.h
+EXTRA_AFLAGS += \
+	-I$(M)/../../linux
+
 EXTRA_CFLAGS += -g \
 	-I$(M) \
 	-I$(M)/../.. \

@@ -26,6 +26,7 @@
 #include <asm/tlbflush.h>
 #include <linux/kallsyms.h>
 #include <linux/seq_file.h>
+#include <sys/trap.h>
 
 /**********************************************************************/
 /*   Backwards compat for older kernels.			      */
@@ -72,6 +73,7 @@ void *kernel_int11_handler;
 void *kernel_int13_handler;
 void *kernel_double_fault_handler;
 void *kernel_page_fault_handler;
+void *kernel_int_dtrace_ret_handler;
 int ipi_vector = 0xea-1-16; // very temp hack - need to find a free interrupt
 void (*kernel_nmi_handler)(void);
 
@@ -136,6 +138,7 @@ int dtrace_int13(void);
 int dtrace_page_fault(void);
 int dtrace_int_ipi(void);
 int dtrace_int_nmi(void);
+int dtrace_int_dtrace_ret(void);
 
 /**********************************************************************/
 /*   Update the IDT table for an interrupt. We just set the function  */
@@ -545,6 +548,21 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 	return NOTIFY_DONE;
 }
 /**********************************************************************/
+/*   Handle  T_DTRACE_RET  interrupt  - invoked by the fasttrap (pid  */
+/*   provider) to handle return after handling a user space probe.    */
+/**********************************************************************/
+unsigned long long cnt_0x80;
+
+int 
+dtrace_int_dtrace_ret_handler(int type, struct pt_regs *regs)
+{
+	cnt_0x80++;
+	if (dtrace_user_probe(T_DTRACE_RET, regs, (caddr_t) regs->r_pc, smp_processor_id())) {
+		return NOTIFY_DONE;
+	}
+	return NOTIFY_KERNEL;
+}
+/**********************************************************************/
 /*   Handle  a  page  fault  - if its us being faulted, else we will  */
 /*   pass  on  to  the kernel to handle. We dont care, except we can  */
 /*   have  issues  if  a  fault fires whilst we are trying to single  */
@@ -807,6 +825,7 @@ gate_t saved_int11;
 gate_t saved_int13;
 gate_t saved_page_fault;
 gate_t saved_ipi;
+gate_t saved_int_0x80;
 
 /**********************************************************************/
 /*   Utility  function,  based on lookup_address() in the kernel, to  */
@@ -961,6 +980,7 @@ intr_exit(void)
 	idt_table_ptr[11] = saved_int11;
 	idt_table_ptr[13] = saved_int13;
 	idt_table_ptr[14] = saved_page_fault;
+	idt_table_ptr[T_DTRACE_RET] = saved_int_0x80;
 	if (ipi_vector)
  		idt_table_ptr[ipi_vector] = saved_ipi;
 }
@@ -1143,6 +1163,7 @@ static	struct x86_descriptor desc1;
 	saved_int13 = idt_table_ptr[13];
 	saved_page_fault = idt_table_ptr[14];
 	saved_ipi = idt_table_ptr[ipi_vector];
+	saved_int_0x80 = idt_table_ptr[T_DTRACE_RET];
 
 	/***********************************************/
 	/*   Now overwrite the vectors.		       */
@@ -1160,6 +1181,7 @@ static	struct x86_descriptor desc1;
 	set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
 	set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
 	set_idt_entry(14, (unsigned long) dtrace_page_fault);
+	set_idt_entry(T_DTRACE_RET, (unsigned long) dtrace_int_dtrace_ret);
 
 	/***********************************************/
 	/*   ipi  vector  needed by xcall code if our  */

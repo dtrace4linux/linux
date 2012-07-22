@@ -2148,7 +2148,7 @@ static void *sys_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	if (*pos >= NSYSCALL + NSYSCALL32)
 		return 0;
-	return (void *) ((int) *pos + 1);
+	return (void *) (long) ((int) *pos + 1);
 }
 static void *sys_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {	long	n = (long) v;

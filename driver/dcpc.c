@@ -61,11 +61,11 @@ typedef int boolean_t;
 /*   part of DTrace with a view to fleshing out more in the future.   */
 /**********************************************************************/
 #include <sys/rwlock.h>
-#define cu_enable() 0
-#define cu_disable() 0
+#define cu_enable() do_nothing()
+#define cu_disable() do_nothing()
 #define kcpc_list_events(n) NULL
 #define kcpc_list_attrs() "umask emask"
-#define kcpc_free_set(ptr) 0
+#define kcpc_free_set(ptr) do_nothing()
 #define atomic_cas_8(a, b, c) cmpxchg(a, b, c)
 uint_t cpc_ncounters;
 krwlock_t       kcpc_cpuctx_lock;       /* lock for 'kcpc_cpuctx' below */
@@ -73,11 +73,14 @@ int kcpc_cpuctx;
 #define kcpc_cpu_stop(cpu, flag)
 #define kcpc_configure_reqs(ctx, set, subcode) 0
 #define kcpc_assign_reqs(set, ctx) 0
-#define kcpc_ctx_free(ctx) 0
-#define kcpc_invalidate_all() 0
+#define kcpc_ctx_free(ctx) do_nothing()
+#define kcpc_invalidate_all() do_nothing()
 #define kcpc_ctx_alloc(flag) 0
-#define kcpc_cpu_program(c, ctx) 0
-#define kcpc_free_configs(set) 0
+#define kcpc_cpu_program(c, ctx) do_nothing()
+#define kcpc_free_configs(set) do_nothing()
+
+static void
+do_nothing(void) { }
 
 static char *
 ddi_strdup(const char *str, int flags)
@@ -175,7 +178,7 @@ typedef struct dcpc_probe {
 	int		dcpc_actv_req_idx;	/* idx into dcpc_actv_reqs[] */
 } dcpc_probe_t;
 
-static dev_info_t			*dcpc_devi;
+//static dev_info_t			*dcpc_devi;
 static dtrace_provider_id_t		dcpc_pid;
 static dcpc_probe_t			**dcpc_actv_reqs;
 static uint32_t				dcpc_enablings = 0;
@@ -1313,7 +1316,7 @@ _fini(void)
 static void
 dcpc_attach(void)
 {
-	uint_t caps;
+	uint_t caps = 0;
 	char *attrs;
 
 	dtrace_register("cpc", &dcpc_attr, DTRACE_PRIV_KERNEL,

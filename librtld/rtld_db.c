@@ -166,7 +166,7 @@ rd_new(struct ps_prochandle *php, int pid)
 
 	rap->rd_pid = pid;
 	rap->rd_psp = php;
-printf("rd_new:%s\n", __func__); 
+/*printf("rd_new:%s\n", __func__); */
 	(void) mutex_init(&rap->rd_mutex, USYNC_THREAD, 0);
         if (rd_reset(rap) != RD_OK) {
 		if (rap->rd_helper.rh_dlhandle != NULL) {
@@ -218,7 +218,7 @@ rd_loadobj_iter(rd_agent_t *rap, rl_iter_f *cb, void *client_data)
 
 		addr = strtol(addr_str, NULL, 16);
 
-printf("rd_loadobj_iter: %s %p\n", lib, addr);
+//printf("rd_loadobj_iter: %s %p\n", lib, addr);
 		lobj.rl_base = addr;
 		lobj.rl_nameaddr = lib;
 		ret = cb(&lobj, client_data);

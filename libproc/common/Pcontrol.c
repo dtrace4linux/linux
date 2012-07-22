@@ -100,10 +100,11 @@ Pread_live(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr)
 	// system when running under a debugger. So do this for now.
 	int	ret;
 
-printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
-	if (0&&(ret = ptrace(PTRACE_ATTACH, P->pid, 0, 0)) < 0) {
+//printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
+	if ((ret = ptrace(PTRACE_ATTACH, P->pid, 0, 0)) < 0) {
 		perror("PTRACE_ATTACH");
 	}
+	waitpid(P->pid, NULL, 0);
 # if defined(__i386)
 	/***********************************************/
 	/*   Avoid  sign-extension  issues in top 2GB  */
@@ -116,7 +117,7 @@ printf("pread: pid=%d addr=%p len=%d\n", P->pid, addr, n);
 	if (ret < 0) {
 		printf("Pread_live: pid=%d, read=%d err=%s\n", P->pid, ret, strerror(errno));
 	}
-	if (0&&ptrace(PTRACE_DETACH, P->pid, 0, 0) < 0) {
+	if (ptrace(PTRACE_DETACH, P->pid, 0, 0) < 0) {
 		perror("Pread_live: PTRACE_DETACH");
 	}
 	return ret;

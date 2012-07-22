@@ -374,7 +374,7 @@ tp->ct_tinfo.t_opcode,
 
 /**********************************************************************/
 /*   Fix instructions which do %RIP relative addressing, such as MOV  */
-/*   or  JMP,  since  oour  instruction  trap buffer is in the wrong  */
+/*   or  JMP,  since  our  instruction  trap  buffer is in the wrong  */
 /*   place.							      */
 /**********************************************************************/
 static void

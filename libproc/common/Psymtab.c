@@ -462,9 +462,12 @@ Pupdate_maps(struct ps_prochandle *P)
 
 	Preadauxvec(P);
 
-printf("in Pupdate_maps (check for 64b maps!)\n");
-printf("in Pupdate_maps (check: pr_mapname is big enough PRMAPSZ=%d)\n", PRMAPSZ);
 # if linux
+	if (_libproc_debug) {
+		printf("in Pupdate_maps (check for 64b maps!)\n");
+		printf("in Pupdate_maps (check: pr_mapname is big enough PRMAPSZ=%d)\n", PRMAPSZ);
+	}
+
 	FILE *fp;
 	char	buf[BUFSIZ];
 	(void) snprintf(mapfile, sizeof (mapfile), "%s/%d/maps",
@@ -928,9 +931,11 @@ Preadauxvec(struct ps_prochandle *P)
 		return;
 	}
 	naux /= sizeof(auxv_t);
+/*
 {int i; 
 for (i = 0; i < naux; i++) {printf("aux[%d]: type=%d\n", i, P->auxv[i].a_type);}
 }
+*/
 	P->auxv[naux].a_type = AT_NULL;
 	P->auxv[naux].a_un.a_val = 0L;
 	P->nauxv = (int)naux;
@@ -1715,7 +1720,8 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 	 * name. If anything goes wrong try to fake up an elf file from
 	 * the in-core elf image.
 	 */
-printf("Build symtab %s\n", objectfile);
+	if (_libproc_debug)
+		printf("Build symtab %s\n", objectfile);
 	if ((fptr->file_fd = open(objectfile, O_RDONLY)) < 0) {
 		p_dprintf("Pbuild_file_symtab: failed to open %s: %s\n",
 		    objectfile, strerror(errno));
@@ -1826,7 +1832,7 @@ printf("%s(%d): fix me!\n", __func__, __LINE__);
 		}
 
 		cp->c_name = (const char *)shdata->d_buf + cp->c_shdr.sh_name;
-printf("found section %s\n", cp->c_name);
+//printf("found section %s\n", cp->c_name);
 	}
 
 	/*
@@ -1947,7 +1953,9 @@ printf("found section %s\n", cp->c_name);
 		fptr->file_dyn_base = fptr->file_lo->rl_base;
 	}
 
-printf("plt at %p\n", plt);
+	if (_libproc_debug)
+		printf("plt at %p\n", plt);
+
 	/*
 	 * Fill in the PLT information for this file if a PLT symbol is found.
 	 */
@@ -2378,7 +2386,8 @@ sym_by_name_binary(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
 	min = 0;
 	max = symtab->sym_count - 1;
 
-printf("sym: count=%d (looking for '%s')\n", symtab->sym_count, name);
+	if (_libproc_debug)
+		printf("sym: count=%d (looking for '%s')\n", symtab->sym_count, name);
 
 	while (min <= max) {
 		mid = (max + min) / 2;
@@ -2390,7 +2399,8 @@ printf("sym: count=%d (looking for '%s')\n", symtab->sym_count, name);
 		if ((cmp = strcmp(name, strs + symp->st_name)) == 0) {
 			if (idp != NULL)
 				*idp = i;
-printf("   => found %s\n", name);
+			if (_libproc_debug)
+				printf("   => found %s\n", name);
 			return (symp);
 		}
 
@@ -2400,7 +2410,8 @@ printf("   => found %s\n", name);
 			min = mid + 1;
 	}
 
-printf("sym_by_name_binary: NOT found %s\n", name);
+	if (_libproc_debug)
+		printf("sym_by_name_binary: NOT found %s\n", name);
 	return (NULL);
 }
 
@@ -2581,7 +2592,8 @@ Pxlookup_by_name(
 		    lmid != fptr->file_lo->rl_lmident)
 			continue;
 
-printf("Pxlookup_by_name '%s' %s %p %p\n", sname, oname, fptr->file_symtab.sym_data_pri, fptr->file_dynsym.sym_data_pri);
+		if (_libproc_debug)
+			printf("Pxlookup_by_name '%s' %s %p %p\n", sname, oname, fptr->file_symtab.sym_data_pri, fptr->file_dynsym.sym_data_pri);
 		if (fptr->file_symtab.sym_data_pri != NULL &&
 		    sym_by_name(&fptr->file_symtab, sname, symp, &id)) {
 			if (sip != NULL) {

@@ -47,6 +47,11 @@
 #endif
 #include <linux/module.h>
 
+/*
+#undef HERE
+#define HERE()	{printk("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);}
+*/
+
 // Temporary definitions so we can compile.
 proc_t *
 sprlock(int pid)
@@ -91,27 +96,6 @@ static void swap_func(void *p1, void *p2, int size)
 
 MUTEX_DEFINE(pidlock);
 
-timeout_id_t
-timeout(void (*func)(void *), void *arg, unsigned long ticks)
-{	struct timer_list *tp = kzalloc(sizeof *tp, GFP_KERNEL);
-
-	TODO();
-	init_timer(tp);
-	tp->expires = jiffies + ticks;
-	tp->function = (void (*)(unsigned long)) func;
-	tp->data = (unsigned long) arg;
-printk("timeout: %p ticks=%ld func=%p arg=%p\n", tp, ticks, func, arg);
-
-	add_timer(tp);
-	return (timeout_id_t) tp;
-}
-void
-untimeout(timeout_id_t id)
-{	struct timer_list *tp = (struct timer_list *) id;
-
-printk("untimeout: %p\n", tp);
-	del_timer(tp);
-}
 void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
 void (*dtrace_fasttrap_exec_ptr)(proc_t *);
 void (*dtrace_fasttrap_exit_ptr)(proc_t *);
@@ -358,6 +342,7 @@ HERE();
 		aston(t);
 # else
 	TODO();
+	send_sig(SIGTRAP, p->p_task, 0);
 # endif
 }
 
@@ -514,6 +499,7 @@ HERE();
 static void
 fasttrap_pid_cleanup(void)
 {
+HERE();
 	dmutex_enter(&fasttrap_cleanup_mtx);
 	fasttrap_cleanup_work = 1;
 	if (fasttrap_timeout == 0)
@@ -601,7 +587,7 @@ fasttrap_exec_exit(proc_t *p)
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
 	dmutex_exit(&p->p_lock);
-HERE();
+printk("fasttrap_exec_exit: pid=%d\n", p->p_pid);
 
 	/*
 	 * We clean up the pid provider for this process here; user-land
@@ -610,7 +596,6 @@ HERE();
 	fasttrap_provider_retire(p->p_pid, FASTTRAP_PID_NAME, 0);
 
 	dmutex_enter(&p->p_lock);
-HERE();
 }
 
 
@@ -665,7 +650,6 @@ HERE();
 	 * defunct.
 	 */
 again:
-printk("again...\n");
 	dmutex_enter(&bucket->ftb_mtx);
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		/*
@@ -1422,7 +1406,6 @@ fasttrap_proc_release(fasttrap_proc_t *proc)
 
 HERE();
 	dmutex_enter(&proc->ftpc_mtx);
-HERE();
 
 	ASSERT(proc->ftpc_rcount != 0);
 	ASSERT(proc->ftpc_acount <= proc->ftpc_rcount);
@@ -1444,7 +1427,6 @@ HERE();
 
 	bucket = &fasttrap_procs.fth_table[FASTTRAP_PROCS_INDEX(pid)];
 	dmutex_enter(&bucket->ftb_mtx);
-HERE();
 
 	fprcp = (fasttrap_proc_t **)&bucket->ftb_data;
 	while ((fprc = *fprcp) != NULL) {
@@ -1462,9 +1444,7 @@ HERE();
 	 */
 	ASSERT(fprc != NULL);
 
-HERE();
 	*fprcp = fprc->ftpc_next;
-HERE();
 
 	dmutex_exit(&bucket->ftb_mtx);
 HERE();
@@ -1668,8 +1648,7 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
 
-//int dtrace_here = 1;
-//printk("retire: pid=%d name=%s\n", pid, name);
+printk("retire: pid=%d name=%s\n", pid, name);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
@@ -1682,7 +1661,7 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	}
 
 	if (fp == NULL) {
-//printk("didnt find pid\n");
+printk("didnt find pid\n");
 		dmutex_exit(&bucket->ftb_mtx);
 		return;
 	}
@@ -1954,6 +1933,10 @@ static void fasttrap_seq_stop(struct seq_file *seq, void *v)
 {
 //printk("%s v=%p\n", __func__, v);
 }
+/**********************************************************************/
+/*   We need to dump the info for each row of the device. We want to  */
+/*   see the tpoints, procs, and provs tables.			      */
+/**********************************************************************/
 static int fasttrap_seq_show(struct seq_file *seq, void *v)
 {
 	int	i;
@@ -1962,31 +1945,74 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 
 //printk("%s v=%p\n", __func__, v);
 	if (n == 1) {
-		seq_printf(seq, "# PID VirtAddr\n");
+		/***********************************************/
+		/*   Typically:				       */
+		/*   tpoints=1024 procs=256 provs=256	       */
+		/***********************************************/
+		seq_printf(seq, "tpoints=%lu procs=%lu provs=%lu total=%u\n# PID VirtAddr\n",
+			fasttrap_tpoints.fth_nent,
+			fasttrap_procs.fth_nent,
+			fasttrap_provs.fth_nent,
+			fasttrap_total);
 		return 0;
 	}
-	if (n > fasttrap_total)
+/*	if (n > fasttrap_total + 1000)
 		return 0;
-
+*/
 	/***********************************************/
 	/*   Find  first  probe.  This  is incredibly  */
 	/*   slow  and  inefficient, but we dont want  */
 	/*   to waste memory keeping a list (an extra  */
 	/*   ptr for each probe).		       */
 	/***********************************************/
-	target = n;
+	target = n-2;
 	for (i = 0; i < fasttrap_tpoints.fth_nent; i++) {
 		fasttrap_tracepoint_t *tp;
 		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 			if (--target < 0) {
-				seq_printf(seq, "%d %p\n",
+				seq_printf(seq, "TRCP %d %p\n",
 					(int) tp->ftt_pid,
 					(void *) tp->ftt_pc);
 				return 0;
 				}
 		}
 	}
+	for (i = 0; i < fasttrap_provs.fth_nent; i++) {
+		fasttrap_provider_t *fpp;
+		fasttrap_bucket_t *bucket = &fasttrap_provs.fth_table[i];
+		for (fpp = bucket->ftb_data; fpp != NULL; fpp = fpp->ftp_next) {
+			if (--target < 0) {
+				seq_printf(seq, "PROV %d %s %d %d %llu %llu %llu\n",
+					(int) fpp->ftp_pid,
+					fpp->ftp_name,
+					fpp->ftp_marked,
+					fpp->ftp_retired,
+					fpp->ftp_rcount,
+					fpp->ftp_ccount,
+					fpp->ftp_mcount);
+				return 0;
+				}
+		}
+	}
+	for (i = 0; i < fasttrap_procs.fth_nent; i++) {
+		fasttrap_proc_t *ftp;
+		fasttrap_bucket_t *bucket = &fasttrap_procs.fth_table[i];
+		for (ftp = bucket->ftb_data; ftp != NULL; ftp = ftp->ftpc_next) {
+			if (--target < 0) {
+				seq_printf(seq, "PROC %d %llu %llu\n",
+					(int) ftp->ftpc_pid,
+					ftp->ftpc_acount,
+					ftp->ftpc_rcount);
+				return 0;
+				}
+		}
+	}
+
+	/***********************************************/
+	/*   If we get here, we didnt print anything.  */
+	/*   Kernel knows we are done at this point.   */
+	/***********************************************/
 	return 0;
 }
 static struct seq_operations seq_ops = {

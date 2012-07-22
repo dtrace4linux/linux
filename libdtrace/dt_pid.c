@@ -261,6 +261,16 @@ dt_pid_per_mod(void *arg, const prmap_t *pmp, const char *obj)
 	else
 		pp->dpp_obj++;
 
+#if linux
+	/***********************************************/
+	/*   We  arent  going to find .stret[1-4], so  */
+	/*   dont try looking.			       */
+	/***********************************************/
+	pp->dpp_stret[0] = 0;
+	pp->dpp_stret[1] = 0;
+	pp->dpp_stret[2] = 0;
+	pp->dpp_stret[3] = 0;
+#else
 	if (Pxlookup_by_name(pp->dpp_pr, pp->dpp_lmid, obj, ".stret1", &sym,
 	    NULL) == 0)
 		pp->dpp_stret[0] = sym.st_value;
@@ -288,6 +298,7 @@ dt_pid_per_mod(void *arg, const prmap_t *pmp, const char *obj)
 	dt_dprintf("%s stret %llx %llx %llx %llx\n", obj,
 	    (u_longlong_t)pp->dpp_stret[0], (u_longlong_t)pp->dpp_stret[1],
 	    (u_longlong_t)pp->dpp_stret[2], (u_longlong_t)pp->dpp_stret[3]);
+#endif
 
 	/*
 	 * If pp->dpp_func contains any globbing meta-characters, we need

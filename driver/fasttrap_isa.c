@@ -950,6 +950,17 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	return (0);
 }
 
+#undef fasttrap_copyout
+int z = 1;
+int fff(void *a, void *b, int c, int line)
+{
+	if (z)
+		printk("copyout: line %d %p %p c=%d %d\n", line, a, b, c, preempt_count());
+	int ret = memcpy(b, a, c);
+	return 0;
+}
+#define	fasttrap_copyout(a,b, c) fff(a, b, c, __LINE__)
+
 int
 fasttrap_pid_probe(struct regs *rp)
 {
@@ -1478,7 +1489,19 @@ PRINT_CASE(FASTTRAP_T_CALL);
 		uint_t i = 0;
 PRINT_CASE(FASTTRAP_T_COMMON);
 		TODO();
-# if defined(TODOxxx)
+# if linux
+		/***********************************************/
+		/*   addr  is  where  we  store  the  scratch  */
+		/*   instruction in *USER* space.	       */
+		/*   DTrace  is  weird  -  it  snapshots  the  */
+		/*   instruction  when  the  probe is placed,  */
+		/*   but  reinterprets what to do on each hit  */
+		/*   of the trap.			       */
+		/***********************************************/
+		addr = rp->r_pc;
+		addr = rp->r_sp - 256; /* HACK */
+printk("AAAA sp=%p\n", rp->r_sp);
+# else
 		klwp_t *lwp = ttolwp(curthread);
 
 		/*
@@ -1499,7 +1522,7 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		addr = USEGD_GETBASE(&lwp->lwp_pcb.pcb_gsdesc);
 		addr += sizeof (void *);
 #endif
-# endif /* defined(TODOxxx) */
+# endif /* linux */
 
 		/*
 		 * Generic Instruction Tracing

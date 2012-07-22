@@ -1,4 +1,24 @@
+Sun Jul 22 17:30:38 2012  fox
+
+     715* Various: Tidied up some compiler warnings.
+
+     714* taskq.c, taskq.h, dtrace_linux.c, dtrace.c, fasttrap.c, 
+          Fix the PID provider. It may not be perfect and needs lots of 
+	  testing, but some basic stuff works. Added the taskq_create()
+	  and timeout functions to aid in probe garbage collection.
+
+Fri Jul 20 00:15:04 2012  fox
+
+     713* tools/get-deps-fedora.sh: Add in 'make'.
+
 Sat Jul 14 08:32:08 2012  fox
+
+     712* fasttrap_isa.c: FASTTRAP_T_COMMON: Setup addr for the
+          trapped instruction. (Previously, we had a TODO() item)
+
+     711* Pcontrol.c: Pread_live: do ptrace(PTRACE_ATTACH)/waitpid to
+          read someone elses memory, even if we are root. Seems to
+	  make pid provider work *much* better.
 
      710* driver/systrace.c: Fix typo for ia32_execve.
 

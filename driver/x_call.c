@@ -27,10 +27,17 @@
 #include <asm/smp.h>
 #include <asm/ipi.h>
 
-struct apic *hello_apic; /* Define this because apic.h is broken when facing a */
+
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
+typedef struct apic_ops apic_t;
+#else
+typedef struct apic apic_t;
+#endif
+
+apic_t *hello_apic; /* Define this because apic.h is broken when facing a */
 			/* non-GPL driver. We get an undefined, so define it. */
 			/* We use dynamic lookup instead.		*/
-struct apic *x_apic;
+apic_t *x_apic;
 
 extern void dtrace_sync_func(void);
 int 	in_xcall = -1;
@@ -112,7 +119,8 @@ void xcall_slave2(void);
 void
 xcall_init(void)
 {
-	if ((x_apic = get_proc_addr("apic")) == NULL) {
+	if ((x_apic = get_proc_addr("apic")) == NULL &&
+	    (x_apic = get_proc_addr("apic_ops")) == NULL) {
 		/***********************************************/
 		/*   This might be a problem. It might not.    */
 		/***********************************************/
@@ -552,7 +560,16 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 	if (send_IPI_mask == NULL) dtrace_printf("HELP ON send_ipi_interrupt!\n"); else
 	        send_IPI_mask(*mask, vector);
 # elif LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 28)
-	send_IPI_mask_sequence(*mask, vector);
+	/***********************************************/
+	/*   Issue with GPL/inlined function.	       */
+	/***********************************************/
+	{
+	void send_IPI_mask_sequence(cpumask_t mask, int vector);
+	static void (*send_IPI_mask_sequence_ptr)(cpumask_t, int);
+	if (send_IPI_mask_sequence_ptr == NULL)
+		send_IPI_mask_sequence_ptr = get_proc_addr("send_IPI_mask_sequence");
+	send_IPI_mask_sequence_ptr(*mask, vector);
+	}
 # elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	send_IPI_mask(*mask, vector);
 # else
@@ -581,11 +598,23 @@ xcall_slave(void)
 	/*   the   interrupt  routine  and  re-enable  */
 	/*   interrupts).			       */
 	/***********************************************/
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+
+	/***********************************************/
+	/*   Go  direct to the assembler instruction.  */
+	/*   The APIC interface changed too much over  */
+	/*   the  course  of  Linux kernel evolution,  */
+	/*   and some bits became GPL. There may be a  */
+	/*   price  on non-standard APIC hardware, or  */
+	/*   paravirt kernels, but this seems to work  */
+	/*   for now.				       */
+	/***********************************************/
+	native_apic_mem_write(APIC_EOI, 0);
+/*# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	ack_APIC_irq();
 # else
 	x_apic->write(APIC_EOI, 0);
 # endif
+*/
 }
 void 
 xcall_slave2(void)

@@ -1002,7 +1002,7 @@ static void *instr_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	if (*pos > num_probes)
 		return 0;
-	return (void *) (*pos + 1);
+	return (void *) (long) (*pos + 1);
 }
 static void *instr_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {	long	n = (long) v;

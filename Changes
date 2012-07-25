@@ -1,3 +1,20 @@
+Wed Jul 25 23:19:13 2012  fox
+
+     720* driver/taskq.c: Dont GPF if on older kernel and cannot find
+          __alloc_workqueue_key_ptr. Works on Ubuntu 8 (2.6.28)
+
+     719* driver/x_call.c: Fix up some portability issues. Getting difficult
+          to ensure this works on all kernels, so having to be more
+	  draconian.
+
+Tue Jul 24 22:45:32 2012  fox
+
+     718* driver/x_call.c: GPL fix for 2.6.28 (Ubuntu 8/32) kernel.
+
+Mon Jul 23 23:32:39 2012  fox
+
+     717* driver/x_call.c: Fix compile issue for 2.6.28 kernel (Ubuntu 8)
+
 Sun Jul 22 17:30:38 2012  fox
 
      716* Archive: 1.0139

@@ -44,6 +44,22 @@
 //typedef struct taskq taskq_t;
 
 /**********************************************************************/
+/*   Kernels >= 2.6.37 changed the interface. Work around GPL issue.  */
+/**********************************************************************/
+# if !defined(WR_MEM_RECLAIM) /* Introduced in 2.6.37 */
+struct workqueue_struct *
+__create_workqueue_key(const char *name, int singlethread,
+                       int freezeable, int rt, struct lock_class_key *key,
+                       const char *lock_name)
+{	static void *(*func)(const char *name, int singlethread,
+                       int freezeable, int rt, struct lock_class_key *key,
+                       const char *lock_name);
+	if (func == NULL)
+		func = get_proc_addr("__create_workqueue_key");
+	return func(name, singlethread, freezeable, rt, key, lock_name);
+}
+# endif
+/**********************************************************************/
 /*   Work  queue  data structure, used by dtrace.c for dtrace_taskq,  */
 /*   and for timeout() implementation.				      */
 /**********************************************************************/
@@ -130,13 +146,27 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 {	taskq_t *tq;
 
 	if (__alloc_workqueue_key_ptr == NULL) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 		__alloc_workqueue_key_ptr = get_proc_addr("__alloc_workqueue_key");
+		printk("__alloc_workqueue_key_ptr=%p\n", __alloc_workqueue_key_ptr);
+		/***********************************************/
+		/*   If,  for  some reason, we cannot get the  */
+		/*   pointers,  dont let us do anything. This  */
+		/*   will  stop  fasttrap/pid  provider  from  */
+		/*   working  properly  (garbage collection),  */
+		/*   but at least dtrace will load.	       */
+		/***********************************************/
+		if (__alloc_workqueue_key_ptr == NULL) {
+			printk("taskq_create failed because of lack of pointers\n");
+			taskq_enabled = FALSE;
+			return 0;
+			}
+#endif
 		queue_delayed_work_ptr = get_proc_addr("queue_delayed_work");
 		destroy_workqueue_ptr = get_proc_addr("destroy_workqueue");
 		flush_workqueue_ptr = get_proc_addr("flush_workqueue");
 		lockdep_init_map_ptr = get_proc_addr("lockdep_init_map");
 
-		printk("__alloc_workqueue_key_ptr=%p\n", __alloc_workqueue_key_ptr);
 		printk("queue_delayed_work_ptr=%p\n", queue_delayed_work_ptr);
 		printk("destroy_workqueue_ptr=%p\n", destroy_workqueue_ptr);
 		printk("flush_workqueue_ptr=%p\n", flush_workqueue_ptr);
@@ -149,18 +179,6 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 #endif
 	}
 
-	/***********************************************/
-	/*   If,  for  some reason, we cannot get the  */
-	/*   pointers,  dont let us do anything. This  */
-	/*   will  stop  fasttrap/pid  provider  from  */
-	/*   working  properly  (garbage collection),  */
-	/*   but at least dtrace will load.	       */
-	/***********************************************/
-	if (__alloc_workqueue_key_ptr == NULL) {
-		printk("taskq_create failed because of lack of pointers\n");
-		taskq_enabled = FALSE;
-		return 0;
-		}
 
 	tq = (taskq_t *) create_workqueue(name);
 	global_tq = tq;
@@ -219,6 +237,10 @@ printk("timeout(%p, %lu)\n", func, ticks);
 	id++;
 
 	wp = (my_work_t *) taskq_dispatch2(global_tq, func, arg, 0, ticks);
+	if (wp == NULL) {
+		printk("timeout: couldnt allocate my_work_t (taskq_enabled=%d)\n", taskq_enabled);
+		return 0;
+	}
 	wp->t_id = (timeout_id_t) id;
 	wp->t_next = callo;
 	callo = wp;

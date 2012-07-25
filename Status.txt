@@ -10,10 +10,10 @@ I will attempt to keep this succinct and update periodically.
 
 Working Features
 
-  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 10.xx (32-bit and 64-bit).
+  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 12.xx (32-bit and 64-bit).
     Not every kernel version tested, but should build on at least 2.6.12
     onwards.
-  o Tested up to 2.6.37 kernels, but not proven/tested under later kernels.
+  o Tested up to 3.4 kernels, but not proven/tested under later kernels.
   o FBT Provider: fully functional, except argument types are not presently
     supported. You can access arg0, arg1, ... as values or pointers but
     no type info to support structure accessing. Should be safe to probe
@@ -45,13 +45,14 @@ Partially Working / Not yet quality controlled:
     kernel lacks the .SUNW_ctf symbol table needed by dtrace to allow
     D scripts to use struct/union pointers to view data structures.
     This is currently work in progress to provide an alternate mechanism.
+  o PID provider: works in some scenarios. Tested 64b binary on 64b
+    kernel (see tests/fbt1.c) and 32b on 32b kernel. 
+    Doesnt work if process is a background proc. 
+    Not verified 32b on 64b kernel.
+    "dtrace -c cmd" doesnt yet work
 
 Not really working / not yet implemented
 
-  o PID provider: can trace specific pids, but the process control
-    leverages disruptive ptrace() syscall and if dtrace is killed, the
-    target process may be left in a STOPPed state. (Not good for system
-    daemons, e.g. if a bug strikes or session abruptly disconnected)
   o Java, Python, Ruby, etc: No attempt to test the other languages in
     a USDT context. For non-java, it should be possible to build
     instrumented apps (drti.o is provided to link with). I havent

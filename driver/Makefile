@@ -13,7 +13,6 @@ dtracedrv-objs := \
 	cyclic_linux.o \
 	dcpc.o \
 	dis_tables.o \
-	mutex.o \
 	dtrace.o \
 	dtrace_asm.o \
 	dtrace_isa.o \
@@ -25,11 +24,13 @@ dtracedrv-objs := \
 	fasttrap_linux.o \
 	fbt_linux.o \
 	instr_linux.o \
+	instr_size.o \
 	intr.o \
 	intr_x86-32.o \
 	intr_x86-64.o \
 	libc.o \
 	missing.o \
+	mutex.o \
 	printf.o \
 	profile.o \
 	prov_common.o \
@@ -39,7 +40,6 @@ dtracedrv-objs := \
 	taskq.o \
 	tcp.o \
 	toxic.o \
-	instr_size.o \
 	uncompress.o \
 	vminfo.o \
 	x_call.o

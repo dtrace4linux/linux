@@ -131,6 +131,10 @@ int lx_read_stat(struct ps_prochandle *P, pstatus_t *pst)
 	  case 'T':
 	  case 't':
 		pst->pr_flags |= PR_STOPPED;
+		/***********************************************/
+		/*   Might be job-control or ptrace()	       */
+		/***********************************************/
+		pst->pr_lwp.pr_why = PR_SUSPENDED;
 		break;
 	  }
 	P->status.pr_flags = pst->pr_flags;

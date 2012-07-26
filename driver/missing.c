@@ -2,18 +2,10 @@
 /*   Functions which are not there in the older kernels.	      */
 /*   Open Source						      */
 /*   Author: P D Fox						      */
-/* $Header: Last edited: 24-Jul-2009 1.5 $ 			      */
+/* $Header: Last edited: 26-Jul-2012 1.6 $ 			      */
 /**********************************************************************/
 
 #include "dtrace_linux.h"
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-void
-clflush(void *ptr)
-{
-        __asm__("clflush %0\n" : "+m" (*(char *)ptr));
-}
-# endif
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 # define toupper(x) ((x) >= 'a' && (x) <= 'z' ? (x) - 0x20 : (x))

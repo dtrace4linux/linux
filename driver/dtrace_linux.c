@@ -287,9 +287,15 @@ void	io_prov_init(void);
 void	xcall_init(void);
 //static void print_pte(pte_t *pte, int level);
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-void clflush(void *ptr);
-# endif
+/**********************************************************************/
+/*   Avoid   problems   with  old  kernels  which  have  conflicting  */
+/*   definitions.						      */
+/**********************************************************************/
+static void
+dtrace_clflush(void *ptr)
+{
+        __asm__("clflush %0\n" : "+m" (*(char *)ptr));
+}
 
 /**********************************************************************/
 /*   Return  the credentials of the current process. Solaris assumes  */
@@ -1329,8 +1335,8 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 		/***********************************************/
 		/*   clflush only on >=2.6.28 kernels.	       */
 		/***********************************************/
-		clflush(pmd);
-		clflush(pte);
+		dtrace_clflush(pmd);
+		dtrace_clflush(pte);
 	}
 # endif
 	return 1;
@@ -1360,8 +1366,8 @@ mem_unset_writable(page_perms_t *pp)
 	*pmd = pp->pp_pmd;
 	*pte = pp->pp_pte;
 
-	clflush(pmd);
-	clflush(pte);
+	dtrace_clflush(pmd);
+	dtrace_clflush(pte);
 	return TRUE;
 }
 # endif

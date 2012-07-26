@@ -45,20 +45,7 @@ present.
 #include <sys/dtrace.h>
 #include <sys/stack.h>
 #include <linux/ptrace.h>
-#include <linux/pid.h>
-
-/**********************************************************************/
-/*   ioctl values and structures.				      */
-/**********************************************************************/
-#define	CTLIOC	(('c' << 24) | ('t' << 16) | ('l' << 8))
-#define CTLIOC_RDMEM	(CTLIOC | 1)
-#define CTLIOC_WRMEM	(CTLIOC | 2)
-typedef struct ctl_mem_t {
-	int	c_pid;
-	void	*c_src;
-	void	*c_dst;
-	int	c_len;
-	} ctl_mem_t;
+#include <ctl.h>
 
 //#include <sys/procfs.h>
 #define PCNULL   0L     /* null request, advance to next message */

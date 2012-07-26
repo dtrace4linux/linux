@@ -1,5 +1,16 @@
 Thu Jul 26 08:33:03 2012  fox
 
+     725* x_call.c: fix the xcalls[][] array. Some draconian measures
+          for dtrace_ack_apic() to avoid crashing VirtualBox.
+
+     724* x_call.c: Dynamically allocate xcalls[][] array according
+          to CPUs available, not max possible, to reduce memory footprint.
+
+     723* x_call.c: Redo native_apic_write_mem, for maximum portability
+          across releases. May not be brilliant if we have machines
+	  without APICs (embedded?) but lets worry about them when
+	  we find them. Fix #pragma warning.
+
      722* missing.c, dtrace_linux.c: Rename clflush() and call it
           dtrace_clflush() to avoid kernel version conflicts.
 

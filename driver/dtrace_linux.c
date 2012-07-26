@@ -285,6 +285,7 @@ int	systrace_init(void);
 void	systrace_exit(void);
 void	io_prov_init(void);
 void	xcall_init(void);
+void	xcall_fini(void);
 //static void print_pte(pte_t *pte, int level);
 
 /**********************************************************************/
@@ -2807,6 +2808,8 @@ static void __exit dtracedrv_exit(void)
 	remove_proc_entry("dtrace", 0);
 	misc_deregister(&helper_dev);
 	misc_deregister(&dtracedrv_dev);
+
+	xcall_fini();
 }
 module_init(dtracedrv_init);
 module_exit(dtracedrv_exit);

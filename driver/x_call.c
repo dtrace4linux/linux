@@ -2,7 +2,7 @@
 /*   Code to implement cross-cpu calling for Dtrace.		      */
 /*   Author: Paul D. Fox					      */
 /*   Date: May 2011						      */
-/*   $Header: $							      */
+/*   $Header: Last edited: 26-Jul-2012 1.1 $ 			      */
 /**********************************************************************/
 
 /**********************************************************************/
@@ -79,14 +79,15 @@ extern int ipi_vector;
 /**********************************************************************/
 # define XC_IDLE	0	/* Owned by us. */
 # define XC_WORKING     1	/* Waiting for the target cpu to finish. */
-#if NCPU > 128
-#pragma warning "NCPU is large - your module may not load (x_call.c)"
+#if NCPU > 256
+#	warning "NCPU is large - your module may not load (x_call.c)"
 #endif
 static struct xcalls {
 	dtrace_xcall_t	xc_func;
 	void		*xc_arg;
 	volatile int	xc_state;
-	} xcalls[NCPU][NCPU] __cacheline_aligned;
+	} *xcalls[NCPU];
+
 static int xcall_levels[NCPU];
 
 unsigned long cnt_xcall0;
@@ -118,7 +119,8 @@ void xcall_slave2(void);
 /**********************************************************************/
 void
 xcall_init(void)
-{
+{	int	i;
+
 	if ((x_apic = get_proc_addr("apic")) == NULL &&
 	    (x_apic = get_proc_addr("apic_ops")) == NULL) {
 		/***********************************************/
@@ -128,6 +130,22 @@ xcall_init(void)
 		return;
 	}
 	x_apic = *(void **) x_apic;
+
+
+	for (i = 0; i < nr_cpus; i++) {
+		xcalls[i] = kzalloc(nr_cpus * sizeof (struct xcalls), GFP_KERNEL);
+		if (xcalls[i] == NULL) {
+			dtrace_linux_panic("Cannot allocate xcalls[%d][%d] array.\n", nr_cpus, nr_cpus);
+			return;
+		}
+	}
+}
+void
+xcall_fini(void)
+{	int	i;
+
+	for (i = 0; i < nr_cpus; i++)
+		kfree(xcalls[i]);
 }
 
 /**********************************************************************/
@@ -577,9 +595,20 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 # endif
 }
 /**********************************************************************/
+/*   Do  NOT  inline  this  function in any way. Doing so may affect  */
+/*   your VM - I could crash VirtualBox 4.1.18 when this function is  */
+/*   inlined.							      */
+/**********************************************************************/
+void dtrace_ack_apic(void) 
+{ 
+	*((volatile u32 *) (APIC_BASE + APIC_EOI)) = 0;
+}
+/**********************************************************************/
 /*   This  is the IPI interrupt handler - we got invoked, so we must  */
 /*   have something to do.					      */
 /**********************************************************************/
+void zz(void) { native_apic_mem_write(APIC_EOI, 0);}
+
 void 
 xcall_slave(void)
 {
@@ -608,13 +637,22 @@ xcall_slave(void)
 	/*   paravirt kernels, but this seems to work  */
 	/*   for now.				       */
 	/***********************************************/
-	native_apic_mem_write(APIC_EOI, 0);
+	dtrace_ack_apic();
+
+#if 0
+	/***********************************************/
+	/*   Lots  of  ways to ack the APIC, but they  */
+	/*   all have problems.			       */
+	/***********************************************/
+//native_apic_mem_write(APIC_EOI, 0);
+//	*((volatile u32 *) (APIC_BASE + APIC_EOI)) = 0;
 /*# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	ack_APIC_irq();
 # else
 	x_apic->write(APIC_EOI, 0);
 # endif
-*/
+#endif
+
 }
 void 
 xcall_slave2(void)

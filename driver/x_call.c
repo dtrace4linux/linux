@@ -646,7 +646,7 @@ xcall_slave(void)
 	/***********************************************/
 //native_apic_mem_write(APIC_EOI, 0);
 //	*((volatile u32 *) (APIC_BASE + APIC_EOI)) = 0;
-/*# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	ack_APIC_irq();
 # else
 	x_apic->write(APIC_EOI, 0);

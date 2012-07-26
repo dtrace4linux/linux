@@ -44,10 +44,8 @@ present.
 #include <sys/modctl.h>
 #include <sys/dtrace.h>
 #include <sys/stack.h>
-#include <linux/delay.h>
 #include <linux/ptrace.h>
 #include <linux/pid.h>
-#include <linux/seq_file.h>
 
 /**********************************************************************/
 /*   ioctl values and structures.				      */
@@ -99,38 +97,14 @@ typedef struct ctl_mem_t {
 void *(*fn_get_pid_task)(void *, int); 
 static int (*access_process_vm_ptr)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
 
-/**********************************************************************/
-/*   Read from the device.					      */
-/**********************************************************************/
-static int proc_pid_ctl_read(struct task_struct *task, char *buffer)
-{
-HERE();
-	return sprintf(buffer, "hello world");
-}
-/**********************************************************************/
-/*   Emulate  writing  of  /proc/$$/ctl  on  solaris,  but  this  is  */
-/*   /dev/dtrace_ctl, so we need an extra argument of the PID we are  */
-/*   affecting. If I can figure out how to proc_mkdir() on the /proc  */
-/*   tree, then we wouldnt need this hack.			      */
-/**********************************************************************/
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
-//#     define PROC_I(i) proc_task_lookup(i) /* should this be proc_task() ? do we care ? */
-#     define file_dentry(f) file->f_dentry
-#     define inode_to_task(inode) PROC_I(inode)
-#     define inode_to_pid(inode) PROC_I(inode)->pid
-# else
-#     define file_dentry(f) file->f_path.dentry
-#     define inode_to_task(inode) fn_get_pid_task(PROC_I(inode)->pid, PIDTYPE_PID)
-#     define inode_to_pid(inode) PROC_I(inode)->pid
-# endif
-
+#if 0
 static ssize_t proc_pid_ctl_write(struct file *file, const char __user *buf,
             size_t count, loff_t *offset)
 {
 	int	orig_count = count;
 	long	*ctlp = (long *) buf;
 	long	*ctlend = (long *) (buf + count);
-	struct inode *inode = file_dentry(file)->d_inode;
+//	struct inode *inode = file_dentry(file)->d_inode;
 	struct task_struct *task;
 
 	task = inode_to_task(inode);
@@ -219,6 +193,8 @@ task, (int) task->pid);
 		}
 	return orig_count;
 }
+#endif
+
 
 int ctl_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv);
 

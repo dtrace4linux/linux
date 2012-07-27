@@ -131,6 +131,8 @@ static char *syscallnames32[] = {
 	};
 # define NSYSCALL32 (sizeof syscallnames32 / sizeof syscallnames32[0])
 
+int xx = NSYSCALL;
+int xx32 = NSYSCALL32;
 struct sysent {
         asmlinkage int64_t         (*sy_callc)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);  /* C-style call hander or wrapper */
 };
@@ -2176,7 +2178,10 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 	n -= 2;
 	if (n >= NSYSCALL + NSYSCALL32)
 		return 0;
-
+# if defined(__i386)
+	if (n >= NSYSCALL)
+		return 0;
+# endif
 	if (n >= NSYSCALL) {
 		sysp = &systrace_sysent32[n - NSYSCALL];
 		syp = &sysent32[n - NSYSCALL];
@@ -2186,7 +2191,11 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 	}
 
 	seq_printf(seq, "%s%s %p %p %3d %8llu %s\n",
+# if defined(__i386)
+		"x32",
+# else
 		n >= NSYSCALL ? "x32" : "x64",
+# endif
 		syp->sy_callc == sysp->stsy_underlying ? " " : "*",
 		syp->sy_callc, sysp->stsy_underlying,
 		(int) (n >= NSYSCALL ? n - NSYSCALL : n),

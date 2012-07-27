@@ -1,3 +1,12 @@
+Fri Jul 27 13:27:25 2012  fox
+
+     728* driver/systrace.c: Bug fix for /proc/dtrace/syscall - SIGSEGV
+          and confusion on 32b kernel.
+
+     727* libproc/common/Pcontrol.c: Use the /dev/dtrace_ctl driver instead
+          of ptrace(). We can now use PID provider on stopped jobs or even
+	  procs being debugged in a debugger.
+
 Thu Jul 26 08:33:03 2012  fox
 
      726* archive: 1.0140

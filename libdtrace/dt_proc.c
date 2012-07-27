@@ -737,7 +737,7 @@ dt_proc_destroy(dtrace_hdl_t *dtp, struct ps_prochandle *P)
 	 * an external debugger and we were waiting in dt_proc_waitrun().
 	 * Leave the process in this condition using PRELEASE_HANG.
 	 */
-printf("dt_proc_destroy flags=%d\n", Pstatus(dpr->dpr_proc)->pr_flags);
+/*printf("dt_proc_destroy flags=%d\n", Pstatus(dpr->dpr_proc)->pr_flags);*/
 	if (!(Pstatus(dpr->dpr_proc)->pr_flags & (PR_KLC | PR_RLC))) {
 		dt_dprintf("abandoning pid %d\n", (int)dpr->dpr_pid);
 		rflag = PRELEASE_HANG;

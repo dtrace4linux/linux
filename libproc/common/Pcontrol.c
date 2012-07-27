@@ -52,6 +52,7 @@
 #include <sys/sysmacros.h>
 # if linux
 #include <sys/ptrace.h>
+#include "../../include/ctl.h"
 # endif
 
 
@@ -93,6 +94,23 @@ static ssize_t
 Pread_live(struct ps_prochandle *P, void *buf, size_t n, uintptr_t addr)
 {
 # if linux
+	static int fd = -1;
+	ctl_mem_t ctl;
+
+	if (fd < 0) {
+		if ((fd = open("/dev/dtrace_ctl", O_RDWR)) < 0) {
+			perror("/dev/dtrace_ctl");
+			printf("Either dtrace kernel module is not loaded or you are not root.\n");
+			return -1;
+		}
+	}
+
+	ctl.c_pid = P->pid;
+	ctl.c_src = addr;
+	ctl.c_dst = buf;
+	ctl.c_len = n;
+	return ioctl(fd, CTLIOC_RDMEM, &ctl);
+
 	// HACK: this is horrible from a performance perspective,
 	// and we need to be root to attach, but pread() wont
 	// work unless we own the proc. We need to move this to

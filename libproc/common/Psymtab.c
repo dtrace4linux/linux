@@ -103,6 +103,7 @@ get_saddrs(struct ps_prochandle *P, uintptr_t ehdr_start, uint_t *n)
 	uintptr_t a, addr, *addrs, last = 0;
 	uint_t i, naddrs = 0, unordered = 0;
 
+printf("model=%lx\n", P->status.pr_dmodel);
 	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
 		Elf32_Ehdr ehdr;
 		Elf32_Phdr phdr;
@@ -159,6 +160,10 @@ get_saddrs(struct ps_prochandle *P, uintptr_t ehdr_start, uint_t *n)
 			addrs[naddrs++] = last = addr + phdr.p_memsz - 1;
 		}
 #endif
+	} else {
+		printf("Internal error: %s:%s pr_dmodel is incorrect\n",
+			__FILE__, __func__);
+		abort();
 	}
 
 	if (unordered)

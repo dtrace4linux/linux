@@ -81,7 +81,7 @@ present.
 #define PCSZONE  30L    /* set zoneid from zoneid_t argument */
 #define PCSCREDX 31L    /* as PCSCRED but with supplemental groups */
 
-void *(*fn_get_pid_task)(void *, int); 
+static void (*__put_task_struct_ptr)(struct task_struct *);
 static int (*access_process_vm_ptr)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
 
 #if 0
@@ -215,16 +215,23 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 
 	  	if (copyin((void *) arg, &mem, sizeof mem))
 			return -EFAULT;
+		if (mem.c_len <= 0)
+			return -EINVAL;
 
-#if 0
+		/***********************************************/
+		/*   Convert  PID to a process structure, but  */
+		/*   special locking required in case process  */
+		/*   tries         to         die.        The  */
+		/*   get_task_struct/put_task_struct modifies  */
+		/*   a lock counter.			       */
+		/***********************************************/
 		rcu_read_lock();
-//		child = find_task_by_vpid(mem.c_pid);
+		child = find_task_by_vpid(mem.c_pid);
 		if (child)
 			get_task_struct(child);
 		rcu_read_unlock();
 		if (child == NULL)
 			return -ESRCH;
-#endif
 
 		src = mem.c_src;
 		dst = mem.c_dst;
@@ -232,14 +239,39 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 			int	sz = len > sizeof buf ? sizeof buf : len;
 			int	sz1;
 
-			sz1 = access_process_vm_ptr(child, (unsigned long) src, buf, sz, 
-				cmd == CTLIOC_RDMEM ? 0 : 1);
-			if (sz1 <= 0)
-				break;
-			if (copyout(buf, dst, sz1))
-				return -EFAULT;
-			len -= sz1;
+			if (cmd == CTLIOC_RDMEM) {
+				sz1 = access_process_vm_ptr(child, 
+					(unsigned long) src, buf, sz, 0);
+printk("sz1=%d sz=%d\n", sz1, sz);
+				if (sz1 <= 0)
+					break;
+printk("access_process_vm_ptr %p %p returns %d\n", src, dst, sz1);
+				if (copy_to_user(dst, buf, sz1)) {
+					n = -EFAULT;
+					break;
+				}
+			} else {
+				if (copy_from_user(buf, src, sz)) {
+					n = -EFAULT;
+					break;
+				}
+				sz1 = access_process_vm_ptr(child, (unsigned long) dst, buf, sz, 1);
+				if (sz1 <= 0)
+					break;
 			}
+			src += sz1;
+			dst += sz1;
+			len -= sz1;
+			n += sz1;
+			}
+
+		/***********************************************/
+		/*   Unlock the target now we are done.	       */
+		/***********************************************/
+		// put_task_struct(child); GPL
+		if (atomic_dec_and_test(&child->usage))
+			__put_task_struct_ptr(child);
+
 	  	return n;
 		}
 
@@ -285,6 +317,8 @@ static struct miscdevice ctl_dev = {
 
 int ctl_init(void)
 {	int	ret;
+
+	__put_task_struct_ptr = get_proc_addr("__put_task_struct");
 
 	ret = misc_register(&ctl_dev);
 	if (ret) {

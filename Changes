@@ -1,5 +1,11 @@
 Fri Jul 27 13:27:25 2012  fox
 
+     731* driver/ctl.c: Temp comment out the rcu_read_lock calls.
+
+     730* driver/ctl.c: Avoid direct reference to find_task_by_vpid.
+
+     729* driver/ctl.c: Add permission checking and update comments.
+
      728* driver/systrace.c: Bug fix for /proc/dtrace/syscall - SIGSEGV
           and confusion on 32b kernel.
 

@@ -19,19 +19,30 @@
  * CDDL HEADER END
  */
 
-/* This code is likely to be removed in a future release - it doesnt
-work, and needs more work to complete it, and isnt needed at
-present.
-*/
-
 /**********************************************************************/
-/*   This  file  contains  a thin /proc/$pid/ctl interface (procfs).  */
-/*   This  interface is 'legacy' at the moment (Feb 2009), since the  */
-/*   experiment  to  make  it  workable  didnt  pan out - its a good  */
-/*   start,  but  not  complete to use as a Solaris compatible /proc  */
-/*   interface for Linux.					      */
+/*   This  file  contains  a  simple  driver  to  read/write process  */
+/*   memory, similar to ptrace() functions for reading/writing text.  */
+/*   The ptrace() interface has a couple of issues.		      */
 /*   								      */
-/*   $Header: Last edited: 10-Jul-2010 1.2 $ 			      */
+/*   One is that the PEEK/POKEDATA only allow a single word transfer  */
+/*   at a time which, not a big problem, seems limiting.	      */
+/*   								      */
+/*   More   problematic   is   that   ptrace()  will  block  process  */
+/*   read/write,   since   it   is  supporting  a  well  known  API;  */
+/*   additionally,  entitlement  issues  affect  being  able  to run  */
+/*   against a process we dont own.				      */
+/*   								      */
+/*   Furthermore,  we  cannot  ptrace()  a process being debugged or  */
+/*   which is stopped.						      */
+/*   								      */
+/*   This  driver  is  very  simple.  Maybe too simple. Maybe it has  */
+/*   serious  security  issues - which will be addressed, so be wary  */
+/*   of  it,  and  let  me  know  if you spot something which is not  */
+/*   right.							      */
+/*   								      */
+/*   For now we will restrict to the caller being root.		      */
+/*   								      */
+/*   $Header: Last edited: 27-Jul-2012 1.4 $ 			      */
 /**********************************************************************/
 
 #include <dtrace_linux.h>
@@ -41,6 +52,7 @@ present.
 # undef task_struct
 #include <linux/miscdevice.h>
 #include <linux/proc_fs.h>
+#include <linux/cred.h>
 #include <sys/modctl.h>
 #include <sys/dtrace.h>
 #include <sys/stack.h>
@@ -81,6 +93,7 @@ present.
 #define PCSZONE  30L    /* set zoneid from zoneid_t argument */
 #define PCSCREDX 31L    /* as PCSCRED but with supplemental groups */
 
+static struct task_struct *(*find_task_by_vpid_ptr)(pid_t vnr);
 static void (*__put_task_struct_ptr)(struct task_struct *);
 static int (*access_process_vm_ptr)(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
 
@@ -199,6 +212,22 @@ ctl_read(struct file *fp, char __user *buf, size_t len, loff_t *off)
 TODO();
 	return -EIO;
 }
+
+/**********************************************************************/
+/*   ioctl interface.						      */
+/*   								      */
+/*   There  is  likely a race-condition permission issue here. If we  */
+/*   try  to  read from a process, we want to be root, or its one of  */
+/*   our own.							      */
+/*   								      */
+/*   But  the  race  condition is we could have the target execing a  */
+/*   setuid-root.  The  normal  checking  in  the rest of the kernel  */
+/*   tries  to address this with an exec-id counter, which gave rise  */
+/*   to a security hole in the 2.3.39 and related kernels.	      */
+/*   								      */
+/*   We possibly should be using unbreakable timing, or some form of  */
+/*   unbreakable hash.						      */
+/**********************************************************************/
 static int 
 ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {	int	n = 0;
@@ -212,6 +241,7 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		char	*dst;
 		char	buf[512];
 		int	len;
+		uid_t	uid1, uid2 = (uid_t) -1;
 
 	  	if (copyin((void *) arg, &mem, sizeof mem))
 			return -EFAULT;
@@ -225,13 +255,30 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		/*   get_task_struct/put_task_struct modifies  */
 		/*   a lock counter.			       */
 		/***********************************************/
-		rcu_read_lock();
-		child = find_task_by_vpid(mem.c_pid);
-		if (child)
+// temp comment out the rcu_read_lock, due to GPL conflict in some kernels.
+//		rcu_read_lock();
+		child = find_task_by_vpid_ptr(mem.c_pid);
+		if (child) {
 			get_task_struct(child);
-		rcu_read_unlock();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+			uid2 = child->cred->uid;
+#else
+			uid2 = current->uid;
+#endif
+		}
+//		rcu_read_unlock();
 		if (child == NULL)
 			return -ESRCH;
+		/***********************************************/
+		/*   Do the permission check.		       */
+		/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+		uid1 = current->cred->uid;
+#else
+		uid1 = current->uid;
+#endif
+		if (uid1 != uid2 && uid1 != 0)
+			return -EPERM;
 
 		src = mem.c_src;
 		dst = mem.c_dst;
@@ -242,10 +289,8 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 			if (cmd == CTLIOC_RDMEM) {
 				sz1 = access_process_vm_ptr(child, 
 					(unsigned long) src, buf, sz, 0);
-printk("sz1=%d sz=%d\n", sz1, sz);
 				if (sz1 <= 0)
 					break;
-printk("access_process_vm_ptr %p %p returns %d\n", src, dst, sz1);
 				if (copy_to_user(dst, buf, sz1)) {
 					n = -EFAULT;
 					break;
@@ -319,6 +364,7 @@ int ctl_init(void)
 {	int	ret;
 
 	__put_task_struct_ptr = get_proc_addr("__put_task_struct");
+	find_task_by_vpid_ptr = get_proc_addr("find_task_by_vpid");
 
 	ret = misc_register(&ctl_dev);
 	if (ret) {

@@ -1,5 +1,10 @@
 Fri Jul 27 13:27:25 2012  fox
 
+     733* Archive: 1.0141
+
+     732* libproc/common/Pcontrol.c: Fix for setting the model of
+          a spawned process (32 vs 64 bit).
+
      731* driver/ctl.c: Temp comment out the rcu_read_lock calls.
 
      730* driver/ctl.c: Avoid direct reference to find_task_by_vpid.

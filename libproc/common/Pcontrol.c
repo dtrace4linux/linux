@@ -393,6 +393,11 @@ Pxcreate(const char *file,	/* executable file name */
 	P->state = PS_STOP;
 	P->status.pr_pid = pid;
 	*perr = 0;
+
+	/***********************************************/
+	/*   Set the model.			       */
+	/***********************************************/
+	lx_read_stat(P, &P->status);
 	return P;
 # else
 	(void) Pstop(P, 0);	/* stop the controlled process */

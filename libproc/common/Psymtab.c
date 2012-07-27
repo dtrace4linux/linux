@@ -132,7 +132,11 @@ printf("model=%lx\n", P->status.pr_dmodel);
 			addrs[naddrs++] = last = addr + phdr.p_memsz - 1;
 		}
 #ifdef _LP64
+#if defined(linux)
+	} else if (P->status.pr_dmodel == PR_MODEL_ILP32) {
+#else
 	} else {
+#endif
 		Elf64_Ehdr ehdr;
 		Elf64_Phdr phdr;
 		uint_t phnum;

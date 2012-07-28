@@ -103,7 +103,6 @@ get_saddrs(struct ps_prochandle *P, uintptr_t ehdr_start, uint_t *n)
 	uintptr_t a, addr, *addrs, last = 0;
 	uint_t i, naddrs = 0, unordered = 0;
 
-printf("model=%lx\n", P->status.pr_dmodel);
 	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
 		Elf32_Ehdr ehdr;
 		Elf32_Phdr phdr;
@@ -133,7 +132,7 @@ printf("model=%lx\n", P->status.pr_dmodel);
 		}
 #ifdef _LP64
 #if defined(linux)
-	} else if (P->status.pr_dmodel == PR_MODEL_ILP32) {
+	} else if (P->status.pr_dmodel == PR_MODEL_LP64) {
 #else
 	} else {
 #endif

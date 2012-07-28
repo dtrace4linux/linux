@@ -1,3 +1,9 @@
+Sat Jul 28 08:41:53 2012  fox
+
+     735* prov_common.c: Add proc:::fault probe.
+
+     734* Psymtab.c: Fix last change; wasnt handling 64b binaries properly.
+
 Fri Jul 27 13:27:25 2012  fox
 
      733* Archive: 1.0141

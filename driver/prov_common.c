@@ -256,6 +256,10 @@ static provider_t map[MAX_PROVIDER_TBL] = {
 		.p_probe = "proc:::exit",
 		.p_func_name = "do_exit",
 	},
+	{
+		.p_probe = "proc:::fault",
+		.p_func_name = "do_page_fault",
+	},
 	{NULL}
 	};
 static int probe_cnt;

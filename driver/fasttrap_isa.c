@@ -1017,7 +1017,7 @@ HERE();
 	pid_mtx = &cpu_core[cpu_get_id()].cpuc_pid_lock;
 	dmutex_enter(pid_mtx);
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
-printk("probe: bucket=%p pid=%d pc=%p\n", bucket, pid, (void *) pc);
+//printk("probe: bucket=%p pid=%d pc=%p\n", bucket, pid, (void *) pc);
 HERE();
 	/*
 	 * Lookup the tracepoint that the process just hit.
@@ -1501,7 +1501,6 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		/*   but  reinterprets what to do on each hit  */
 		/*   of the trap.			       */
 		/***********************************************/
-		addr = rp->r_pc;
 		addr = rp->r_sp - 256; /* HACK */
 //printk("AAAA sp=%p\n", rp->r_sp);
 # else
@@ -1706,6 +1705,9 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		i += tp->ftt_size;
 		scratch[i++] = FASTTRAP_INT;
 		scratch[i++] = T_DTRACE_RET;
+
+printk("fasttrap_isa: 1710: pc=%p\n", rp->r_pc);
+dtrace_dump_mem(scratch, i);
 
 		ASSERT(i <= sizeof (scratch));
 

@@ -34,6 +34,7 @@ dtracedrv-objs := \
 	printf.o \
 	profile.o \
 	prov_common.o \
+	prov_proc.o \
 	sdt_linux.o \
 	sdt_subr.o \
 	systrace.o \

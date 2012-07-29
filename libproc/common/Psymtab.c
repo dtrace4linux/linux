@@ -930,20 +930,53 @@ Preadauxvec(struct ps_prochandle *P)
 	/*   On   Linux,   /proc  entries  cannot  be  */
 	/*   stat()ed to find their sizes.	       */
 	/***********************************************/
-	P->auxv = malloc(128 * sizeof(auxv_t));
-	naux = read(fd, P->auxv, 128 * sizeof(auxv_t));
+	{
+	char	buf[128 * 2 * sizeof(long)];
+	P->auxv = malloc(sizeof buf);
+	naux = read(fd, buf, 128 * sizeof(auxv_t));
 	if (naux <= 0) {
 		free(P->auxv);
 		P->auxv = NULL;
 		close(fd);
 		return;
 	}
-	naux /= sizeof(auxv_t);
-/*
-{int i; 
-for (i = 0; i < naux; i++) {printf("aux[%d]: type=%d\n", i, P->auxv[i].a_type);}
-}
-*/
+
+	/***********************************************/
+	/*   On  a 64b kernel, running a 32b process,  */
+	/*   the auxv entries will be the wrong size,  */
+	/*   so  adjust  them  so  that everything is  */
+	/*   64b.				       */
+	/***********************************************/
+#if defined(__amd64)
+	if (*(int *) (buf + 4) != 0) {
+		/***********************************************/
+		/*   32b auxv, correct it.		       */
+		/***********************************************/
+		struct auxv32 {
+			int a_type;
+			unsigned int a_ptr;
+			} *a32 = (struct auxv32 *) buf;
+		auxv_t *a64 = P->auxv;
+		int n = naux / sizeof(struct auxv32);
+		int	i;
+		for (i = 0; i < n; i++, a64++, a32++) {
+			a64->a_type = a32->a_type;
+			a64->a_un.a_val = a32->a_ptr;
+		}
+		naux = i;
+	} else 
+#endif
+		{
+		/***********************************************/
+		/*   64b auxv - we can have it as it is.       */
+		/***********************************************/
+		memcpy(P->auxv, buf, naux);
+		naux /= sizeof(auxv_t);
+	}
+	}
+/*{int i; 
+for (i = 0; i < naux; i++) {printf("aux[%d]: type=%d %p\n", i, P->auxv[i].a_type, P->auxv[i].a_un.a_ptr);}
+}*/
 	P->auxv[naux].a_type = AT_NULL;
 	P->auxv[naux].a_un.a_val = 0L;
 	P->nauxv = (int)naux;

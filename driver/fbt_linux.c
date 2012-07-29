@@ -1315,6 +1315,7 @@ static const struct file_operations fbt_proc_fops = {
 /*   Main starting interface for the driver.			      */
 /**********************************************************************/
 static const struct file_operations fbt_fops = {
+	.owner = THIS_MODULE,
 //	.ioctl = fbt_ioctl,
 	.open = fbt_open,
 	.read = fbt_read,

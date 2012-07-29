@@ -48,7 +48,20 @@ typedef struct psinfo_t {
 	int	pr_pid;
 	int	pr_ppid;
 	int	pr_pgid;
+	int	pr_sid;
+	int	pr_uid;
+	int	pr_euid;
+	int	pr_gid;
+	int	pr_egid;
+	void	*pr_addr;
+	struct timespec pr_start;
+	char	pr_fname[80];
+	char	pr_argsz[80];
+	int	pr_argc;
+	uintptr_t pr_argv;
+	uintptr_t pr_envp;
 	char	*pr_psargs;
+	char	pr_dmodel;
 	} psinfo_t;
 typedef struct thread_t {
 	int	pr_projid;

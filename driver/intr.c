@@ -551,12 +551,12 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
 /*   Handle  T_DTRACE_RET  interrupt  - invoked by the fasttrap (pid  */
 /*   provider) to handle return after handling a user space probe.    */
 /**********************************************************************/
-unsigned long long cnt_0x80;
+unsigned long long cnt_0x7f;
 
 int 
 dtrace_int_dtrace_ret_handler(int type, struct pt_regs *regs)
 {
-	cnt_0x80++;
+	cnt_0x7f++;
 	if (dtrace_user_probe(T_DTRACE_RET, regs, (caddr_t) regs->r_pc, smp_processor_id())) {
 		return NOTIFY_DONE;
 	}
@@ -825,7 +825,7 @@ gate_t saved_int11;
 gate_t saved_int13;
 gate_t saved_page_fault;
 gate_t saved_ipi;
-gate_t saved_int_0x80;
+gate_t saved_int_dtrace_ret;
 
 /**********************************************************************/
 /*   Utility  function,  based on lookup_address() in the kernel, to  */
@@ -980,7 +980,7 @@ intr_exit(void)
 	idt_table_ptr[11] = saved_int11;
 	idt_table_ptr[13] = saved_int13;
 	idt_table_ptr[14] = saved_page_fault;
-	idt_table_ptr[T_DTRACE_RET] = saved_int_0x80;
+	idt_table_ptr[T_DTRACE_RET] = saved_int_dtrace_ret;
 	if (ipi_vector)
  		idt_table_ptr[ipi_vector] = saved_ipi;
 }
@@ -1163,7 +1163,7 @@ static	struct x86_descriptor desc1;
 	saved_int13 = idt_table_ptr[13];
 	saved_page_fault = idt_table_ptr[14];
 	saved_ipi = idt_table_ptr[ipi_vector];
-	saved_int_0x80 = idt_table_ptr[T_DTRACE_RET];
+	saved_int_dtrace_ret = idt_table_ptr[T_DTRACE_RET];
 
 	/***********************************************/
 	/*   Now overwrite the vectors.		       */

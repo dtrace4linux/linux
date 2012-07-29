@@ -2232,6 +2232,7 @@ systrace_open(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations systrace_fops = {
+	.owner = THIS_MODULE,
         .open = systrace_open,
 };
 

@@ -1,4 +1,18 @@
+Sun Jul 29 18:06:43 2012  fox
+
+     739* libproc/common/Psymtab.c: Fix for reading /proc/pid/auxv for
+          a 32b proc on a 64b kernel.
+
+     738* driver/dtrace_linux.c: dtrace_data_model: Implement this
+          for 64b systems running 32b binaries.
+
+     737* driver/dtrace_linux.c: Fix issue affecting 32b binaries
+          on 32b kernel (fasttrap miscomputing instr sizes).
+
 Sat Jul 28 08:41:53 2012  fox
+
+     736* All drivers: Add ".owner = THIS_MODULE", to protect from
+          attempts to unload driver whilst still have open references.
 
      735* prov_common.c: Add proc:::fault probe.
 

@@ -240,7 +240,7 @@ INTERRUPT  13, 1, 0, dtrace_int13, dtrace_int13_handler, kernel_int13_handler
 INTERRUPT  14, 1, 0, dtrace_page_fault, dtrace_int_page_fault_handler, kernel_page_fault_handler
 
 /**********************************************************************/
-/*   T_DTRACE_RET  (0x80) is invoked by the pid provider when single  */
+/*   T_DTRACE_RET  (0x7f) is invoked by the pid provider when single  */
 /*   stepping  a user space trap. I dont think we really need this -  */
 /*   we  could  overload  the  INT3  trap,  but  for compliance with  */
 /*   Solaris/FreeBSD, lets define it.				      */

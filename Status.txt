@@ -1,12 +1,7 @@
 A dtrace spectator asked me for a "status" of dtrace (Edward Peschko) -
 a very good suggestion, so that people dont have to figure out from my
-titbits in the blog, what works/doesnt. So this is my attempt
-to catalog working features and in-progress or broken features.
-
-So here goes - feel free to feedback to me where I am not answering
-a question, or am vague, or wrong, or .. whatever you like!
-
-I will attempt to keep this succinct and update periodically.
+titbits in the blog (http://www.crtags.blogspot.com), what works and what
+doesnt work.
 
 Working Features
 
@@ -36,6 +31,8 @@ Working Features
     not yet ready in Linux/dtrace (eg cannot run standard scripts like
     iosnoop.d or other scripts out there).
   o vminfo provider - probes for the stats in /proc/vmstats
+  o PID provider (dtrace -n pidNNN:::). Needs to be more thoroughly
+    verified.
 
 Partially Working / Not yet quality controlled:
 
@@ -45,11 +42,6 @@ Partially Working / Not yet quality controlled:
     kernel lacks the .SUNW_ctf symbol table needed by dtrace to allow
     D scripts to use struct/union pointers to view data structures.
     This is currently work in progress to provide an alternate mechanism.
-  o PID provider: works in some scenarios. Tested 64b binary on 64b
-    kernel (see tests/fbt1.c) and 32b on 32b kernel. 
-    Doesnt work if process is a background proc. 
-    Not verified 32b on 64b kernel.
-    "dtrace -c cmd" doesnt yet work
 
 Not really working / not yet implemented
 
@@ -68,9 +60,11 @@ FAQ
 
 Q Can this be used in a production context?
 A Dont know. I believe so but please do not take my word for it. If your
-  kernel is a recent release (2.6.28+) then it should work out of the box,
-  and certainly syscall tracing appears to work. (I have dtraced an X server
-  with GNOME starting up without issue).
+  kernel is a recent release (2.6.28+) then it should work out of the box
+  I advise people to thorough test and try out DTrace before applying
+  to a machine, in case it crashes the target system. Crashes may be
+  caused due to the compilation choosing wrong defaults for your kernel,
+  or coding/bad-practise bugs in this version of DTrace.
 
 Q Why are you doing this?
 A Because its relaxing and a challenge and I want dtrace to be available
@@ -92,4 +86,13 @@ A Super! Competition. dtrace can be used around systemtap - trace systemtap
 
 Q Is this real?
 A Yes
+
+Q Doesnt Oracle provide DTrace for UEL?
+A Yes. Oracle started work in 2011, and provide a version of DTrace which
+  is intimate with their kernel version. As of mid-2012, the Oracle
+  version isnt as functionally complete compared to this version, and
+  their version isnt available for non-Oracle kernels. They may have the
+  advantage of integrating SDT probes into the kernel source, and its
+  definitely worth researching their release to see if it is more applicable,
+  or higher quality, or more features.
 

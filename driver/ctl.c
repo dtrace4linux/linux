@@ -341,6 +341,7 @@ static long ctl_compat_ioctl(struct file *file, unsigned int cmd, unsigned long 
 #endif
 
 static const struct file_operations ctl_fops = {
+	.owner = THIS_MODULE,
 	.read = ctl_read,
 #ifdef HAVE_OLD_IOCTL
   	.ioctl = ctl_linux_ioctl,

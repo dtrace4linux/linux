@@ -393,6 +393,7 @@ int libc_strcmp(const char *p1, const char *p2);
 int libc_strncmp(const char *s1, const char *s2, int len);
 timeout_id_t timeout(void (*func)(void *), void *arg, unsigned long ticks);
 void untimeout(timeout_id_t id);
+void *prcom_get_arg(int n, int size);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

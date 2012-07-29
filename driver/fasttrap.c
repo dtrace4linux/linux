@@ -57,7 +57,7 @@ proc_t *
 sprlock(int pid)
 {
 	proc_t *p = prfind(pid);
-printk("sprlock: pid=%d\n", pid);
+//printk("sprlock: pid=%d\n", pid);
 	if (!p)
 		return NULL;
 	dmutex_enter(&p->p_lock);
@@ -636,7 +636,7 @@ HERE();
 	fasttrap_mod_barrier(probe->ftp_gen);
 
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
-printk("bucket=%p pid=%d pc=%lx\n", bucket, pid, pc);
+//printk("bucket=%p pid=%d pc=%lx\n", bucket, pid, pc);
 HERE();
 
 	/*
@@ -985,7 +985,6 @@ HERE();
 	ASSERT(dtrace_return_probe_ptr == &fasttrap_return_probe);
 	fasttrap_pid_count++;
 	dmutex_exit(&fasttrap_count_mtx);
-printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 }
 
 static void
@@ -1016,7 +1015,6 @@ HERE();
 		}
 # endif
 
-printk("dtrace_pid_probe_ptr=set to zero\n");
 		dtrace_pid_probe_ptr = NULL;
 		dtrace_return_probe_ptr = NULL;
 
@@ -1920,7 +1918,7 @@ static void *fasttrap_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	if (*pos > fasttrap_total)
 		return 0;
-	return (void *) (*pos + 1);
+	return (void *) (long) (*pos + 1);
 }
 static void *fasttrap_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {	long	n = (long) v;
@@ -1949,7 +1947,10 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 		/*   Typically:				       */
 		/*   tpoints=1024 procs=256 provs=256	       */
 		/***********************************************/
-		seq_printf(seq, "tpoints=%lu procs=%lu provs=%lu total=%u\n# PID VirtAddr\n",
+		seq_printf(seq, "tpoints=%lu procs=%lu provs=%lu total=%u\n"
+			"# TRCP: pid pc type size\n"
+			"# PROV: pid name marked retired rcount ccount mcount\n"
+			"# PROC: pid acount rcount\n",
 			fasttrap_tpoints.fth_nent,
 			fasttrap_procs.fth_nent,
 			fasttrap_provs.fth_nent,
@@ -1971,9 +1972,11 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 			if (--target < 0) {
-				seq_printf(seq, "TRCP %d %p\n",
+				seq_printf(seq, "TRCP %d %p %02x %02x\n",
 					(int) tp->ftt_pid,
-					(void *) tp->ftt_pc);
+					(void *) tp->ftt_pc,
+					tp->ftt_type,
+					tp->ftt_size);
 				return 0;
 				}
 		}

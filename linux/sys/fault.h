@@ -31,7 +31,7 @@
 #ifndef _SYS_FAULT_H
 #define _SYS_FAULT_H
 
-#pragma ident   "@(#)fault.h    1.15    05/06/08 SMI"
+//#pragma ident   "@(#)fault.h    1.15    05/06/08 SMI"
 
 #ifdef  __cplusplus
 extern "C" {

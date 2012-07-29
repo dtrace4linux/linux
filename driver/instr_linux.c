@@ -1087,6 +1087,7 @@ static const struct file_operations instr_proc_fops = {
 /*   Main starting interface for the driver.			      */
 /**********************************************************************/
 static const struct file_operations instr_fops = {
+	.owner = THIS_MODULE,
 //	.ioctl = instr_ioctl,
 	.open = instr_open,
 };
@@ -1138,10 +1139,11 @@ int instr_init(void)
 }
 void instr_exit(void)
 {
-	remove_proc_entry("dtrace/instr", 0);
 	if (initted) {
+		remove_proc_entry("dtrace/instr", 0);
 		instr_cleanup(NULL);
 		misc_deregister(&instr_dev);
+		initted = FALSE;
 	}
 
 //	printk(KERN_WARNING "instr driver unloaded.\n");

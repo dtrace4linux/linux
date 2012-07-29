@@ -63,6 +63,7 @@ static long fasttrap_compat_ioctl(struct file *file, unsigned int cmd, unsigned 
 }
 #endif
 static const struct file_operations fasttrap_fops = {
+	.owner = THIS_MODULE,
 	.read = fasttrap_read,
 #ifdef HAVE_OLD_IOCTL
   	.ioctl = fasttrap_linux_ioctl,

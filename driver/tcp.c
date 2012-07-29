@@ -103,7 +103,7 @@ udp_send(dtrace_id_t id, struct pt_regs *regs)
 /*   Initialise the tcp provider probes.			      */
 /**********************************************************************/
 void 
-tcp_init(void)
+prov_tcp_init(void)
 {
 	prcom_add_function("tcp:::state-change", "tcp_set_state");
 	prcom_add_callback("tcp:::connect-established", "tcp_set_state", tcp_connect_established);

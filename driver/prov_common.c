@@ -25,6 +25,7 @@
 #include <sys/frame.h>
 #include <sys/privregs.h>
 
+extern int nr_cpus;
 extern int dtrace_unhandled;
 extern int fbt_name_opcodes;
 
@@ -32,6 +33,16 @@ extern int fbt_name_opcodes;
 # define MAX_MODULE	32
 # define MAX_FUNCTION	64
 # define MAX_NAME	64
+
+/**********************************************************************/
+/*   The  stash is a temp holding area for the returned arguments of  */
+/*   a probe.							      */
+/**********************************************************************/
+#define MAX_STASH_SIZE 400 /* Assume is enough for biggest structure */
+			   /* Ideally, we would do a union of all available */
+			   /* arg structures.			*/
+#define MAX_ARGS	5  /* arg0, arg1, ... */
+static char	*stash[NCPU];
 
 /**********************************************************************/
 /*   Structure  describing  the  probes  we  create,  and the dtrace  */
@@ -245,20 +256,12 @@ static provider_t map[MAX_PROVIDER_TBL] = {
 		.p_func_name = "__perf_event_task_sched_in",
 	},
 	{
-		.p_probe = "proc:::create",
-		.p_func_name = "wake_up_new_task",
-	},
-	{
 		.p_probe = "proc:::start",
 		.p_func_name = "wake_up_new_task",
 	},
 	{
 		.p_probe = "proc:::exit",
 		.p_func_name = "do_exit",
-	},
-	{
-		.p_probe = "proc:::fault",
-		.p_func_name = "do_page_fault",
 	},
 	{NULL}
 	};
@@ -272,7 +275,8 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *offset,
                         char **modname, char *namebuf);
 uint64_t prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes);
-void tcp_init(void);
+void prov_proc_init(void);
+void prov_tcp_init(void);
 void vminfo_init(void);
 
 /**********************************************************************/
@@ -999,14 +1003,34 @@ printk("getargdesc %s %d\n", pp->p_probe, desc->dtargd_ndx);
 }
 /*ARGSUSED*/
 #include "ctf_struct.h"
+
+/**********************************************************************/
+/*   Generic routine for probe providers, to provide a static memory  */
+/*   area  for  the  probe  args.  These are only needed temporarily  */
+/*   whilst the engine grabs the args the user wanted.		      */
+/**********************************************************************/
+void *
+prcom_get_arg(int n, int size)
+{
+	if (size > MAX_STASH_SIZE) {
+		printk("stash-size error, wanted %d, max %d\n", size, MAX_STASH_SIZE);
+		/***********************************************/
+		/*   Do   something,   just   overwrite   the  */
+		/*   structs.				       */
+		/***********************************************/
+		n = 0;
+		size = MAX_STASH_SIZE;
+		}
+	return &stash[smp_processor_id()][n * MAX_STASH_SIZE];	
+}
+
 uint64_t
 prcom_getarg(void *arg, dtrace_id_t id, void *parg, int argno, int aframes)
-{static psinfo_t psinfo[NCPU];
-	psinfo_t *ps = &psinfo[smp_processor_id()];
-	provider_t *pp = arg;
+{	provider_t *pp = arg;
 
 //dtrace_printf("getarg %s %d\n", pp->p_probe, argno);
 	if (strcmp(pp->p_probe, "sched:::off-cpu") == 0) {
+		psinfo_t *ps = prcom_get_arg(argno, sizeof(psinfo_t));
 		if (current) {
 			ps->pr_pid = current->pid;
 			ps->pr_pgid = current->tgid;
@@ -1061,7 +1085,8 @@ static	char	name[MAX_NAME];
 	/***********************************************/
 	/*   Add the common SDT providers.	       */
 	/***********************************************/
-	tcp_init();
+	prov_proc_init();
+	prov_tcp_init();
 	vminfo_init();
 
 	for (pp = map; pp < &map[probe_cnt]; pp++) {
@@ -1142,15 +1167,24 @@ prcom_detach(void)
 }
 
 int dtrace_prcom_init(void)
-{
+{	int	i;
 
-	printk(KERN_WARNING "dtrace: common provider being initialised\n");
+	
+	for (i = 0; i < nr_cpus; i++) {
+		stash[i] = kzalloc(MAX_STASH_SIZE * MAX_ARGS, GFP_KERNEL);
+		}
+
+//	printk(KERN_WARNING "dtrace: common provider being initialised\n");
 	prcom_attach();
 
 	return 0;
 }
 void dtrace_prcom_exit(void)
-{
+{	int	i;
+
+	for (i = 0; i < nr_cpus; i++)
+		kfree(stash[i]);
+
 	prcom_detach();
 }
 

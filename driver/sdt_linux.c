@@ -765,6 +765,7 @@ sdt_open(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations sdt_fops = {
+	.owner = THIS_MODULE,
         .open = sdt_open,
 };
 

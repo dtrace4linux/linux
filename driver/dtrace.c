@@ -17008,7 +17008,21 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	mutex_enter(&dtrace_lock);
 
 printk("dtrace_detach: dtrace_opens=%d helpers=%d\n", dtrace_opens, dtrace_helpers);
+# if linux
+	/***********************************************/
+	/*   Once   started,  we  cannot  prevent  an  */
+	/*   unload of the driver, so do it anyway.    */
+	/***********************************************/
+	dtrace_helpers = 0;
+
+	/***********************************************/
+	/*   Avoid  seeing  new  modules  loaded - do  */
+	/*   this early.			       */
+	/***********************************************/
+	unregister_module_notifier(&n_module_load);
+# else
 	ASSERT(dtrace_opens == 0);
+# endif
 
 	if (dtrace_helpers > 0) {
 		mutex_exit(&dtrace_provider_lock);
@@ -17058,9 +17072,6 @@ printk("dtrace_unregister is causing us to fail\n");
 	dtrace_debugger_fini = NULL;
 	dtrace_modload = NULL;
 	dtrace_modunload = NULL;
-#if linux
-	unregister_module_notifier(&n_module_load);
-#endif
 
 	mutex_exit(&cpu_lock);
 

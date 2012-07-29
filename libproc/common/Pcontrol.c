@@ -1032,7 +1032,7 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 	P->state = PS_RUN;
 	P->pid = pid;
 
-#if defined(linux) && 0
+#if defined(linux)
 	/***********************************************/
 	/*   Dont  stop  or  attach to the proc if we  */
 	/*   are  in  readonly mode (eg a ustack() is  */
@@ -1043,6 +1043,10 @@ again:	/* Come back here if we lose it in the Window of Vulnerability */
 		rc = G_PERM;
 		GOTO(err);
 	}
+	/***********************************************/
+	/*   Set the model.			       */
+	/***********************************************/
+	lx_read_stat(P, &P->status);
 	*perr = 0;
 	return (P);
 #endif

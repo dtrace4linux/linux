@@ -374,6 +374,7 @@ notifier_open(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations notifier_fops = {
+	.owner = THIS_MODULE,
         .open = notifier_open,
 };
 

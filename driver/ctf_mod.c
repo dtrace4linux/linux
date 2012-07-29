@@ -157,6 +157,7 @@ ctf_open(struct inode *ip, struct file *fp)
 # endif
 }
 static const struct file_operations ctf_fops = {
+	.owner = THIS_MODULE,
         .write = ctf_write,
 /*	.ioctl = ctf_ioctl,*/
         .open = ctf_open,

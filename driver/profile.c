@@ -530,6 +530,7 @@ profile_write(struct file *file, const char __user *buf,
 	return orig_count;
 }
 static const struct file_operations profile_fops = {
+	.owner = THIS_MODULE,
         .open = profile_open,
         .write = profile_write,
 };

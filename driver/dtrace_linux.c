@@ -549,13 +549,41 @@ dtrace_dump_mem64(unsigned long *cp, int len)
 /*   Return  the  datamodel (64b/32b) mode of the underlying binary.  */
 /*   Linux  doesnt  seem  to mark a proc as 64/32, but relies on the  */
 /*   class  vtable  for  the  underlying  executable  file format to  */
-/*   handle this in an OO way.					      */
+/*   handle  this in an OO way. Needed in fasttrap to work out which  */
+/*   disassembler to use when computing instruction sizes.	      */
 /**********************************************************************/
 int
 dtrace_data_model(proc_t *p)
 {
-return DATAMODEL_LP64;
-	return p->p_model;
+# if defined(__i386)
+	return DATAMODEL_ILP32;
+# else
+	/***********************************************/
+	/*   Could  be  32 or 64 bit. We will use the  */
+	/*   ELFCLASS  to  determine what this really  */
+	/*   is.				       */
+	/***********************************************/
+	struct mm_struct *mm;
+	struct vm_area_struct *vma;
+
+	if ((mm = p->p_task->mm) == NULL)
+		return DATAMODEL_LP64;
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		unsigned char *cp;
+		if ((vma->vm_flags & VM_EXEC) == 0)
+			continue;
+		cp = (unsigned char *) vma->vm_start;
+		if (*cp != 0x7f ||
+		    cp[1] != 'E' ||
+		    cp[2] != 'L' || 
+		    cp[3] != 'F')
+			continue;
+		if (cp[EI_CLASS] == ELFCLASS64)
+			return DATAMODEL_LP64;
+		return DATAMODEL_ILP32;
+	}
+	return DATAMODEL_LP64;
+# endif
 }
 
 /**********************************************************************/
@@ -2214,9 +2242,7 @@ static int
 dtracedrv_open(struct inode *inode, struct file *file)
 {	int	ret;
 
-//HERE();
 	ret = dtrace_open(file, 0, 0, CRED());
-HERE();
 
 	return -ret;
 }
@@ -2444,7 +2470,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
-	extern unsigned long cnt_0x80;
+	extern unsigned long cnt_0x7f;
 	extern unsigned long cnt_gpf1;
 	extern unsigned long cnt_gpf2;
 	extern unsigned long long cnt_int3_1;
@@ -2475,7 +2501,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		LONG_LONG(cnt_int3_1, "int3_1"),
 		LONG_LONG(cnt_int3_2, "int3_2(ours)"),
 		LONG_LONG(cnt_int3_3, "int3_3(reentr)"),
-		LONG_LONG(cnt_0x80, "int_0x80"),
+		LONG_LONG(cnt_0x7f, "int_0x7f"),
 		LONG_LONG(cnt_gpf1, "gpf1"),
 		LONG_LONG(cnt_gpf2, "gpf2"),
 		{TYPE_LONG, &cnt_ipi1, "ipi1"},
@@ -2599,6 +2625,7 @@ static long dtracedrv_compat_ioctl(struct file *file, unsigned int cmd, unsigned
 #endif
 
 static const struct file_operations dtracedrv_fops = {
+	.owner = THIS_MODULE,
         .read = dtracedrv_read,
         .write = dtracedrv_write,
 #ifdef HAVE_OLD_IOCTL
@@ -2620,6 +2647,7 @@ static struct miscdevice dtracedrv_dev = {
         &dtracedrv_fops
 };
 static const struct file_operations helper_fops = {
+	.owner = THIS_MODULE,
         .read = helper_read,
 #ifdef HAVE_OLD_IOCTL
         .ioctl = helper_ioctl,

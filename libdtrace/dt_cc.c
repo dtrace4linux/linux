@@ -713,12 +713,12 @@ dt_action_print(dtrace_hdl_t *dtp, dt_node_t *dnp, dtrace_stmtdesc_t *sdp)
 	dret = yypcb->pcb_dret;
 	dmp = dt_module_lookup_by_ctf(dtp, dret->dn_ctfp);
 
-	len = snprintf(NULL, 0, "%s`%d", dmp->dm_name, dret->dn_type) + 1;
+	len = snprintf(NULL, 0, "%s`%d", dmp->dm_name, (int) dret->dn_type) + 1;
 	sdp->dtsd_strdata = dt_alloc(dtp, len);
 	if (sdp->dtsd_strdata == NULL)
 		longjmp(yypcb->pcb_jmpbuf, EDT_NOMEM);
 	(void) snprintf(sdp->dtsd_strdata, len, "%s`%d", dmp->dm_name,
-	    dret->dn_type);
+	    (int) dret->dn_type);
 
 	ap->dtad_difo = dt_as(yypcb);
 	ap->dtad_kind = DTRACEACT_DIFEXPR;

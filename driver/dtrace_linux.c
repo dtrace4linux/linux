@@ -225,10 +225,12 @@ static struct notifier_block n_exit = {
 /*   Used when we want to intercept panics for final autopsy of what  */
 /*   we did wrong.						      */
 /**********************************************************************/
+#if 0
 int dtrace_kernel_panic(struct notifier_block *this, unsigned long event, void *ptr);
 static struct notifier_block panic_notifier = {
         .notifier_call = dtrace_kernel_panic,
 };
+#endif
 
 /**********************************************************************/
 /*   Externs.							      */
@@ -569,17 +571,41 @@ dtrace_data_model(proc_t *p)
 	if ((mm = p->p_task->mm) == NULL)
 		return DATAMODEL_LP64;
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		unsigned char *cp;
+		char	buf[EI_CLASS + 1];
+		long	flags;
+
 		if ((vma->vm_flags & VM_EXEC) == 0)
 			continue;
-		cp = (unsigned char *) vma->vm_start;
-		if (*cp != 0x7f ||
-		    cp[1] != 'E' ||
-		    cp[2] != 'L' || 
-		    cp[3] != 'F')
+
+		/***********************************************/
+		/*   This  is  ugly - access_process_vm wants  */
+		/*   to be called with interrupts enabled. We  */
+		/*   are  going  to  be  coming  from an INT3  */
+		/*   interrupt  (fasttrap  trace),  with ints  */
+		/*   disabled.  In  theory  we can enable the  */
+		/*   interrupts,  but  we  dont  to avoid the  */
+		/*   interrupt  routine  triggering  a nested  */
+		/*   exception. So, we open a small window to  */
+		/*   let  the  interrupt  through.  It doesnt  */
+		/*   matter  that  this  happens,  unless the  */
+		/*   kernel is heavily probed and we do start  */
+		/*   getting  nested  interrupts. This should  */
+		/*   be ok, in the worst case.		       */
+		/***********************************************/
+		
+		flags = dtrace_interrupt_get();
+		asm("sti\n");
+		uread(p, (void *) buf, (size_t) EI_CLASS + 1, (uintptr_t) vma->vm_start);
+		dtrace_interrupt_enable(flags);
+
+		if (*buf != 0x7f ||
+		    buf[1] != 'E' ||
+		    buf[2] != 'L' || 
+		    buf[3] != 'F')
 			continue;
-		if (cp[EI_CLASS] == ELFCLASS64)
+		if (buf[EI_CLASS] == ELFCLASS64) {
 			return DATAMODEL_LP64;
+		}
 		return DATAMODEL_ILP32;
 	}
 	return DATAMODEL_LP64;

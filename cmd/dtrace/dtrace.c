@@ -488,7 +488,7 @@ etcsystem_add(void)
 	nmods = dtrace_provider_modules(g_dtp, mods,
 	    sizeof (mods) / sizeof (char *) - 1);
 
-	if (nmods >= sizeof (mods) / sizeof (char *))
+	if (nmods >= (int) (sizeof (mods) / sizeof (char *)))
 		fatal("unexpectedly large number of modules!");
 
 	mods[nmods++] = "dtrace";
@@ -767,7 +767,7 @@ compile_str(dtrace_cmd_t *dcp)
 static void
 prochandler(struct ps_prochandle *P, const char *msg, void *arg)
 {
-	/*const*/ psinfo_t *prp = Ppsinfo(P); // avoid gcc-4.2.2/32bit bug
+	const psinfo_t *prp = Ppsinfo(P); // avoid gcc-4.2.2/32bit bug
 	int pid = Pstatus(P)->pr_pid;
 	char name[SIG2STR_MAX];
 
@@ -887,7 +887,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 	    { "AGGFORMAT",	DTRACE_BUFDATA_AGGFORMAT },
 	    { "AGGLAST",	DTRACE_BUFDATA_AGGLAST },
 	    { "???",		UINT32_MAX },
-	    { NULL }
+	    { NULL, 0 }
 	};
 
 	if (bufdata->dtbda_probe != NULL) {
@@ -947,8 +947,8 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 			(void) sprintf(buf, "%d (data: ", rec->dtrd_offset);
 			c = buf + strlen(buf);
 
-			if (lim > sizeof (uint64_t))
-				lim = sizeof (uint64_t);
+			if (lim > (int) sizeof (uint64_t))
+				lim = (int) sizeof (uint64_t);
 
 			data = (uint8_t *)agg->dtada_data + rec->dtrd_offset;
 
@@ -959,7 +959,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 			}
 
 			(void) snprintf(c, end - c,
-			    "%s)", lim < rec->dtrd_size ? " ..." : "");
+			    "%s)", (uint32_t) lim < rec->dtrd_size ? " ..." : "");
 			BUFDUMPASSTR(rec, dtrd_offset, buf);
 		} else {
 			BUFDUMP(rec, dtrd_offset);
@@ -1079,15 +1079,15 @@ go(void)
 		char *optname;
 		dtrace_optval_t val;
 	} bufs[] = {
-		{ "buffer size", "bufsize" },
-		{ "aggregation size", "aggsize" },
-		{ "speculation size", "specsize" },
-		{ "dynamic variable size", "dynvarsize" },
-		{ NULL }
+		{ "buffer size", "bufsize", 0 },
+		{ "aggregation size", "aggsize", 0 },
+		{ "speculation size", "specsize", 0 },
+		{ "dynamic variable size", "dynvarsize", 0 },
+		{ NULL, NULL, 0 }
 	}, rates[] = {
-		{ "cleaning rate", "cleanrate" },
-		{ "status rate", "statusrate" },
-		{ NULL }
+		{ "cleaning rate", "cleanrate", 0 },
+		{ "status rate", "statusrate", 0 },
+		{ NULL, NULL, 0 }
 	};
 
 	for (i = 0; bufs[i].name != NULL; i++) {
@@ -1115,7 +1115,7 @@ go(void)
 		if (nsize == DTRACEOPT_UNSET || nsize == 0)
 			continue;
 
-		if (nsize >= bufs[i].val - sizeof (uint64_t))
+		if (nsize >= bufs[i].val - (int) sizeof (uint64_t))
 			continue;
 
 		for (; (INT64_C(1) << mul) <= nsize; j++, mul += 10)

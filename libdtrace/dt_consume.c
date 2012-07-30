@@ -757,7 +757,7 @@ dt_print_llquantize(dtrace_hdl_t *dtp, FILE *fp, const void *addr,
 	step = next > nsteps ? next / nsteps : 1;
 
 	if (first_bin == 0) {
-		(void) snprintf(c, sizeof (c), "< %lld", value);
+		(void) snprintf(c, sizeof (c), "< %lld", (long long) value);
 
 		if (dt_printf(dtp, fp, "%16s ", c) < 0)
 			return (-1);
@@ -792,7 +792,7 @@ dt_print_llquantize(dtrace_hdl_t *dtp, FILE *fp, const void *addr,
 		return (0);
 
 	assert(last_bin == bin);
-	(void) snprintf(c, sizeof (c), ">= %lld", value);
+	(void) snprintf(c, sizeof (c), ">= %lld", (long long) value);
 
 	if (dt_printf(dtp, fp, "%16s ", c) < 0)
 		return (-1);
@@ -1015,10 +1015,10 @@ dtp->dt_options[DTRACEOPT_STACKSYMBOLS] =1;
 			if (dtrace_lookup_by_addr(dtp, pc, NULL, &dts) == 0) 
 #endif
 			{
-				(void) snprintf(c, sizeof (c), "%s`0x%llx",
-				    dts.dts_object, pc);
+				(void) snprintf(c, sizeof (c), "%s`%p",
+				    dts.dts_object, (void *) pc);
 			} else {
-				(void) snprintf(c, sizeof (c), "0x%llx", pc);
+				(void) snprintf(c, sizeof (c), "%p", (void *) pc);
 			}
 		}
 
@@ -1083,7 +1083,7 @@ dt_print_ustack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 	if (P != NULL)
 		dt_proc_lock(dtp, P); /* lock handle while we perform lookups */
 
-	for (i = 0; i < depth && pc[i] != NULL; i++) {
+	for (i = 0; i < depth && pc[i] != (uint64_t) NULL; i++) {
 		const prmap_t *map;
 
 		if ((err = dt_printf(dtp, fp, "%*s", indent, "")) < 0)
@@ -1095,13 +1095,13 @@ dt_print_ustack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 
 			if (pc[i] > sym.st_value) {
 				(void) snprintf(c, sizeof (c),
-				    "%p: %s`%s+0x%llx", 
-				    pc[i],
+				    "%p: %s`%s+0x%p", 
+				    (void *) pc[i],
 				    dt_basename(objname), name,
-				    (u_longlong_t)(pc[i] - sym.st_value));
+				    (void *)(pc[i] - sym.st_value));
 			} else {
 				(void) snprintf(c, sizeof (c),
-				    "%p: %s`%s", pc[i], dt_basename(objname), name);
+				    "%p: %s`%s", (void *) pc[i], dt_basename(objname), name);
 			}
 		} else if (str != NULL && str[0] != '\0' && str[0] != '@' &&
 		    (P != NULL && ((map = Paddr_to_map(P, pc[i])) == NULL ||

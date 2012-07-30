@@ -607,8 +607,6 @@ void dtrace_ack_apic(void)
 /*   This  is the IPI interrupt handler - we got invoked, so we must  */
 /*   have something to do.					      */
 /**********************************************************************/
-void zz(void) { native_apic_mem_write(APIC_EOI, 0);}
-
 void 
 xcall_slave(void)
 {

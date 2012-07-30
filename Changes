@@ -1,5 +1,8 @@
 Mon Jul 30 08:28:16 2012  fox
 
+     742* driver/dtrace_linux.c: Fix issue with determining data model of 32b
+          proc on 64b kernel.
+
      741* ctl.c, ctf_struct.h: Build fixes for older kernels.
 
      740* taskq.c: Add older kernel support.

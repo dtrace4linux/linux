@@ -71,7 +71,7 @@ uint_t cpc_ncounters;
 krwlock_t       kcpc_cpuctx_lock;       /* lock for 'kcpc_cpuctx' below */
 int kcpc_cpuctx;
 #define kcpc_cpu_stop(cpu, flag)
-#define kcpc_configure_reqs(ctx, set, subcode) 0
+#define kcpc_configure_reqs(ctx, set, subcode) *(subcode) = 0, 0
 #define kcpc_assign_reqs(set, ctx) 0
 #define kcpc_ctx_free(ctx) do_nothing()
 #define kcpc_invalidate_all() do_nothing()

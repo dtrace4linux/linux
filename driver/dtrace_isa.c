@@ -77,6 +77,7 @@ static pc_t	*g_pcstack;
 static int	g_pcstack_limit;
 static int	g_depth;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 static void
 print_trace_warning_symbol(void *data, char *msg, unsigned long symbol)
 {
@@ -85,6 +86,7 @@ print_trace_warning_symbol(void *data, char *msg, unsigned long symbol)
 static void print_trace_warning(void *data, char *msg)
 {
 }
+#endif
 
 static int print_trace_stack(void *data, char *name)
 {

@@ -1486,7 +1486,7 @@ static char *alt_libdir;
 	if (ret > 0)
 		buf[ret] = '\0';
 	if (cmd && strncmp(cmd, "/usr/", 5) == 0) {
-		alt_libdir = _dtrace_libdir;
+		alt_libdir = (char *) _dtrace_libdir;
 		return alt_libdir;
 	}
 

@@ -29,6 +29,7 @@
 #define YYERROR_VERBOSE
 #include <port.h>
 #include <dt_impl.h>
+#include <string.h>
 
 #define	OP1(op, c)	dt_node_op1(op, c)
 #define	OP2(op, l, r)	dt_node_op2(op, l, r)

@@ -956,10 +956,11 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 #undef fasttrap_copyout
 int z = 1;
 int fff(void *a, void *b, int c, int line)
-{
+{	
+
 	if (z)
 		printk("copyout: line %d %p %p c=%d %d\n", line, a, b, c, preempt_count());
-	int ret = memcpy(b, a, c);
+	memcpy(b, a, c);
 	return 0;
 }
 #define	fasttrap_copyout(a,b, c) fff(a, b, c, __LINE__)
@@ -1706,7 +1707,7 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		scratch[i++] = FASTTRAP_INT;
 		scratch[i++] = T_DTRACE_RET;
 
-printk("fasttrap_isa: 1710: pc=%p\n", rp->r_pc);
+printk("fasttrap_isa: 1710: pc=%p\n", (void *) rp->r_pc);
 dtrace_dump_mem(scratch, i);
 
 		ASSERT(i <= sizeof (scratch));

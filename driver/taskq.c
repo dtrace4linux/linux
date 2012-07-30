@@ -44,6 +44,17 @@
 //typedef struct taskq taskq_t;
 
 /**********************************************************************/
+/*   Handle   older   kernels   which   do   not  separate  out  the  */
+/*   work/delayed-work structs.					      */
+/**********************************************************************/
+#if !defined(INIT_DELAYED_WORK)
+
+#	define	INIT_DELAYED_WORK(a, b) INIT_WORK(a, b, 0)
+#	define	delayed_work	work_struct
+#	define	cancel_delayed_work_sync	cancel_delayed_work
+#endif
+
+/**********************************************************************/
 /*   Kernels >= 2.6.37 changed the interface. Work around GPL issue.  */
 /**********************************************************************/
 # if !defined(WR_MEM_RECLAIM) /* Introduced in 2.6.37 */

@@ -58,8 +58,8 @@ typedef struct psinfo_t {
 	char	pr_fname[80];
 	char	pr_argsz[80];
 	int	pr_argc;
-	uintptr_t pr_argv;
-	uintptr_t pr_envp;
+	caddr_t pr_argv;
+	caddr_t pr_envp;
 	char	*pr_psargs;
 	char	pr_dmodel;
 	} psinfo_t;

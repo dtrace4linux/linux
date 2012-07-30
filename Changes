@@ -1,3 +1,9 @@
+Mon Jul 30 08:28:16 2012  fox
+
+     741* ctl.c, ctf_struct.h: Build fixes for older kernels.
+
+     740* taskq.c: Add older kernel support.
+
 Sun Jul 29 18:06:43 2012  fox
 
      739* libproc/common/Psymtab.c: Fix for reading /proc/pid/auxv for

@@ -52,7 +52,6 @@
 # undef task_struct
 #include <linux/miscdevice.h>
 #include <linux/proc_fs.h>
-#include <linux/cred.h>
 #include <sys/modctl.h>
 #include <sys/dtrace.h>
 #include <sys/stack.h>

@@ -1311,7 +1311,6 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	/*   e.g. sys_call_table.		       */
 	/***********************************************/
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
-//	pgd_t *pgd = pgd_offset_k(addr);
 	pgd_t *pgd = pgd_offset(current->mm, addr);
 	pud_t *pud;
 	pmd_t *pmd;
@@ -1336,6 +1335,7 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 //		printk("yy: pmd=%lx\n", *pmd);
 		return 0;
 	}
+
 	/***********************************************/
 	/*   20091223  Soumendu  Sekhar Satapathy: If  */
 	/*   large  memory  system,  then use the pmd  */
@@ -1346,8 +1346,10 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	} else {
 		pte = pte_offset_kernel(pmd, addr);
 	}
-	if (pte_none(*pte))
+	if (pte_none(*pte)) {
+//printk("none pte\n");
 		return 0;
+		}
 
 # if dump_tree
 	printk("yy -- begin\n");
@@ -1373,6 +1375,13 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 # else
 	perms1 = pmd->pmd;
 # endif
+	/***********************************************/
+	/*   Ensure we flush the page table, else our  */
+	/*   vmplayer/centos-2.6.18-64b   will  crash  */
+	/*   when doing syscall tracing.	       */
+	/***********************************************/
+	dtrace_clflush(&pp->pp_pte);
+
 	if ((perms1 & perms) != perms ||
 	    (pte->pte & (perms | _PAGE_NX)) != perms) {
 //# if defined(__i386) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 4)

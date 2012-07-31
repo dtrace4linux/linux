@@ -98,7 +98,9 @@ sub main
 	#   Safely remove the old driver.	      #
 	###############################################
 	if ( -e "/dev/dtrace" ) {
-		spawn("$SUDO /sbin/rmmod dtracedrv");
+		my $rmmod = "/sbin/rmmod";
+		$rmmod = "/usr/sbin/rmmod" if -x "/usr/sbin/rmmod";
+		spawn("$SUDO $rmmod dtracedrv");
 		spawn("sync ; sync");
 		exit(0) if $opts{unload};
 	}

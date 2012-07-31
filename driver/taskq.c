@@ -70,6 +70,21 @@ __create_workqueue_key(const char *name, int singlethread,
 	return func(name, singlethread, freezeable, rt, key, lock_name);
 }
 # endif
+
+/**********************************************************************/
+/*   Following   is   horrible.   For   older  kernels,  eg  centos5  */
+/*   2.6.18-128.el5,  the  create_workqueue  expands  into a call to  */
+/*   this  GPL  function.  So we get the macro to call locally, then  */
+/*   indirect to the real function.				      */
+/**********************************************************************/
+struct workqueue_struct *__create_workqueue(const char *name, int singlethread)
+{	static struct workqueue_struct *(*func)(const char *name, int singlethread);
+
+	if (func == NULL)
+		func = get_proc_addr("__create_workqueue");
+	return func(name, singlethread);
+}
+
 /**********************************************************************/
 /*   Work  queue  data structure, used by dtrace.c for dtrace_taskq,  */
 /*   and for timeout() implementation.				      */
@@ -226,8 +241,10 @@ taskq_destroy(taskq_t *tq)
 
 	if (!taskq_enabled)
 		return;
-	flush_workqueue_ptr(wq);
-	destroy_workqueue_ptr(wq);
+	if (flush_workqueue_ptr)
+		flush_workqueue_ptr(wq);
+	if (destroy_workqueue_ptr)
+		destroy_workqueue_ptr(wq);
 } 
 /**********************************************************************/
 /*   Old-fashioned  style  timer callbacks. Called by fasttrap.c and  */

@@ -1948,7 +1948,7 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 		/*   tpoints=1024 procs=256 provs=256	       */
 		/***********************************************/
 		seq_printf(seq, "tpoints=%lu procs=%lu provs=%lu total=%u\n"
-			"# TRCP: pid pc type size\n"
+			"# TRCP: pid pc type size base index\n"
 			"# PROV: pid name marked retired rcount ccount mcount\n"
 			"# PROC: pid acount rcount\n",
 			fasttrap_tpoints.fth_nent,
@@ -1972,11 +1972,13 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 			if (--target < 0) {
-				seq_printf(seq, "TRCP %d %p %02x %02x\n",
+				seq_printf(seq, "TRCP %d %p %02x %02x %02x %02x\n",
 					(int) tp->ftt_pid,
 					(void *) tp->ftt_pc,
 					tp->ftt_type,
-					tp->ftt_size);
+					tp->ftt_size,
+					tp->ftt_base,
+					tp->ftt_index);
 				return 0;
 				}
 		}

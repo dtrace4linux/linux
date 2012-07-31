@@ -447,6 +447,7 @@ HERE();
 					uint8_t base = rm |
 					    (FASTTRAP_REX_B(rex) << 3);
 
+printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", pc, rm, rex, base, regmap[base]);
 					tp->ftt_base = regmap[base];
 					sz = mod == 1 ? 1 : mod == 2 ? 4 : 0;
 				}
@@ -1883,6 +1884,8 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_GSBASE:	return (lx_rdmsr(MSR_AMD_GSBASE));
 	}
 
-	panic("dtrace: illegal register constant");
+	printk("register=%x\n", reg);
+	dtrace_linux_panic("dtrace: illegal register constant");
+	return 0;
 	/*NOTREACHED*/
 }

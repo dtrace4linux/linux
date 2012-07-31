@@ -1,4 +1,17 @@
+Tue Jul 31 22:00:40 2012  fox
+
+     746* driver/taskq.c: Fix for centos 5 GPL function issue.
+
+     745* Psymtab.c: Fix for older kernels where AT_BASE auxv vector
+          is not defined, so couldnt use 'dtrace -n pidXXX:::' on them.
+	  (Centos 5).
+
+     744* dtrace_linux.c: mem_set_writable: Fix (clflush) for centos
+          kernel.
+
 Mon Jul 30 08:28:16 2012  fox
+
+     743* Archive: 1.0142
 
      742* driver/dtrace_linux.c: Fix issue with determining data model of 32b
           proc on 64b kernel.

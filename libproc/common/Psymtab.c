@@ -932,6 +932,8 @@ Preadauxvec(struct ps_prochandle *P)
 	/***********************************************/
 	{
 	char	buf[128 * 2 * sizeof(long)];
+	int	base_i, i;
+
 	P->auxv = malloc(sizeof buf);
 	naux = read(fd, buf, 128 * sizeof(auxv_t));
 	if (naux <= 0) {
@@ -973,13 +975,45 @@ Preadauxvec(struct ps_prochandle *P)
 		memcpy(P->auxv, buf, naux);
 		naux /= sizeof(auxv_t);
 	}
+	/***********************************************/
+	/*   Correction   for   those  systems  where  */
+	/*   AT_BASE is not set e.g. Centos5.	       */
+	/***********************************************/
+	base_i = -1;
+	for (i = 0; i < naux; i++) {
+		if (P->auxv[i].a_type == AT_BASE) {
+			base_i = i;
+			break;
+		}
 	}
-/*{int i; 
-for (i = 0; i < naux; i++) {printf("aux[%d]: type=%d %p\n", i, P->auxv[i].a_type, P->auxv[i].a_un.a_ptr);}
-}*/
+	if (base_i >= 0 && P->auxv[i].a_un.a_ptr == 0) {
+		FILE *fp;
+		snprintf(buf, sizeof buf, "/proc/%d/maps", P->pid);
+		if ((fp = fopen(buf, "r")) != NULL) {
+			while (fgets(buf, sizeof buf, fp) != NULL) {
+				unsigned long lo = 0;
+				if (strstr(buf, "/ld-") != 0) {
+					sscanf(buf, "%lx", &lo);
+					P->auxv[i].a_un.a_ptr = lo;
+					break;
+					}
+			}
+			fclose(fp);
+			
+		}
+	}
+
+	}
+
+	if (_libproc_debug) {
+		int i; 
+		for (i = 0; i < naux; i++) {printf("aux[%d]: type=%d %p\n", i, P->auxv[i].a_type, P->auxv[i].a_un.a_ptr);}
+	}
 	P->auxv[naux].a_type = AT_NULL;
 	P->auxv[naux].a_un.a_val = 0L;
 	P->nauxv = (int)naux;
+
+
 #else
 	if (fstat(fd, &statb) == 0 &&
 	    statb.st_size >= sizeof (auxv_t) &&

@@ -77,6 +77,7 @@ __create_workqueue_key(const char *name, int singlethread,
 /*   this  GPL  function.  So we get the macro to call locally, then  */
 /*   indirect to the real function.				      */
 /**********************************************************************/
+#if !defined(__create_workqueue)
 struct workqueue_struct *__create_workqueue(const char *name, int singlethread)
 {	static struct workqueue_struct *(*func)(const char *name, int singlethread);
 
@@ -84,6 +85,7 @@ struct workqueue_struct *__create_workqueue(const char *name, int singlethread)
 		func = get_proc_addr("__create_workqueue");
 	return func(name, singlethread);
 }
+#endif
 
 /**********************************************************************/
 /*   Work  queue  data structure, used by dtrace.c for dtrace_taskq,  */

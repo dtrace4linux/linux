@@ -88,7 +88,13 @@ tdesc_layouthash(int nbuckets, void *node)
 			 * incorporate the name of the first member into
 			 * the hash value.
 			 */
-			name = tdp->t_members->ml_name;
+#if linux
+			if (tdp->t_members == NULL) {
+/*				printf("WARNING: struct/union with no members?\n");*/
+				name = "anonymous-su-member";
+			} else
+#endif
+				name = tdp->t_members->ml_name;
 			break;
 		case ENUM:
 			/* Use the first element in the hash value */

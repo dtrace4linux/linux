@@ -48,8 +48,12 @@
 /*   work/delayed-work structs.					      */
 /**********************************************************************/
 #if !defined(INIT_DELAYED_WORK)
-
-#	define	INIT_DELAYED_WORK(a, b) INIT_WORK(a, b, 0)
+	/***********************************************/
+	/*   On  older  kernel, INIT_WORK takes three  */
+	/*   args  and the last is the callback (void  */
+	/*   *)ptr, so be explicit and pass it in.     */
+	/***********************************************/
+#	define	INIT_DELAYED_WORK(a, b) INIT_WORK(a, b, a)
 #	define	delayed_work	work_struct
 #	define	cancel_delayed_work_sync	cancel_delayed_work
 #endif
@@ -234,7 +238,8 @@ taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags, unsigned
 	INIT_DELAYED_WORK( &work->t_work, taskq_callback);
 	work->t_func = func;
 	work->t_arg = arg;
-	queue_delayed_work_ptr((struct workqueue_struct *) tq, &work->t_work, delay);
+	queue_delayed_work_ptr((struct workqueue_struct *) tq, 
+		&work->t_work, delay);
 	return (taskqid_t) work;
 }
 void

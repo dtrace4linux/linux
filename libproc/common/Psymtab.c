@@ -2934,8 +2934,17 @@ Psymbol_iter_com(struct ps_prochandle *P, Lmid_t lmid, const char *object_name,
 			} else
 				continue; /* Invalid type or binding */
 
+# if defined(sun)
+			/***********************************************/
+			/*   On  Centos  5.3,  we  get a problem with  */
+			/*   _dl_initial_error_catch_tsd           in  */
+			/*   /lib64/ld-2.5.so.   Maybe   this   is  a  */
+			/*   solaris  ELF difference. Or a bug in the  */
+			/*   ELF sections/symtab on that release.      */
+			/***********************************************/
 			if (GELF_ST_TYPE(sym.st_info) != STT_TLS)
 				sym.st_value += fptr->file_dyn_base;
+#endif
 
 			si.prs_name = strs + sym.st_name;
 
@@ -2952,6 +2961,7 @@ Psymbol_iter_com(struct ps_prochandle *P, Lmid_t lmid, const char *object_name,
 				si.prs_name = fptr->file_shstrs + shdr.sh_name;
 
 			si.prs_id = ndx;
+//printf("calling func %s %lx\n", si.prs_name, sym.st_value);
 			if ((rv = func(cd, &sym, si.prs_name, &si)) != 0)
 				break;
 		}

@@ -1646,7 +1646,7 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	fasttrap_bucket_t *bucket;
 	dtrace_provider_id_t provid;
 
-printk("retire: pid=%d name=%s\n", pid, name);
+//printk("retire: pid=%d name=%s\n", pid, name);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];

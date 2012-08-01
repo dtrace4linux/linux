@@ -1,3 +1,14 @@
+Wed Aug  1 15:24:01 2012  fox
+
+     749* libproc/common/Psymtab.c: Fix for _dl_initial_error_catch_tsd on
+          Centos 5.3.
+
+     748* driver/taskq.c: Fix for centos 5.3 (2.6.18-129) where invoking
+          workqueue callback derefs null ptr.
+
+     747* cmd/ctfconvert/tdata.c: Avoid core dump in tdesc_layouthash
+          if we have a struct/union with no members (fwd def/ref?)
+
 Tue Jul 31 22:00:40 2012  fox
 
      746* driver/taskq.c: Fix for centos 5 GPL function issue.

@@ -1,3 +1,13 @@
+Fri Aug  3 11:40:18 2012  fox
+
+     751* driver/intr_x86-64.S, intr_x86-32.S: Dont corrupt RAX register on 
+          an INT3 trap. Was breaking pid provider/fasttrap.
+
+Thu Aug  2 08:25:51 2012  fox
+
+     750* driver/x_call.c: xcall_init() Ensure xcalls[] is setup even
+          if no APIC (Centos 5.5 issue).
+
 Wed Aug  1 15:24:01 2012  fox
 
      749* libproc/common/Psymtab.c: Fix for _dl_initial_error_catch_tsd on

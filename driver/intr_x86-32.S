@@ -163,7 +163,12 @@
 	pop %gs
 #endif
 	.if \fault == 0
-	pop %eax
+	/***********************************************/
+	/*   Discard    the    error   code   without  */
+	/*   destroying rax.			       */
+	/***********************************************/
+	add $4,%esp
+//	pop %eax
 	.endif
 .endm
 

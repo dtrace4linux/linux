@@ -16,6 +16,7 @@ yum install \
 	libdwarf-devel \
 	libgcc.i686 \
 	make \
+	perl \
 	zlib-devel
 
 # Optional:

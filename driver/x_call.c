@@ -127,10 +127,9 @@ xcall_init(void)
 		/*   This might be a problem. It might not.    */
 		/***********************************************/
 		printk("init_xcall: cannot locate 'apic'\n");
-		return;
 	}
-	x_apic = *(void **) x_apic;
-
+	if (x_apic)
+		x_apic = *(void **) x_apic;
 
 	for (i = 0; i < nr_cpus; i++) {
 		xcalls[i] = kzalloc(nr_cpus * sizeof (struct xcalls), GFP_KERNEL);

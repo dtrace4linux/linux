@@ -1,0 +1,7 @@
+centos5.3 - fbt1 return / instr patching bug
+	tlb issue
+done centos5.5 - any probes cause panic -- page table?
+centos5.5 - simple-c link failure
+ubuntu11-64 - EDX / pid provider emulation - register mismatch
+centos5.6 - cancel_work_sync gpl issue
+done centos6.3 - strange link issues

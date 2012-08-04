@@ -49,7 +49,8 @@ int str2sig(char *str, int signum)
         return 0;
 }
 int sig2str(int sig, char *buf)
-{
+{	char	*strsignal(int);
+
 	strcpy(buf, strsignal(sig));
 	return 1;
 }

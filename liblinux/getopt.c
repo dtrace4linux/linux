@@ -61,7 +61,7 @@
  * that would require moving the 'optstring[0]' test outside of the
  * function.
  */
-#define	ERR(s, c, i)	if (opterr && optstring[0] != ':') { \
+#define	GETOPT_ERR(s, c, i)	if (opterr && optstring[0] != ':') { \
 	char errbuf[256]; \
 	char cbuf[2]; \
 	cbuf[0] = c; \
@@ -203,7 +203,7 @@ getopt(int argc, char *const *argv, const char *optstring)
 		if (optind >= argc || argv[optind][0] != '-' ||
 		    argv[optind] == NULL || argv[optind][1] == '\0')
 			return (EOF);
-		else if (strcmp(argv[optind], "--") == NULL) {
+		else if (strcmp(argv[optind], "--") == 0) {
 			optind++;
 			return (EOF);
 		}
@@ -234,7 +234,7 @@ getopt(int argc, char *const *argv, const char *optstring)
 	if (!(longopt ?
 	    ((cp = parselong(optstring, argv[optind]+2, &longoptarg)) != NULL) :
 	    ((cp = parseshort(optstring, c)) != NULL))) {
-		ERR(_libc_gettext("%s: illegal option -- %s\n"),
+		GETOPT_ERR(_libc_gettext("%s: illegal option -- %s\n"),
 		    c, (longopt ? optind : 0));
 		/*
 		 * Note: When the long option is unrecognized, optopt
@@ -284,7 +284,7 @@ getopt(int argc, char *const *argv, const char *optstring)
 			optind++;
 			optarg = longoptarg;
 		} else if (++optind >= argc) {
-			ERR(_libc_gettext("%s: option requires an argument" \
+			GETOPT_ERR(_libc_gettext("%s: option requires an argument" \
 			    " -- %s\n"), c, (longopt ? optind - 1 : 0));
 			_sp = 1;
 			optarg = NULL;
@@ -296,7 +296,7 @@ getopt(int argc, char *const *argv, const char *optstring)
 		/* The option does NOT take an argument */
 		if (longopt && (longoptarg != NULL)) {
 			/* User supplied an arg to an option that takes none */
-			ERR(_libc_gettext(
+			GETOPT_ERR(_libc_gettext(
 			    "%s: option doesn't take an argument -- %s\n"),
 			    0, (longopt ? optind : 0));
 			optarg = longoptarg = NULL;

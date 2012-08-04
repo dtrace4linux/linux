@@ -144,21 +144,21 @@ typedef int64_t greg64_t;
 #define REG_RIP         17
 #define REG_ERR         16
 #define REG_TRAPNO      15
-#define REG_RAX         14
-#define REG_RCX         13
-#define REG_RDX         12
-#define REG_RBX         11
+#define REG_R15         14
+#define REG_R14         13
+#define REG_R13         12
+#define REG_R12         11
 #define REG_RBP         10
-#define REG_RSI         9
-#define REG_RDI         8
-#define REG_R8          7
+#define REG_RBX         9
+#define REG_R11         8
+#define REG_R10         7
 #define REG_R9          6
-#define REG_R10         5
-#define REG_R11         4
-#define REG_R12         3
-#define REG_R13         2
-#define REG_R14         1
-#define REG_R15         0
+#define REG_R8          5
+#define REG_RAX         4
+#define REG_RCX         3
+#define REG_RDX         2
+#define REG_RSI         1
+#define REG_RDI         0
 
 /* AMD's FS.base and GS.base MSRs */
 

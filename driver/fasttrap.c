@@ -734,9 +734,10 @@ HERE();
 		 * by calling fasttrap_tracepoint_disable().
 		 */
 HERE();
-		if (fasttrap_tracepoint_install(p, new_tp) != 0)
+		if (fasttrap_tracepoint_install(p, new_tp) != 0) {
 			rc = FASTTRAP_ENABLE_PARTIAL;
-printk("rc=%d FASTTRAP_ENABLE_PARTIAL=%d\n", rc, FASTTRAP_ENABLE_PARTIAL);
+printk("rc=%d FASTTRAP_ENABLE_PARTIAL=%d pc=%p\n", rc, FASTTRAP_ENABLE_PARTIAL, tp->ftt_pc);
+		}
 HERE();
 
 		/*
@@ -1467,7 +1468,6 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	proc_t *p;
 	cred_t *cred;
 
-printk("%s: here\n", __func__);
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 	ASSERT(pattr != NULL);
 
@@ -1579,7 +1579,7 @@ HERE();
 	new_fp->ftp_next = bucket->ftb_data;
 	bucket->ftb_data = new_fp;
 
-printk("%s(%d):new USDT provider: '%s'\n", __FILE__, __LINE__, provname);
+//printk("%s(%d):new USDT provider: '%s'\n", __FILE__, __LINE__, provname);
 	dmutex_enter(&new_fp->ftp_mtx);
 	dmutex_exit(&bucket->ftb_mtx);
 
@@ -1734,7 +1734,6 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	char *name;
 	int i, aframes = 0, whack;
 
-printk("here in fasttrap_add_probe\n");
 	/*
 	 * There needs to be at least one desired trace point.
 	 */
@@ -1920,12 +1919,15 @@ static void *fasttrap_seq_start(struct seq_file *seq, loff_t *pos)
 		return 0;
 	return (void *) (long) (*pos + 1);
 }
+#define CHUNK_SIZE 10
 static void *fasttrap_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {	long	n = (long) v;
 //printk("%s pos=%p mcnt=%d\n", __func__, *pos, mcnt);
-	++*pos;
+//	++*pos;
 
-	return (void *) (n - 2 > fasttrap_total ? NULL : (void *) (n + 1));
+	*pos += CHUNK_SIZE;
+	return (void *) (n > fasttrap_total + CHUNK_SIZE ? NULL : 
+			(void *) (n + CHUNK_SIZE));
 }
 static void fasttrap_seq_stop(struct seq_file *seq, void *v)
 {
@@ -1940,6 +1942,7 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 	int	i;
 	int	n = (int) (long) v;
 	int	target;
+	int	ent = 0;
 
 //printk("%s v=%p\n", __func__, v);
 	if (n == 1) {
@@ -1955,31 +1958,30 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 			fasttrap_procs.fth_nent,
 			fasttrap_provs.fth_nent,
 			fasttrap_total);
-		return 0;
 	}
-/*	if (n > fasttrap_total + 1000)
-		return 0;
-*/
+
 	/***********************************************/
 	/*   Find  first  probe.  This  is incredibly  */
 	/*   slow  and  inefficient, but we dont want  */
 	/*   to waste memory keeping a list (an extra  */
 	/*   ptr for each probe).		       */
 	/***********************************************/
-	target = n-2;
+	target = n;
 	for (i = 0; i < fasttrap_tpoints.fth_nent; i++) {
 		fasttrap_tracepoint_t *tp;
 		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 			if (--target < 0) {
 				seq_printf(seq, "TRCP %d %p %02x %02x %02x %02x\n",
+				//n, ent,
 					(int) tp->ftt_pid,
 					(void *) tp->ftt_pc,
 					tp->ftt_type,
 					tp->ftt_size,
 					tp->ftt_base,
 					tp->ftt_index);
-				return 0;
+				if (++ent >= CHUNK_SIZE)
+					return 0;
 				}
 		}
 	}
@@ -1996,7 +1998,8 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 					fpp->ftp_rcount,
 					fpp->ftp_ccount,
 					fpp->ftp_mcount);
-				return 0;
+				if (++ent >= CHUNK_SIZE)
+					return 0;
 				}
 		}
 	}
@@ -2009,7 +2012,8 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 					(int) ftp->ftpc_pid,
 					ftp->ftpc_acount,
 					ftp->ftpc_rcount);
-				return 0;
+				if (++ent >= CHUNK_SIZE)
+					return 0;
 				}
 		}
 	}
@@ -2266,7 +2270,6 @@ int
 fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 # endif
 {
-printk("%s:%d: here\n", __func__, __LINE__);
 	if (!dtrace_attached())
 		return (EAGAIN);
 
@@ -2278,7 +2281,6 @@ printk("%s:%d: here\n", __func__, __LINE__);
 		int ret;
 		char *c;
 
-printk("%s:%d: here\n", __func__, __LINE__);
 		if (copyin(&uprobe->ftps_noffs, &noffs,
 		    sizeof (uprobe->ftps_noffs)))
 			return (EFAULT);
@@ -2303,7 +2305,6 @@ printk("%s:%d: here\n", __func__, __LINE__);
 			return (EFAULT);
 		}
 
-printk("%s:%d: here\n", __func__, __LINE__);
 		/*
 		 * Verify that the function and module strings contain no
 		 * funny characters.

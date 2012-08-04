@@ -756,7 +756,17 @@ dt_alloc(dtrace_hdl_t *dtp, size_t size)
 		return (NULL);
 	}
 
+#if linux
+	/***********************************************/
+	/*   Lets  be clean here. If we dont zero out  */
+	/*   the  memory,  then  dt_link.c can create  */
+	/*   invalid  ELF  files  when  we  add extra  */
+	/*   symbols.				       */
+	/***********************************************/
+	if ((data = calloc(size, 1)) == NULL)
+#else
 	if ((data = malloc(size)) == NULL)
+#endif
 		(void) dt_set_errno(dtp, EDT_NOMEM);
 
 	return (data);

@@ -1,3 +1,20 @@
+Sat Aug  4 15:16:00 2012  fox
+
+     756* cmd/ctfconvert: Doesnt depend on -lbfd
+
+     755* libdtrace/dt_link.c: Allow us to avoid deleting the temp file.
+          Fix file perms issue.
+
+     754* libdtrace/dt_subr.c: dt_alloc: Use calloc() and not malloc()
+          as this can cause bad ELF file generation.
+
+     753* linux/sys/regset.h: Reorder the amd64 registers to match
+          the interrupt trap, so that single stepping pid probes work
+	  properly.
+
+     752* driver/fasttrap.c: Significant speed up for /proc/dtrace/fasttrap.
+          Not ideal or linear, but better than before.
+
 Fri Aug  3 11:40:18 2012  fox
 
      751* driver/intr_x86-64.S, intr_x86-32.S: Dont corrupt RAX register on 

@@ -523,8 +523,9 @@ dump_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	/*   (objdump/binutils  dont like it either).  */
 	/*   We will cheat here and use SHT_PROGBITS,  */
 	/*   since  the linker doesnt mind. A failing  */
-	/*   linker, e.g. AS4, is		       */
-	/*   GNU ld version 2.15.92.0.2 20040927       */
+	/*   linker, e.g.			       */
+	/*   AS4: ld version 2.15.92.0.2 20040927      */
+	/*   Centos5.6: ld version 2.17.50.0.6-14.el5 20061020 */
 	/***********************************************/
 # if 1
 	shp->sh_type = SHT_PROGBITS;
@@ -677,8 +678,9 @@ dump_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	/*   (objdump/binutils  dont like it either).  */
 	/*   We will cheat here and use SHT_PROGBITS,  */
 	/*   since  the linker doesnt mind. A failing  */
-	/*   linker, e.g. AS4, is		       */
-	/*   GNU ld version 2.15.92.0.2 20040927       */
+	/*   linker, e.g.			       */
+	/*   AS4: ld version 2.15.92.0.2 20040927      */
+	/*   Centos5.6: ld version 2.17.50.0.6-14.el5 20061020 */
 	/***********************************************/
 # if 1
 	shp->sh_type = SHT_PROGBITS;
@@ -1357,6 +1359,8 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		 * are still responsible for freeing them once we're done with
 		 * the elf handle.
 		 */
+/*printf("nsym=%d\n", nsym);*/
+
 		if (nsym > 0) {
 			/*
 			 * The first byte of the string table is reserved for
@@ -1690,7 +1694,11 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 	 * combine it with drti.o later.  We can still refer to it in child
 	 * processes as /dev/fd/<fd>.
 	 */
+#if linux
+	if ((fd = open64(file, O_RDWR | O_CREAT | O_TRUNC, 0644)) == -1) {
+#else
 	if ((fd = open64(file, O_RDWR | O_CREAT | O_TRUNC, 0666)) == -1) {
+#endif
 		return (dt_link_error(dtp, NULL, -1, NULL,
 		    "failed to open %s: %s", file, strerror(errno)));
 	}
@@ -1839,19 +1847,19 @@ dtrace_program_link(dtrace_hdl_t *dtp, dtrace_prog_t *pgp, uint_t dflags,
 			goto done;
 		}
 
-		if (unlink(temp_name) < 0) {
-			fprintf(stderr, "dt_link: unlink(%s) ", temp_name);
-			perror("");
-		}
-# if defined(linux) && 0
+# if defined(linux)
 		/***********************************************/
 		/*   Remove  file  now - we keep it around in  */
 		/*   case we are debugging the linker above.   */
 		/***********************************************/
-		printf("%s: unlinking file: %s\n", __FILE__, file);
-		if (getenv("DTRACE_NO_UNLINK") == NULL)
-			(void) unlink(file);
+		if (getenv("DTRACE_NO_UNLINK")) {
+			printf("%s: unlinking file: %s\n", __FILE__, file);
+		} else
 # endif
+		if (unlink(temp_name) < 0) {
+			fprintf(stderr, "dt_link: unlink(%s) ", temp_name);
+			perror("");
+		}
 	} else {
 		(void) close(fd);
 	}

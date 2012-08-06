@@ -1257,11 +1257,11 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 	dtrace_id_t id;					\
 							\
 	TRACE_BEFORE_IA32(NR_ia32_ ## name, arg0, arg1, arg2, arg3, arg4, arg5); \
-//printk("ia32 %s before\n", #name); \
+/*printk("ia32 %s before\n", #name);*/ \
 							\
 	ret = func(arg0, arg1, arg2, arg3, arg4, arg5);	 \
 							\
-//printk("ia32 %s after\n", #name); \
+/*printk("ia32 %s after\n", #name);*/ \
 	TRACE_AFTER_IA32(NR_ia32_ ## name, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0); \
 	return ret;					\
 }

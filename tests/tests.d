@@ -74,6 +74,26 @@ d:
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
+name: systrace-stringof-bad4
+note:
+	Turn off the stringof, but otherwise the same as 
+	systrace-stringof-bad3
+d:
+	BEGIN {
+		cnt = 0;
+		tstart = timestamp;
+	}
+	syscall::: {
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		cnt++;
+	}
+	syscall::: /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-5s { exit(0); }
+##################################################################
 name: high-profile1
 note:
 	Lots of ticks to try and induce interrupt stacking/xcall

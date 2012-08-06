@@ -276,6 +276,7 @@ void systrace_part1_sys_execve_ia32(void);
 void systrace_part1_sys_fork_ia32(void);
 void systrace_part1_sys_iopl_ia32(void);
 void systrace_part1_sys_rt_sigreturn_ia32(void);
+void systrace_part1_sys_rt_sigsuspend_ia32(void);
 void systrace_part1_sys_sigaltstack_ia32(void);
 void systrace_part1_sys_sigreturn_ia32(void);
 void systrace_part1_sys_vfork_ia32(void);
@@ -504,11 +505,20 @@ systrace_assembler_dummy(void)
 # endif
 		END_FUNCTION(systrace_part1_sys_sigaltstack)
 
+		/***********************************************/
+		/*   rt_sigsuspend			       */
+		/***********************************************/
 		FUNCTION(systrace_part1_sys_rt_sigsuspend)
 		"lea    -0x28(%rsp),%rdx\n"
-		"mov $dtrace_systrace_syscall_sigsuspend,%rax\n"
+		"mov $dtrace_systrace_syscall_rt_sigsuspend,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_rt_sigsuspend)
+
+		FUNCTION(systrace_part1_sys_rt_sigsuspend_ia32)
+		"lea    -0x28(%rsp),%rdx\n"
+		"mov $dtrace_systrace_syscall_rt_sigsuspend_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_rt_sigsuspend_ia32)
 
 		/***********************************************/
 		/*   Normal  Unix  code calls vfork() because  */
@@ -649,9 +659,12 @@ systrace_assembler_dummy(void)
 		((n) == __NR_clone || \
 		 (n) == __NR_fork || \
 		 (n) == __NR_iopl || \
+(n) == __NR_rt_sigsuspend || \
 		 (n) == __NR_sigaltstack || \
 		 (n) == __NR_vfork)
+	/* amd64 */
 #else
+	/* i386 */
 /**********************************************************************/
 /*   i386  code for the syscalls. Note we use entry_32.S (or entry.S  */
 /*   for  older  kernels).  What  we find is that some syscalls have  */
@@ -1190,13 +1203,16 @@ dtrace_systrace_syscall_sigaltstack(uintptr_t arg0, uintptr_t arg1, uintptr_t ar
 # endif
 }
 /**********************************************************************/
-/*   2nd part of the sigaltstack() syscall.				      */
+/*   2nd part of the sigsuspend() syscall.			      */
 /**********************************************************************/
 asmlinkage int64_t
 dtrace_systrace_syscall_sigsuspend(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 {	systrace_sysent_t s;
 
+	/***********************************************/
+	/*   BUG? shouldnt this be __NR_sigsuspend?    */
+	/***********************************************/
 	s = systrace_sysent[__NR_rt_sigsuspend];
 	s.stsy_underlying = sys_rt_sigsuspend_ptr;
 	return dtrace_systrace_syscall2(__NR_rt_sigsuspend, &s,
@@ -1241,9 +1257,11 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 	dtrace_id_t id;					\
 							\
 	TRACE_BEFORE_IA32(NR_ia32_ ## name, arg0, arg1, arg2, arg3, arg4, arg5); \
+//printk("ia32 %s before\n", #name); \
 							\
 	ret = func(arg0, arg1, arg2, arg3, arg4, arg5);	 \
 							\
+//printk("ia32 %s after\n", #name); \
 	TRACE_AFTER_IA32(NR_ia32_ ## name, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0); \
 	return ret;					\
 }
@@ -1266,6 +1284,9 @@ FUNC_IA32(iopl, sys_iopl_ptr)
 #endif
 #if defined(NR_ia32_rt_sigreturn)
 FUNC_IA32(rt_sigreturn, sys_rt_sigreturn_ptr)
+#endif
+#if defined(NR_ia32_rt_sigsuspend)
+FUNC_IA32(rt_sigsuspend, sys_rt_sigsuspend_ptr);
 #endif
 #if defined(NR_ia32_sigaltstack)
 FUNC_IA32(sigaltstack, sys_sigaltstack_ptr)
@@ -1299,6 +1320,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 		dmutex_enter(&slock);
 	}
 
+//printk("ia32 %s before\n", syscallnames32[syscall]);
 	if (dtrace_here) {
 		printk("syscall=%d %s current=%p syscall=%ld\n", syscall, 
 			syscall >= 0 && syscall < NSYSCALL ? syscallnames[syscall] : "dont-know", 
@@ -1574,6 +1596,14 @@ get_interposer32(int sysnum, int enable)
 #if defined(NR_ia32_sigreturn)
 	  case NR_ia32_sigreturn:
 		return (void *) systrace_part1_sys_sigreturn_ia32;
+#endif
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,25)
+	  /***********************************************/
+	  /*   This  went away in the later kernels, so	 */
+	  /*   we dont need to treat it specially.	 */
+	  /***********************************************/
+	  case NR_ia32_rt_sigsuspend:
+		return (void *) systrace_part1_sys_rt_sigsuspend_ia32;
 #endif
 	  case NR_ia32_iopl:
 		return (void *) systrace_part1_sys_iopl_ia32;
@@ -1995,6 +2025,7 @@ systrace_enable32(void *arg, dtrace_id_t id, void *parg)
 				sysent32[sysnum].sy_callc);
 	}
 
+//printk("sys32: %d %p %s\n", sysnum, &sysent32[sysnum], syscallnames32[sysnum]);
 	casptr(&sysent32[sysnum].sy_callc,
 	    (void *)systrace_sysent32[sysnum].stsy_underlying,
 	    (void *)syscall_func);
@@ -2074,6 +2105,7 @@ systrace_enable(void *arg, dtrace_id_t id, void *parg)
 			(void *)syscall_func);
 	}
 
+//printk("sys64: %d %p %s\n", sysnum, &sysent[sysnum], syscallnames[sysnum]);
 	casptr(&sysent[sysnum].sy_callc,
 	    (void *)systrace_sysent[sysnum].stsy_underlying,
 	    (void *)syscall_func);

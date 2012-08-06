@@ -294,7 +294,7 @@ void	xcall_fini(void);
 /*   Avoid   problems   with  old  kernels  which  have  conflicting  */
 /*   definitions.						      */
 /**********************************************************************/
-static void
+void
 dtrace_clflush(void *ptr)
 {
         __asm__("clflush %0\n" : "+m" (*(char *)ptr));
@@ -1273,6 +1273,25 @@ validate_ptr(const void *ptr)
 
 	return ret;
 }
+
+/**********************************************************************/
+/*   Used  for  probing  memory,  especially dtrace_casptr, to avoid  */
+/*   paniccing kernel when we are debugging the page table stuff.     */
+/**********************************************************************/
+int
+mem_is_writable(volatile char *addr)
+{	int	ret = 1;
+
+	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
+
+	*addr = *addr;
+
+	if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_BADADDR))
+		ret = 0;
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT | CPU_DTRACE_BADADDR);
+	return ret;
+}
+
 # if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 11)
 	/***********************************************/
 	/*   Note  sure  which  version of the kernel  */
@@ -1298,13 +1317,14 @@ typedef struct page_perms_t {
 /*   http://www.intel.com/design/processor/applnots/317080.pdf	      */
 /**********************************************************************/
 static int
-mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
+mem_set_perms(unsigned long addr, page_perms_t *pp, unsigned long and_perms, unsigned long or_perms)
 {
 #if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
 	typedef struct { unsigned long long pte; } pte_t;
 #	undef pte_none
 #	define pte_none(p) (p).pte == 0
 #endif
+	int	ret = 1;
 	/***********************************************/
 	/*   Dont   think  we  need  this  for  older  */
 	/*   kernels  where  everything  is writable,  */
@@ -1315,7 +1335,7 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
-	unsigned long perms1;
+	unsigned long *perms1;
 #define dump_tree FALSE
 
 	pp->pp_valid = FALSE;
@@ -1349,15 +1369,17 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	if (pte_none(*pte)) {
 //printk("none pte\n");
 		return 0;
-		}
+	}
 
 # if dump_tree
+	{void print_pte(pte_t *pte, int level);
 	printk("yy -- begin\n");
 	print_pte((pte_t *) pgd, 0);
 	print_pte((pte_t *) pmd, 1);
 	print_pte((pte_t *) pud, 2);
 	print_pte(pte, 3);
 	printk("yy -- end\n");
+	}
 # endif
 
 	pp->pp_valid = TRUE;
@@ -1371,9 +1393,9 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	/*   this is a no-op.			       */
 	/***********************************************/
 # if defined(__i386) && !defined(CONFIG_X86_PAE)
-	perms1 = pmd->pud.pgd.pgd;
+	perms1 = &pmd->pud.pgd.pgd;
 # else
-	perms1 = pmd->pmd;
+	perms1 = &pmd->pmd;
 # endif
 	/***********************************************/
 	/*   Ensure we flush the page table, else our  */
@@ -1382,28 +1404,55 @@ mem_set_writable(unsigned long addr, page_perms_t *pp, int perms)
 	/***********************************************/
 	dtrace_clflush(&pp->pp_pte);
 
-	if ((perms1 & perms) != perms ||
-	    (pte->pte & (perms | _PAGE_NX)) != perms) {
-//# if defined(__i386) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 4)
-# if defined(__i386) && !defined(CONFIG_X86_PAE)
-		pmd->pud.pgd.pgd |= perms;
-# else
-		pmd->pmd |= perms;
-# endif
+	if (((*perms1 & and_perms) | or_perms) != *perms1 ||
+	    ((pte->pte & and_perms) | or_perms) != pte->pte) {
+		*perms1 = (*perms1 & and_perms) | or_perms;
+
 		/***********************************************/
 		/*   Make  page  executable. Ideally we would  */
 		/*   pass in the and+or perms to set.	       */
 		/***********************************************/
-		pte->pte = (pte->pte | perms) & ~_PAGE_NX;
+		pte->pte = (pte->pte & and_perms) | or_perms;
 
 		/***********************************************/
 		/*   clflush only on >=2.6.28 kernels.	       */
 		/***********************************************/
 		dtrace_clflush(pmd);
 		dtrace_clflush(pte);
+		ret = 2;
 	}
 # endif
-	return 1;
+	return ret;
+}
+/**********************************************************************/
+/*   Invoked  by  pid  provider (fastrap_isa.c) when poking into the  */
+/*   stack  page  for an emulated instruction. We might cross a page  */
+/*   boundary, so handle this.					      */
+/**********************************************************************/
+void
+set_page_prot(unsigned long addr, int len, long and_prot, long or_prot)
+{	page_perms_t perms;
+	int	ret = 0;
+
+	addr &= ~(PAGESIZE - 1);
+	while (len > 0) {
+		int	r;
+		len -= PAGESIZE;
+		r = mem_set_perms(addr, &perms, and_prot, or_prot);
+		if (r > ret)
+			ret = r;
+	}
+	/***********************************************/
+	/*   If  we  changed something update the TLB  */
+	/*   state,  else  we  can get a segmentation  */
+	/*   violation in the pid provider as we poke  */
+	/*   the  emulated instruction into the stack  */
+	/*   area.  Try  and  avoid full tlb flush if  */
+	/*   the  page(s)  are already in the correct  */
+	/*   state.				       */
+	/***********************************************/
+	if (ret == 2)
+		__flush_tlb_all();
 }
 /**********************************************************************/
 /*   Undo  the  patching of the page table entries after making them  */
@@ -1524,7 +1573,7 @@ printk("set_memory_rw(%p, %d) := %d\n", addr, num_pages, ret);
 	page_perms_t perms;
 
 	for (i = 0; i <= num_pages; i++) {
-		mem_set_writable((unsigned long) addr, &perms, _PAGE_RW);
+		mem_set_perms((unsigned long) addr, &perms, ~_PAGE_NX, _PAGE_RW);
 		addr += PAGE_SIZE;
 	}
 # endif
@@ -1753,8 +1802,8 @@ par_setup_thread2()
 /**********************************************************************/
 /*   For debugging...						      */
 /**********************************************************************/
-#if 0
-static void
+#if dump_tree
+void
 print_pte(pte_t *pte, int level)
 {
 	/***********************************************/

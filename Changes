@@ -1,3 +1,22 @@
+Mon Aug  6 20:56:11 2012  fox
+
+     760* driver/systrace.c: Fix for 32b binaries on 64b kernel for
+          Centos/RedHat releases.
+
+Sun Aug  5 11:50:41 2012  fox
+
+     759* tools/mkport.h: Fix for FUNC_DUMP_TRACE_ARGS on centos5.6.
+
+     758* dtrace_asm.c: dtrace_casptr: Add a check that target is writable
+          and avoid paniccing kernel when it isnt (eg syscall tracing,
+	  caused by mem_set_writable code not working). Hm. Undo
+	  this change - we can get deadlock if we trigger a violation.
+	  Or something else - not sure what it is.
+
+     757* fasttrap_isa.c, dtrace_linux.c: When patching in PID provider
+          instructions, ensure page is executable. 
+	  Centos5.3 2.6.18-128.el5 fix
+
 Sat Aug  4 15:16:00 2012  fox
 
      756* cmd/ctfconvert: Doesnt depend on -lbfd

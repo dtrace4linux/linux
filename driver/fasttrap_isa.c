@@ -27,6 +27,9 @@
 //#pragma ident	"@(#)fasttrap_isa.c	1.27	08/04/09 SMI"
 
 # if linux
+# include <linux/mm.h>
+# undef zone
+# define zone linux_zone
 #include "dtrace_linux.h"
 #include <sys/zone.h>
 #include <sys/fasttrap.h>
@@ -40,6 +43,8 @@
 # define regs pt_regs
 #include <sys/segments.h>
 #include <sys/trap.h>
+#include <asm/pgtable.h>
+#include <asm/tlbflush.h>
 
 #define SVFORK     0x00040000   /* child of vfork that has not yet exec'd */
 
@@ -447,7 +452,7 @@ HERE();
 					uint8_t base = rm |
 					    (FASTTRAP_REX_B(rex) << 3);
 
-printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", pc, rm, rex, base, regmap[base]);
+printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", (void *) pc, rm, rex, base, regmap[base]);
 					tp->ftt_base = regmap[base];
 					sz = mod == 1 ? 1 : mod == 2 ? 4 : 0;
 				}
@@ -1503,7 +1508,7 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		/*   but  reinterprets what to do on each hit  */
 		/*   of the trap.			       */
 		/***********************************************/
-		addr = rp->r_sp - 256; /* HACK */
+		addr = rp->r_sp - 512; /* HACK */
 //printk("AAAA sp=%p\n", rp->r_sp);
 # else
 		klwp_t *lwp = ttolwp(curthread);
@@ -1615,6 +1620,8 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 
 		curthread->t_dtrace_scrpc = addr;
 		bcopy(tp->ftt_instr, &scratch[i], tp->ftt_size);
+printk("COMMON: %p\n", (void *) tp->ftt_pc);
+dtrace_dump_mem(scratch, tp->ftt_size);
 		i += tp->ftt_size;
 
 #ifdef __amd64
@@ -1718,6 +1725,12 @@ dtrace_dump_mem(scratch, i);
 			new_pc = pc;
 			break;
 		}
+
+		/***********************************************/
+		/*   Make  sure  the page is executable. Fast  */
+		/*   track if PTE is ok.		       */
+		/***********************************************/
+		set_page_prot(addr, i, ~_PAGE_NX, 0);
 
 		if (tp->ftt_retids != NULL) {
 			curthread->t_dtrace_step = 1;

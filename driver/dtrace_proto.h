@@ -53,7 +53,9 @@ void	kmem_free(void *, int size);
 char	*dtrace_memchr(const char *, int, int);
 int	is_toxic_func(unsigned long a, const char *name);
 int	memory_set_rw(void *addr, int num_pages, int is_kernel_addr);
+void	set_page_prot(unsigned long addr, int len, long and_prot, long or_prot);
 int	on_notifier_list(uint8_t *);
+int	mem_is_writable(volatile char *addr);
 
 int	cpu_adjust(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs);
 void	cpu_copy_instr(cpu_core_t *this_cpu, cpu_trap_t *tp, struct pt_regs *regs);

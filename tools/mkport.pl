@@ -310,7 +310,7 @@ sub check_lex_yytext
 sub find_dump_trace_args
 {
 	my $fh = new FileHandle("$kern/arch/x86/include/asm/stacktrace.h");
-	return "" if !$fh;
+	return "# define FUNC_DUMP_TRACE_ARGS 5\n" if !$fh;
 	while (<$fh>) {
 		next if !/^void\s+dump_trace/;
 		my $str = $_;

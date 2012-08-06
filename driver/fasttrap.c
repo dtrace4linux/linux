@@ -587,7 +587,7 @@ fasttrap_exec_exit(proc_t *p)
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
 	dmutex_exit(&p->p_lock);
-printk("fasttrap_exec_exit: pid=%d\n", p->p_pid);
+//printk("fasttrap_exec_exit: pid=%d\n", p->p_pid);
 
 	/*
 	 * We clean up the pid provider for this process here; user-land
@@ -736,7 +736,7 @@ HERE();
 HERE();
 		if (fasttrap_tracepoint_install(p, new_tp) != 0) {
 			rc = FASTTRAP_ENABLE_PARTIAL;
-printk("rc=%d FASTTRAP_ENABLE_PARTIAL=%d pc=%p\n", rc, FASTTRAP_ENABLE_PARTIAL, tp->ftt_pc);
+printk("rc=%d FASTTRAP_ENABLE_PARTIAL=%d pc=%p\n", rc, FASTTRAP_ENABLE_PARTIAL, (void *) tp->ftt_pc);
 		}
 HERE();
 

@@ -12029,7 +12029,7 @@ dtrace_enabling_reap(void)
 	hrtime_t when;
 	int i;
 
-int dtrace_here = 1;
+//int dtrace_here = 1;
 HERE();
 	mutex_enter(&cpu_lock);
 	mutex_enter(&dtrace_lock);

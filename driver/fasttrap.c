@@ -1094,7 +1094,7 @@ HERE();
 	ASSERT(!(p->p_flag & SVFORK));
 	dmutex_exit(&p->p_lock);
 HERE();
-printk("pid=%d p=%p\n", probe->ftp_pid, p);
+//printk("pid=%d p=%p\n", probe->ftp_pid, p);
 
 	/*
 	 * We have to enable the trap entry point before any user threads have
@@ -1919,7 +1919,7 @@ static void *fasttrap_seq_start(struct seq_file *seq, loff_t *pos)
 		return 0;
 	return (void *) (long) (*pos + 1);
 }
-#define CHUNK_SIZE 10
+#define CHUNK_SIZE 20
 static void *fasttrap_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {	long	n = (long) v;
 //printk("%s pos=%p mcnt=%d\n", __func__, *pos, mcnt);
@@ -1951,7 +1951,7 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 		/*   tpoints=1024 procs=256 provs=256	       */
 		/***********************************************/
 		seq_printf(seq, "tpoints=%lu procs=%lu provs=%lu total=%u\n"
-			"# TRCP: pid pc type size base index\n"
+			"# TRCP: pid pc type size base index seg\n"
 			"# PROV: pid name marked retired rcount ccount mcount\n"
 			"# PROC: pid acount rcount\n",
 			fasttrap_tpoints.fth_nent,
@@ -1972,14 +1972,17 @@ static int fasttrap_seq_show(struct seq_file *seq, void *v)
 		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 			if (--target < 0) {
-				seq_printf(seq, "TRCP %d %p %02x %02x %02x %02x\n",
+				seq_printf(seq, "TRCP %d %p %02x sz:%02x b:%02x i:%02x s:%02x dest:%lx sc:%x\n",
 				//n, ent,
 					(int) tp->ftt_pid,
 					(void *) tp->ftt_pc,
 					tp->ftt_type,
 					tp->ftt_size,
 					tp->ftt_base,
-					tp->ftt_index);
+					tp->ftt_index,
+					tp->ftt_segment,
+					tp->ftt_dest,
+					tp->ftt_scale);
 				if (++ent >= CHUNK_SIZE)
 					return 0;
 				}

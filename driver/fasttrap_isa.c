@@ -45,6 +45,10 @@
 #include <sys/trap.h>
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
+#include <linux/vmalloc.h>
+#include <linux/mman.h>
+#undef user_desc_t
+#include <asm/desc.h>
 
 #define SVFORK     0x00040000   /* child of vfork that has not yet exec'd */
 
@@ -261,6 +265,7 @@ fasttrap_tracepoint_init(proc_t *p, fasttrap_tracepoint_t *tp, uintptr_t pc,
 	uint_t start = 0;
 	int rmindex, size;
 	uint8_t seg, rex = 0;
+	int	p_model = dtrace_data_model(p);
 
 	/*
 	 * Read the instruction at the given address out of the process's
@@ -283,7 +288,7 @@ HERE();
 	/*
 	 * If the disassembly fails, then we have a malformed instruction.
 	 */
-	if ((size = dtrace_instr_size_isa(instr, dtrace_data_model(p), &rmindex)) <= 0)
+	if ((size = dtrace_instr_size_isa(instr, p_model, &rmindex)) <= 0)
 		return (-1);
 HERE();
 
@@ -356,7 +361,7 @@ HERE();
 	/*
 	 * Identify the REX prefix on 64-bit processes.
 	 */
-	if (dtrace_data_model(p) == DATAMODEL_LP64 && (instr[start] & 0xf0) == 0x40)
+	if (p_model == DATAMODEL_LP64 && (instr[start] & 0xf0) == 0x40)
 		rex = instr[start++];
 #endif
 
@@ -410,7 +415,7 @@ HERE();
 			else
 				tp->ftt_code = 1;
 
-			ASSERT(dtrace_data_model(p) == DATAMODEL_LP64 || rex == 0);
+			ASSERT(p_model == DATAMODEL_LP64 || rex == 0);
 
 			/*
 			 * See AMD x86-64 Architecture Programmer's Manual
@@ -432,7 +437,16 @@ HERE();
 				    regmap[base | (FASTTRAP_REX_B(rex) << 3)];
 
 				i = 3;
+#if linux
+				/***********************************************/
+				/*   Handle:				       */
+				/*   41 ff 14 c4 callq *(%r12,%rax,8)	       */
+				/*   41 ff 24 f4 jmpq *(%r12,%rsi,8)	       */
+				/***********************************************/
+				sz = base == 5 ? (mod == 1 ? 1 : 4) : 0;
+#else
 				sz = mod == 1 ? 1 : 4;
+#endif
 			} else {
 				/*
 				 * In 64-bit mode, mod == 0 and r/m == 5
@@ -442,7 +456,7 @@ HERE();
 				 */
 				if (mod == 0 && rm == 5) {
 #ifdef __amd64
-					if (dtrace_data_model(p) == DATAMODEL_LP64)
+					if (p_model == DATAMODEL_LP64)
 						tp->ftt_base = REG_RIP;
 					else
 #endif
@@ -452,7 +466,7 @@ HERE();
 					uint8_t base = rm |
 					    (FASTTRAP_REX_B(rex) << 3);
 
-printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", (void *) pc, rm, rex, base, regmap[base]);
+//printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", (void *) pc, rm, rex, base, regmap[base]);
 					tp->ftt_base = regmap[base];
 					sz = mod == 1 ? 1 : mod == 2 ? 4 : 0;
 				}
@@ -468,6 +482,7 @@ printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", (void *) pc, rm, rex, base, regm
 			} else {
 				tp->ftt_dest = 0;
 			}
+//printk("xx pc:%p sz=%d dest=%x\n", pc,sz,tp->ftt_dest);
 		}
 	} else {
 		switch (instr[start]) {
@@ -545,7 +560,7 @@ printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", (void *) pc, rm, rex, base, regm
 
 		case FASTTRAP_NOP:
 #ifdef __amd64
-			ASSERT(dtrace_data_model(p) == DATAMODEL_LP64 || rex == 0);
+			ASSERT(p_model == DATAMODEL_LP64 || rex == 0);
 
 			/*
 			 * On amd64 we have to be careful not to confuse a nop
@@ -582,7 +597,7 @@ printk("fisa: pc=%p rm=%d rex=%d base=%d %d\n", (void *) pc, rm, rex, base, regm
 	}
 
 #ifdef __amd64
-	if (dtrace_data_model(p) == DATAMODEL_LP64 && tp->ftt_type == FASTTRAP_T_COMMON) {
+	if (p_model == DATAMODEL_LP64 && tp->ftt_type == FASTTRAP_T_COMMON) {
 		/*
 		 * If the process is 64-bit and the instruction type is still
 		 * FASTTRAP_T_COMMON -- meaning we're going to copy it out an
@@ -637,7 +652,21 @@ int
 fasttrap_tracepoint_install(proc_t *p, fasttrap_tracepoint_t *tp)
 {
 	fasttrap_instr_t instr = FASTTRAP_INSTR;
-HERE();
+
+/* We can disable certain classes of instructions if we are
+deep debugging.*/
+#if 0
+switch (tp->ftt_type) {
+  case FASTTRAP_T_COMMON: return 0;
+  default: return 0;
+  case FASTTRAP_T_JMP: 
+//  	if (tp->ftt_scale == 0) return 0;
+//	if (tp->ftt_pc != 0x456320) return 0;
+  break;
+}
+//printk("INSTALL: %p\n",tp->ftt_pc);
+#endif
+
 	if (uwrite(p, &instr, 1, tp->ftt_pc) != 0)
 		return (-1);
 
@@ -825,44 +854,40 @@ static int
 fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 {
 	uint16_t sel = 0, ndx;
+#if linux
+#	define user_desc_t struct desc_struct
+#	define usd_dpl dpl
+#	define usd_gran g
+#	define usd_type type
+#	define usd_p	p
+#	define usd_def32 d
+#	define USEGD_GETLIMIT(dp) ((long) dp->limit0 | ((long) dp->limit << 16))
+#	define USEGD_GETBASE(dp) \
+		((long) dp->base0 | ((long) (dp->base1 << 16)) | ((long) dp->base2 << 24))
+#endif
+
 #if defined(sun)
 	proc_t *p = curproc;
+#endif
 	user_desc_t *desc;
 	uint16_t type;
 	uintptr_t limit;
-#endif
 
 	switch (tp->ftt_segment) {
 	case FASTTRAP_SEG_CS:
 		sel = rp->r_cs;
 		break;
 	case FASTTRAP_SEG_DS:
-#if linux
-		TODO();
-#else
 		sel = rp->r_ds;
-#endif
 		break;
 	case FASTTRAP_SEG_ES:
-#if linux
-		TODO();
-#else
 		sel = rp->r_es;
-#endif
 		break;
 	case FASTTRAP_SEG_FS:
-#if linux
-		TODO();
-#else
 		sel = rp->r_fs;
-#endif
 		break;
 	case FASTTRAP_SEG_GS:
-#if linux
-		TODO();
-#else
 		sel = rp->r_gs;
-#endif
 		break;
 	case FASTTRAP_SEG_SS:
 		sel = rp->r_ss;
@@ -882,8 +907,20 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	 * Check the bounds and grab the descriptor out of the specified
 	 * descriptor table.
 	 */
-	 TODO();
-# if defined(TODOxxx)
+# if linux
+	if (SELISLDT(sel)) {
+		if (ndx > GDT_ENTRY_TLS_ENTRIES)
+			return (-1);
+
+		desc = (user_desc_t *) current->thread.tls_array + ndx;
+
+	} else {
+		if (ndx >= GDT_ENTRY_TLS_MIN)
+			return (-1);
+
+		desc = (user_desc_t *) current->thread.tls_array + ndx;
+	}
+# else
 	if (SELISLDT(sel)) {
 		if (ndx > p->p_ldtlimit)
 			return (-1);
@@ -896,7 +933,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 
 		desc = cpu_get_gdt() + ndx;
 	}
-
+# endif
 	/*
 	 * The descriptor must have user privilege level and it must be
 	 * present in memory.
@@ -951,7 +988,6 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	}
 
 	*addr += USEGD_GETBASE(desc);
-# endif
 
 	return (0);
 }
@@ -960,7 +996,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 /*   Temporary hack.						      */
 /**********************************************************************/
 #undef fasttrap_copyout
-int z = 1;
+int z = 0;
 int fff(void *a, void *b, int c, int line)
 {	
 
@@ -982,8 +1018,8 @@ fasttrap_pid_probe(struct regs *rp)
 	pid_t pid;
 	dtrace_icookie_t cookie;
 	uint_t is_enabled = 0;
+	int	p_model = dtrace_data_model(p);
 
-HERE();
 	/*
 	 * It's possible that a user (in a veritable orgy of bad planning)
 	 * could redirect this thread's flow of control before it reached the
@@ -1057,7 +1093,7 @@ HERE();
 		fasttrap_id_t *id;
 
 #ifdef __amd64
-		if (dtrace_data_model(p) == DATAMODEL_LP64) {
+		if (p_model == DATAMODEL_LP64) {
 			for (id = tp->ftt_ids; id != NULL; id = id->fti_next) {
 				fasttrap_probe_t *probe = id->fti_probe;
 
@@ -1201,6 +1237,9 @@ HERE();
 	 * land.
 	 */
 HERE();
+//printk("switch-type %x: pc=%p code=%x base=%x index=%x\n", tp->ftt_type, (void *) tp->ftt_pc, tp->ftt_code, tp->ftt_base, tp->ftt_index);
+//dtrace_dump_mem(tp->ftt_instr, tp->ftt_size);
+//dtrace_print_regs(rp);
 	switch (tp->ftt_type) {
 	case FASTTRAP_T_RET:
 	case FASTTRAP_T_RET16:
@@ -1216,7 +1255,7 @@ PRINT_CASE(FASTTRAP_T_RET);
 		 * fails; in that case, we send a SIGSEGV.
 		 */
 #ifdef __amd64
-		if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
+		if (p_model== DATAMODEL_NATIVE) {
 #endif
 			ret = fasttrap_fulword((void *)rp->r_sp, &dst);
 			addr = rp->r_sp + sizeof (uintptr_t);
@@ -1368,7 +1407,7 @@ PRINT_CASE(FASTTRAP_T_JCXZ);
 		uintptr_t addr;
 PRINT_CASE(FASTTRAP_T_PUSHL_EBP);
 #ifdef __amd64
-		if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
+		if (p_model == DATAMODEL_NATIVE) {
 #endif
 			addr = rp->r_sp - sizeof (uintptr_t);
 			ret = fasttrap_sulword((void *)addr, rp->r_fp);
@@ -1404,6 +1443,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 		} else {
 			uintptr_t value, addr = tp->ftt_dest;
 
+//printk("ftt_code=%x base=%x index=%x ADDR=%p\n", tp->ftt_code, tp->ftt_base, tp->ftt_index,addr);
 			if (tp->ftt_base != FASTTRAP_NOREG)
 				addr += fasttrap_getreg(rp, tp->ftt_base);
 			if (tp->ftt_index != FASTTRAP_NOREG)
@@ -1417,15 +1457,17 @@ PRINT_CASE(FASTTRAP_T_CALL);
 				 * and bounds on the given selector, and adjust
 				 * the address accordingly.
 				 */
+//printk("seg=%02x addr=%p SEG\n", tp->ftt_segment, addr);
 				if (tp->ftt_segment != FASTTRAP_SEG_NONE &&
 				    fasttrap_do_seg(tp, rp, &addr) != 0) {
 					fasttrap_sigsegv(p, current, addr);
 					new_pc = pc;
 					break;
 				}
+//printk("seg=%02x addr=%p SEG after\n", tp->ftt_segment, addr);
 
 #ifdef __amd64
-				if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
+				if (p_model == DATAMODEL_NATIVE) {
 #endif
 					if (fasttrap_fulword((void *)addr,
 					    &value) == -1) {
@@ -1464,7 +1506,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 			int ret;
 			uintptr_t addr;
 #ifdef __amd64
-			if (dtrace_data_model(p) == DATAMODEL_NATIVE) {
+			if (p_model == DATAMODEL_NATIVE) {
 				addr = rp->r_sp - sizeof (uintptr_t);
 				ret = fasttrap_sulword((void *)addr,
 				    pc + tp->ftt_size);
@@ -1490,7 +1532,7 @@ PRINT_CASE(FASTTRAP_T_CALL);
 
 	case FASTTRAP_T_COMMON:
 	{
-		uintptr_t addr = 0;
+		uintptr_t addr;
 #if defined(__amd64)
 		uint8_t scratch[2 * FASTTRAP_MAX_INSTR_SIZE + 22];
 #else
@@ -1498,7 +1540,6 @@ PRINT_CASE(FASTTRAP_T_CALL);
 #endif
 		uint_t i = 0;
 PRINT_CASE(FASTTRAP_T_COMMON);
-		TODO();
 # if linux
 		/***********************************************/
 		/*   addr  is  where  we  store  the  scratch  */
@@ -1506,10 +1547,46 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		/*   DTrace  is  weird  -  it  snapshots  the  */
 		/*   instruction  when  the  probe is placed,  */
 		/*   but  reinterprets what to do on each hit  */
-		/*   of the trap.			       */
+		/*   of the trap :-)			       */
+		/*   					       */
+		/*   Not really that weird - it does the main  */
+		/*   parse    of   the   instruction   during  */
+		/*   placement,  but  it  has  to handle some  */
+		/*   exception scenarios at execution time.    */
+		/***********************************************/
+
+		/***********************************************/
+		/*   Use  bottom  of  stack,  but  try and do  */
+		/*   better with a private page if we can.     */
 		/***********************************************/
 		addr = rp->r_sp - 512; /* HACK */
-//printk("AAAA sp=%p\n", rp->r_sp);
+		/***********************************************/
+		/*   Set  up  a  page  in  user space for the  */
+		/*   scratch buffer.			       */
+		/***********************************************/
+		if (p && p->p_private_page == NULL) {
+			static char *(*do_mmap_pgoff)(struct file *, unsigned long, unsigned long,
+				unsigned long, unsigned long, unsigned long);
+			if (do_mmap_pgoff == NULL)
+				do_mmap_pgoff = get_proc_addr("do_mmap_pgoff");
+
+			/***********************************************/
+			/*   mmap an anonymous private page - ideally  */
+			/*   high up - we dont want to interfere with  */
+			/*   malloc() implementations.		       */
+			/***********************************************/
+			if (do_mmap_pgoff) {
+				down_write(&current->mm->mmap_sem);
+				p->p_private_page = do_mmap_pgoff(NULL, 0, 4096,
+					PROT_READ | PROT_WRITE | PROT_EXEC,
+					MAP_PRIVATE | MAP_GROWSDOWN,
+					0);
+				up_write(&current->mm->mmap_sem);
+			}
+printk("private-alloc %p\n", p->p_private_page);
+			addr = (uintptr_t) p->p_private_page;
+		}
+
 # else
 		klwp_t *lwp = ttolwp(curthread);
 
@@ -1520,7 +1597,7 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 		 * kernels.
 		 */
 #if defined(__amd64)
-		if (dtrace_data_model(p) == DATAMODEL_LP64) {
+		if (p_model == DATAMODEL_LP64) {
 			addr = lwp->lwp_pcb.pcb_fsbase;
 			addr += sizeof (void *);
 		} else {
@@ -1620,15 +1697,15 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 
 		curthread->t_dtrace_scrpc = addr;
 		bcopy(tp->ftt_instr, &scratch[i], tp->ftt_size);
-printk("COMMON: %p\n", (void *) tp->ftt_pc);
-dtrace_dump_mem(scratch, tp->ftt_size);
+//printk("COMMON: %p\n", (void *) tp->ftt_pc);
+//dtrace_dump_mem(scratch, tp->ftt_size);
 		i += tp->ftt_size;
 
 #ifdef __amd64
 		if (tp->ftt_ripmode != 0) {
 			greg_t *reg = NULL;
 
-			ASSERT(dtrace_data_model(p) == DATAMODEL_LP64);
+			ASSERT(p_model == DATAMODEL_LP64);
 			ASSERT(tp->ftt_ripmode &
 			    (FASTTRAP_RIP_1 | FASTTRAP_RIP_2));
 
@@ -1686,7 +1763,7 @@ dtrace_dump_mem(scratch, tp->ftt_size);
 		 * immediately after the jmp instruction.
 		 */
 #ifdef __amd64
-		if (dtrace_data_model(p) == DATAMODEL_LP64) {
+		if (p_model == DATAMODEL_LP64) {
 			scratch[i++] = FASTTRAP_GROUP5_OP;
 			scratch[i++] = FASTTRAP_MODRM(0, 4, 5);
 			/* LINTED - alignment */
@@ -1715,8 +1792,8 @@ dtrace_dump_mem(scratch, tp->ftt_size);
 		scratch[i++] = FASTTRAP_INT;
 		scratch[i++] = T_DTRACE_RET;
 
-printk("fasttrap_isa: 1710: pc=%p\n", (void *) rp->r_pc);
-dtrace_dump_mem(scratch, i);
+//printk("fasttrap_isa: %d: pc=%p\n", __LINE__, (void *) rp->r_pc);
+//dtrace_dump_mem(scratch, i);
 
 		ASSERT(i <= sizeof (scratch));
 
@@ -1889,10 +1966,10 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_RFL:		return (rp->r_rfl);
 	case REG_RSP:		return (rp->r_rsp);
 	case REG_SS:		return (rp->r_ss);
-	case REG_FS:		RETURN(rp->r_fs);
-	case REG_GS:		RETURN(rp->r_gs);
-	case REG_DS:		RETURN(rp->r_ds);
-	case REG_ES:		RETURN(rp->r_es);
+	case REG_FS:		return rp->r_fs;
+	case REG_GS:		return rp->r_gs;
+	case REG_DS:		return rp->r_ds;
+	case REG_ES:		return rp->r_es;
 	case REG_FSBASE:	return (lx_rdmsr(MSR_AMD_FSBASE));
 	case REG_GSBASE:	return (lx_rdmsr(MSR_AMD_GSBASE));
 	}

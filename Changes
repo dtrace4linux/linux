@@ -1,4 +1,14 @@
+Thu Aug  9 22:48:18 2012  fox
+
+     762* fasttrap_isa.c, fasttrap.c: Fix handling of 
+             41 ff 14 c4             callq  *(%r12,%rax,8)
+	  instruction.
+
+	  Add private page for the scratch buffer trampoline.
+
 Mon Aug  6 20:56:11 2012  fox
+
+     761* Archive: 1.0143
 
      760* driver/systrace.c: Fix for 32b binaries on 64b kernel for
           Centos/RedHat releases.

@@ -25,6 +25,7 @@ sub main
 
 	usage() if $opts{help};
 
+	$| = 1;
 	my %history;
 
 	my $fname = shift @ARGV || "/proc/dtrace/trace";

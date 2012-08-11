@@ -107,6 +107,8 @@ typedef struct	sol_proc_t {
 	pid_t pid;
 	pid_t ppid;
 	struct task_struct *p_task;
+	char		*p_private_page;	/* Page allocated in user space for */
+						/* fasttrap scratch buffer.	*/
 
         uint_t          t_predcache;    /* DTrace predicate cache */
 	
@@ -394,6 +396,7 @@ int libc_strncmp(const char *s1, const char *s2, int len);
 timeout_id_t timeout(void (*func)(void *), void *arg, unsigned long ticks);
 void untimeout(timeout_id_t id);
 void *prcom_get_arg(int n, int size);
+void *par_setup_thread1(struct task_struct *tp);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

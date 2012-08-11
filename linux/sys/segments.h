@@ -60,7 +60,7 @@ extern "C" {
  * User segment descriptors (code and data).
  * Legacy mode 64-bits wide.
  */
-# define user_desc sol_user_desc // clash in 32bit width ldt.h
+# if 0 /* only needed by fasttrap_isa.c */
 typedef struct user_desc {
         uint32_t usd_lolimit:16;        /* segment limit 15:0 */
         uint32_t usd_lobase:16;         /* segment base 15:0 */
@@ -75,6 +75,7 @@ typedef struct user_desc {
         uint32_t usd_gran:1;            /* limit units (bytes vs pages) */
         uint32_t usd_hibase:8;          /* segment base 31:24 */
 } user_desc_t;
+#endif
 
 #define SELTOIDX(s)     ((s) >> 3)      /* selector to index */
 

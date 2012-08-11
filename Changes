@@ -1,3 +1,11 @@
+Sat Aug 11 10:05:56 2012  fox
+
+     764* fasttrap_isa.c: Fix the last issue properly - 2 styles
+          of indexed instructions werent being handled
+	  properly. Now they are.
+
+     763* archive: 1.0144
+
 Thu Aug  9 22:48:18 2012  fox
 
      762* fasttrap_isa.c, fasttrap.c: Fix handling of 

@@ -189,7 +189,6 @@ typedef unsigned long long hrtime_t;
 	#define	SNOCD	0
 
 	#define aston(x) 
-	#define krwlock_t mutex_t
 
 	#define	t_did pid
 	#define	p_parent parent

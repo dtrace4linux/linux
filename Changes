@@ -1,3 +1,22 @@
+Sat Aug 18 16:15:47 2012  fox
+
+     768* driver/signal.c, fasttrap_isa.c, dtrace_subr.c, and others:
+          Intercept process signal delivery. If we are inside the
+	  scratch area for the PID provider, reset PC to the original
+	  instruction. This stops user app core dumping on return from
+	  a signal handler because we would return to the scratch area
+	  but the scratch area will most likely be overwritten with
+	  a later instruction.
+
+Fri Aug 17 08:46:57 2012  fox
+
+     767* driver/x_call.c: Fix for Debian-6 - find any apic outlet to
+          invoke.
+
+     766* tools/mksyscall.pl: Fix for Debian-6.
+
+     765* systrace.c: Fixes for Debian-6.
+
 Sat Aug 11 10:05:56 2012  fox
 
      764* fasttrap_isa.c: Fix the last issue properly - 2 styles

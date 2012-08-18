@@ -308,7 +308,6 @@ HERE();
 		 * breakpoint placed by a conventional debugger.
 		 */
 		rw_enter(rwp, RW_READER);
-printk("dtrace_pid_probe_ptr=%p\n", dtrace_pid_probe_ptr);
 		if (dtrace_pid_probe_ptr != NULL &&
 		    (*dtrace_pid_probe_ptr)(rp) == 0) {
 HERE_WITH_INFO("Good probe exit!");
@@ -340,15 +339,35 @@ HERE();
 	}
 }
 
-# if 0
+# if linux
+void
+dtrace_safe_synchronous_signal(int x, int y, struct pt_regs *rp)
+#else
 void
 dtrace_safe_synchronous_signal(void)
+#endif
 {
+#if linux
+	proc_t *t = par_setup_thread1(current);
+#else
 	kthread_t *t = curthread;
 	struct regs *rp = lwptoregs(ttolwp(t));
 	size_t isz = t->t_dtrace_npc - t->t_dtrace_pc;
+#endif
 
+#if linux
+	/***********************************************/
+	/*   We  get  called when delivering a signal  */
+	/*   to  any  process,  so need to filter out  */
+	/*   redundant calls.			       */
+	/***********************************************/
+	if (t->t_dtrace_on == 0)
+		return;
+
+//printk("sig: pc=%p scr=%p ast=%p\n", rp->r_pc, t->t_dtrace_scrpc, t->t_dtrace_astpc);
+#else
 	ASSERT(t->t_dtrace_on);
+#endif
 
 	/*
 	 * If we're not in the range of scratch addresses, we're not actually
@@ -356,6 +375,12 @@ dtrace_safe_synchronous_signal(void)
 	 * we copied out caused a synchonous trap, reset the pc back to its
 	 * original value and turn off the flags.
 	 */
+#if linux
+	if (rp->r_pc >= t->t_dtrace_scrpc && rp->r_pc < t->t_dtrace_scrpc + PAGE_SIZE) {
+		printk("sigreset to %p\n", t->t_dtrace_pc);
+		rp->r_pc = t->t_dtrace_pc;
+	}
+#else
 	if (rp->r_pc < t->t_dtrace_scrpc ||
 	    rp->r_pc > t->t_dtrace_astpc + isz) {
 		t->t_dtrace_ft = 0;
@@ -364,8 +389,9 @@ dtrace_safe_synchronous_signal(void)
 		rp->r_pc = t->t_dtrace_pc;
 		t->t_dtrace_ft = 0;
 	}
+#endif
 }
-
+#if 0
 int
 dtrace_safe_defer_signal(void)
 {

@@ -514,11 +514,13 @@ systrace_assembler_dummy(void)
 		"jmp *ptregscall_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_rt_sigsuspend)
 
+#if defined(NR_ia32_rt_sigsuspend)
 		FUNCTION(systrace_part1_sys_rt_sigsuspend_ia32)
 		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_rt_sigsuspend_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_rt_sigsuspend_ia32)
+#endif
 
 		/***********************************************/
 		/*   Normal  Unix  code calls vfork() because  */
@@ -543,41 +545,53 @@ systrace_assembler_dummy(void)
 		/*   Following  mirror the above ptregs calls  */
 		/*   but for 32bit apps.		       */
 		/***********************************************/
+#if defined(NR_ia32_clone)
 		FUNCTION(systrace_part1_sys_clone_ia32)
 		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_clone_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_clone_ia32)
+#endif
 		
+#if defined(NR_ia32_execve)
 		FUNCTION(systrace_part1_sys_execve_ia32)
 		"lea    -0x28(%rsp),%rcx\n"
 		"mov $dtrace_systrace_syscall_execve_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_execve_ia32)
+#endif
 		
+#if defined(NR_ia32_fork)
 		FUNCTION(systrace_part1_sys_fork_ia32)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_fork_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_fork_ia32)
+#endif
 
+#if defined(NR_ia32_iopl)
 		FUNCTION(systrace_part1_sys_iopl_ia32)
 		"lea    -0x28(%rsp),%rsi\n"
 		"mov $dtrace_systrace_syscall_iopl_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_iopl_ia32)
+#endif
 
+#if defined(NR_ia32_rt_sigreturn)
 		FUNCTION(systrace_part1_sys_rt_sigreturn_ia32)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_rt_sigreturn_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_rt_sigreturn_ia32)
+#endif
 		
+#if defined(NR_ia32_sigaltstack)
 		FUNCTION(systrace_part1_sys_sigaltstack_ia32)
 		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_sigaltstack_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_sigaltstack_ia32)
+#endif
 
 #if defined(NR_ia32_sigreturn)
 		/* Not there on 2.6.18. */
@@ -588,11 +602,13 @@ systrace_assembler_dummy(void)
 		END_FUNCTION(systrace_part1_sys_sigreturn_ia32)
 #endif
 		
+#if defined(NR_ia32_vfork)
 		FUNCTION(systrace_part1_sys_vfork_ia32)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_vfork_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_vfork_ia32)
+#endif
 
 		/***********************************************/
 		/*   Following function is used as a template  */
@@ -1583,16 +1599,26 @@ static void *
 get_interposer32(int sysnum, int enable)
 {
 	switch (sysnum) {
+#if defined(NR_ia32_clone)
 	  case NR_ia32_clone:
 		return (void *) systrace_part1_sys_clone_ia32;
+#endif
+#if defined(NR_ia32_execve)
 	  case NR_ia32_execve:
 		return (void *) systrace_part1_sys_execve_ia32;
+#endif
+#if defined(NR_ia32_fork)
 	  case NR_ia32_fork:
 		return (void *) systrace_part1_sys_fork_ia32;
+#endif
+#if defined(NR_ia32_rt_sigreturn)
 	  case NR_ia32_rt_sigreturn:
 		return (void *) systrace_part1_sys_rt_sigreturn_ia32;
+#endif
+#if defined(NR_ia32_sigaltstack)
 	  case NR_ia32_sigaltstack:
 		return (void *) systrace_part1_sys_sigaltstack_ia32;
+#endif
 #if defined(NR_ia32_sigreturn)
 	  case NR_ia32_sigreturn:
 		return (void *) systrace_part1_sys_sigreturn_ia32;
@@ -1602,13 +1628,19 @@ get_interposer32(int sysnum, int enable)
 	  /*   This  went away in the later kernels, so	 */
 	  /*   we dont need to treat it specially.	 */
 	  /***********************************************/
+#if defined(NR_ia32_rt_sigsuspend)
 	  case NR_ia32_rt_sigsuspend:
 		return (void *) systrace_part1_sys_rt_sigsuspend_ia32;
 #endif
+#endif
+#if defined(NR_ia32_iopl)
 	  case NR_ia32_iopl:
 		return (void *) systrace_part1_sys_iopl_ia32;
+#endif
+#if defined(NR_ia32_vfork)
 	  case NR_ia32_vfork:
 		return (void *) systrace_part1_sys_vfork_ia32;
+#endif
 	  }
 
 	return syscall_info[sysnum].s_template32;

@@ -47,10 +47,7 @@
 #endif
 #include <linux/module.h>
 
-/*
-#undef HERE
-#define HERE()	{printk("%s:%s:%d: we are here\n", dtrace_basename(__FILE__), __func__, __LINE__);}
-*/
+extern int nr_cpus;
 
 // Temporary definitions so we can compile.
 proc_t *
@@ -519,6 +516,7 @@ fasttrap_fork(proc_t *p, proc_t *cp)
 	pid_t ppid = p->p_pid;
 	int i;
 
+printk("in fasttrap_fork\n");
 	ASSERT(curproc == p);
 	ASSERT(p->p_proc_flag & P_PR_LOCK);
 	ASSERT(p->p_dtrace_count > 0);
@@ -998,16 +996,12 @@ HERE();
 	ASSERT(fasttrap_pid_count > 0);
 	fasttrap_pid_count--;
 	if (fasttrap_pid_count == 0) {
-# if defined(TODOxxx)
-		/***********************************************/
-		/*   20090115  PDF I guess they are trying to  */
-		/*   ensure  no  other cpu comes in here, but  */
-		/*   we  have  a  blocking  mutex  protecting  */
-		/*   this,  so  not  really  sure  whats  the  */
-		/*   purpose   here.  (I  note  rw_enter  and  */
-		/*   friends are in the ZFS code, so this may  */
-		/*   be  a  nice sync mechanism for solaris).  */
-		/***********************************************/
+# if linux
+		int	i;
+		for (i = 0; i < nr_cpus; i++) {
+			rw_enter(&cpu_list[i].cpu_ft_lock, RW_WRITER);
+		}
+# else
 		cpu_t *cur, *cpu = CPU;
 
 		for (cur = cpu->cpu_next_onln; cur != cpu;
@@ -1019,7 +1013,11 @@ HERE();
 		dtrace_pid_probe_ptr = NULL;
 		dtrace_return_probe_ptr = NULL;
 
-# if defined(TODOxxx)
+# if linux
+		for (i = 0; i < nr_cpus; i++) {
+			rw_exit(&cpu_list[i].cpu_ft_lock);
+		}
+# else
 		for (cur = cpu->cpu_next_onln; cur != cpu;
 		    cur = cur->cpu_next_onln) {
 			rw_exit(&cur->cpu_ft_lock);

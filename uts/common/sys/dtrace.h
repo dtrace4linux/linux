@@ -2265,7 +2265,9 @@ extern void dtrace_xcall(processorid_t, dtrace_xcall_t, void *);
 extern void dtrace_panic(const char *, ...);
 
 extern int dtrace_safe_defer_signal(void);
+# if defined(sun)
 extern void dtrace_safe_synchronous_signal(void);
+# endif
 
 extern int dtrace_mach_aframes(void);
 

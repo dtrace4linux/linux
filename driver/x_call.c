@@ -590,6 +590,18 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 # elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	send_IPI_mask(*mask, vector);
 # else
+	if (x_apic == NULL) {
+		static void (*flat_send_IPI_mask)(cpumask_t *, int);
+		if (flat_send_IPI_mask == NULL) 
+			flat_send_IPI_mask = get_proc_addr("flat_send_IPI_mask");
+
+		if (flat_send_IPI_mask)  {
+			flat_send_IPI_mask(mask, vector);
+			return;
+		}
+		dtrace_linux_panic("x_apic is null - giving up\n");
+		return;
+	}
 	x_apic->send_IPI_mask(mask, vector);
 # endif
 }

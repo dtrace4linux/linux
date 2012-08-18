@@ -361,6 +361,9 @@ typedef struct pf_info_t {
 void dtrace_parse_function(pf_info_t *, uint8_t *, uint8_t *);
 int dtrace_function_size(char *name, uint8_t **start, int *size);
 
+#define	PARSE_GS_INC	0	/* Look for per-thread counter increments */
+#define	PARSE_CALL	1	/* Look for specific call opcodes */
+
 /**********************************************************************/
 /*   Set  to  true  when  something  bad  goes wrong - for debugging  */
 /*   purposes.							      */

@@ -283,6 +283,8 @@ int	dtrace_prcom_init(void);
 void	dtrace_prcom_exit(void);
 int	sdt_init(void);
 void	sdt_exit(void);
+int	signal_init(void);
+void	signal_fini(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 void	io_prov_init(void);
@@ -1901,7 +1903,7 @@ prfind(int p)
 	}
 
 	if ((pid = fn_find_get_pid(p)) == NULL) {
-		dtrace_printf("prfind:find_get_pid couldnt locate pid %d\n", p);
+//		dtrace_printf("prfind:find_get_pid couldnt locate pid %d\n", p);
 		return NULL;
 	}
 	/***********************************************/
@@ -1914,15 +1916,45 @@ prfind(int p)
 HERE();
 	return par_setup_thread1(tp);
 }
+/**********************************************************************/
+/*   Reader/writer lock - allow any readers, but only one writer.     */
+/**********************************************************************/
 void
 rw_enter(krwlock_t *p, krw_t type)
 {
-	TODO();
+	if (type == RW_READER) {
+		while (1) {
+			mutex_enter(&p->k_mutex);
+			if (p->k_writer == 0) {
+				p->k_readers++;
+				mutex_exit(&p->k_mutex);
+				return;
+			}
+			mutex_exit(&p->k_mutex);
+		}
+	}
+	/***********************************************/
+	/*   RW_WRITER				       */
+	/***********************************************/
+	while (1) {
+		mutex_enter(&p->k_mutex);
+		if (p->k_readers == 0) {
+			p->k_writer = 1;
+			mutex_exit(&p->k_mutex);
+			return;
+		}
+		mutex_exit(&p->k_mutex);
+	}
 }
 void
 rw_exit(krwlock_t *p)
 {
-	TODO();
+	mutex_enter(&p->k_mutex);
+	if (p->k_writer)
+		p->k_writer = 0;
+	else
+		p->k_readers--;
+	mutex_exit(&p->k_mutex);
 }
 /**********************************************************************/
 /*   Allow us to see stuff from /dev/fbt.			      */
@@ -2090,6 +2122,15 @@ syms_write(struct file *file, const char __user *buf,
 		/*   (vmalloc_sync_all).		       */
 		/***********************************************/
 		intr_init();
+
+		/***********************************************/
+		/*   Intercept  do_notify_resume  so  we  can  */
+		/*   tell  a  process  is getting delivered a  */
+		/*   signal  -  needed by fasttrap to avoid a  */
+		/*   sigreturn   returning   to  the  scratch  */
+		/*   buffer.				       */
+		/***********************************************/
+		signal_init();
 
 	}
 	return orig_count;
@@ -2801,7 +2842,7 @@ static struct proc_dir_entry *dir;
 		/*   to handle actual online cpus.	       */
 		/***********************************************/
 		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
-		dmutex_init(&cpu_list[i].cpu_ft_lock);
+		dmutex_init(&cpu_list[i].cpu_ft_lock.k_mutex);
 	}
 	cpu_list[nr_cpus-1].cpu_next = cpu_list;
 	for (i = 0; i < nr_cpus; i++) {
@@ -2887,6 +2928,7 @@ static void __exit dtracedrv_exit(void)
 		return;
 	}
 
+	signal_fini();
 	intr_exit();
 	dcpc_exit();
 	ctl_exit();

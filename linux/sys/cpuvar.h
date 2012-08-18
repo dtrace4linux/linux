@@ -1,6 +1,8 @@
 # if !defined(SYS_CPUVAR_H)
 # define	SYS_CPUVAR_H
 
+#include <sys/rwlock.h>
+
 #define CPU_CACHE_COHERENCE_SIZE        64
 
 typedef enum {
@@ -81,7 +83,7 @@ struct dtrace_cpu { /* Avoid name clash with kernel 'cpu' structure. */
 	cpu_t		*cpu_next;
 	cpu_t		*cpu_next_onln;         /* next online (enabled) CPU */
         cpu_t		*cpu_prev_onln;         /* prev online (enabled) CPU */
-	mutex_t		cpu_ft_lock;		/* fasttrap mutex.	*/
+	krwlock_t	cpu_ft_lock;		/* fasttrap mutex.	*/
 	uintptr_t       cpu_cpcprofile_pc;      /* kernel PC in cpc interrupt */
 	uintptr_t       cpu_cpcprofile_upc;     /* user PC in cpc interrupt */
 	void		*cpu_cpc_ctx;   /* performance counter context */

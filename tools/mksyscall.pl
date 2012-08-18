@@ -13,6 +13,7 @@
 #                 32b apps.
 # 21-Jun-2011 PDF Changes to better handle asm-i386 and 2.6.18 kernels
 # 08-Apr-2012 PDF Add fix for 3.3 syscalls. (We will need to support ia-32 sometime)
+# 17-Aug-2012 PDF Look in /usr/include/asm/unistd_XX.h (Debian 6).
 
 use strict;
 use warnings;
@@ -193,6 +194,8 @@ sub get_unistd
              "/lib/modules/$ver/build/arch/x86/include/asm/unistd_$bits.h",
 	     # Opensuse 11.1 wants this
 	     "/usr/src/linux-$ver2/arch/x86/include/asm/unistd_$bits.h",
+	     # Debian
+	     "/usr/include/asm/unistd_$bits.h",
              ) {
 	     	next if ! -f $f;
 		next if $bits == 32 && $f =~ /ia32_/;

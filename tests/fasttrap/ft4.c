@@ -1,9 +1,17 @@
 #include <math.h>
 #include <stdio.h>
+#include <signal.h>
+
+void sig()
+{
+	printf("inside a signal\n");
+}
 
 int main(int argc,char **argv)
 {	char	buf[BUFSIZ];
 	double x = (int) argv;
+
+	signal(SIGINT,sig);
 
 	printf("PID %d .. press enter when ready\n", getpid());
 	fgets(buf, sizeof buf, stdin);

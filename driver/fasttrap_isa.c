@@ -26,6 +26,8 @@
 
 //#pragma ident	"@(#)fasttrap_isa.c	1.27	08/04/09 SMI"
 
+#define	FASTTRAP_DEBUG 0
+
 # if linux
 # include <linux/mm.h>
 # undef zone
@@ -771,7 +773,7 @@ fasttrap_sigsegv(proc_t *p, struct task_struct *t, uintptr_t addr)
 # if linux
 	struct siginfo info;
 
-
+printk("SORRY - sending SIGSEGV\n");
 	info.si_signo = SIGSEGV;
 	info.si_code = SEGV_MAPERR;
 	info.si_addr = (caddr_t)addr;
@@ -1051,7 +1053,7 @@ HERE();
 	 * parent. We know that there's only one thread of control in such a
 	 * process: this one.
 	 */
-	TODO();
+//	TODO();
 	while (p->p_flag & SVFORK) {
 		p = (proc_t *) p->p_parent;
 	}
@@ -1237,9 +1239,13 @@ HERE();
 	 * land.
 	 */
 HERE();
-//printk("switch-type %x: pc=%p code=%x base=%x index=%x\n", tp->ftt_type, (void *) tp->ftt_pc, tp->ftt_code, tp->ftt_base, tp->ftt_index);
-//dtrace_dump_mem(tp->ftt_instr, tp->ftt_size);
-//dtrace_print_regs(rp);
+
+#if FASTTRAP_DEBUG
+	printk("switch-type %x: pc=%p code=%x base=%x index=%x\n", tp->ftt_type, (void *) tp->ftt_pc, tp->ftt_code, tp->ftt_base, tp->ftt_index);
+	dtrace_dump_mem(tp->ftt_instr, tp->ftt_size);
+	dtrace_print_regs(rp);
+#endif
+
 	switch (tp->ftt_type) {
 	case FASTTRAP_T_RET:
 	case FASTTRAP_T_RET16:
@@ -1259,6 +1265,10 @@ PRINT_CASE(FASTTRAP_T_RET);
 #endif
 			ret = fasttrap_fulword((void *)rp->r_sp, &dst);
 			addr = rp->r_sp + sizeof (uintptr_t);
+#if FASTTRAP_DEBUG
+printk("T_RET: sp=%p:%p\n", rp->r_sp, dst);
+#endif
+
 #ifdef __amd64
 		} else {
 			uint32_t dst32;
@@ -1824,7 +1834,16 @@ printk("private-alloc %p\n", p->p_private_page);
 	}
 
 	default:
+#if linux
+		/***********************************************/
+		/*   Dont  panic  the  kernel just because of  */
+		/*   this,  but  do  draw attention to dtrace  */
+		/*   stopping working.			       */
+		/***********************************************/
+		dtrace_linux_panic("fasttrap: mishandled an instruction");
+#else
 		panic("fasttrap: mishandled an instruction");
+#endif
 	}
 HERE();
 

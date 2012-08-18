@@ -168,7 +168,7 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(THP_COLLAPSE_ALLOC_FAILED), "vminfo:::thp_collapse_alloc_failed");
 	sdt_add_locator(vm_event_addr(THP_SPLIT), "vminfo:::thp_split");
 # endif
-	dtrace_parse_kernel(vminfo_instr_callback);
+	dtrace_parse_kernel(PARSE_GS_INC, vminfo_instr_callback, 0);
 # endif /* if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) */
 
 }

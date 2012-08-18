@@ -606,8 +606,8 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *symbolsize,
                         unsigned long *offset,
                         char **modname, char *namebuf);
-void
-dtrace_parse_kernel_function(void (*callback)(uint8_t *, int), struct module *modp, char *name, uint8_t *instr, uint8_t *limit)
+static void
+dtrace_parse_kernel_function(int type, void (*callback)(uint8_t *, int), struct module *modp, char *name, uint8_t *instr, uint8_t *limit, uint8_t *val)
 {
 	int	size;
 	int	modrm;
@@ -625,21 +625,45 @@ if (size == 9 && *instr == 0x65)
 printk("inst:%p %d %02x %02x %02x %02x %02x %04x\n", instr, size, *instr, instr[1], instr[2], instr[3], instr[4],
 *(int *) (&instr[5]));
 */
-		/***********************************************/
-		/*   incq %gs:nnnn			       */
-		/***********************************************/
-		if (//size == 9 &&
-		    instr[0] == 0x65 &&
-		    instr[1] == 0x48 &&
-		    instr[2] == 0xff &&
-		    instr[3] == 0x04 &&
-		    instr[4] == 0x25) {
-		    	callback(instr, size);
-		    	}
+		switch (type) {
+		  case PARSE_GS_INC:
+			/***********************************************/
+			/*   incq %gs:nnnn			       */
+			/***********************************************/
+			if (//size == 9 &&
+			    instr[0] == 0x65 &&
+			    instr[1] == 0x48 &&
+			    instr[2] == 0xff &&
+			    instr[3] == 0x04 &&
+			    instr[4] == 0x25) {
+			    	callback(instr, size);
+			    	}
+			break;
+
+		  case PARSE_CALL: {
+		  	uintptr_t addr;
+
+		  	if (instr[0] != 0xe8)
+				continue;
+#if defined(__amd64)
+			/***********************************************/
+			/*   AMD64 call is %RIP relative.	       */
+			/***********************************************/
+			addr = instr + *(int32_t *) (instr+1) + 5;
+#else
+			addr = *(uint32_t *) (instr+1);
+#endif
+if (addr - 100 < val && val < addr + 100)
+printk("call %p %p %p\n", instr, addr, val);
+			if (addr == val)
+				callback(instr, size);
+		  	break;
+			}
+		  }
 	}
 }
 void
-dtrace_parse_kernel(void (*callback)(uint8_t *, int))
+dtrace_parse_kernel(int type, void (*callback)(uint8_t *, int), uint8_t *val)
 {
 	static struct module kern;
 	int	n;
@@ -688,7 +712,7 @@ static int first_time = TRUE;
 		/*   touch it.				       */
 		/***********************************************/
 		if (cp && *cp && !is_toxic_func((unsigned long) a, cp)) {
-			dtrace_parse_kernel_function(callback, &kern, name, a, aend);
+			dtrace_parse_kernel_function(type, callback, &kern, name, a, aend, val);
 //			instr_provide_function(&kern, 
 //				(par_module_t *) &kern, //uck on the cast..we dont really need it
 //				"kernel", name, 

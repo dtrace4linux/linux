@@ -37,6 +37,7 @@ dtracedrv-objs := \
 	prov_proc.o \
 	sdt_linux.o \
 	sdt_subr.o \
+	signal.o \
 	systrace.o \
 	taskq.o \
 	tcp.o \

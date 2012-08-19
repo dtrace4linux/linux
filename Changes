@@ -1,3 +1,8 @@
+Sun Aug 19 16:05:01 2012  fox
+
+     769* libproc/common/Pcontrol.c: Some changes to Pxcreate to handle
+          parent/child sync with a forked child from 'dtrace -c cmd'.
+
 Sat Aug 18 16:15:47 2012  fox
 
      768* driver/signal.c, fasttrap_isa.c, dtrace_subr.c, and others:

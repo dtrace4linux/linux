@@ -649,13 +649,11 @@ printk("inst:%p %d %02x %02x %02x %02x %02x %04x\n", instr, size, *instr, instr[
 			/***********************************************/
 			/*   AMD64 call is %RIP relative.	       */
 			/***********************************************/
-			addr = instr + *(int32_t *) (instr+1) + 5;
+			addr = (uintptr_t) instr + *(int32_t *) (instr+1) + 5;
 #else
 			addr = *(uint32_t *) (instr+1);
 #endif
-if (addr - 100 < val && val < addr + 100)
-printk("call %p %p %p\n", instr, addr, val);
-			if (addr == val)
+			if (addr == (uintptr_t) val)
 				callback(instr, size);
 		  	break;
 			}

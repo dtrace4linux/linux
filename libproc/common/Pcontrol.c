@@ -281,7 +281,7 @@ Pxcreate(const char *file,	/* executable file name */
 		id_t id;
 		extern char **environ;
 
-		int ret = ptrace(PTRACE_TRACEME, 0, 0, 0);
+		int ret = do_ptrace(__func__, PTRACE_TRACEME, 0, 0, 0);
 		if (ret < 0) {
 			perror("PTRACE_TRACEME");
 		}
@@ -298,10 +298,12 @@ Pxcreate(const char *file,	/* executable file name */
 		/***********************************************/
 		/*   Wait for parent to catch up with us.      */
 		/***********************************************/
+/*
 		signal(SIGSTOP, SIG_DFL);
 		do_kill(__func__, getpid(), SIGSTOP);
 		sleep(1);
-
+*/
+printf("child %d about to exec %s\n", getpid(), file);
 //		(void) pause();		/* wait for PRSABORT from parent */
 
 		/*
@@ -384,11 +386,16 @@ Pxcreate(const char *file,	/* executable file name */
 
 # if defined(linux)
 	int ret, status;
-//printf("going for it....................\n");
 
-//sleep(1);kill(pid, SIGSTOP);
+	/***********************************************/
+	/*   Need  to  let  child get past the exec()  */
+	/*   above.				       */
+	/***********************************************/
+	do_ptrace(__func__, PTRACE_ATTACH, pid, 0, 0);
+	do_ptrace(__func__, PTRACE_SETOPTIONS, pid, 0, PTRACE_O_TRACEEXEC);
+printf("parent: waiting for child\n");
 	pid = waitpid(pid, &status, NULL);
-	do_ptrace(__func__, PTRACE_DETACH, pid, 0, 0);
+printf("parent: after waitpid pid=%d status=%x\n", pid, status);
 	P->status.pr_flags |= PR_STOPPED;
 	P->state = PS_STOP;
 	P->status.pr_pid = pid;

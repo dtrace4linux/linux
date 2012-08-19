@@ -157,15 +157,27 @@ do_kill(char *func, int pid, int sig)
 int
 do_ptrace(char *func, int req, int pid, void *addr, void *data)
 {	int	ret = ptrace(req, pid, addr, data);
+	char	*str;
+	char	buf[32];
 
 	if (getenv("DTRACE_PTRACE") == NULL)
 		return ret;
-	printf("%s(): ptrace(%s, %d, %p, %p) := %d ",
-		func,
+	str = 
+		req == PTRACE_TRACEME ? "PTRACE_TRACEME" :
 		req == PTRACE_CONT ? "PTRACE_CONT" :
 		req == PTRACE_DETACH ? "PTRACE_DETACH" :
 		req == PTRACE_ATTACH ? "PTRACE_ATTACH" :
-			"??",
+		req == PTRACE_SETOPTIONS ? "PTRACE_SETOPTIONS" :
+			NULL;
+	if (str == NULL) {
+		str = buf;
+		snprintf(buf, sizeof buf, "0x%x", req);
+	}
+
+	printf("[%d] %s(): ptrace(%s, %d, %p, %p) := %d ",
+		getpid(),
+		func,
+		str,
 		pid, addr, data, ret);
 	fflush(stdout);
 	if (ret == -1)

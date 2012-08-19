@@ -377,7 +377,7 @@ dtrace_safe_synchronous_signal(void)
 	 */
 #if linux
 	if (rp->r_pc >= t->t_dtrace_scrpc && rp->r_pc < t->t_dtrace_scrpc + PAGE_SIZE) {
-		printk("sigreset to %p\n", t->t_dtrace_pc);
+		printk("sigreset to %p\n", (void *) t->t_dtrace_pc);
 		rp->r_pc = t->t_dtrace_pc;
 	}
 #else

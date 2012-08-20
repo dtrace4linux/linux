@@ -31,8 +31,7 @@ Working Features
     not yet ready in Linux/dtrace (eg cannot run standard scripts like
     iosnoop.d or other scripts out there).
   o vminfo provider - probes for the stats in /proc/vmstats
-  o PID provider (dtrace -n pidNNN:::). Needs to be more thoroughly
-    verified.
+  o PID provider (dtrace -n pidNNN:::).
 
 Partially Working / Not yet quality controlled:
 

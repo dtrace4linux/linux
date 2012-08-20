@@ -22,6 +22,7 @@ init_signal_dummy(void)
 {
 	__asm(
 	FUNCTION(dnr1_handler)
+#if defined(__amd64)
 	"push	%r15\n"
 	"push	%r14\n"
 	"push	%r13\n"
@@ -36,10 +37,20 @@ init_signal_dummy(void)
 	"push	%rbx\n"
 	"push	%rcx\n"
 	"push	%rdx\n"
+#else
+	"push	%eax\n"
+	"push	%ebx\n"
+	"push	%ecx\n"
+	"push	%edx\n"
+	"push	%esi\n"
+	"push	%edi\n"
+	"push	%ebp\n"
+#endif
 
 //	"call dtrace_safe_synchronous_signal\n"
 	"call sig_send_wrapper\n"
 
+#if defined(__amd64)
 	"pop	%rdx\n"
 	"pop	%rcx\n"
 	"pop	%rbx\n"
@@ -54,6 +65,15 @@ init_signal_dummy(void)
 	"pop	%r13\n"
 	"pop	%r14\n"
 	"pop	%r15\n"
+#else
+	"pop	%ebp\n"
+	"pop	%edi\n"
+	"pop	%esi\n"
+	"pop	%edx\n"
+	"pop	%ecx\n"
+	"pop	%ebx\n"
+	"pop	%eax\n"
+#endif
 
 	/***********************************************/
 	/*   Pretend we never got here.		       */
@@ -107,7 +127,7 @@ sig_send_callback(uint8_t *instr, int size)
 	/*   Compute  new  address  (rip-relative for  */
 	/*   amd64).				       */
 	/***********************************************/
-	ptbl[pidx].p_addr = instr + 1;
+	ptbl[pidx].p_addr = (uintptr_t) instr + 1;
 	ptbl[pidx].p_val = *(uint32_t *) &instr[1];
 	pidx++;
 #if defined(__amd64)
@@ -116,6 +136,7 @@ sig_send_callback(uint8_t *instr, int size)
 
 	*(uint32_t *) &instr[1] = addr;
 #else
+	addr = (uintptr_t) target;
 	*(uint32_t *) &instr[1] = addr;
 #endif
 }

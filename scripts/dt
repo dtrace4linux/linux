@@ -50,6 +50,34 @@ my %opts = (
 	secs => 5
 	);
 
+sub do_func
+{
+	my $pid = shift @ARGV;
+	usage() if !$pid;
+
+	my $exe = readlink("/proc/$pid/exe");
+	if (!$exe) {
+		print "Error: cannot read /proc/$pid/exe - $!\n";
+		exit(1);
+	}
+	$exe = basename($exe);
+
+	print "Type Ctrl-C to see results\n";
+	my $d = <<EOF;
+pid${pid}:${exe}::entry
+{
+	\@func[probefunc] = count();
+}
+END
+{
+	printa(\@func);
+}
+EOF
+	do_dtrace($d);
+
+	exit(0);
+}
+
 sub main
 {
 	Getopt::Long::Configure('no_ignore_case');
@@ -63,6 +91,10 @@ sub main
 	usage() if ($opts{help});
 
 	my $cmd = shift @ARGV;
+	if ($cmd eq 'func') {
+		do_func();
+	}
+
 	my $mode = shift @ARGV || "scroll";
 	usage() if !$cmd;
 	usage() if !defined($calls{$cmd});
@@ -171,6 +203,8 @@ Commands:
   The following commands are available, and expand into traces against
   the listed system calls.
 
+  dt func <pid>    - Show function calls for a running process.
+
 EOF
 	foreach my $s (sort(keys(%calls))) {
 		printf "  %-10s => %s\n", $s, $calls{$s} || " (n/a)";
@@ -196,6 +230,17 @@ Switches:
 Examples:
 
   dt fork count2
+
+  \$ dt func 1234
+  Type Ctrl-C to see results
+  ...
+  lex_get_token                                                 28988
+  vt_parse_machine                                              29480
+  eval_expr2                                                    30437
+  thread_verify                                                 40003
+  lex_unget_char                                                69696
+  dstr_add_char                                                111018
+  lex_get_char                                                 331968
 
 EOF
 

@@ -1,4 +1,14 @@
+Mon Aug 20 22:03:03 2012  fox
+
+     773* driver/signal.c: Put in the missing assembler code for i386.
+
 Sun Aug 19 16:05:01 2012  fox
+
+     772* scripts/dt.pl: Rename to dt.
+
+     771* scripts/dt.pl: Add 'dt func <pid>'
+
+     770* archive: 1.0145
 
      769* libproc/common/Pcontrol.c: Some changes to Pxcreate to handle
           parent/child sync with a forked child from 'dtrace -c cmd'.

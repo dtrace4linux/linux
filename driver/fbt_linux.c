@@ -399,6 +399,10 @@ TODO();
 # endif
 
 	int	init;
+
+	if (strcmp(modname, "dtracedrv") == 0)
+		return;
+
 	/***********************************************/
 	/*   Possible  memleak  here...we  allocate a  */
 	/*   parallel  struct, but need to free if we  */
@@ -415,8 +419,6 @@ TODO();
 
 	if (dtrace_here) 
 		printk("%s(%d):modname=%s num_symtab=%u\n", dtrace_basename(__FILE__), __LINE__, modname, (unsigned) mp->num_symtab);
-	if (strcmp(modname, "dtracedrv") == 0)
-		return;
 
 	for (i = 1; i < mp->num_symtab; i++) {
 		uint8_t *instr, *limit;
@@ -575,7 +577,7 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 			modname, name, 
 			(uint8_t *) sym->st_value, 
 			instr, limit, i);
-		}
+	}
 }
 
 static int
@@ -857,8 +859,9 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		/*   fiddle with other things tho.	       */
 		/***********************************************/
 		if (*fbt->fbtp_patchpoint == fbt->fbtp_patchval) {
-			if (1 || memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE))
+			if (1 || memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE)) {
 				*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
+			}
 
 			/***********************************************/
 			/*   "Logically"  mark  probe  as gone. So we  */

@@ -224,7 +224,6 @@ rd_loadobj_iter(rd_agent_t *rap, rl_iter_f *cb, void *client_data)
 		ret = cb(&lobj, client_data);
 	}
 	fclose(fp);
-	printf("%s\n", __func__);
 }
 rd_err_e
 rd_get_dyns(rd_agent_t *rap, psaddr_t addr, void **dynpp, size_t *dynpp_sz)

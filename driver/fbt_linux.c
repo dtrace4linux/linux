@@ -524,14 +524,22 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 //HERE();
 
 		/***********************************************/
-		/*   Ignore the init function of modules - we  */
-		/*   will  never  execute them now the module  */
-		/*   is loaded, and we dont want to be poking  */
-		/*   potential  pages  which  dont  exist  in  */
-		/*   memory or which are being used for data.  */
+		/*   If  we  were  called because a module is  */
+		/*   loaded  after  dtrace,  then mp contains  */
+		/*   references to the .init section. We want  */
+		/*   to  ignore these because the pages where  */
+		/*   the  code resides will go away. Not only  */
+		/*   dont   we   want   to   put   probes  on  */
+		/*   non-existant pages, but /proc/dtrace/fbt  */
+		/*   will  have problems and, fbt_enable will  */
+		/*   if  that  page is now used by some other  */
+		/*   driver.				       */
 		/***********************************************/
-		if (instr == (uint8_t *) mp->init)
-			continue;
+		if (mp->module_init && mp->init_size &&
+		    instr >= (uint8_t *) mp->module_init && 
+		    instr < (uint8_t *) mp->module_init + mp->init_size) {
+		    	continue;
+		}
 
 		/***********************************************/
 		/*   We  do have syms that appear to point to  */
@@ -1273,14 +1281,28 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 	/*   Dump the instruction so we can make sure  */
 	/*   we  can  single  step them in the adjust  */
 	/*   cpu code.				       */
+	/*   When a module is loaded and we parse the  */
+	/*   module,  this may include syms which may  */
+	/*   get  unmapped  later  on.  So, trying to  */
+	/*   access a patchpoint instruction can GPF.  */
+	/*   We need to tread very carefully here not  */
+	/*   to  GPF whilst catting /proc/dtrace/fbt.  */
+	/*   We   actually   need  to  disable  these  */
+	/*   probes.				       */
 	/***********************************************/
-	s = dtrace_instr_size(fbt->fbtp_patchpoint);
-	ibuf[0] = '\0';
-	for (cp = ibuf, i = 0; i < s; i++) {
-		snprintf(cp, sizeof ibuf - (cp - ibuf) - 3, "%02x ", 
-			fbt->fbtp_patchpoint[i] & 0xff);
-		cp += 3;
-		}
+printk("fbtproc %p\n", fbt->fbtp_patchpoint);
+	if (!validate_ptr(fbt->fbtp_patchpoint)) {
+		s = 0xfff;
+		strcpy(ibuf, "<unmapped>");
+	} else {
+		s = dtrace_instr_size(fbt->fbtp_patchpoint);
+		ibuf[0] = '\0';
+		for (cp = ibuf, i = 0; i < s; i++) {
+			snprintf(cp, sizeof ibuf - (cp - ibuf) - 3, "%02x ", 
+				fbt->fbtp_patchpoint[i] & 0xff);
+			cp += 3;
+			}
+	}
 	cp = (char *) my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
 		&size, &offset, &modname, name);
 	seq_printf(seq, "%d %04u%c %p %02x %d %2d %s:%s:%s %s\n", n-1, 

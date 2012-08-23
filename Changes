@@ -1,5 +1,9 @@
 Thu Aug 23 07:47:40 2012  fox
 
+     777* tools/mkport.c, libproc/common/Pcontrol.c:
+          Fix for PTRACE_O_TRACEEXEC which may not exist
+	  in <sys/ptrace.h> (Centos 5.3).
+
      776* driver/x_call.c: Fix for IPI on archlinux-3.4/i386
 
 Wed Aug 22 23:57:50 2012  fox

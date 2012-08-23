@@ -53,6 +53,7 @@
 # if linux
 #include <sys/ptrace.h>
 #include "../../include/ctl.h"
+#include "../../build/port.h" /* Shouldnt refer to build, but will do for now */
 # endif
 
 

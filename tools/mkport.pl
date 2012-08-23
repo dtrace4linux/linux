@@ -13,6 +13,7 @@
 # 20-Mar-2011 PDF Add better HAVE_ELF_GETSHDRSTRNDX detection for FC-14.
 # 01-Feb-2012 PDF Handle ebx vs. bx register name for i386
 # 11-Mar-2012 PDF Default HAVE_EBX_REGISTER for <=2.6.21 kernels.
+# 23-Aug-2012 PDF Add support for PTRACE_O_TRACEEXEC
 
 use strict;
 use warnings;
@@ -94,6 +95,11 @@ sub main
 	#   i386/ptrace.h.			      #
 	###############################################
 	$inc .= check_bx_vs_ebx();
+
+	###############################################
+	#   Check out <sys/ptrace.h>		      #
+	###############################################
+	$inc .= check_ptrace_h();
 
 	###############################################
 	#   Handle  differing  naming conventions of  #
@@ -300,6 +306,20 @@ sub check_lex_yytext
 	$fh->close();
 	remove("/tmp/lex.yy.c");
 	return $ret;
+}
+
+######################################################################
+#   Definition  of PTRACE_O_TRACEEXEC is an enum but the header may  #
+#   disagree with the kernel, so handle that here.		     #
+######################################################################
+sub check_ptrace_h
+{
+	my $fh = new FileHandle("/usr/include/sys/ptrace.h");
+	return "" if !$fh;
+	while (<$fh>) {
+		return "" if /PTRACE_O_TRACEEXEC/;
+	}
+	return "# define PTRACE_O_TRACEEXEC 0x10\n";
 }
 ######################################################################
 #   The dump_trace() function for dumping a stack via callbacks has  #

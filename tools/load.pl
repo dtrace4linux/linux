@@ -231,7 +231,7 @@ sub main
 		kallsyms_addresses:optional
 		kallsyms_lookup_name
 		modules:print_modules
-		sys_call_table
+		sys_call_table:optional
 		ia32_sys_call_table:amd64
 		syscall_call:optional
 		xtime:optional

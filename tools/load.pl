@@ -11,6 +11,7 @@
 # 20111014 PDF Read /proc/kallsyms as root to avoid permission issue.
 # 20111028 PDF Add -panic switch so I can maybe figure out why we are dying.
 # 20120711 PDF Make /dev/fasttrap world read/writable.
+# 20120822 PDF Remove some unneeded symbols (arch linux fix)
 
 # Simple script to load the driver and get it ready.
 
@@ -226,21 +227,16 @@ sub main
 	# Symbols we used to need, but no longer:
 	# get_symbol_offset
 	foreach my $s (qw/
-		die_chain:i386die_chain
 		access_process_vm
 		kallsyms_addresses:optional
 		kallsyms_lookup_name
-		kallsyms_op:optional
 		modules:print_modules
 		sys_call_table
 		ia32_sys_call_table:amd64
 		syscall_call:optional
-		idt_table
-		idt_descr
 		xtime:optional
 		kernel_text_address
 		__module_text_address
-		vmalloc_exec
 		add_timer_on
 		/) {
 		my $done = 0;

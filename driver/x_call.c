@@ -592,13 +592,28 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 # else
 	if (x_apic == NULL) {
 		static void (*flat_send_IPI_mask)(cpumask_t *, int);
-		if (flat_send_IPI_mask == NULL) 
+		static void (*default_send_IPI_allbutself)(int);
+
+
+		if (flat_send_IPI_mask == NULL && 
+		    default_send_IPI_allbutself == NULL) {
 			flat_send_IPI_mask = get_proc_addr("flat_send_IPI_mask");
+			default_send_IPI_allbutself = get_proc_addr("default_send_IPI_allbutself");
+		}
 
 		if (flat_send_IPI_mask)  {
 			flat_send_IPI_mask(mask, vector);
 			return;
 		}
+
+		/***********************************************/
+		/*   Arch Linux - 3.4 i386		       */
+		/***********************************************/
+		if (default_send_IPI_allbutself)  {
+			default_send_IPI_allbutself(vector);
+			return;
+		}
+
 		dtrace_linux_panic("x_apic is null - giving up\n");
 		return;
 	}

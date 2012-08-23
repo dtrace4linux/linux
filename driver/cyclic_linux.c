@@ -306,9 +306,14 @@ be_callback(struct hrtimer *ptr)
 
 cyclic_id_t 
 cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
-{	struct c_timer *cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
+{	struct c_timer *cp;
 	ktime_t kt;
 
+	if (fn_hrtimer_init == NULL) {
+		printk("cyclic_add: cannot locate hrtimer_init\n");
+		return 0;
+	}
+	cp = (struct c_timer *) kzalloc(sizeof *cp, GFP_KERNEL);
 	if (cp == NULL) {
 		printk("dtracedrv:cyclic_add: Cannot alloc memory\n");
 		return 0;

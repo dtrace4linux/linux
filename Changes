@@ -1,3 +1,12 @@
+Thu Aug 23 07:47:40 2012  fox
+
+     776* driver/x_call.c: Fix for IPI on archlinux-3.4/i386
+
+Wed Aug 22 23:57:50 2012  fox
+
+     775* driver/dtrace_linux.c, tools/load.pl: Remove some of the 
+     	  legacy symbols as we dont need them anymore.
+
 Mon Aug 20 22:03:03 2012  fox
 
      774* driver/fbt_linux.c: Better fix for skipping .init section

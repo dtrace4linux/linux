@@ -76,28 +76,22 @@ int driver_initted;
 /*   Stuff we stash away from /proc/kallsyms.			      */
 /**********************************************************************/
 enum {
-	OFFSET_kallsyms_op,
 	OFFSET_kallsyms_lookup_name,
 	OFFSET_modules,
 	OFFSET_sys_call_table,
 	OFFSET_access_process_vm,
 	OFFSET_syscall_call,
 	OFFSET_print_modules,
-	OFFSET_die_chain,
-	OFFSET_idt_descr,
-	OFFSET_idt_table,
 	OFFSET_task_exit_notifier,
 	OFFSET_xtime,
 	OFFSET_kernel_text_address,
 	OFFSET_ia32_sys_call_table,
-	OFFSET_vmalloc_exec,
 	OFFSET_END_SYMS,
 	};
 static struct map {
 	char		*m_name;
 	unsigned long	*m_ptr;
 	} syms[] = {
-{"kallsyms_op",            NULL},
 {"kallsyms_lookup_name",   NULL},
 {"modules",                NULL},
 {"sys_call_table",         NULL},
@@ -106,14 +100,10 @@ static struct map {
 			 	  /* find the sys_call_table.		  */
 {"print_modules",          NULL}, /* Backup for i386 2.6.23 kernel to help */
 			 	  /* find the modules table. 		  */
-{"die_chain",              NULL}, /* In case no unregister_die_notifier */
-{"idt_descr",              NULL}, /* For int3 vector patching (maybe).	*/
-{"idt_table",              NULL}, /* For int3 vector patching.		*/
 {"task_exit_notifier",     NULL},
 {"xtime",     		   NULL}, /* Needed for dtrace_gethrtime, if 2.6.9 */
 {"kernel_text_address",    NULL}, /* Used for stack walking when no dump_trace available */
 {"ia32_sys_call_table",    NULL}, /* On 64b kernel, the 32b syscall table. */
-{"vmalloc_exec",    	   NULL}, /* Needed for syscall trampolines. */
 {"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
 	};

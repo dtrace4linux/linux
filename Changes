@@ -1,3 +1,11 @@
+Tue Oct  9 22:07:16 2012  fox
+
+     779* ctf_struct.c: Add support for <linux/migrate.h> which can
+          cause ctfconvert to fail due to a missing structure(?)
+	  (Dan Mick)
+
+     778* tools/mkport.pl: Add support for HAVE_LINUX_MIGRATE_H
+
 Thu Aug 23 07:47:40 2012  fox
 
      777* tools/mkport.c, libproc/common/Pcontrol.c:

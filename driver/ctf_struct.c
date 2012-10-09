@@ -36,7 +36,6 @@
 #include <linux/stat.h>
 #include <linux/mount.h>
 #include <linux/interrupt.h>
-
 #include <linux/in.h>
 #include <linux/icmp.h>
 #include <linux/net.h>
@@ -45,6 +44,10 @@
 #include <asm/tlbflush.h>
 #include <asm/current.h>
 #include <asm/desc.h>
+#include "../port.h"
+#if defined(HAVE_LINUX_MIGRATE_H)
+#  include <linux/migrate.h>
+#endif
 
 # include "ctf_struct.h"
 

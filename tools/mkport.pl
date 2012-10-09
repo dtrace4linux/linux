@@ -14,6 +14,7 @@
 # 01-Feb-2012 PDF Handle ebx vs. bx register name for i386
 # 11-Mar-2012 PDF Default HAVE_EBX_REGISTER for <=2.6.21 kernels.
 # 23-Aug-2012 PDF Add support for PTRACE_O_TRACEEXEC
+# 10-Oct-2012 PDF Add support for HAVE_LINUX_MIGRATE_H
 
 use strict;
 use warnings;
@@ -200,6 +201,7 @@ sub main
 	#   Handle kernel compile flags.	      #
 	###############################################
 	my @kinc = (
+		"include/linux/migrate.h:HAVE_LINUX_MIGRATE_H",
 		"include/asm/kdebug.h:HAVE_INCLUDE_ASM_KDEBUG_H",
 		"include/asm/semaphore.h:HAVE_INCLUDE_ASM_SEMAPHORE_H",
 		"include/asm/stacktrace.h:HAVE_INCLUDE_ASM_STACKTRACE_H",

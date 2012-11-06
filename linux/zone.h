@@ -8,7 +8,7 @@
 #define ZONENAME_MAX            64
 #define ZONE_ATTR_ROOT          1
 
-typedef struct zone {
+typedef struct {
 	int zone_id;
 	} zone_t;
 typedef int zoneid_t;

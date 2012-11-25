@@ -72,6 +72,9 @@
 #include <linux/swap.h> /* want totalram_pages */
 #include <linux/delay.h>
 #include <linux/slab.h>
+#if defined(HAVE_LINUX_FDTABLE_H)
+#  include <linux/fdtable.h>
+#endif
 # undef ASSERT
 # define ASSERT(x) { \
 	if (!(x)) { \
@@ -4543,6 +4546,26 @@ PRINT_CASE(DIF_SUBR_LLTOSTR);
 #endif
 		break;
 
+
+#if linux
+	case DIF_SUBR_D_PATH: {
+	static char buf[256];
+	struct file *fp = tupregs[0].dttk_value;
+	if (fp) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+		regs[rd] = d_path(&fp->f_path, buf, sizeof buf);
+#else
+		regs[rd] = d_path(&fp->f_dentry, fp->f_vfsmnt, buf, sizeof buf);
+#endif
+/*		regs[rd] = d_path(&get_current()->files->fdt->fd[1]->f_path, buf, sizeof buf);*/
+	}
+	else
+		regs[rd] = "<unknown>";
+	break;
+		regs[rd] = "hello-filename!";
+		break;
+		}
+#endif
 
 	case DIF_SUBR_DIRNAME:
 	case DIF_SUBR_BASENAME: {

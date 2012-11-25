@@ -1,3 +1,58 @@
+Sun Nov 25 20:13:07 2012  fox
+
+     789* driver/intr.c, driver/intr_x86-64.S, driver/xen.c, driver/x_call.c
+          Attempt to get Xen IPI to work, but it wont. This means
+	  using FBT or fast firing probes can result in kernel panics.
+
+Tue Nov 13 21:59:44 2012  fox
+
+     788* driver/intr.c, driver/intr_x86-64.S: Fix Xen interrupt
+          patching, and conditionalise/verify we can compile and
+	  run on non-Xen kernels.
+
+Fri Nov  9 22:55:23 2012  fox
+
+     787* driver/intr_x86-64.S: Fix for Xen interrupts; handle
+          kernel traps properly for passthru. (fbt -- int3 and int1
+	  now appear to work properly).
+
+Sun Nov  4 21:35:49 2012  fox
+
+     786* taskq.c, dtrace_linux.c: Avoid GPF if we directly load the
+          driver.
+
+     785* driver/intr.c: Updates for Xen compatibility.
+
+Sat Oct 20 22:29:22 2012  fox
+
+     784* driver/intr.c: Fix for CONFIG_PARAVIRT (Amazon EC2 instance)
+          Dont inline sgdt/sidt if in paravirt mode - the instructions
+	  are not valid.
+
+     783* driver/*: Add wp_disable/wp_enable calls and stop using
+          memory_set_rw to turn off write protected pages as this
+	  doesnt work in virtualised kernels (Amazon). Thanks
+	  to Eric Chaves for giving me access to an EC2 instance
+	  to debug the issues here.
+
+     782* driver/dtrace.c, libdtrace/dt_open.c dt_names.c, etc/io.d
+          Add initial support for the fds[] array. The call of
+	  d_path() function is not done in a mutex free environment.
+	  If you use this on the read/write/... syscalls, all should be
+	  well, but calling it from low level context could deadlock
+	  the CPU. This is an initial experiment.
+
+	  Comment out the io.d stuff because it may cause dtrace to
+	  fail on hosts where we dont have the full linux.ctf file.
+
+Sun Oct 14 21:54:24 2012  fox
+
+     781* libdtrace/dt_parser.c: Allow use of variables stored
+          in the linux-`uname -r`.ctf file (eg cur_thread) without
+	  prefixing with "linux`..."
+
+     780* driver/ctf_struct.c: Add <linux/fdtable.h> for etc/io.d
+
 Tue Oct  9 22:07:16 2012  fox
 
      779* ctf_struct.c: Add support for <linux/migrate.h> which can

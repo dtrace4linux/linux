@@ -31,6 +31,12 @@ cat <<EOF | tee $file
 ==
 == ftp://crisp.dyndns-server.com/pub/release/website/dtrace
 == ======================
+==
+== Common problems:
+== 1. Run tools/get-deps.pl or get-deps-fedora.sh or get-deps-arch.sh
+==    to ensure everything is needed or a build.
+== 2. Currently (Nov 2012) issues on Xen guests (Amazon EC2). Working
+==    to fix.
 (generating a make run - this may take a few moments...)
 EOF
 

@@ -2615,6 +2615,19 @@ dt_xcook_ident(dt_node_t *dnp, dt_idhash_t *dhp, uint_t idkind, int create)
 		scope = DTRACE_OBJ_EXEC;
 		name = dnp->dn_string;
 		dnkind = DT_NODE_VAR;
+
+#if linux
+		/***********************************************/
+		/*   If  this  looks  like  a  global lookup,  */
+		/*   ensure we match the linux-`uname -r`.ctf  */
+		/*   (e.g. so we can access cur_thread).       */
+		/***********************************************/
+		if (dhp == dtp->dt_globals && 
+		    dtrace_lookup_by_name(dtp, "linux", name, &sym, &dts) == 0) {
+			scope = "linux";
+			scope = DTRACE_OBJ_KMODS;
+	    	}
+#endif
 	}
 
 	/*
@@ -2790,7 +2803,7 @@ dt_xcook_ident(dt_node_t *dnp, dt_idhash_t *dhp, uint_t idkind, int create)
 		dt_node_attr_assign(dnp, attr);
 
 	} else if (scope != DTRACE_OBJ_EXEC) {
-		xyerror(D_IDENT_UNDEF, "failed to resolve %s%s%s: %s\n",
+		xyerror(D_IDENT_UNDEF, "xxfailed to resolve %s%s%s: %s\n",
 		    dnp->dn_string, mark, name,
 		    dtrace_errmsg(dtp, dtrace_errno(dtp)));
 	} else {

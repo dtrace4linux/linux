@@ -1311,110 +1311,150 @@ typedef struct page_perms_t {
 static int
 mem_set_perms(unsigned long addr, page_perms_t *pp, unsigned long and_perms, unsigned long or_perms)
 {
-#if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
-	typedef struct { unsigned long long pte; } pte_t;
-#	undef pte_none
-#	define pte_none(p) (p).pte == 0
-#endif
-	int	ret = 1;
-	/***********************************************/
-	/*   Dont   think  we  need  this  for  older  */
-	/*   kernels  where  everything  is writable,  */
-	/*   e.g. sys_call_table.		       */
-	/***********************************************/
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
-	pgd_t *pgd = pgd_offset(current->mm, addr);
-	pud_t *pud;
-	pmd_t *pmd;
-	pte_t *pte;
-	unsigned long *perms1;
-#define dump_tree FALSE
+/**********************************************************************/
+/*   Following  code  is Xen/paravirt safe. Xen wont let us directly  */
+/*   touch  the  page  table,  so  we  use  the  appropriate wrapper  */
+/*   functions, and this handles paravirt or native hardware.	      */
+/**********************************************************************/
+static int first_time = TRUE;
+static pte_t *(*lookup_address)(void *, int *);
+        pte_t *kpte;
+        pte_t old_pte;
+        pte_t new_pte;
+        pgprot_t new_prot;
+        int level;
+        unsigned long pfn;
 
-	pp->pp_valid = FALSE;
-	pp->pp_addr = addr;
+        if (first_time) {
+               lookup_address = get_proc_addr("lookup_address");
+               first_time = FALSE;
+        }
 
-	if (pgd_none(*pgd)) {
-//		printk("yy: pgd=%lx\n", *pgd);
-		return 0;
-	}
-	pud = pud_offset(pgd, addr);
-	if (pud_none(*pud)) {
-//		printk("yy: pud=%lx\n", *pud);
-		return 0;
-	}
-	pmd = pmd_offset(pud, addr);
-	if (pmd_none(*pmd)) {
-//		printk("yy: pmd=%lx\n", *pmd);
-		return 0;
-	}
+        addr = (unsigned long) addr & ~(PAGESIZE-1);
+        kpte = lookup_address((void *) addr, &level);
+        old_pte = *kpte;
+        new_prot = pte_pgprot(old_pte);
+        pgprot_val(new_prot) |= _PAGE_RW;
+	pgprot_val(new_prot) &= ~_PAGE_NX;
 
-	/***********************************************/
-	/*   20091223  Soumendu  Sekhar Satapathy: If  */
-	/*   large  memory  system,  then use the pmd  */
-	/*   directly.				       */
-	/***********************************************/
-	if (pmd_large(*pmd)) {
-		pte = (pte_t *) pmd;
-	} else {
-		pte = pte_offset_kernel(pmd, addr);
-	}
-	if (pte_none(*pte)) {
-//printk("none pte\n");
-		return 0;
-	}
+        pfn = pte_pfn(old_pte);
 
-# if dump_tree
-	{void print_pte(pte_t *pte, int level);
-	printk("yy -- begin\n");
-	print_pte((pte_t *) pgd, 0);
-	print_pte((pte_t *) pmd, 1);
-	print_pte((pte_t *) pud, 2);
-	print_pte(pte, 3);
-	printk("yy -- end\n");
-	}
-# endif
+        /***********************************************/
+        /*   We  want  pfn_pte()  but that causes GPL  */
+        /*   linking  issues,  so  inline  the actual  */
+        /*   function.                                 */
+        /***********************************************/
+//      new_pte = pfn_pte(pfn, new_prot);
+        new_pte = __pte(((phys_addr_t)pfn << PAGE_SHIFT) | pgprot_val(new_prot));
 
-	pp->pp_valid = TRUE;
-	pp->pp_pgd = *pgd;
-	pp->pp_pud = *pud;
-	pp->pp_pmd = *pmd;
-	*(pte_t *) &pp->pp_pte = *pte; /* Horror for <= 2.6.24 kernels */
+        set_pte_atomic(kpte, new_pte);
 
-	/***********************************************/
-	/*   Avoid  touching/flushing  page  table if  */
-	/*   this is a no-op.			       */
-	/***********************************************/
-# if defined(__i386) && !defined(CONFIG_X86_PAE)
-	perms1 = &pmd->pud.pgd.pgd;
-# else
-	perms1 = &pmd->pmd;
-# endif
-	/***********************************************/
-	/*   Ensure we flush the page table, else our  */
-	/*   vmplayer/centos-2.6.18-64b   will  crash  */
-	/*   when doing syscall tracing.	       */
-	/***********************************************/
-	dtrace_clflush(&pp->pp_pte);
+        return 1;
 
-	if (((*perms1 & and_perms) | or_perms) != *perms1 ||
-	    ((pte->pte & and_perms) | or_perms) != pte->pte) {
-		*perms1 = (*perms1 & and_perms) | or_perms;
-
-		/***********************************************/
-		/*   Make  page  executable. Ideally we would  */
-		/*   pass in the and+or perms to set.	       */
-		/***********************************************/
-		pte->pte = (pte->pte & and_perms) | or_perms;
-
-		/***********************************************/
-		/*   clflush only on >=2.6.28 kernels.	       */
-		/***********************************************/
-		dtrace_clflush(pmd);
-		dtrace_clflush(pte);
-		ret = 2;
-	}
-# endif
-	return ret;
+//#if defined(__i386) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+//	typedef struct { unsigned long long pte; } pte_t;
+//#	undef pte_none
+//#	define pte_none(p) (p).pte == 0
+//#endif
+//	int	ret = 1;
+//	/***********************************************/
+//	/*   Dont   think  we  need  this  for  older  */
+//	/*   kernels  where  everything  is writable,  */
+//	/*   e.g. sys_call_table.		       */
+//	/***********************************************/
+//# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
+//	pgd_t *pgd = pgd_offset(current->mm, addr);
+//	pud_t *pud;
+//	pmd_t *pmd;
+//	pte_t *pte;
+//	unsigned long *perms1;
+//#define dump_tree FALSE
+//
+//	pp->pp_valid = FALSE;
+//	pp->pp_addr = addr;
+//
+//	if (pgd_none(*pgd)) {
+////		printk("yy: pgd=%lx\n", *pgd);
+//		return 0;
+//	}
+//	pud = pud_offset(pgd, addr);
+//	if (pud_none(*pud)) {
+////		printk("yy: pud=%lx\n", *pud);
+//		return 0;
+//	}
+//	pmd = pmd_offset(pud, addr);
+//	if (pmd_none(*pmd)) {
+////		printk("yy: pmd=%lx\n", *pmd);
+//		return 0;
+//	}
+//
+//	/***********************************************/
+//	/*   20091223  Soumendu  Sekhar Satapathy: If  */
+//	/*   large  memory  system,  then use the pmd  */
+//	/*   directly.				       */
+//	/***********************************************/
+//	if (pmd_large(*pmd)) {
+//		pte = (pte_t *) pmd;
+//	} else {
+//		pte = pte_offset_kernel(pmd, addr);
+//	}
+//	if (pte_none(*pte)) {
+////printk("none pte\n");
+//		return 0;
+//	}
+//
+//# if dump_tree
+//	{void print_pte(pte_t *pte, int level);
+//	printk("yy -- begin\n");
+//	print_pte((pte_t *) pgd, 0);
+//	print_pte((pte_t *) pmd, 1);
+//	print_pte((pte_t *) pud, 2);
+//	print_pte(pte, 3);
+//	printk("yy -- end\n");
+//	}
+//# endif
+//
+//	pp->pp_valid = TRUE;
+//	pp->pp_pgd = *pgd;
+//	pp->pp_pud = *pud;
+//	pp->pp_pmd = *pmd;
+//	*(pte_t *) &pp->pp_pte = *pte; /* Horror for <= 2.6.24 kernels */
+//
+//	/***********************************************/
+//	/*   Avoid  touching/flushing  page  table if  */
+//	/*   this is a no-op.			       */
+//	/***********************************************/
+//# if defined(__i386) && !defined(CONFIG_X86_PAE)
+//	perms1 = &pmd->pud.pgd.pgd;
+//# else
+//	perms1 = &pmd->pmd;
+//# endif
+//	/***********************************************/
+//	/*   Ensure we flush the page table, else our  */
+//	/*   vmplayer/centos-2.6.18-64b   will  crash  */
+//	/*   when doing syscall tracing.	       */
+//	/***********************************************/
+//	dtrace_clflush(&pp->pp_pte);
+//
+//	if (((*perms1 & and_perms) | or_perms) != *perms1 ||
+//	    ((pte->pte & and_perms) | or_perms) != pte->pte) {
+//		*perms1 = (*perms1 & and_perms) | or_perms;
+//
+//		/***********************************************/
+//		/*   Make  page  executable. Ideally we would  */
+//		/*   pass in the and+or perms to set.	       */
+//		/***********************************************/
+//		pte->pte = (pte->pte & and_perms) | or_perms;
+//
+//		/***********************************************/
+//		/*   clflush only on >=2.6.28 kernels.	       */
+//		/***********************************************/
+//		dtrace_clflush(pmd);
+//		dtrace_clflush(pte);
+//		ret = 2;
+//	}
+//# endif
+//	return ret;
 }
 /**********************************************************************/
 /*   Invoked  by  pid  provider (fastrap_isa.c) when poking into the  */
@@ -1794,7 +1834,7 @@ par_setup_thread2()
 /**********************************************************************/
 /*   For debugging...						      */
 /**********************************************************************/
-#if dump_tree
+#if defined(dump_tree)
 void
 print_pte(pte_t *pte, int level)
 {
@@ -2588,6 +2628,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 	extern unsigned long cnt_0x7f;
 	extern unsigned long cnt_gpf1;
 	extern unsigned long cnt_gpf2;
+	extern unsigned long long cnt_int1_1;
 	extern unsigned long long cnt_int3_1;
 	extern unsigned long long cnt_int3_2;
 	extern unsigned long long cnt_int3_3;
@@ -2613,6 +2654,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		} stats[] = {
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
 		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
+		LONG_LONG(cnt_int1_1, "int1"),
 		LONG_LONG(cnt_int3_1, "int3_1"),
 		LONG_LONG(cnt_int3_2, "int3_2(ours)"),
 		LONG_LONG(cnt_int3_3, "int3_3(reentr)"),
@@ -2806,7 +2848,8 @@ static struct proc_dir_entry *dir;
 	/*   functions   wont   handle  addresses  or  */
 	/*   values greater than 31-bits (yes, 31).    */
 	/***********************************************/
-	xkallsyms_lookup_name = (unsigned long (*)(char *)) simple_strtoul(arg_kallsyms_lookup_name, NULL, 0);
+	if (arg_kallsyms_lookup_name)
+		xkallsyms_lookup_name = (unsigned long (*)(char *)) simple_strtoul(arg_kallsyms_lookup_name, NULL, 0);
 
 	/***********************************************/
 	/*   Initialise   the   cpu_list   which  the  */

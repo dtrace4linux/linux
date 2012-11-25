@@ -365,6 +365,14 @@ int dtrace_function_size(char *name, uint8_t **start, int *size);
 #define	PARSE_CALL	1	/* Look for specific call opcodes */
 
 /**********************************************************************/
+/*   Used  to  turn  off/on  page protection whilst we update kernel  */
+/*   structures.  Preferable  to  do this than touch the page tables  */
+/*   direct (especially on a Xen based kernel).			      */
+/**********************************************************************/
+#define wp_disable() write_cr0(read_cr0() & ~X86_CR0_WP)
+#define wp_enable() write_cr0(read_cr0() | X86_CR0_WP)
+
+/**********************************************************************/
 /*   Set  to  true  when  something  bad  goes wrong - for debugging  */
 /*   purposes.							      */
 /**********************************************************************/

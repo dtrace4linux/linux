@@ -313,6 +313,8 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "uint64_t(uint64_t)" },
 { "test2", DT_IDENT_ACTFUNC, 0, DT_ACT_TEST2, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "uint64_t(uint64_t)" },
+{ "d_path", DT_IDENT_FUNC, 0, DIF_SUBR_D_PATH, DT_ATTR_STABCMN, DT_VERS_1_0,
+	&dt_idops_func, "uint64_t(struct file *)" },
 #endif
 { "panic", DT_IDENT_ACTFUNC, 0, DT_ACT_PANIC, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void()" },

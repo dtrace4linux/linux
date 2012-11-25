@@ -1,0 +1,25 @@
+=== Centos/RedHat crash dump enabling
+
+http://marinovl.blogspot.co.uk/2012/04/how-to-enable-centosrhel-5-crash-dump.html
+yum install --enablerepo=debug kexec-tools crash kernel-debuginfo
+
+(or yum install --enablerepo=rhel-debuginfo kexec-tools crash kernel-debuginfo if using RHEL5)
+
+
+Tune /etc/kdump.conf. To enable the dump file compression, add the -c parameter, to remove zero pages and free pages add -d 17:
+core_collector makedumpfile -d 17 -c
+
+Update /boot/grub/grub.conf with the memory to be reserved for the crash kernel:
+
+grubby --update-kernel=ALL --args="crashkernel=128M@16M"
+
+Enable the kdump service:
+chkconfig kdump on
+
+Reboot:
+shutdown -r now
+
+=== RedHat/Centos source
+wget ftp://ftp.redhat.com/pub/redhat/linux/enterprise/5Server/en/os/SRPMS/kernel-2.6.18-8.1.8.el5.src.rpm
+rpm -ivh kernel-2.6.18-8.1.8.el5.src.rpm
+=> /usr/src/redhat/SOURCES

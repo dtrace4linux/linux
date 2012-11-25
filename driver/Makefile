@@ -44,7 +44,8 @@ dtracedrv-objs := \
 	toxic.o \
 	uncompress.o \
 	vminfo.o \
-	x_call.o
+	x_call.o \
+	xen.o
 ifdef BUILD_i386
 	###############################################
 	#   Kernel  may  be  using  -regparm, and we  #

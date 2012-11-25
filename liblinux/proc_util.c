@@ -36,6 +36,10 @@
 #include <sys/ptrace.h>
 #include "Pcontrol.h"
 
+#if !defined(PTRACE_SETOPTIONS)
+#define PTRACE_SETOPTIONS   0x420
+#endif
+
 int
 proc_clearflags(struct ps_prochandle *phdl, int mask)
 {

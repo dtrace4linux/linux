@@ -58,6 +58,7 @@ dtrace_subrstr(dtrace_hdl_t *dtp, int subr)
 	case DIF_SUBR_INET_NTOA6: return ("inet_ntoa6");
 	case DIF_SUBR_TOUPPER: return ("toupper");
 	case DIF_SUBR_TOLOWER: return ("tolower");
+	case DIF_SUBR_D_PATH: return ("d_path");
 	default: return ("unknown");
 	}
 }

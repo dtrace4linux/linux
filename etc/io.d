@@ -138,10 +138,20 @@ translator devinfo_t < buf_t *B > {
 	dev_statname = stringof(B->d.dev_statname);
 	dev_pathname = stringof(B->d.dev_pathname);
 };
+
 /*
-inline fileinfo_t fds[int fd] = xlate <fileinfo_t> (
-    fd >= 0 && fd < curthread->t_procp->p_user.u_finfo.fi_nfiles ?
-    curthread->t_procp->p_user.u_finfo.fi_list[fd].uf_file : NULL);
+#pragma D binding "1.0" translator
+translator fileinfo_t < struct file *F > {
+	fi_name	   = stringof(d_path(F));
+	fi_offset  = F->f_flags;
+};
+*/
+
+/* Not sure we can use fd_array - is that a complete
+array or the first fragment? */
+/*inline fileinfo_t fds[int fd] = xlate <fileinfo_t> (
+    fd >= 0 && fd < cur_thread->files->fdtab.max_fds ?
+    cur_thread->files->fd_array[fd] : NULL);
 
 #pragma D attributes Stable/Stable/Common fds
 #pragma D binding "1.1" fds

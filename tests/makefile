@@ -9,7 +9,7 @@ all:
 	case `uname -m` in \
 	  x86_64) \
 		$(CC) -m64 -g -o $(BINDIR)/sys64 syscalls.c ; \
-		$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c ; \
+		$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c || true ; \
 		;; \
 	  i686) \
 		$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c ; \

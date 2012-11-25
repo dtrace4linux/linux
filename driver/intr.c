@@ -7,7 +7,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 05-Feb-2012 1.15 $ 			      */
+/*   $Header: Last edited: 07-Nov-2012 1.16 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -31,7 +31,11 @@
 /**********************************************************************/
 /*   Backwards compat for older kernels.			      */
 /**********************************************************************/
-#if !defined(store_gdt)
+#if !defined(store_gdt) && !defined(CONFIG_PARAVIRT)
+	/***********************************************/
+	/*   For   Paravirt,  these  will  be  inline  */
+	/*   functions.				       */
+	/***********************************************/
 #define store_gdt(ptr) asm volatile("sgdt %0":"=m" (*ptr))
 #define store_idt(ptr) asm volatile("sidt %0":"=m" (*ptr))
 #endif
@@ -48,11 +52,6 @@ struct x86_descriptor {
 # define	NOTIFY_KERNEL	1
 
 /**********************************************************************/
-/*   Pointer to the IDT size/address structure.			      */
-/**********************************************************************/
-static struct x86_descriptor *idt_descr_ptr;
-
-/**********************************************************************/
 /*   We need this to be in an executable page. kzalloc doesnt return  */
 /*   us  one  of  these, and havent yet fixed this so we can make it  */
 /*   executable,  so  for  now, this will do. As of 3.x kernels, BSS  */
@@ -63,25 +62,6 @@ static struct x86_descriptor *idt_descr_ptr;
 /**********************************************************************/
 static cpu_core_t	cpu_core_exec[NCPU];
 # define THIS_CPU() &cpu_core_exec[cpu_get_id()]
-
-/**********************************************************************/
-/*   Pointers to the real interrupt handlers so we can daisy chain.   */
-/**********************************************************************/
-void *kernel_int1_handler;
-void *kernel_int3_handler;
-void *kernel_int11_handler;
-void *kernel_int13_handler;
-void *kernel_double_fault_handler;
-void *kernel_page_fault_handler;
-void *kernel_int_dtrace_ret_handler;
-int ipi_vector = 0xea-1-16; // very temp hack - need to find a free interrupt
-void (*kernel_nmi_handler)(void);
-
-/**********************************************************************/
-/*   Kernel independent gate definitions.			      */
-/**********************************************************************/
-# define CPU_GATE_INTERRUPT 	0xE
-# define GATE_DEBUG_STACK	0
 
 /**********************************************************************/
 /*   Define  the  descriptor table structures. Differing formats for  */
@@ -105,10 +85,14 @@ struct gate32 {
 	u16		base1;
 } __attribute__((packed));
 
+#undef gate_offset
+
 # if defined(__amd64)
+#define gate_offset(g) ((g).offset_low | ((unsigned long) (g).offset_middle << 16) | ((unsigned long)(g).offset_high << 32))
 typedef struct gate64 gate_t;
 
 # elif defined(__i386)
+#define gate_offset(g) ((u32) (g).base0 | ((u32) (g).base1 << 16))
 typedef struct gate32 gate_t;
 
 # else
@@ -116,11 +100,44 @@ typedef struct gate32 gate_t;
 # endif
 
 /**********************************************************************/
+/*   Saved copies of idt_table[n] for when we get unloaded.	      */
+/**********************************************************************/
+gate_t saved_double_fault;
+gate_t saved_int1;
+gate_t saved_int2;
+gate_t saved_int3;
+gate_t saved_int11;
+gate_t saved_int13;
+gate_t saved_page_fault;
+gate_t saved_ipi;
+gate_t saved_int_dtrace_ret;
+
+/**********************************************************************/
+/*   Pointers to the real interrupt handlers so we can daisy chain.   */
+/**********************************************************************/
+void *kernel_int1_handler;
+void *kernel_int3_handler;
+void *kernel_int11_handler;
+void *kernel_int13_handler;
+void *kernel_double_fault_handler;
+void *kernel_page_fault_handler;
+void *kernel_int_dtrace_ret_handler;
+int ipi_vector = 0xea-1-16; // very temp hack - need to find a free interrupt
+void (*kernel_nmi_handler)(void);
+
+/**********************************************************************/
+/*   Kernel independent gate definitions.			      */
+/**********************************************************************/
+# define CPU_GATE_INTERRUPT 	0xE
+# define GATE_DEBUG_STACK	0
+
+/**********************************************************************/
 /*   Pointer to the kernels idt table.				      */
 /**********************************************************************/
 gate_t *idt_table_ptr;
 
 extern int dtrace_printf_disable;
+extern int nr_cpus;
 
 static	const char *(*my_kallsyms_lookup)(unsigned long addr,
                         unsigned long *symbolsize,
@@ -140,6 +157,16 @@ int dtrace_int_ipi(void);
 int dtrace_int_nmi(void);
 int dtrace_int_dtrace_ret(void);
 
+#ifdef CONFIG_PARAVIRT
+int dtrace_int1_xen(void);
+int dtrace_int3_xen(void);
+int dtrace_page_fault_xen(void);
+#endif
+
+int dtrace_is_xen(void);
+static void dtrace_write_idt_entry(int vec, const gate_t *val);
+static void dtrace_write_idt_entry2(int vec);
+
 /**********************************************************************/
 /*   Update the IDT table for an interrupt. We just set the function  */
 /*   pointer (code which will be in intr_x86-XX.S).		      */
@@ -150,6 +177,16 @@ set_idt_entry(int intr, unsigned long func)
 static gate_t s;
 
 #if defined(__amd64)
+	/***********************************************/
+	/*   Keep  the  actual  IDT  entry,  but only  */
+	/*   update the function address.	       */
+	/***********************************************/
+#if 1
+	s = idt_table_ptr[intr];
+	s.offset_low = PTR_LOW(func);
+	s.offset_middle = PTR_MIDDLE(func);
+	s.offset_high = PTR_HIGH(func);
+#else
 	int	type = CPU_GATE_INTERRUPT;
 	int	dpl = 3;
 	int	seg = __KERNEL_CS;
@@ -158,7 +195,7 @@ static gate_t s;
 
 	s.offset_low = PTR_LOW(func);
 	s.segment = seg;
-        s.ist = GATE_DEBUG_STACK;
+        s.ist = intr == 14 ? 0 : GATE_DEBUG_STACK;
         s.p = 1;
         s.dpl = dpl;
         s.zero0 = 0;
@@ -166,6 +203,7 @@ static gate_t s;
         s.type = type;
         s.offset_middle = PTR_MIDDLE(func);
         s.offset_high = PTR_HIGH(func);
+#endif
 
 #elif defined(__i386)
 	/***********************************************/
@@ -209,7 +247,11 @@ static gate_t s;
 #  error "set_idt_entry: please help me"
 #endif
 
-	idt_table_ptr[intr] = s;
+	/***********************************************/
+	/*   Ensure  Xen/paravirt  knows  about  this  */
+	/*   interrupt handler.			       */
+	/***********************************************/
+	dtrace_write_idt_entry(intr, &s);
 }
 
 /**********************************************************************/
@@ -248,10 +290,13 @@ dtrace_printf("double-fault[%lu]: CPU:%d PC:%p\n", cnt++, smp_processor_id(), (v
 /*   Handle  a  single step trap - hopefully ours, as we step past a  */
 /*   probe, but, if not, it belongs to someone else.		      */
 /**********************************************************************/
+unsigned long long cnt_int1_1;
 int 
 dtrace_int1_handler(int type, struct pt_regs *regs)
 {	cpu_core_t *this_cpu = THIS_CPU();
 	cpu_trap_t	*tp;
+
+	cnt_int1_1++;
 
 //dtrace_printf("int1 PC:%p regs:%p CPU:%d\n", (void *) regs->r_pc-1, regs, smp_processor_id());
 	/***********************************************/
@@ -599,10 +644,65 @@ dtrace_int_page_fault_handler(int type, struct pt_regs *regs)
 	return NOTIFY_KERNEL;
 }
 /**********************************************************************/
-/*   Intercept  SMP  IPI  inter-cpu  interrupts  so we can implement  */
-/*   xcall. (Done in intr-x86_XX.S)				      */
+/*   In  Linux  3.4.6  (probably  before),  the  write_idt_entry can  */
+/*   invoke   xen_write_idt_entry   which   does   the   code  below  */
+/*   (approximately).  In  the  kernel,  it stops us overwriting the  */
+/*   vectors  we  care  about  in some cases, so we go direct to the  */
+/*   hypervisor, if its loaded.					      */
 /**********************************************************************/
-extern unsigned long cnt_ipi1;
+static void 
+dtrace_write_idt_entry(int vec, const gate_t *val)
+{	int	i;
+
+	/***********************************************/
+	/*   Update  the  IDT,  but  this may have no  */
+	/*   effect  in a Xen guest, where we need to  */
+	/*   tell the hypervisor what happened.	       */
+	/***********************************************/
+	memory_set_rw(idt_table_ptr, 1, TRUE);
+	idt_table_ptr[vec] = *val;
+
+	/***********************************************/
+	/*   Make  sure every CPU sees the IDT change  */
+	/*   -  only  applicable for Xen (because Xen  */
+	/*   virtualises  the IDT, so simply updating  */
+	/*   the  IDT  has no direct effect - we have  */
+	/*   to  hypercall  out  to let Xen know what  */
+	/*   happened.				       */
+	/***********************************************/
+	for (i = 0; i < nr_cpus; i++) {
+		SMP_CALL_FUNCTION_SINGLE(i, dtrace_write_idt_entry2, (void *) vec, TRUE);
+	}
+}
+/**********************************************************************/
+/*   Hypercall  to  Xen  to  sync  the  IDT. We attempt to avoid any  */
+/*   kernel  dependencies  so  we  can trace the real Xen hypercalls  */
+/*   from dtrace.						      */
+/**********************************************************************/
+static void
+dtrace_write_idt_entry2(int vec)
+{
+#if defined(CONFIG_PARAVIRT) && defined(__HYPERVISOR_set_trap_table)
+	gate_t *val = &idt_table_ptr[vec];
+	{struct trap_info {
+		uint8_t       vector;  /* exception vector */
+		uint8_t       flags;   /* 0-3: privilege level; 4: clear event enable? */
+		uint16_t      cs;      /* code selector */
+		unsigned long address; /* code offset */
+	};
+	struct trap_info info[2];
+
+	info[0].vector = vec;
+	info[0].address = gate_offset(*val);
+	info[0].cs = gate_segment(*val);
+	info[0].flags = val->dpl;
+	if (val->type == GATE_INTERRUPT)
+		info[0].flags |= 1 << 2;
+	info[1].address = 0;
+	dtrace_xen_hypercall(__HYPERVISOR_set_trap_table, &info, 0, 0);
+	}
+#endif
+}
 
 /**********************************************************************/
 /*   Code to implement /proc/dtrace/idt.			      */
@@ -633,7 +733,7 @@ static int gdt_seq_show(struct seq_file *seq, void *v)
 	unsigned long *gdt_table_ptr;
 	struct x86_descriptor desc;
 
-	store_gdt(&desc);
+	store_gdt((struct desc_ptr *) &desc);
 	if (n == 1) {
 		seq_printf(seq, "GDT: %p entries=%d\n",
 			(void *) desc.address, desc.size);
@@ -735,9 +835,9 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 	char	*modname = NULL;
 	char	name[KSYM_NAME_LEN];
 	struct x86_descriptor desc;
-	gate_t	*idt_table_ptr;
+//	gate_t	*idt_table_ptr;
 
-	store_idt(&desc);
+	store_idt((struct desc_ptr *) &desc);
 	if (n == 1) {
 		seq_printf(seq, "IDT: %p entries=%d\n",
 			(void *) desc.address, desc.size);
@@ -748,15 +848,17 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 	if (n > IDT_ENTRIES + 1)
 		return 0;
 
-	idt_table_ptr = (gate_t *) desc.address;
+//	idt_table_ptr = (gate_t *) desc.address;
 	g = &idt_table_ptr[n - 2];
 # if defined(__amd64)
-	addr = ((unsigned long) g->offset_high << 32) | 
-		((unsigned long) g->offset_middle << 16) |
-		g->offset_low;
-	cp = (char *) my_kallsyms_lookup(addr,
-		&size, &offset, &modname, name);
-	seq_printf(seq, "%02x %04x:%p p=%d ist=%d dpl=%d type=%x %s %s:%s\n",
+#define	map_sym(g) \
+	addr = ((unsigned long) (g).offset_high << 32) | \
+		((unsigned long) (g).offset_middle << 16) | \
+		(g).offset_low; \
+	cp = (char *) my_kallsyms_lookup(addr, &size, &offset, &modname, name);
+
+	map_sym(*g);
+	seq_printf(seq, "%02x %04x:%p p=%d ist=%d dpl=%d type=%x %s %s:%s",
 		n-2,
 		g->segment,
 		(void *) addr, 
@@ -770,6 +872,15 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 		g->type == 0x5 ? "task" : "????",
 		modname ? modname : "kernel",
 		cp ? cp : "");
+	if (n - 2 == 1) {
+		cp = (char *) my_kallsyms_lookup((long) kernel_int1_handler, &size, &offset, &modname, name);
+		seq_printf(seq, " -> %p %s\n", (void *) addr, cp ? cp : "");
+	}
+	if (n - 2 == 3) {
+		cp = (char *) my_kallsyms_lookup((long) kernel_int3_handler, &size, &offset, &modname, name);
+		seq_printf(seq, " -> %p %s\n", (void *) addr, cp ? cp : "");
+	}
+	seq_printf(seq, "\n");
 
 # elif defined(__i386)
 	{int type = g->flags & 0x1f;
@@ -813,19 +924,6 @@ static const struct file_operations idt_proc_fops = {
         .llseek  = seq_lseek,
         .release = seq_release,
 };
-
-/**********************************************************************/
-/*   Saved copies of idt_table[n] for when we get unloaded.	      */
-/**********************************************************************/
-gate_t saved_double_fault;
-gate_t saved_int1;
-gate_t saved_int2;
-gate_t saved_int3;
-gate_t saved_int11;
-gate_t saved_int13;
-gate_t saved_page_fault;
-gate_t saved_ipi;
-gate_t saved_int_dtrace_ret;
 
 /**********************************************************************/
 /*   Utility  function,  based on lookup_address() in the kernel, to  */
@@ -972,17 +1070,25 @@ intr_exit(void)
 		return;
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 9)
-//	idt_table_ptr[8] = saved_double_fault;
+	dtrace_write_idt_entry(idt_table_ptr, 8, &saved_double_fault);
 #endif
-	idt_table_ptr[1] = saved_int1;
-	idt_table_ptr[2] = saved_int2;
-	idt_table_ptr[3] = saved_int3;
-	idt_table_ptr[11] = saved_int11;
-	idt_table_ptr[13] = saved_int13;
-	idt_table_ptr[14] = saved_page_fault;
-	idt_table_ptr[T_DTRACE_RET] = saved_int_dtrace_ret;
-	if (ipi_vector)
- 		idt_table_ptr[ipi_vector] = saved_ipi;
+	/***********************************************/
+	/*   Use  the write_idt_entry to put back the  */
+	/*   original  gate entry. This means we work  */
+	/*   on  real  hardware and under Xen. Direct  */
+	/*   tampering  of  the  IDT  table under Xen  */
+	/*   will shutdown the guest.                  */
+	/***********************************************/
+	dtrace_write_idt_entry(1, &saved_int1);
+	dtrace_write_idt_entry(2, &saved_int2);
+	dtrace_write_idt_entry(3, &saved_int3);
+	dtrace_write_idt_entry(11, &saved_int11);
+	dtrace_write_idt_entry(13, &saved_int13);
+	dtrace_write_idt_entry(14, &saved_page_fault);
+	dtrace_write_idt_entry(T_DTRACE_RET, &saved_int_dtrace_ret);
+	if (ipi_vector) {
+	        dtrace_write_idt_entry(ipi_vector, &saved_ipi);
+	}
 }
 
 
@@ -1078,6 +1184,7 @@ static	struct x86_descriptor desc1;
 //printk("__supported_pte_mask=%lx\n", __supported_pte_mask);
 		*maskp &= ~_PAGE_NX;
 }
+
 	/***********************************************/
 	/*   Needed  by assembler trap handler. These  */
 	/*   are  the first-level interrupt handlers.  */
@@ -1087,8 +1194,17 @@ static	struct x86_descriptor desc1;
 	/*   these   from   the   IDT,   rather  than  */
 	/*   hardcoding the names.		       */
 	/***********************************************/
-	kernel_int1_handler = get_proc_addr("debug");
-	kernel_int3_handler = get_proc_addr("int3");
+# ifdef CONFIG_PARAVIRT
+	if (dtrace_is_xen()) {
+		kernel_int1_handler = get_proc_addr("xen_debug");
+		kernel_int3_handler = get_proc_addr("xen_int3");
+	}
+# endif
+	if (kernel_int1_handler == NULL)
+		kernel_int1_handler = get_proc_addr("debug");
+	if (kernel_int3_handler == NULL)
+		kernel_int3_handler = get_proc_addr("int3");
+
 	kernel_int11_handler = get_proc_addr("segment_not_present");
 	kernel_int13_handler = get_proc_addr("general_protection");
 	kernel_double_fault_handler = get_proc_addr("double_fault");
@@ -1133,6 +1249,23 @@ static	struct x86_descriptor desc1;
 	}
 
 	/***********************************************/
+	/*   If  we  run  under  Xen (Amazon EC2), we  */
+	/*   cant use store_idt to grab the table, so  */
+	/*   we  try  to  use the actual idt_table if  */
+	/*   possible.				       */
+	/*   Some  kernels  dont  expose this symbol;  */
+	/*   but  also  on  some machines, they might  */
+	/*   move the IDT and we do need store_idt to  */
+	/*   find it. We cant win. One solution is to  */
+	/*   use  store_idt,  and  trap  a page-fault  */
+	/*   error and fallback to idt_table.	       */
+	/***********************************************/
+	if ((idt_table_ptr = get_proc_addr("idt_table")) == NULL) {
+		store_idt((struct desc_ptr *) &desc1);
+		idt_table_ptr = (gate_t *) desc1.address;
+	}
+
+	/***********************************************/
 	/*   Now patch the interrupt descriptor table  */
 	/*   for  the  interrupts  we  care about. We  */
 	/*   need   INT1/INT3  for  FBT  and  related  */
@@ -1148,10 +1281,11 @@ static	struct x86_descriptor desc1;
 	/*   double   faults  or  other  segmentation  */
 	/*   errors.				       */
 	/***********************************************/
-	store_idt(&desc1);
-	idt_table_ptr = (gate_t *) desc1.address;
-	idt_descr_ptr = &desc1;
-
+	
+	if (kernel_page_fault_handler == NULL) {
+		dtrace_linux_panic("Missing 'page_fault' handler; something is not right\n");
+		return;
+	}
 	/***********************************************/
 	/*   Save the original vectors.		       */
 	/***********************************************/
@@ -1176,11 +1310,22 @@ static	struct x86_descriptor desc1;
 	/***********************************************/
 	set_idt_entry(8, (unsigned long) dtrace_double_fault);
 #endif
-	set_idt_entry(1, (unsigned long) dtrace_int1); // single-step
-	set_idt_entry(3, (unsigned long) dtrace_int3); // breakpoint
-	set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
-	set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
-	set_idt_entry(14, (unsigned long) dtrace_page_fault);
+
+#ifdef CONFIG_PARAVIRT
+	if (dtrace_is_xen()) {
+		set_idt_entry(1, (unsigned long) dtrace_int1_xen); // single-step
+		set_idt_entry(3, (unsigned long) dtrace_int3_xen); // breakpoint
+		set_idt_entry(14, (unsigned long) dtrace_page_fault_xen);
+	} else 
+#endif
+	{
+		set_idt_entry(1, (unsigned long) dtrace_int1); // single-step
+		set_idt_entry(3, (unsigned long) dtrace_int3); // breakpoint
+		set_idt_entry(14, (unsigned long) dtrace_page_fault);
+	}
+//	set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
+//	set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
+
 	set_idt_entry(T_DTRACE_RET, (unsigned long) dtrace_int_dtrace_ret);
 
 	/***********************************************/
@@ -1206,6 +1351,5 @@ if (*first_v > ipi_vector)
 	/*   kernel  because  we  cannot have a probe  */
 	/*   fire from an NMI.			       */
 	/***********************************************/
-	set_idt_entry(2, (unsigned long) dtrace_int_nmi);
-
+//	set_idt_entry(2, (unsigned long) dtrace_int_nmi);
 }

@@ -3,6 +3,20 @@
 /*   Author: Paul D. Fox					      */
 /*   Date: May 2011						      */
 /*   $Header: Last edited: 26-Jul-2012 1.1 $ 			      */
+/*   								      */
+/*   We  need  to  sync  across  CPUs using the IPI interface. Linux  */
+/*   provides  smp_call_function_single and friends to achieve this.  */
+/*   But, we cannot call the function with interrupts disabled as we  */
+/*   may deadlock.						      */
+/*   								      */
+/*   This  code  can be called from an interrupt with irqs disabled.  */
+/*   So we would deadlock.					      */
+/*   								      */
+/*   Solaris  doesnt  have this restriction. So, ideally, we use our  */
+/*   own non-IRQ sensitive version - lock free xcall.		      */
+/*   								      */
+/*   Things  get  complicated because of issues with APIC references  */
+/*   across the kernel releases, and because of Xen.		      */
 /**********************************************************************/
 
 /**********************************************************************/
@@ -71,9 +85,6 @@ extern int ipi_vector;
 /*   use smp_call_function() and friends from interrupt context. The  */
 /*   timer interrupt will cause this to happen.			      */
 /*   								      */
-/*   So,  instead  we  rely on being able to fire a timer on another  */
-/*   cpu.							      */
-/*   								      */
 /*   The  xcalls array is our main work queue. Each cpu can invoke a  */
 /*   call to every other cpu.					      */
 /**********************************************************************/
@@ -138,6 +149,8 @@ xcall_init(void)
 			return;
 		}
 	}
+
+	xen_xcall_init();
 }
 void
 xcall_fini(void)
@@ -145,15 +158,13 @@ xcall_fini(void)
 
 	for (i = 0; i < nr_cpus; i++)
 		kfree(xcalls[i]);
+	xen_xcall_fini();
 }
 
 /**********************************************************************/
 /*   Switch the interface from the orig dtrace_xcall code to the new  */
-/*   code.  As  of 20110520, I cannot decide which one is worse. The  */
-/*   orig  code  cannot  come  from a timer interrupt (hr_timer code  */
-/*   comes  here),  but  the  new  code  is  suffering  from dropped  */
-/*   interprocessor  interrupts  signifying  I  dont  know what I am  */
-/*   doing :-(							      */
+/*   code.  The  orig  code  cannot  come  from  a  timer  interrupt  */
+/*   (hr_timer code comes here).				      */
 /**********************************************************************/
 void
 dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
@@ -168,7 +179,16 @@ dtrace_xcall(processorid_t cpu, dtrace_xcall_t func, void *arg)
 	/*   dtrace_linux_init()  relative startup so  */
 	/*   we can kill the older code.	       */
 	/***********************************************/
-	if (!driver_initted || XCALL_MODE == XCALL_ORIG) {
+
+	/***********************************************/
+	/*   If   we  are  on  Xen,  use  the  kernel  */
+	/*   smp_call_function  code - this is broken  */
+	/*   -  we  get long latencies, but is better  */
+	/*   than nothing.			       */
+	/*   					       */
+	/*   We need this for FBT tracing.	       */
+	/***********************************************/
+	if (!driver_initted || XCALL_MODE == XCALL_ORIG || dtrace_is_xen()) {
 		orig_dtrace_xcall(cpu, func, arg);
 		return;
 	}
@@ -464,6 +484,7 @@ typedef struct cpumask cpumask_t;
 			/***********************************************/
 			/*   Avoid noise for tiny windows.	       */
 			/***********************************************/
+if(0)
 			if ((cnt == 0 && xcall_debug) || !(xcall_debug && cnt == 50)) {
 				dtrace_printf("[%d] cpu%d in wrong state (state=%d)\n",
 					smp_processor_id(), c, xc->xc_state);
@@ -534,6 +555,7 @@ typedef struct cpumask cpumask_t;
 				cpu &= ~(1 << c);
 			}
 		}
+break;
 	}
 //	smp_mb();
 
@@ -564,6 +586,12 @@ dump_xcalls(void)
 static void
 send_ipi_interrupt(cpumask_t *mask, int vector)
 {
+
+	if (dtrace_is_xen()) {
+		xen_send_ipi(mask, vector);
+		return;
+	}
+
 # if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
 	/***********************************************/
 	/*   Theres  'flat' and theres 'cluster'. The  */

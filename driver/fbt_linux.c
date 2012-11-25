@@ -163,9 +163,9 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinfo)
 
 //HERE();
 //int dtrace_here = 1;
-if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
+//if (dtrace_here) printk("fbt_invop:addr=%lx stack=%p eax=%lx\n", addr, stack, (long) rval);
 	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
-if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
+//if (dtrace_here) printk("patchpoint: %p rval=%x\n", fbt->fbtp_patchpoint, fbt->fbtp_rval);
 		if ((uintptr_t)fbt->fbtp_patchpoint != addr)
 			continue;
 
@@ -867,9 +867,7 @@ fbt_disable(void *arg, dtrace_id_t id, void *parg)
 		/*   fiddle with other things tho.	       */
 		/***********************************************/
 		if (*fbt->fbtp_patchpoint == fbt->fbtp_patchval) {
-			if (1 || memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE)) {
-				*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
-			}
+			*fbt->fbtp_patchpoint = fbt->fbtp_savedval;
 
 			/***********************************************/
 			/*   "Logically"  mark  probe  as gone. So we  */

@@ -61,7 +61,7 @@ release:
 #   Non-real releases, for my benefit.				     #
 ######################################################################
 beta:
-	$(MAKE) RELDIR=beta release
+	tools/mkrelease.pl -nocopy $$REL
 
 all:
 	BUILD_DIR=$(BUILD_DIR) tools/build.pl $(BUILD_DIR) $(UNAME_M)

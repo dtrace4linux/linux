@@ -340,6 +340,12 @@ tp->ct_tinfo.t_opcode,
 	/*   amd64.				       */
 	/***********************************************/
 	tp->ct_instr_buf[tp->ct_tinfo.t_inslen] = 0x90;
+	/***********************************************/
+	/*   Second  NOP  isnt  needed, but it is for  */
+	/*   Xen.  This  may  be  a  cache  coherency  */
+	/*   issue.				       */
+	/***********************************************/
+	tp->ct_instr_buf[tp->ct_tinfo.t_inslen+1] = 0x90;
 
 //printk("step..len=%d %2x %2x\n", this_cpu->cpuc_tinfo.t_inslen, this_cpu->cpuc_instr_buf[0], this_cpu->cpuc_instr_buf[1]);
 

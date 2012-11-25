@@ -386,6 +386,10 @@ printf("child %d about to exec %s\n", getpid(), file);
 	P->ctlfd = fd;
 
 # if defined(linux)
+
+#if !defined(PTRACE_SETOPTIONS)
+#define PTRACE_SETOPTIONS   0x420
+#endif
 	int ret, status;
 
 	/***********************************************/

@@ -71,6 +71,9 @@ __create_workqueue_key(const char *name, int singlethread,
                        const char *lock_name);
 	if (func == NULL)
 		func = get_proc_addr("__create_workqueue_key");
+	if (func == NULL)
+		return NULL;
+
 	return func(name, singlethread, freezeable, rt, key, lock_name);
 }
 # endif

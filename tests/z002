@@ -1,0 +1,8 @@
+root build/dtrace -c /bin/date -n '
+	syscall:::
+	{
+	  /*printf("%d %s %d", pid, execname, $target);*/
+	  cnt++;
+	}
+
+	' 

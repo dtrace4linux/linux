@@ -116,10 +116,12 @@ sub main
 	spawn("ls -l /tmp/dtrace-$rel.tar.bz2");
 	spawn("mv /tmp/dtrace-$rel.tar.bz2 $ENV{HOME}/release/dtrace");
 
-	spawn("twit 'Release: dtrace-b$vars{build} on ftp://crisp.dyndns-server.com/pub/release/website/dtrace/dtrace-$rel.tar.gz'");
-	chdir($pwd);
-	spawn("git commit -F /tmp/msg .");
-	spawn("git push -u origin master");
+	if (!$opts{nocopy}) {
+		spawn("twit 'Release: dtrace-b$vars{build} on ftp://crisp.dyndns-server.com/pub/release/website/dtrace/dtrace-$rel.tar.gz'");
+		chdir($pwd);
+		spawn("git commit -F /tmp/msg .");
+		spawn("git push -u origin master");
+	}
 }
 sub spawn
 {	my $cmd = shift;

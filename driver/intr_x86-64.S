@@ -13,13 +13,17 @@
 /*   back to the caller, else dispatch to the "int3" function in the  */
 /*   main kernel.						      */
 /*   								      */
-/*   User traps are redirected directly to the kernel - we dont have  */
-/*   an interest in them for now.				      */
+/*   Some  user traps are ignored and just passthru (USDT can invoke  */
+/*   user traps we care about so we may need to modify them).	      */
+/*   								      */
+/*   We  have  to handle Xen PV guest specially since it virtualises  */
+/*   interrupts  and  doesnt  present  the same stack layout as real  */
+/*   host.							      */
 /*   								      */
 /*   Author: Paul Fox						      */
 /*   								      */
 /*   Date: May 2009						      */
-/*   $Header: Last edited: 22-Dec-2011 1.2 $ 			      */
+/*   $Header: Last edited: 07-Nov-2012 1.3 $ 			      */
 /**********************************************************************/
 
 /*
@@ -47,19 +51,55 @@
 
 # if defined(__amd64)
 
-# include <asm/segment.h>
-# include <asm/calling.h>
-# include <linux/version.h>
+#include <linux/linkage.h>
+#include <asm/segment.h>
+#include <asm/calling.h>
+#include <asm/asm-offsets.h>
+#include <asm/paravirt.h>
+#include <linux/version.h>
 # if defined(HAVE_INCLUDE_ASM_MSR_INDEX_H)
 #   include <asm/msr-index.h>
-//#   include <asm/asm-offsets.h>
 # else
 #   define MSR_GS_BASE	0xc0000101
 # endif
 # include <asm/page.h>
 # include <sys/trap.h>
 
-#define X86_PLATFORM_IPI_VECTOR         0xed
+/**********************************************************************/
+/*   If   running   under   Xen/paravirt,   we   need  to  undo  the  */
+/*   PARAVIRT_ADJUST_EXCEPTION_FRAME  which  pops two registers from  */
+/*   the  stack.  We  need  this  as  we jump to the original kernel  */
+/*   handler.							      */
+/**********************************************************************/
+#ifdef CONFIG_PARAVIRT
+	.macro undo_PARAVIRT_ADJUST_EXCEPTION_FRAME
+	push    %r11
+	push    %rcx
+	.endm
+
+	/***********************************************/
+	/*   Inline  the  paravirt  call  - so we can  */
+	/*   trace the real one.		       */
+	/***********************************************/
+	#undef PARAVIRT_ADJUST_EXCEPTION_FRAME
+        .macro PARAVIRT_ADJUST_EXCEPTION_FRAME
+        pop     %rcx
+        pop     %r11
+        .endm
+#else
+	.macro undo_PARAVIRT_ADJUST_EXCEPTION_FRAME
+	.endm
+	#undef PARAVIRT_ADJUST_EXCEPTION_FRAME
+        .macro PARAVIRT_ADJUST_EXCEPTION_FRAME
+	.endm
+#endif
+
+//#undef INTERRUPT_RETURN
+//#undef SWAPGS
+#if !defined(INTERRUPT_RETURN)
+#	define	INTERRUPT_RETURN	iretq
+#	define	SWAPGS			swapgs
+#endif
 
 # define NOTIFY_DONE	0
 
@@ -70,25 +110,84 @@
 .endm
 
 /**********************************************************************/
-/*   Wrap all the interrupts into a single macro.		      */
+/*   Used  to  define  labels which can be accessed by intr.c, so we  */
+/*   can stub out the paravirt stuff if we are not in a Xen guest.    */
+/**********************************************************************/
+.macro DEF_LABEL a, b
+	.global \a\b
+\a\b:
+.endm
+
+.macro INTR_RETURN xen
+
+	.if \xen == 1
+	  INTERRUPT_RETURN
+	.else
+	  iretq
+	.endif
+.endm
+
+/**********************************************************************/
+/*   For  each  interrupt,  we define the handler twice - once for a  */
+/*   non-Xen  environment,  and the other for Xen. The difference is  */
+/*   that  instructions (iretq, swapgs, and the initial stack frame)  */
+/*   are handled by macros from paravirt.h. The swapgs/iretq involve  */
+/*   indirect  function  calls  -  enough  complexity that we cannot  */
+/*   easily hide from the public header file.			      */
+/*   								      */
+/*   So,  using  macros, we define each twice, and let intr.c decide  */
+/*   which one we are going to call.				      */
 /**********************************************************************/
 .macro INTERRUPT nr, fault, allow_user, func, handler, kernel_handler
-	FUNCTION \func
-\func:
+	/***********************************************/
+	/*   Non-Xen function - no suffix.	       */
+	/***********************************************/
+	INTERRUPT2 0, \nr, \fault, \allow_user, \
+		\func, , \
+		\handler, \kernel_handler
+
+	/***********************************************/
+	/*   Xen version - with "_xen" suffix.	       */
+	/***********************************************/
+	INTERRUPT2 1, \nr, \fault, \allow_user, \
+		\func, _xen, \
+		\handler, \kernel_handler
+.endm
+
+/**********************************************************************/
+/*   Wrap all the interrupts into a single macro.		      */
+/**********************************************************************/
+.macro INTERRUPT2 xen, nr, fault, allow_user, func, suffix, handler, kernel_handler
+	FUNCTION \func\suffix
+\func\suffix:
+
+	/***********************************************/
+	/*   If  running  as  a Xen guest, we need to  */
+	/*   adjust the stack so it looks like a real  */
+	/*   interrupt.                                */
+	/***********************************************/
+.if \xen == 1
+	PARAVIRT_ADJUST_EXCEPTION_FRAME
+.endif
+
 	/***********************************************/
 	/*   Some interrupts are for the kernel only.  */
 	/*   Just   passthru   the  interrupt  if  it  */
 	/*   occurred in user space.		       */
+	/*   We  check  the  bottom 3 bits to get the  */
+	/*   kernel  segment  selector,  rather  than  */
+	/*   compare  with  __KERNEL_CS,  since under  */
+	/*   Xen, the kernel cs will be in ring 1 and  */
+	/*   not ring 0, so wont compare.	       */
 	/***********************************************/
 .if \allow_user == 0
 	.if \fault == 1
-	cmp $__KERNEL_CS,16(%rsp)
+	testl $3,16(%rsp)
 	.else
-	cmp $__KERNEL_CS,8(%rsp)
+	testl $3,8(%rsp)
 	.endif
 
-	je 1f
-	jmp *\kernel_handler
+	jne 3f /* Jump to kernel if not for us. */
 .endif
 	/***********************************************/
 	/*   Ensure  consistent  stack  frame setup -  */
@@ -98,14 +197,13 @@
 	/*   not    a    kernel    one,   and   avoid  */
 	/*   pushing/popping all the regs.	       */
 	/***********************************************/
-1:
 
 	/***********************************************/
 	/*   Now  save  all  the registers in pt_regs  */
 	/*   order.				       */
 	/***********************************************/
-	PUSH_REGS \fault
-	
+	PUSH_REGS \xen, \fault
+
 	/***********************************************/
 	/*   dtrace_XXX_handler(nr, regs)	       */
 	/***********************************************/
@@ -119,15 +217,15 @@
 	/***********************************************/
 	/*   Not handled - so let kernel have it.      */
 	/***********************************************/
-	POP_REGS \fault
-	jmp *\kernel_handler
+	POP_REGS \xen, \fault
+	jmp 3f
 
 	/***********************************************/
 	/*   We  processed  the  interrupt, so we can  */
 	/*   exit back to the caller.		       */
 	/***********************************************/
 2:
-	POP_REGS \fault
+	POP_REGS \xen, \fault
 	/***********************************************/
 	/*   If  we  are  going home, then we need to  */
 	/*   remove   the   error   code.  Note  that  */
@@ -139,7 +237,17 @@
 	.if \fault
 	add $8,%rsp
 	.endif
-	iretq
+
+	INTR_RETURN \xen
+
+	/***********************************************/
+	/*   Undo the PARAVIRT_ADJUST_EXCEPTION_FRAME  */
+	/***********************************************/
+3:
+	.if \xen == 1
+	undo_PARAVIRT_ADJUST_EXCEPTION_FRAME
+	.endif
+	jmp *\kernel_handler
 .endm
 
 /**********************************************************************/
@@ -147,12 +255,16 @@
 /*   to  handle  those  interrupts  which do/dont push an error code  */
 /*   onto the stack.						      */
 /**********************************************************************/
-.macro POP_REGS fault
+.macro POP_REGS xen fault
 	testl %ebx, %ebx
-	jz 3f
-	swapgs
+	jz 4f
+	.if \xen == 1
+	  SWAPGS
+	.else
+	  swapgs
+	.endif
 
-3:
+4:
 	pop %r15
 	pop %r14
 	pop %r13
@@ -174,14 +286,14 @@
 	/*   destroying rax.			       */
 	/***********************************************/
 	add $8,%rsp
-//	pop %rax
 	.endif
 .endm
+
 /**********************************************************************/
 /*   Push  the  registers  on  the  kernel stack, as we just took an  */
 /*   exception. Need to do this in struct pt_regs order.	      */
 /**********************************************************************/
-.macro PUSH_REGS fault
+.macro PUSH_REGS xen fault
 	.if \fault == 0
 	push %rax // orig_eax - any value will do
 	.endif
@@ -214,13 +326,16 @@
 	mov    $MSR_GS_BASE,%ecx
 	rdmsr
 	test %edx,%edx
-	js 4f
-//	testl $3,CS(%rsp)
-//	je 4f
+	js 5f
 
-	swapgs
+	.if \xen == 1
+	  SWAPGS
+	.else
+	  swapgs
+	.endif
+
 	incl %ebx
-4:
+5:
 # if defined(pda_data_offset)
 	movq %gs:pda_data_offset,%rbp
 # endif
@@ -273,10 +388,10 @@ INTERRUPT  T_DTRACE_RET, 1, 0, dtrace_int_dtrace_ret, dtrace_int_dtrace_ret_hand
 /**********************************************************************/
 	FUNCTION dtrace_int_ipi
 dtrace_int_ipi:
-	PUSH_REGS 0
+	PUSH_REGS 0, 0
 	call xcall_slave
-	POP_REGS 0
-	iretq
+	POP_REGS 0, 0
+	INTR_RETURN 0
 
 /**********************************************************************/
 /*   We  use  the  NMI  interrupt  for IPI code, but only if the IPI  */
@@ -287,7 +402,7 @@ dtrace_int_ipi:
 /**********************************************************************/
 	FUNCTION dtrace_int_nmi
 dtrace_int_nmi:
-	PUSH_REGS 0
+	PUSH_REGS 0, 0
 	call func_smp_processor_id
 	incq cnt_nmi1
 
@@ -296,8 +411,9 @@ dtrace_int_nmi:
 	/*   loaded,  since we cannot allow probes on  */
 	/*   the NMI call graph.		       */
 	/***********************************************/
-	POP_REGS 0
-	iretq
+	POP_REGS 0, 0
+	INTR_RETURN 0
+	
 	/* END HACK */
 
 	cmpb $0,nmi_masks(%rax)
@@ -305,18 +421,38 @@ dtrace_int_nmi:
 	// For us...
 	movb $0,nmi_masks(%rax)
 	call xcall_slave
-	POP_REGS 0
-	iretq
+	POP_REGS 0, 0
+	INTR_RETURN 0
 
 do_kernel_nmi:
 	incq cnt_nmi2
-	POP_REGS 0
+	POP_REGS 0, 0
 	jmp *kernel_nmi_handler
 
 //INTERRUPT  0xb0, 0, 1, dtrace_int_ipi, dtrace_int_ipi_handler, iret_addr
 iret_instr:
-	iretq
+	INTR_RETURN 0
+
 iret_addr: .quad iret_instr
+
+/**********************************************************************/
+/*   Following  is  a  hack  experiment  to  intercept  certain  Xen  */
+/*   callbacks for IPI debugging.				      */
+/**********************************************************************/
+//.data
+//.global hypcnt
+//hypcnt: .quad 0
+//.text
+//	FUNCTION hypcall
+//	.p2align 5
+//hypcall:
+//	incq hypcnt
+//	PUSH_REGS 0,0
+//	call xcall_slave
+//	POP_REGS 0,0
+////	jmp 0xffffffff81666e00 // xen_hvm_callback_vector xen_evtchn_do_upcall
+//	jmp 0xffffffff81666d00 // xen_hypercall_callback
+
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */
 /*   kernels  mcount. If we try and probe mcount, we want to see the  */

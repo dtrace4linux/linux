@@ -41,6 +41,9 @@
 #include <linux/net.h>
 #include <linux/udp.h>
 #include <linux/tcp.h>
+#if defined(HAVE_LINUX_FDTABLE_H)
+#  include <linux/fdtable.h>
+#endif
 #include <asm/tlbflush.h>
 #include <asm/current.h>
 #include <asm/desc.h>

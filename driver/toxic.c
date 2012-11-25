@@ -119,6 +119,8 @@ char toxic_probe_tbl[] = {
 	"vfree "
 	"vmalloc "
 	"vprintk "
+	"xen_int3 "
+	"xen_debug "
 	"zlib_inflate "
 	"zlib_inflateEnd "
 	"zlib_inflateInit2 "

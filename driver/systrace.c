@@ -2058,6 +2058,7 @@ systrace_enable32(void *arg, dtrace_id_t id, void *parg)
 	}
 
 //printk("sys32: %d %p %s\n", sysnum, &sysent32[sysnum], syscallnames32[sysnum]);
+
 	casptr(&sysent32[sysnum].sy_callc,
 	    (void *)systrace_sysent32[sysnum].stsy_underlying,
 	    (void *)syscall_func);

@@ -42,9 +42,12 @@ install_dependencies()
 	  	;;
 	esac
 
+	sudo apt-get install "$@" flex bison make
+	sudo apt-get install "$@" libelf-dev
+	sudo apt-get install "$@" libc6-dev 
 	sudo apt-get install "$@" openssh-server \
-   		binutils-dev zlib1g-dev flex bison \
-   		elfutils libdwarf-dev libelf-dev libc6-dev libc-dev \
+   		binutils-dev zlib1g-dev \
+   		elfutils libdwarf-dev libelf-dev libc-dev \
 		zlib1g-dev \
 		linux-libc-dev \
 		linux-headers-$(uname -r) \

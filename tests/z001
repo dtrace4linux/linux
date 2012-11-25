@@ -1,0 +1,2 @@
+prog=${1:-ft4}
+root build/dtrace -n pid`pgrep $prog`:::

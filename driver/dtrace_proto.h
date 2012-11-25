@@ -67,6 +67,10 @@ void	dtrace_instr_dump(char *label, uint8_t *insn);
 dtrace_icookie_t dtrace_interrupt_get(void);
 void	xcall_slave2(void);
 char * hrtime_str(hrtime_t s);
+int dtrace_xen_hypercall(int call, void *a, void *b, void *c);
+int	dtrace_is_xen(void);
+int	xen_send_ipi(cpumask_t *, int);
+void	xen_xcall_init(void);
+void	xen_xcall_fini(void);
 
 # endif
-

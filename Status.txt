@@ -55,6 +55,11 @@ Not really working / not yet implemented
     Will require special work because we do not modify kernel source and
     kernel build is not in our control.
 
+Other:
+
+  o Use on Xen/paravirtualised kernels (Dom-0 or PVM guest) may
+    hang on IPI cross-calls.
+
 FAQ
 
 Q Can this be used in a production context?

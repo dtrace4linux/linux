@@ -1,5 +1,8 @@
 Sun Nov 25 20:13:07 2012  fox
 
+     790* driver/dtrace_isa.c: Fix for stack() - we could panic the
+          kernel, or for some kernels, not provide a stack.
+
      789* driver/intr.c, driver/intr_x86-64.S, driver/xen.c, driver/x_call.c
           Attempt to get Xen IPI to work, but it wont. This means
 	  using FBT or fast firing probes can result in kernel panics.

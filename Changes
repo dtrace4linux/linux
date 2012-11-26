@@ -1,3 +1,10 @@
+Mon Nov 26 23:18:25 2012  fox
+
+     791* driver/dtrace_isa.c: Avoid GPF when doing
+           dtrace -n syscall:::'{stack();}'
+	  since we have no stack frame to play with. Also, add
+	  GPF protection in case we walk off end of stack.
+
 Sun Nov 25 20:13:07 2012  fox
 
      790* driver/dtrace_isa.c: Fix for stack() - we could panic the

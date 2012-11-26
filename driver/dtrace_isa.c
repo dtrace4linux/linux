@@ -174,7 +174,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
     uint32_t *ignored)
 {
 	int	depth;
-#if !defined(HAVE_STACKTRACE_OPS)
+#if 1 || !defined(HAVE_STACKTRACE_OPS)
 	/***********************************************/
 	/*   This  is  a basic stack walker - we dont  */
 	/*   care  about  omit-frame-pointer,  and we  */
@@ -185,24 +185,52 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	/*   have exception stacks anyhow.	       */
 	/***********************************************/
 
+	/***********************************************/
+	/*   20121125 Lets use this always - it avoid  */
+	/*   kernel  specific  issues in the official  */
+	/*   stack  walker and will give us a vehicle  */
+	/*   later  for adding reliable vs guess-work  */
+	/*   stack entries.			       */
+	/***********************************************/
 	cpu_core_t	*this_cpu = cpu_get_this();
 	struct pt_regs *regs = this_cpu->cpuc_regs;
-	uintptr_t *sp = (uintptr_t *) &regs->r_rsp;
+	uintptr_t *sp;
 	uintptr_t *spend;
 	
+	/***********************************************/
+	/*   For   syscalls,  we  will  have  a  null  */
+	/*   cpuc_regs,  since  we dont intercept the  */
+	/*   trap,   but   instead  intercept  the  C  */
+	/*   syscall function.			       */
+	/***********************************************/
 	if (regs == NULL)
-		sp = (uintptr_t *) &depth;
+		sp = (uintptr_t *) pcstack;
+	else
+		sp = (uintptr_t *) regs->r_rsp;
 
+	/***********************************************/
+	/*   We  might walk off the end of the stack,  */
+	/*   so  protect  us  just in case. We should  */
+	/*   align   the   stack   against  the  page  */
+	/*   boundary  where  its allocated, but this  */
+	/*   suffices for now.			       */
+	/***********************************************/
+	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
 	spend = sp + THREAD_SIZE / sizeof(uintptr_t);
-
-	for (depth = 0; depth < pcstack_limit && sp < spend; ) {
-		if (sp && is_kernel_text((unsigned long) *sp)) {
+	for (depth = 0; depth < pcstack_limit && sp < spend; sp++) {
+//if (*sp) printk("%d: %p: %p\n", i, sp, *sp);
+		if (*sp && is_kernel_text((unsigned long) *sp)) {
 			pcstack[depth++] = *sp;
 		}
-		sp++;
 	}
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
 #else
 
+	/***********************************************/
+	/*   I'm  a  little tired of the kernel dying  */
+	/*   in  the  callback, so lets avoid relying  */
+	/*   on the kernel stack walker.	       */
+	/***********************************************/
 	dmutex_enter(&dtrace_stack_mutex);
 	g_depth = 0;
 	g_pcstack = pcstack;

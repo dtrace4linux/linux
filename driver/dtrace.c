@@ -6247,6 +6247,10 @@ out:
 /*   we and we must do none-blocking checks.			      */
 /**********************************************************************/
 unsigned long cnt_probe_recursion;
+unsigned long long cnt_probe_noint;
+unsigned long long cnt_probe_safe;
+int	dtrace_safe = TRUE;
+
 void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
@@ -6262,6 +6266,27 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/***********************************************/
 	if (dtrace_shutdown)
 		return;
+
+	/***********************************************/
+	/*   If interrupts are disabled and we are in  */
+	/*   safe-mode,  then we could deadlock, e.g.  */
+	/*   for   Xen   or  where  we  have  to  use  */
+	/*   smp_call_function() on a dtrace_xcall().  */
+	/*   So, default to safe.		       */
+	/*   At the moment, this isnt firing which is  */
+	/*   strange. Maybe the cpuc_regs isnt set up  */
+	/*   (should     be,     since     its     in  */
+	/*   dtrace_int[13]_handler.		       */
+	/***********************************************/
+	cpu = cpu_get_id();
+	if (cpu_core[cpu].cpuc_regs &&
+	    cpu_core[cpu].cpuc_regs->r_rfl & X86_EFLAGS_IF) {
+		if (dtrace_safe) {
+			cnt_probe_safe++;
+			return;
+		}
+		cnt_probe_noint++;
+	}
 
 	/***********************************************/
 	/*   If someone else is tearing down, and its  */
@@ -6299,7 +6324,6 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		return;
 		}
 
-	cpu = cpu_get_id();
 	/***********************************************/
 	/*   If  we ever get a reentrant lock, we are  */
 	/*   a  bit hosed - because this should never  */

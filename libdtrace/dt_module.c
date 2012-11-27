@@ -1081,6 +1081,16 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 	    "%s/%s/object", OBJFS_ROOT, name);
 
 load_obj:
+# if linux
+	/***********************************************/
+	/*   Load   /proc/kallsyms   before  possibly  */
+	/*   giving  up  because  the  linux.ctf file  */
+	/*   isnt   there   (so  that  stack()  gives  */
+	/*   addresses).			       */
+	/***********************************************/
+	dt_module_add_kernel(dtp, NULL); //dmp);
+# endif
+
 	if ((fd = open(fname, O_RDONLY)) == -1 || fstat64(fd, &st) == -1 ||
 	    (dmp = dt_module_create(dtp, name)) == NULL) {
 		dt_dprintf("failed to open %s: %s\n", fname, strerror(errno));
@@ -1152,7 +1162,10 @@ load_obj:
 		return;
 	}
 
-	dt_module_add_kernel(dtp, NULL); //dmp);
+
+# if !linux
+	dt_module_add_kernel(dtp, dmp);
+# endif
 	/*
 	 * Iterate over the section headers locating various sections of
 	 * interest and use their attributes to flesh out the dt_module_t.

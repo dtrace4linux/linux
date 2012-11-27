@@ -1,3 +1,12 @@
+Tue Nov 27 22:44:19 2012  fox
+
+     793* driver/dtrace.c, driver/dtrace_linux.c: Add safe mode support,
+          but doesnt seem to fire. (See /proc/dtrace/stats to watch
+	  the counters for dropped/safe probes).
+
+     792* libdtrace/dt_module.c: Ensure we give kernel stack
+          traces even if we dont load linux.ctf file.
+
 Mon Nov 26 23:18:25 2012  fox
 
      791* driver/dtrace_isa.c: Avoid GPF when doing

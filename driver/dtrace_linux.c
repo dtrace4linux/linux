@@ -1134,11 +1134,13 @@ extern caddr_t ketext;
 int
 is_kernel_text(unsigned long p)
 {
-	int (*func)(unsigned long) = (int (*)(unsigned long)) syms[OFFSET_kernel_text_address].m_ptr;
-
+	int (*func)(unsigned long);
+	
+//printk("ktext=%p..%p %p\n", ktext, ketext, p);
 	if (ktext <= (caddr_t) p && (caddr_t) p < ketext)
 		return 1;
 
+	func = (int (*)(unsigned long)) syms[OFFSET_kernel_text_address].m_ptr;
 	if (func) {
 		return func(p);
 	}
@@ -2635,6 +2637,8 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 	extern unsigned long cnt_ipi1;
 	extern unsigned long long cnt_probe_recursion;
 	extern unsigned long cnt_probes;
+	extern unsigned long long cnt_probe_noint;
+	extern unsigned long long cnt_probe_safe;
 	extern unsigned long cnt_mtx1;
 	extern unsigned long cnt_mtx2;
 	extern unsigned long cnt_mtx3;
@@ -2654,6 +2658,8 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		} stats[] = {
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
 		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
+		LONG_LONG(cnt_probe_noint, "probe_noint"),
+		LONG_LONG(cnt_probe_safe, "probe_safe"),
 		LONG_LONG(cnt_int1_1, "int1"),
 		LONG_LONG(cnt_int3_1, "int3_1"),
 		LONG_LONG(cnt_int3_2, "int3_2(ours)"),

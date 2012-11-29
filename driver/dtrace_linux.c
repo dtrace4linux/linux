@@ -64,6 +64,7 @@ module_param(arg_kallsyms_lookup_name, charp, 0);
 extern char dtrace_buf[];
 extern const int log_bufsiz;
 extern int dbuf_i;
+extern int dtrace_safe;
 
 /**********************************************************************/
 /*   TRUE when we have called dtrace_linux_init(). After that point,  */
@@ -2547,6 +2548,8 @@ dtracedrv_write(struct file *file, const char __user *buf,
 		len = bpend - cp;
 		if (len >= 6 && strncmp(cp, "here=", 5) == 0) {
 		    	dtrace_here = simple_strtoul(cp + 5, NULL, 0);
+		} else if (len >= 6 && strncmp(cp, "dtrace_safe=", 5) == 0) {
+		    	dtrace_safe = simple_strtoul(cp + 5, NULL, 0);
 		} else if (di_cnt < MAX_SEC_LIST) {
 			int	ret = parse_sec(&di_list[di_cnt], cp, bpend);
 			if (ret < 0)
@@ -2656,6 +2659,7 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		unsigned long *ptr;
 		char	*name;
 		} stats[] = {
+		{TYPE_INT, (unsigned long *) &dtrace_safe, "dtrace_safe"},
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
 		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
 		LONG_LONG(cnt_probe_noint, "probe_noint"),

@@ -1,3 +1,13 @@
+Thu Nov 29 20:53:05 2012  fox
+
+     794* Add 'safe' support - make it work, but turn off by default.
+          You can see the setting in /proc/dtrace/stats. 
+
+	  echo safe=1 >/proc/dtrace/stats
+
+	  to turn it on - in which case, probes whilst interrupts are
+	  disabled, are silently dropped.
+
 Tue Nov 27 22:44:19 2012  fox
 
      793* driver/dtrace.c, driver/dtrace_linux.c: Add safe mode support,

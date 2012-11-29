@@ -4550,19 +4550,17 @@ PRINT_CASE(DIF_SUBR_LLTOSTR);
 #if linux
 	case DIF_SUBR_D_PATH: {
 	static char buf[256];
-	struct file *fp = tupregs[0].dttk_value;
-	if (fp) {
+	struct file *fp = (struct file *) tupregs[0].dttk_value;
+		if (fp) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-		regs[rd] = d_path(&fp->f_path, buf, sizeof buf);
+			regs[rd] = (uint64_t *) (void *) d_path(&fp->f_path, buf, sizeof buf);
 #else
-		regs[rd] = d_path(&fp->f_dentry, fp->f_vfsmnt, buf, sizeof buf);
+			regs[rd] = d_path(&fp->f_dentry, fp->f_vfsmnt, buf, sizeof buf);
 #endif
-/*		regs[rd] = d_path(&get_current()->files->fdt->fd[1]->f_path, buf, sizeof buf);*/
-	}
-	else
-		regs[rd] = "<unknown>";
-	break;
-		regs[rd] = "hello-filename!";
+/*			regs[rd] = d_path(&get_current()->files->fdt->fd[1]->f_path, buf, sizeof buf);*/
+		}
+		else
+			regs[rd] = (uint64_t *) "<unknown>";
 		break;
 		}
 #endif
@@ -6249,7 +6247,7 @@ out:
 unsigned long cnt_probe_recursion;
 unsigned long long cnt_probe_noint;
 unsigned long long cnt_probe_safe;
-int	dtrace_safe = TRUE;
+int	dtrace_safe;
 
 void
 dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
@@ -6279,8 +6277,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/*   dtrace_int[13]_handler.		       */
 	/***********************************************/
 	cpu = cpu_get_id();
-	if (cpu_core[cpu].cpuc_regs &&
-	    cpu_core[cpu].cpuc_regs->r_rfl & X86_EFLAGS_IF) {
+	if (cpu_get_this()->cpuc_regs->r_rfl & X86_EFLAGS_IF) {
 		if (dtrace_safe) {
 			cnt_probe_safe++;
 			return;

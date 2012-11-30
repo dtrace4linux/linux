@@ -174,7 +174,8 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
     uint32_t *ignored)
 {
 	int	depth;
-#if 1 || !defined(HAVE_STACKTRACE_OPS)
+#if !defined(HAVE_STACKTRACE_OPS)
+	int	lim;
 	/***********************************************/
 	/*   This  is  a basic stack walker - we dont  */
 	/*   care  about  omit-frame-pointer,  and we  */
@@ -194,6 +195,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	/***********************************************/
 	cpu_core_t	*this_cpu = cpu_get_this();
 	struct pt_regs *regs = this_cpu->cpuc_regs;
+	struct thread_info *context;
 	uintptr_t *sp;
 	uintptr_t *spend;
 	
@@ -204,26 +206,43 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	/*   syscall function.			       */
 	/***********************************************/
 	if (regs == NULL)
-		sp = (uintptr_t *) pcstack;
+		sp = (uintptr_t *) &depth;
 	else
 		sp = (uintptr_t *) regs->r_rsp;
 
 	/***********************************************/
-	/*   We  might walk off the end of the stack,  */
-	/*   so  protect  us  just in case. We should  */
-	/*   align   the   stack   against  the  page  */
-	/*   boundary  where  its allocated, but this  */
-	/*   suffices for now.			       */
+	/*   Daisy  chain the interrupt and any other  */
+	/*   stacks.  Limit  ourselves in case of bad  */
+	/*   corruptions.			       */
 	/***********************************************/
 	DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
-	spend = sp + THREAD_SIZE / sizeof(uintptr_t);
-	for (depth = 0; depth < pcstack_limit && sp < spend; sp++) {
-//if (*sp) printk("%d: %p: %p\n", i, sp, *sp);
-		if (*sp && is_kernel_text((unsigned long) *sp)) {
-			pcstack[depth++] = *sp;
+	depth = 0;
+	for (lim = 0; lim < 3 && depth < pcstack_limit; lim++) {
+		int	ndepth = depth;
+
+		context = (struct thread_info *) ((unsigned long) sp & (~(THREAD_SIZE - 1)));
+		spend = (uintptr_t *) ((unsigned long) sp | (THREAD_SIZE - 1));
+		for ( ; depth < pcstack_limit && sp < spend; sp++) {
+			if (DTRACE_CPUFLAG_ISSET(CPU_DTRACE_FAULT))
+				goto end_stack;
+			if (*sp && is_kernel_text((unsigned long) *sp)) {
+				pcstack[depth++] = *sp;
+			}
+		}
+		if (depth >= pcstack_limit || ndepth == depth)
+			break;
+		if ((sp = (uintptr_t *) context->previous_esp) == NULL)
+			break;
+		/***********************************************/
+		/*   Special signal to mark the IRQ stack.     */
+		/***********************************************/
+		if (depth < pcstack_limit) {
+			pcstack[depth++] = 1;
 		}
 	}
+end_stack:
 	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_NOFAULT);
+	DTRACE_CPUFLAG_CLEAR(CPU_DTRACE_FAULT);
 #else
 
 	/***********************************************/

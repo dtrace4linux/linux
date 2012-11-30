@@ -32,10 +32,13 @@ extern int nr_cpus;
 int
 dtrace_is_xen(void)
 {	static void **xen_start_info;
+static int first_time = TRUE;
 
 //	return xen_domain();
-	if (xen_start_info == NULL)
+	if (first_time && xen_start_info == NULL) {
 		xen_start_info = get_proc_addr("xen_start_info");
+		first_time = FALSE;
+	}
 
 	if (xen_start_info && *xen_start_info)
 		return TRUE;

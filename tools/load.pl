@@ -99,8 +99,15 @@ sub main
 	#   Safely remove the old driver.	      #
 	###############################################
 	if ( -e "/dev/dtrace" ) {
-		my $rmmod = "/sbin/rmmod";
-		$rmmod = "/usr/sbin/rmmod" if -x "/usr/sbin/rmmod";
+		my $rmmod;
+		foreach my $p ("/sbin", "/usr/sbin", "/usr/bin") {
+			my $p1 = "$p/rmmod";
+			$rmmod = $p1 if -x $p1;
+		}
+		if (!$rmmod) {
+			print "ERROR: Strange..cannot locate 'rmmod'\n";
+			exit(0);
+		}
 		spawn("$SUDO $rmmod dtracedrv");
 		spawn("sync ; sync");
 		exit(0) if $opts{unload};
@@ -235,7 +242,6 @@ sub main
 		ia32_sys_call_table:amd64
 		syscall_call:optional
 		xtime:optional
-		kernel_text_address
 		__module_text_address
 		add_timer_on
 		/) {

@@ -1,3 +1,7 @@
+Fri Nov 30 19:45:05 2012  fox
+
+     795* intr.c: Fix for xen on i386 (not currently supporting this).
+
 Thu Nov 29 20:53:05 2012  fox
 
      794* Add 'safe' support - make it work, but turn off by default.

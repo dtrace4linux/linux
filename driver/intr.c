@@ -7,7 +7,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 07-Nov-2012 1.16 $ 			      */
+/*   $Header: Last edited: 30-Nov-2012 1.17 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -157,7 +157,7 @@ int dtrace_int_ipi(void);
 int dtrace_int_nmi(void);
 int dtrace_int_dtrace_ret(void);
 
-#ifdef CONFIG_PARAVIRT
+#if defined(CONFIG_PARAVIRT) && defined(__amd64)
 int dtrace_int1_xen(void);
 int dtrace_int3_xen(void);
 int dtrace_page_fault_xen(void);
@@ -1311,7 +1311,7 @@ static	struct x86_descriptor desc1;
 	set_idt_entry(8, (unsigned long) dtrace_double_fault);
 #endif
 
-#ifdef CONFIG_PARAVIRT
+#if defined(CONFIG_PARAVIRT) && defined(__amd64)
 	if (dtrace_is_xen()) {
 		set_idt_entry(1, (unsigned long) dtrace_int1_xen); // single-step
 		set_idt_entry(3, (unsigned long) dtrace_int3_xen); // breakpoint

@@ -85,7 +85,6 @@ enum {
 	OFFSET_print_modules,
 	OFFSET_task_exit_notifier,
 	OFFSET_xtime,
-	OFFSET_kernel_text_address,
 	OFFSET_ia32_sys_call_table,
 	OFFSET_END_SYMS,
 	};
@@ -103,7 +102,6 @@ static struct map {
 			 	  /* find the modules table. 		  */
 {"task_exit_notifier",     NULL},
 {"xtime",     		   NULL}, /* Needed for dtrace_gethrtime, if 2.6.9 */
-{"kernel_text_address",    NULL}, /* Used for stack walking when no dump_trace available */
 {"ia32_sys_call_table",    NULL}, /* On 64b kernel, the 32b syscall table. */
 {"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
@@ -1134,16 +1132,23 @@ extern caddr_t ktext;
 extern caddr_t ketext;
 int
 is_kernel_text(unsigned long p)
-{
-	int (*func)(unsigned long);
+{static int first_time = TRUE;
+static caddr_t stext;
+static caddr_t etext;
 	
 //printk("ktext=%p..%p %p\n", ktext, ketext, p);
 	if (ktext <= (caddr_t) p && (caddr_t) p < ketext)
 		return 1;
+	if (first_time) {
+		first_time = FALSE;
+		stext = get_proc_addr("_stext");
+		etext = get_proc_addr("_etext");
+	}
+	if (stext <= (caddr_t) p && (caddr_t) p < etext)
+		return 1;
 
-	func = (int (*)(unsigned long)) syms[OFFSET_kernel_text_address].m_ptr;
-	if (func) {
-		return func(p);
+	if (kernel_text_address_fn) {
+		return kernel_text_address_fn(p);
 	}
 	return 0;
 }

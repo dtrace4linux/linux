@@ -992,7 +992,7 @@ asmap[i]->st_size);*/
 		}
 	} else {
 		Elf32_Sym **asmap = dmp->dm_asmap;
-		for (i = 0; i < dmp->dm_aslen-1; i++) {
+		for (i = 0; i < (int) dmp->dm_aslen-1; i++) {
 			asmap[i]->st_size = asmap[i+1]->st_value - asmap[i]->st_value;
 		}
 	}

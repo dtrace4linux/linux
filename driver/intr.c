@@ -693,11 +693,20 @@ dtrace_write_idt_entry2(int vec)
 	struct trap_info info[2];
 
 	info[0].vector = vec;
+# if defined(__i386)
+	/***********************************************/
+	/*   gate_offset/gate_segment  not  there for  */
+	/*   i386   due   to   gate64/gate32  typedef  */
+	/*   mismatch.  But  we  dont  support Xen on  */
+	/*   i386 anyhow.			       */
+	/***********************************************/
+#else
 	info[0].address = gate_offset(*val);
 	info[0].cs = gate_segment(*val);
 	info[0].flags = val->dpl;
 	if (val->type == GATE_INTERRUPT)
 		info[0].flags |= 1 << 2;
+# endif
 	info[1].address = 0;
 	dtrace_xen_hypercall(__HYPERVISOR_set_trap_table, &info, 0, 0);
 	}

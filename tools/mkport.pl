@@ -16,6 +16,7 @@
 # 23-Aug-2012 PDF Add support for PTRACE_O_TRACEEXEC
 # 10-Oct-2012 PDF Add support for HAVE_LINUX_MIGRATE_H
 # 26-Oct-2012 PDF Add support for HAVE_LINUX_FDTABLE_H
+# 15-Dec-2012 CJD Search in kernel source file for stacktrace.h since Debian systems put it there.
 
 use strict;
 use warnings;
@@ -177,10 +178,14 @@ sub main
 		$inc .= "# define DO_NOT_HAVE_ZLIB_IN_KERNEL 1\n";
 	}
 
-	if (have("stacktrace_ops", "include/asm/stacktrace.h") ||
-	    have("stacktrace_ops", "arch/x86/include/asm/stacktrace.h")) {
+	###############################################
+	#   Check for stack trace, used by stack().   #
+	###############################################
+        my $stacktrace_fh = have("stacktrace_ops", "include/asm/stacktrace.h") ||
+		have("stacktrace_ops", "arch/x86/include/asm/stacktrace.h", 1);
+	if ($stacktrace_fh) {
 		$inc .= "# define HAVE_STACKTRACE_OPS \n";
-		$inc .= find_dump_trace_args();
+		$inc .= find_dump_trace_args($stacktrace_fh);
 	}
 
 	###############################################
@@ -333,7 +338,7 @@ sub check_ptrace_h
 ######################################################################
 sub find_dump_trace_args
 {
-	my $fh = new FileHandle("$kern/arch/x86/include/asm/stacktrace.h");
+	my $fh = shift;
 	return "# define FUNC_DUMP_TRACE_ARGS 5\n" if !$fh;
 	while (<$fh>) {
 		next if !/^void\s+dump_trace/;
@@ -349,20 +354,34 @@ sub find_dump_trace_args
 }
 ######################################################################
 #   Grep a file to see if something is where we want it.	     #
+#   Return the file handle to the file if it exists.		     #
 ######################################################################
 sub have
 {	my $name = shift;
 	my $file = shift;
+        my $look_in_src = shift;
 
-#print "opening .... $kern/$file\n";
-	$file = "$kern/$file" if $file !~ /^\//;
-	my $fh = new FileHandle($file);
-	if (!$fh && $opts{v}) {
-		print "Cannot open $file\n";
-	}
-	return if !$fh;
-	while (<$fh>) {
-		return 1 if /$name/;
+	my @search_in;
+	if ($file =~ /^\//) {
+		push(@search_in, '');
+	} else {
+		push(@search_in, $kern);
+		if ($look_in_src) {
+			push(@search_in, $kern_src);
+		}
+        }
+
+        FILE: foreach my $path (@search_in) {
+                my $f = "$path/$file";
+#print "opening .... $f\n";
+		my $fh = new FileHandle($f);
+		if (!$fh && $opts{v}) {
+			print "Cannot open $f\n";
+		}
+		next FILE if (!$fh);
+		while (<$fh>) {
+			return $fh if /$name/;
+		}
 	}
 }
 ######################################################################

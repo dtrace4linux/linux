@@ -682,10 +682,11 @@ const dtrace_pattr_t _dtrace_prvdesc = {
 { DTRACE_STABILITY_UNSTABLE, DTRACE_STABILITY_UNSTABLE, DTRACE_CLASS_COMMON },
 };
 
-const char *_dtrace_defcpp = "/usr/ccs/lib/cpp"; /* default cpp(1) to invoke */
 # if defined(solaris)
+const char *_dtrace_defcpp = "/usr/ccs/lib/cpp"; /* default cpp(1) to invoke */
 const char *_dtrace_defld = "/usr/ccs/bin/ld";   /* default ld(1) to invoke */
 # else
+const char *_dtrace_defcpp = "cpp"; /* default cpp(1) to invoke */
 const char *_dtrace_defld = "ld";   /* default ld(1) to invoke */
 # endif
 

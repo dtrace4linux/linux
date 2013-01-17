@@ -1,3 +1,11 @@
+Thu Jan 17 22:13:57 2013  fox
+
+     799* README: Fix one of the github addresses.
+
+Wed Dec 19 22:50:45 2012  fox
+
+     798* libdtrace/dt_open.c: Change /usr/ccs/lib/cpp to "cpp".
+
 Mon Dec 10 22:23:10 2012  fox
 
      797* driver/intr.c: 'Fix' for i386 to avoid use of undef structures in

@@ -69,7 +69,13 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
+
+#if 0
+/* Comment this out - it causes build failure on 3.6.9 kernel. Not sure why it
+   was added in the first place. */
 #include <linux/swap.h> /* want totalram_pages */
+#endif
+
 #include <linux/delay.h>
 #include <linux/slab.h>
 #if defined(HAVE_LINUX_FDTABLE_H)

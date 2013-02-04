@@ -1,5 +1,8 @@
 Mon Feb  4 21:19:52 2013  fox
 
+     803* driver/dtrace_linux.c: Fix for 2.6.18 kernel caused by
+          Xen call to set_pte_atomic.
+
      802* linux/sys/regset.h: Fix for greg_t conflict with 3.7 kernel.
 
      801* driver/xen.c: Fix compile issues on 2.6.32 which lack the Xen interface

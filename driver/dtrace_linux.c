@@ -8,7 +8,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 05-Feb-2012 1.13 $ 			      */
+/*   $Header: Last edited: 04-Feb-2013 1.14 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -1355,7 +1355,16 @@ static pte_t *(*lookup_address)(void *, int *);
 //      new_pte = pfn_pte(pfn, new_prot);
         new_pte = __pte(((phys_addr_t)pfn << PAGE_SHIFT) | pgprot_val(new_prot));
 
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
+	*(pte_t *) &pp->pp_pte = *pte; /* Horror for <= 2.6.24 kernels */
+#else
+	/***********************************************/
+	/*   This   is  for  Xen  kernels  which  may  */
+	/*   virtualise the PTE tables.		       */
+	/***********************************************/
         set_pte_atomic(kpte, new_pte);
+#endif
 
         return 1;
 

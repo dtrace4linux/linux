@@ -2,7 +2,7 @@
 # define SYS_REGSET_H 1
 
 /**********************************************************************/
-/*   20130205   Only   define  greg_t  for  kernel  code;  otherwise  */
+/*   20130204   Only   define  greg_t  for  kernel  code;  otherwise  */
 /*   potential   conflict   with   <sys/ucontext.h>  when  compiling  */
 /*   ctf_lib.c.							      */
 /**********************************************************************/

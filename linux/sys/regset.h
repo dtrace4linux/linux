@@ -1,11 +1,18 @@
 # if !defined(SYS_REGSET_H)
 # define SYS_REGSET_H 1
 
+/**********************************************************************/
+/*   20130205   Only   define  greg_t  for  kernel  code;  otherwise  */
+/*   potential   conflict   with   <sys/ucontext.h>  when  compiling  */
+/*   ctf_lib.c.							      */
+/**********************************************************************/
+#if __KERNEL__
 #if defined(_LP64) || defined(_I32LPx)
 typedef long    greg_t;
 #else
 typedef int     greg_t;
 #endif
+#endif /* __KERNEL__ */
 
 # if 0
 struct _fpreg { /* structure of a temp real fp register */

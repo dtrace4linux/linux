@@ -16,7 +16,6 @@ cat <<EOF | tee $file
 ==
 == file: $file
 == mail: Crisp.Editor@gmail.com
-== mail: dtrace@crisp.demon.co.uk
 ==
 == and the information provided will be used to help
 == enhance the tool and fix the underlying issue.

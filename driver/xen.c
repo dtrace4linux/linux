@@ -26,6 +26,13 @@
 
 extern int nr_cpus;
 
+#if defined(CONFIG_PARAVIRT) && defined(__HYPERVISOR_set_trap_table) && \
+	defined(__HYPERVISOR_event_channel_op)
+#	define	DO_XEN	1
+# else
+#	define	DO_XEN	0
+#endif
+
 /**********************************************************************/
 /*   See if we are inside a Xen guest.				      */
 /**********************************************************************/
@@ -48,7 +55,7 @@ static int first_time = TRUE;
 int
 dtrace_xen_hypercall(int call, void *a, void *b, void *c)
 {
-#if defined(CONFIG_PARAVIRT) && defined(__HYPERVISOR_set_trap_table)
+#if DO_XEN
 	static char *hypercall_page;
 	static int	(*hp)(void *, void *, void *);
 	int	ret;
@@ -73,7 +80,7 @@ dtrace_xen_hypercall(int call, void *a, void *b, void *c)
 	hp = (void *) (hypercall_page + call * 32);
 	ret = hp(a, b, c);
 	return ret;
-#endif
+#endif /* DO_XEN */
 }
 
 static struct xen_cpu_info_t {
@@ -82,7 +89,9 @@ static struct xen_cpu_info_t {
 
 void
 xen_xcall_init(void)
-{	int	c;
+{
+#if DO_XEN
+	int	c;
 
 #define	EVTCHNOP_bind_virq        1
 	struct evtchn_bind_virq {
@@ -145,6 +154,7 @@ static  struct callback_register callback = {
 
 		xen_cpu_info[c].xen_port = bind_ipi.port;
 	}
+#endif /* DO_XEN */
 
 }
 

@@ -13,7 +13,7 @@
 /*   each  statistic,  we  provide  a  probe  which  intercepts  the  */
 /*   increment of that data item.				      */
 /*--------------------------------------------------------------------*/
-/*  $Header: Last edited: 29-Jun-2012 1.3 $ 			      */
+/*  $Header: Last edited: 05-Feb-2013 1.4 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -159,7 +159,9 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(UNEVICTABLE_PGMUNLOCKED), "vminfo:::unevictable_pgmunlocked");
 	sdt_add_locator(vm_event_addr(UNEVICTABLE_PGCLEARED), "vminfo:::unevictable_pgcleared");
 	sdt_add_locator(vm_event_addr(UNEVICTABLE_PGSTRANDED), "vminfo:::unevictable_pgstranded");
+#ifdef UNEVICTABLE_MLOCKFREED
 	sdt_add_locator(vm_event_addr(UNEVICTABLE_MLOCKFREED), "vminfo:::unevictable_mlockfreed");
+#endif
 
 #if defined(CONFIG_TRANSPARENT_HUGEPAGE) && LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	sdt_add_locator(vm_event_addr(THP_FAULT_ALLOC), "vminfo:::thp_fault_alloc");

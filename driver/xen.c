@@ -22,13 +22,13 @@
 #include "dtrace_proto.h"
 
 #include <linux/cpumask.h>
-#include <xen/interface/callback.h>
 
 extern int nr_cpus;
 
 #if defined(CONFIG_PARAVIRT) && defined(__HYPERVISOR_set_trap_table) && \
 	defined(__HYPERVISOR_event_channel_op)
 #	define	DO_XEN	1
+#	include <xen/interface/callback.h>
 # else
 #	define	DO_XEN	0
 #endif
@@ -164,7 +164,9 @@ static  struct callback_register callback = {
 /**********************************************************************/
 void
 xen_xcall_fini(void)
-{	int	c;
+{
+#if DO_XEN
+	int	c;
 
 #define	EVTCHNOP_close            3
 struct evtchn_close {
@@ -177,6 +179,7 @@ struct evtchn_close {
 		dtrace_xen_hypercall(__HYPERVISOR_event_channel_op,
 			(void *) EVTCHNOP_close, &close, 0);
 	}
+#endif
 }
 
 /**********************************************************************/
@@ -185,7 +188,9 @@ struct evtchn_close {
 /**********************************************************************/
 int
 xen_send_ipi(cpumask_t *mask, int vector)
-{	int	c;
+{
+#if DO_XEN
+	int	c;
 	int	ret;
 #define	EVTCHNOP_send             4
 
@@ -200,5 +205,6 @@ xen_send_ipi(cpumask_t *mask, int vector)
 		ret = dtrace_xen_hypercall(__HYPERVISOR_event_channel_op,
 			(void *) EVTCHNOP_send, &send, 0);
 	}
+#endif
 	return 0;
 }

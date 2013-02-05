@@ -1,3 +1,9 @@
+Tue Feb  5 21:42:17 2013  fox
+
+     805* driver/xen.c: Avoid invoking Xen include file if we dont have Xen.
+
+     804* driver/vminfo.c: Conditionalise UNEVICTABLE_MLOCKFREED for 3.7
+
 Mon Feb  4 21:19:52 2013  fox
 
      803* driver/dtrace_linux.c: Fix for 2.6.18 kernel caused by

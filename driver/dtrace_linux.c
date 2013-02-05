@@ -1357,7 +1357,7 @@ static pte_t *(*lookup_address)(void *, int *);
 
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24)
-	*(pte_t *) &pp->pp_pte = *pte; /* Horror for <= 2.6.24 kernels */
+	*(pte_t *) &pp->pp_pte = new_pte; /* Horror for <= 2.6.24 kernels */
 #else
 	/***********************************************/
 	/*   This   is  for  Xen  kernels  which  may  */

@@ -1,5 +1,7 @@
 Tue Feb  5 21:42:17 2013  fox
 
+     806* driver/dtrace_linux.c: Fix "pte" unref for <=2.6.24 kernels.
+
      805* driver/xen.c: Avoid invoking Xen include file if we dont have Xen.
 
      804* driver/vminfo.c: Conditionalise UNEVICTABLE_MLOCKFREED for 3.7

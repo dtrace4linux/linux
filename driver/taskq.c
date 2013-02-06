@@ -210,7 +210,7 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 		/*   This is a macro if CONFIG_LOCKDEP is not  */
 		/*   set.				       */
 		/***********************************************/
-		printk("lockdep_init_map_ptr=%p\n", lockdep_init_map);
+		printk("lockdep_init_map_ptr=%p\n", lockdep_init_map_ptr);
 #endif
 	}
 

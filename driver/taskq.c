@@ -56,6 +56,15 @@
 #	define	INIT_DELAYED_WORK(a, b) INIT_WORK(a, b, a)
 #	define	delayed_work	work_struct
 #	define	cancel_delayed_work_sync	cancel_delayed_work
+#else
+#undef __INIT_DELAYED_WORK
+#	define __INIT_DELAYED_WORK(_work, _func, _tflags)		\
+	do {								\
+		INIT_WORK(&(_work)->work, (_func));			\
+		__setup_timer(&(_work)->timer, delayed_work_timer_fn_ptr,	\
+			      (unsigned long)(_work),			\
+			      (_tflags) | TIMER_IRQSAFE);		\
+	} while (0)
 #endif
 
 /**********************************************************************/
@@ -129,6 +138,7 @@ taskqid_t taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags
 static int (*queue_delayed_work_ptr)(struct workqueue_struct *wq, struct delayed_work *work, unsigned long delay);
 static void (*destroy_workqueue_ptr)(struct workqueue_struct *wq);
 static void (*flush_workqueue_ptr)(struct workqueue_struct *wq);
+static void (*delayed_work_timer_fn_ptr)(unsigned long __data);
 
 /**********************************************************************/
 /*   Very  ugly  ..  different  number  of  args  for  3.3 and above  */
@@ -200,11 +210,13 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 		queue_delayed_work_ptr = get_proc_addr("queue_delayed_work");
 		destroy_workqueue_ptr = get_proc_addr("destroy_workqueue");
 		flush_workqueue_ptr = get_proc_addr("flush_workqueue");
+		delayed_work_timer_fn_ptr = get_proc_addr("delayed_work_timer_fn");
 		lockdep_init_map_ptr = get_proc_addr("lockdep_init_map");
 
 		printk("queue_delayed_work_ptr=%p\n", queue_delayed_work_ptr);
 		printk("destroy_workqueue_ptr=%p\n", destroy_workqueue_ptr);
 		printk("flush_workqueue_ptr=%p\n", flush_workqueue_ptr);
+		printk("delayed_work_timer_fn_ptr=%p\n", delayed_work_timer_fn_ptr);
 #if !defined(lockdep_init_map)
 		/***********************************************/
 		/*   This is a macro if CONFIG_LOCKDEP is not  */

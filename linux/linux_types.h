@@ -74,10 +74,6 @@ struct modctl;
 
 	#define modctl module
 
-	# if defined(zone)
-	#   undef zone
-	# endif
-	#define zone Xzone /* mmzone.h conflicts with solaris zone struct */
 	# include	<linux/time.h>
 	# include	<linux/module.h>
 	# undef zone

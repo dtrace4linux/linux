@@ -139,9 +139,11 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(PGROTATED), "vminfo:::pgrotated");
 
 #ifdef CONFIG_COMPACTION
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 	sdt_add_locator(vm_event_addr(COMPACTBLOCKS), "vminfo:::compactblocks");
 	sdt_add_locator(vm_event_addr(COMPACTPAGES), "vminfo:::compactpages");
 	sdt_add_locator(vm_event_addr(COMPACTPAGEFAILED), "vminfo:::compactpagefailed");
+#endif
 	sdt_add_locator(vm_event_addr(COMPACTSTALL), "vminfo:::compactstall");
 	sdt_add_locator(vm_event_addr(COMPACTFAIL), "vminfo:::compactfail");
 	sdt_add_locator(vm_event_addr(COMPACTSUCCESS), "vminfo:::compactsuccess");

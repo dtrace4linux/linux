@@ -8,6 +8,8 @@
 # include	<sys/priv.h>
 # include	<sys/fault.h>
 
+# include	<sys/user.h>
+
 /*
  * System call interfaces for /proc.
  */

@@ -14,5 +14,8 @@ all:
 	  i686) \
 		$(CC) -m32 -g -o $(BINDIR)/sys32 syscalls.c ; \
 		;; \
+	  arm*) \
+		$(CC) -g -o $(BINDIR)/sys32 syscalls.c ; \
+		;; \
 	esac
 

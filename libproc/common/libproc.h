@@ -93,9 +93,7 @@ extern	int	_libproc_no_qsort;	/* set non-zero to inhibit sorting */
 #if defined(__sparc)
 #define	R_RVAL1	R_O0		/* register holding a function return value */
 #define	R_RVAL2	R_O1		/* 32 more bits for a 64-bit return value */
-#endif	/* __sparc */
-
-#if defined(__amd64)
+#elif defined(__amd64)
 #define	R_PC	REG_RIP
 #define	R_SP	REG_RSP
 #define	R_RVAL1	REG_RAX		/* register holding a function return value */
@@ -105,6 +103,13 @@ extern	int	_libproc_no_qsort;	/* set non-zero to inhibit sorting */
 #define	R_SP	UESP
 #define	R_RVAL1	EAX		/* register holding a function return value */
 #define	R_RVAL2	EDX		/* 32 more bits for a 64-bit return value */
+#elif defined(__arm__)
+#define	R_PC	R15
+#define	R_SP	R13
+#define	R_RVAL1	R1		/* register holding a function return value */
+#define	R_RVAL2	R2		/* 32 more bits for a 64-bit return value */
+#else
+#	error "libproc.h: CPU not supported or compilation error"
 #endif	/* __amd64 || __i386 */
 
 #define	R_RVAL	R_RVAL1		/* simple function return value register */

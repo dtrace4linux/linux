@@ -46,7 +46,9 @@
 #endif
 #include <asm/tlbflush.h>
 #include <asm/current.h>
-#include <asm/desc.h>
+#if defined(__i386) || defined(__amd64)
+#  include <asm/desc.h>
+#endif
 #include "../port.h"
 #if defined(HAVE_LINUX_MIGRATE_H)
 #  include <linux/migrate.h>

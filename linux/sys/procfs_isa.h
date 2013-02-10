@@ -37,6 +37,10 @@ typedef prgreg32_t      prgregset32_t[NPRGREG];
 typedef uchar_t instr_t;
 #endif
 
+# if defined(__arm__)
+typedef uint32_t instr_t;
+# endif
+
 struct fpq {
         unsigned int *fpq_addr;         /* address */
         unsigned int fpq_instr;         /* instruction */

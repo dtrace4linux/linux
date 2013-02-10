@@ -3,6 +3,8 @@
 # Script to locate libgcc.a on your system, needed for 
 # x86-32 64-bit div/mod instructions.
 
+# 10-Feb-2013 PDF Dont complain if this is an ARM machine.
+
 use warnings;
 use strict;
 
@@ -11,6 +13,12 @@ use FileHandle;
 sub main
 {
 	die "\$BUILD_DIR must be defined before running this script" if !$ENV{BUILD_DIR};
+
+	my $fh;
+
+	$fh = new FileHandle("uname -m |");
+	my $ln = <$fh>;
+	exit(0) if $ln =~ /^arm/;
 
 	my $target = "$ENV{BUILD_DIR}/libgcc.a";
 	exit(0) if -f $target;
@@ -22,7 +30,7 @@ sub main
 	}
 EOF
 
-	my $fh = new FileHandle(">x.c");
+	$fh = new FileHandle(">x.c");
 	print $fh $ccode;
 	$fh->close();
 

@@ -232,7 +232,9 @@ int main(int argc, char **argv)
 	rmdir("/nothing");
 	chmod(0, 0);
 	line = __LINE__;
+# if defined(__i386) || defined(__amd64)
 	modify_ldt(0);
+# endif
 
 	stat("/doing-nice", 0);
 	nice(0);

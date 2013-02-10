@@ -25,7 +25,29 @@
 
 # include	<linux_types.h>
 # include	<sys/procset.h>
-# include	<ucontext.h>
+
+/**********************************************************************/
+/*   Ugly  mess follows. We inline the ARM stuff, because this works  */
+/*   for  debian-armel  2.6.32-5-versatile,  but  this  may  not  be  */
+/*   accurate  for  other kernels or glibc combinations. Trying this  */
+/*   on  Ubuntu  12.04  doesnt,  work  so  we  use  the <ucontext.h>  */
+/*   mechanism.							      */
+/**********************************************************************/
+# if defined(__arm__)
+	/***********************************************/
+	/*   Following            based            on  */
+	/*   /usr/include/sys/procfs.h		       */
+	/***********************************************/
+	# include	<sys/user.h>
+	typedef unsigned long elf_greg_t;
+	#define ELF_NGREG (sizeof (struct user_regs) / sizeof(elf_greg_t))
+	typedef elf_greg_t elf_gregset_t[ELF_NGREG];
+	typedef struct user_fpregs elf_fpregset_t;
+
+# else /* defined(__arm__) */
+
+#   include	<ucontext.h>
+# endif 
 
 # define	ucontext32_t ucontext_t
 

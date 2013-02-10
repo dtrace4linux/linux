@@ -3,6 +3,7 @@
 # $Header: Last edited: 20-Mar-2011 1.2 $ 
 
 # 23-Jun-2009 PDF Add check for bison/yacc/flex on the system.
+# 10-Feb-2013 PDF Allow arm architecture to build.
 
 # Script to do a 'make all'
 
@@ -98,6 +99,12 @@ sub main
 		print $fh "export BUILD_i386=$ENV{BUILD_i386}\n";
 		print $fh "export CPU_BITS=$ENV{CPU_BITS}\n";
 		spawn("tools/mksyscall.pl");
+	} elsif ($uname_m =~ /^arm/) {
+		print "warning: building on ARM is experimental at present.\n";
+		$ENV{CPU_BITS} = "32";
+		$ENV{PTR32} = "-D_ILP32 -D_LONGLONG_TYPE";
+		print $fh "export CPU_BITS=$ENV{CPU_BITS}\n";
+	  	print $fh "export PTR32=\"$ENV{PTR32}\"\n";
 	} else {
 		die "Unsupported cpu architecture: $uname_m\n";
 	}

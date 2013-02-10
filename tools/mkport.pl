@@ -20,10 +20,8 @@
 use strict;
 use warnings;
 
-use File::Basename;
 use FileHandle;
 use Getopt::Long;
-use IO::File;
 use POSIX;
 
 my $kern;
@@ -46,6 +44,10 @@ sub main
 		);
 
 	usage() if ($opts{help});
+	if (!$ENV{BUILD_DIR}) {
+		$ENV{BUILD_DIR} = "build-" . `uname -r`;
+		chomp($ENV{BUILD_DIR});
+	}
 	usage() if !$ENV{BUILD_DIR};
 
 	my $fh;
@@ -456,8 +458,12 @@ This script setups a file called "port.h" which is needed to determine
 which features or include files are available on this kernel, so we can
 detect at compile time what we need to work around.
 
+The BUILD_DIR env var can be used to override the default/current linux
+kernel version, e.g. for cross-compilation.
+
 Switches:
 
+  -v    Print out verbose information.
 EOF
 
 	exit(1);

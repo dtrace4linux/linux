@@ -66,6 +66,9 @@ extern int Pissyscall_text(struct ps_prochandle *, const void *buf,
 /* i386 stack is unaligned */
 #define	PSTACK_ALIGN32(sp)	(sp)
 #define	PSTACK_ALIGN64(sp)	ALIGN32(sp)
+#elif defined(__arm__)
+#define	PSTACK_ALIGN32(sp)	((sp) & ~(1 * sizeof (int32_t) - 1))
+#define	PSTACK_ALIGN64(sp)	(sp)
 #elif defined(__sparc)
 /* sparc stack is doubleword aligned for 64-bit values */
 #define	PSTACK_ALIGN32(sp)	((sp) & ~(2 * sizeof (int32_t) - 1))

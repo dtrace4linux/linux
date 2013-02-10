@@ -63,7 +63,7 @@ typedef	unsigned int		Elf64_Word;
 typedef	unsigned long		Elf64_Xword;
 typedef unsigned long		Elf64_Lword;
 typedef unsigned long		Elf32_Lword;
-#elif defined(_LONGLONG_TYPE) || defined(__i386) /* Fix for Ubuntu 11.10/i386 */
+#elif defined(_LONGLONG_TYPE) || defined(__i386) || defined(__arm__) /* Fix for Ubuntu 11.10/i386 */
 typedef unsigned long long	Elf64_Addr;
 typedef unsigned short		Elf64_Half;
 typedef unsigned long long	Elf64_Off;

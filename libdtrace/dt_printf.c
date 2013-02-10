@@ -302,9 +302,11 @@ pfprint_fp(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 	case sizeof (double):
 		return (dt_printf(dtp, fp, format,
 		    *((double *)addr) / n));
+# if !defined(__arm__)
 	case sizeof (long double):
 		return (dt_printf(dtp, fp, format,
 		    *((long double *)addr) / ldn));
+# endif
 	default:
 		return (dt_set_errno(dtp, EDT_DMISMATCH));
 	}

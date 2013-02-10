@@ -232,6 +232,11 @@ prepare_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf32_t *dep)
 			    dofr[j].dofr_offset + 4;
 			rel->r_info = ELF32_R_INFO(count + dep->de_global,
 			    R_SPARC_32);
+#elif defined(__arm__)
+			rel->r_offset = s->dofs_offset +
+			    dofr[j].dofr_offset;
+			rel->r_info = ELF32_R_INFO(count + dep->de_global,
+			    R_ARM_REL32);
 #else
 #error unknown ISA
 #endif
@@ -404,6 +409,8 @@ prepare_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf64_t *dep)
 			    dofr[j].dofr_offset;
 			rel->r_info = ELF64_R_INFO(count + dep->de_global,
 			    R_SPARC_64);
+#elif defined(__arm__)
+			printf("prepare_elf64: what do we do for ARM?\n");
 #else
 #error unknown ISA
 #endif
@@ -1017,6 +1024,14 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 	return (0);
 }
 
+#elif defined(__arm__)
+static int
+dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
+    uint32_t *off)
+{
+	printf("dt_modtext(__arm__): please implement\n");
+	return 0;
+}
 #else
 #error unknown ISA
 #endif

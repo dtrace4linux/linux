@@ -108,9 +108,14 @@ typedef int64_t greg64_t;
 # if defined(__amd64)
 # 	define _NGREG	28
 #	define R_FP	REG_RBP
-# else
+# elif defined(__i386)
 # 	define _NGREG	19
 #	define R_FP	EBP
+# elif defined(__arm__)
+# 	define _NGREG	18
+#	define R_FP	EBP
+# else
+#	pragma warning("unsupported cpu in sys/regset.h")
 # endif
 # define NGREG	_NGREG
 
@@ -191,5 +196,13 @@ typedef int64_t greg64_t;
 #define REG_R1  EDX
 
 #endif  /* __i386 */
+
+/**********************************************************************/
+/*   ARM definitions.						      */
+/**********************************************************************/
+# if defined(__arm__)
+#	define	R15	15
+#	define	R13	13
+# endif
 
 # endif

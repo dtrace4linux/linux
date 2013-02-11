@@ -1029,7 +1029,24 @@ static int
 dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
     uint32_t *off)
 {
-	printf("dt_modtext(__arm__): please implement\n");
+	uint32_t *ip;
+printf("dt_modtext(__arm__): please implement\n");
+	if ((rela->r_offset & (sizeof (uint32_t) - 1)) != 0)
+		return (-1);
+
+	ip = (uint32_t *)(p + rela->r_offset);
+printf("GELF_R=%x %x\n", GELF_R_TYPE(rela->r_info), *(int *) p);
+	if (GELF_R_TYPE(rela->r_info) != R_ARM_PLT32)
+		return -1;
+
+	/*
+	 * We may have already processed this object file in an earlier linker
+	 * invocation. Check to see if the present instruction sequence matches
+	 * the one we would install below.
+	 */
+	if (isenabled) {
+	} else {
+	}
 	return 0;
 }
 #else
@@ -1148,13 +1165,15 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		emachine2 = EM_SPARC32PLUS;
 #elif defined(__i386) || defined(__amd64)
 		emachine1 = emachine2 = EM_386;
+#elif defined(__arm__)
+		emachine1 = emachine2 = EM_ARM;
 #endif
 		symsize = sizeof (Elf32_Sym);
 	}
 
 	if (ehdr.e_ident[EI_CLASS] != eclass) {
 		return (dt_link_error(dtp, elf, fd, bufs,
-		    "incorrect ELF class for object file: %s", obj));
+		    "incorrect ELF class for object file: %s, hdr=0x%x, wanted=0x%x", obj, ehdr.e_ident[EI_CLASS], eclass));
 	}
 
 	if (ehdr.e_machine != emachine1 && ehdr.e_machine != emachine2) {

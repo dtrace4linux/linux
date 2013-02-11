@@ -136,7 +136,11 @@ usage(FILE *fp)
 
 	(void) fprintf(fp, "\n"
 	    "\t-32 generate 32-bit D programs and ELF files\n"
-	    "\t-64 generate 64-bit D programs and ELF files\n\n"
+	    "\t-64 generate 64-bit D programs and ELF files\n"
+#if defined(__arm__)
+		"\t    Ignored for ARM architecture (ARM-64 not presently supported\n"
+#endif
+	    "\n"
 	    "\t-a  claim anonymous tracing state\n"
 	    "\t-arch [i386|x86_64] Generate output files for ELF type.\n"
 	    "\t\tSame as -32 or -64\n"
@@ -1257,7 +1261,9 @@ main(int argc, char *argv[])
 					    argv[0], optarg);
 					return (usage(stderr));
 				}
-#if !defined(__APPLE__)
+#if defined(__arm__)
+				printf("warning: Ignoring -64 switch for ARM architecture\n");
+#elif !defined(__APPLE__)
 				g_oflags &= ~DTRACE_O_ILP32;
 				g_oflags |= DTRACE_O_LP64;
 #else
@@ -1497,6 +1503,11 @@ main(int argc, char *argv[])
 	 * this time; these will compiled as part of the fourth processing pass.
 	 */
 	for (optind = 1; optind < argc; optind++) {
+		/***********************************************/
+		/*   Dont  use  'char c' from above else sign  */
+		/*   extension issue on ARM.		       */
+		/***********************************************/
+		int	c; 
 		while ((c = getopt(argc, argv, DTRACE_OPTSTR)) != EOF) {
 			switch (c) {
 			case 'a':
@@ -1654,6 +1665,10 @@ main(int argc, char *argv[])
 	 * may been affected by any library options set by the second pass.
 	 */
 	for (optind = 1; optind < argc; optind++) {
+		/***********************************************/
+		/*   Fix for ARM/getopt sign extension issue.  */
+		/***********************************************/
+		int	c;
 		while ((c = getopt(argc, argv, DTRACE_OPTSTR)) != EOF) {
 			switch (c) {
 			case 'c':

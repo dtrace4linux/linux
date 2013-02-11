@@ -198,8 +198,9 @@ static uint32_t				dcpc_min_overflow;
 
 static int dcpc_aframes = 0;	/* override for artificial frame setting */
 #if defined(__i386) || defined(__amd64)
-//#if defined(__x86)
 #define	DCPC_ARTIFICIAL_FRAMES	8
+#elif defined(__arm__)
+#define	DCPC_ARTIFICIAL_FRAMES	8 /* Randomly guessing, dont know */
 #elif defined(__sparc)
 #define	DCPC_ARTIFICIAL_FRAMES	2
 #endif

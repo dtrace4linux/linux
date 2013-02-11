@@ -9,6 +9,7 @@ dtracedrv-objs := \
 	ctf_types.o \
 	ctf_util.o \
 	ctl.o \
+	cpu_arm.o \
 	cpu_x86.o \
 	cyclic_linux.o \
 	dcpc.o \

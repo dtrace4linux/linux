@@ -19,6 +19,7 @@
 /*   $Header: Last edited: 22-Nov-2011 1.6 $ 			      */
 /**********************************************************************/
 
+# if defined(__i386) || defined(__amd64)
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
@@ -473,4 +474,5 @@ cpu_skip_prefix(uchar_t *pc)
 	return pc;
 }
 
+# endif /* defined(__i386) || defined(__amd64) */
 

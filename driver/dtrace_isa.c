@@ -219,6 +219,7 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 	depth = 0;
 	for (lim = 0; lim < 3 && depth < pcstack_limit; lim++) {
 		int	ndepth = depth;
+		uintptr_t *prev_esp;
 
 		context = (struct thread_info *) ((unsigned long) sp & (~(THREAD_SIZE - 1)));
 		spend = (uintptr_t *) ((unsigned long) sp | (THREAD_SIZE - 1));
@@ -231,7 +232,9 @@ dtrace_getpcstack(pc_t *pcstack, int pcstack_limit, int aframes,
 		}
 		if (depth >= pcstack_limit || ndepth == depth)
 			break;
-		if ((sp = (uintptr_t *) context->previous_esp) == NULL)
+
+		prev_esp = (uintptr_t *) ((char *) context + sizeof(struct thread_info));
+		if ((sp = prev_esp) == NULL)
 			break;
 		/***********************************************/
 		/*   Special signal to mark the IRQ stack.     */

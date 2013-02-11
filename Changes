@@ -1,3 +1,14 @@
+Mon Feb 11 21:26:31 2013  fox
+
+     815* libdtrace/dt_link.c: Start to implement dt_modtext for ARM.
+
+     814* cmd/dtrace/dtrace.c: Sign extension fix for ARM/getopt.
+
+     813* driver/dtrace_isa.c: Fix use of previous_esp because it
+          disappears in later kernels.
+
+     812* driver/dcpc.c: Fix #elseif issue.
+
 Sun Feb 10 00:43:12 2013  fox
 
      811* Various: User-mode DTrace compiles on ARM (dtrace cmd runs

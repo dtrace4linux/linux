@@ -44,7 +44,7 @@ cat .release
 pwd
 date
 echo "\$ uname -a:" ; uname -a
-for f in /etc/lsb-release /etc/redhat-release
+for f in /etc/lsb-release /etc/redhat-release /etc/os-release
 do
 	if [ -f $f ]; then
 		echo "\$ cat $f" ; cat $f

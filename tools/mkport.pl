@@ -358,9 +358,10 @@ sub have
 
 #print "opening .... $kern/$file\n";
 	$file = "$kern/$file" if $file !~ /^\//;
+	print "grep '$name' $file\n" if $opts{v};
 	my $fh = new FileHandle($file);
 	if (!$fh && $opts{v}) {
-		print "Cannot open $file\n";
+		print "mkport.pl: Cannot open $file - $!\n";
 	}
 	return if !$fh;
 	while (<$fh>) {

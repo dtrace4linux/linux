@@ -134,7 +134,19 @@ struct regs {
 /**********************************************************************/
 #if linux
 
-#if defined(__amd64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+#if defined(__arm__)
+#   define r_rax ARM_r0
+#   define r_rfl ARM_cpsr
+#   define r_ps	ARM_cpsr
+#   define r_rsp ARM_sp
+#   define r_sp ARM_sp
+#   define r_pc ARM_pc
+#   define r_fp ARM_lr
+#   define r_r0 ARM_r0
+#   define r_r1 ARM_r1
+#   define X86_EFLAGS_IF PSR_Q_BIT
+
+#elif defined(__amd64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 
 #   define esp          rsp
 #   define r_cs         cs
@@ -273,7 +285,8 @@ struct regs {
 #  define c_arg3 r_rcx
 #  define c_arg4 r_r8
 #  define c_arg5 r_r9
-#else /* i386 */
+
+#elif defined(__i386)
 #  if defined(HAVE_EBX_REGISTER)
 #     define c_arg0 ebx
 #     define c_arg1 ecx
@@ -288,6 +301,15 @@ struct regs {
 #     define c_arg4 di
 #  endif
 #  define c_arg5 ebp
+
+# elif defined(__arm__)
+#  define c_arg0 ARM_r0
+#  define c_arg1 ARM_r1
+#  define c_arg2 ARM_r2
+#  define c_arg3 ARM_r3
+#  define c_arg4 ARM_r4
+#  define c_arg5 ARM_r5
+
 #endif
 
 # endif /* !defined(SYS_PRIVREGS_H) */

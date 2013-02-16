@@ -35,6 +35,9 @@ Working Features
 
 Partially Working / Not yet quality controlled:
 
+  o ARM Support - as of this writing, compiles, but not fully debugged.
+    Not tested on a variety of ARM CPUs and configurations. Tested on
+    debian-armel VM.
   o USDT Basic C/C++ works - demo program supplied, but not fully
     quality controlled that all D functions work.
   o CTF framework for the kernel: Since we dont build the kernel, the

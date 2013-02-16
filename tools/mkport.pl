@@ -16,6 +16,7 @@
 # 23-Aug-2012 PDF Add support for PTRACE_O_TRACEEXEC
 # 10-Oct-2012 PDF Add support for HAVE_LINUX_MIGRATE_H
 # 26-Oct-2012 PDF Add support for HAVE_LINUX_FDTABLE_H
+# 12-Feb-2013 PDF Attempt to speedup and optimise for ARM.
 
 use strict;
 use warnings;
@@ -29,6 +30,7 @@ my $kern_src;
 my $build;
 
 my $username = getpwuid(getuid());
+my $uname_m;
 
 #######################################################################
 #   Command line switches.					      #
@@ -49,6 +51,8 @@ sub main
 		chomp($ENV{BUILD_DIR});
 	}
 	usage() if !$ENV{BUILD_DIR};
+
+	$uname_m = `uname -m`;
 
 	my $fh;
 	my $fname = "$ENV{BUILD_DIR}/port.h";
@@ -75,9 +79,19 @@ sub main
 	}
 
 	###############################################
+	#   Cache /proc/kallsyms since its faster to  #
+	#   check  this than keep hitting the device  #
+	#   driver.				      #
+	###############################################
+	my $kallsyms = "/tmp/$ENV{USER}.kallsyms";
+	if (! -f $kallsyms) {
+		copy_file("/proc/kallsyms", $kallsyms);
+	}
+
+	###############################################
 	#   Generate notifiers from /proc/kallsyms.   #
 	###############################################
-	$fh = new FileHandle("grep ' [bd] .*notifier' /proc/kallsyms |");
+	$fh = new FileHandle("grep ' [bd] .*notifier' $kallsyms |");
 	my $ofh = new FileHandle(">build-$build/notifiers.h");
 	while (<$fh>) {
 		chomp;
@@ -109,13 +123,13 @@ sub main
 	#   Handle  differing  naming conventions of  #
 	#   the per-cpu data structures.	      #
 	###############################################
-	if (have("per_cpu__cpu_number", "/proc/kallsyms")) {
+	if (have("per_cpu__cpu_number", $kallsyms)) {
 		$inc .= "# define HAVE_PER_CPU__CPU_NUMBER 1\n";
 	}
-	if (have("atomic_notifier_chain_register", "/proc/kallsyms")) {
+	if (have("atomic_notifier_chain_register", $kallsyms)) {
 		$inc .= "# define HAVE_ATOMIC_NOTIFIER_CHAIN_REGISTER 1\n";
 	}
-	if (have(" cpu_number", "/proc/kallsyms")) {
+	if (have(" cpu_number", $kallsyms)) {
 		$inc .= "# define HAVE_CPU_NUMBER 1\n";
 	}
 	if (have("pda_cpunumber", "include/asm/offset.h")) {
@@ -127,7 +141,7 @@ sub main
 	#   Avoid  complexity  in  intr.c  for older  #
 	#   i386 kernels.			      #
 	###############################################
-	if (have("vmalloc_sync_all", "/proc/kallsyms")) {
+	if (have("vmalloc_sync_all", $kallsyms)) {
 		$inc .= "# define HAVE_VMALLOC_SYNC_ALL 1\n";
 	}
 
@@ -173,9 +187,7 @@ sub main
 	###############################################
 	#   Check for zlib functions in the kernel.   #
 	###############################################
-	$str = `grep zlib /proc/kallsyms`;
-	chomp($str);
-	if ($str eq '') {
+	if (have("zlib", $kallsyms)) {
 		$inc .= "# define DO_NOT_HAVE_ZLIB_IN_KERNEL 1\n";
 	}
 
@@ -245,6 +257,8 @@ sub main
 	if (! -d "$ENV{BUILD_DIR}") {
 		mkdir("$ENV{BUILD_DIR}", 0755);
 	}
+
+	print "Generating: $ENV{BUILD_DIR}/port.h\n";
 	$fh = new FileHandle(">$ENV{BUILD_DIR}/port.h");
 	die "Cannot create $ENV{BUILD_DIR}/port.h" if !$fh;
 	print $fh $inc;
@@ -260,6 +274,8 @@ sub main
 sub check_bx_vs_ebx
 {
 	my $file;
+
+	return "" if $uname_m =~ /^arm/;
 
 	return "# define HAVE_EBX_REGISTER 1\n" if $build le "2.6.21";
 
@@ -327,6 +343,12 @@ sub check_ptrace_h
 	}
 	return "# define PTRACE_O_TRACEEXEC 0x10\n";
 }
+sub copy_file
+{
+	my $src = shift;
+	my $dst = shift;
+	system("cp $src $dst");
+}
 ######################################################################
 #   The dump_trace() function for dumping a stack via callbacks has  #
 #   either  5  or  6 arguments, but what it has is not dependent on  #
@@ -358,15 +380,11 @@ sub have
 
 #print "opening .... $kern/$file\n";
 	$file = "$kern/$file" if $file !~ /^\//;
-	print "grep '$name' $file\n" if $opts{v};
-	my $fh = new FileHandle($file);
-	if (!$fh && $opts{v}) {
-		print "mkport.pl: Cannot open $file - $!\n";
+	if ($opts{v} && ! -f $file) {
+		print "have: Cannot open $file\n";
 	}
-	return if !$fh;
-	while (<$fh>) {
-		return 1 if /$name/;
-	}
+	my $ret = system("grep -s '$name' $file >/dev/null");
+	return !$ret;
 }
 ######################################################################
 #   Some  libbfd libraries dont have cplus_demangle, so detect that  #

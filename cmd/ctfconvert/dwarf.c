@@ -1859,6 +1859,11 @@ die_resolve(dwarf_t *dw)
 			(void) iitraverse_hash(dw->dw_td->td_iihash,
 			    &dw->dw_td->td_curvgen, NULL, NULL,
 			    die_fail_reporters, dw);
+/**********************************************************************/
+/*   PDF  Dont  make  this  a  terminate  error  -  we still get the  */
+/*   diagnostic,  due  to  "struct  lock_class_key  {};"  which  can  */
+/*   happen.							      */
+/**********************************************************************/
 break;
 			//terminate("failed to resolve types\n");
 		}

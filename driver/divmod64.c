@@ -66,3 +66,12 @@ __wrap___umoddi3(unsigned long long a, unsigned long long b)
 	return ret;
 }
 
+/**********************************************************************/
+/*   On  ARM/libgcc.a  may invoke raise. Avoid causing any damage if  */
+/*   this happens, e.g. divide by zero.				      */
+/**********************************************************************/
+int
+raise(int sig)
+{
+	return 0;
+}

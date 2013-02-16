@@ -42,10 +42,18 @@ done
 #   validation (see 'make kernels')
 #####################################################################
 arch=${BUILD_ARCH:-`uname -m`}
-if [ $arch != x86_64 ]; then
+case $arch in
+  arm*)
+  	export PTR32=-D_ILP32
+	export BUILD_ARM=1
+	;;
+  x86_64)
+  	;;
+  *)
   	export PTR32=-D_ILP32
 	export BUILD_i386=1
-fi
+	;;
+esac
 if [ "$BUILD_ARCH" != "" ]; then
 #	export KBUILD_CONFIG=.config-i386
 	build_dir=`echo $build_dir | sed -e 's/-i386//'`

@@ -209,7 +209,7 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinfo)
 				 * disabled.
 				 */
 				DTRACE_CPUFLAG_SET(CPU_DTRACE_NOFAULT);
-				CPU->cpu_dtrace_caller = ptregs->r_rip;
+				CPU->cpu_dtrace_caller = ptregs->r_pc;
 				stack0 = ptregs->c_arg0;
 				stack1 = ptregs->c_arg1;
 				stack2 = ptregs->c_arg2;
@@ -262,10 +262,11 @@ get_refcount(struct module *mp)
 	/*   behavior. We dont really care about this  */
 	/*   for now.				       */
 	/***********************************************/
-# else
+# elif defined(CONFIG_SMP)
 	{int	i;
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < NR_CPUS; i++) {
 		sum += local_read(&mp->ref[i].count);
+	}
 	}
 # endif
 	return sum;

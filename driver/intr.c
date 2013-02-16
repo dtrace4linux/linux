@@ -20,9 +20,10 @@
 #include <linux/proc_fs.h>
 #include <asm/current.h>
 #include <asm/segment.h>
-#include <asm/desc.h>
+#if defined(__i386) || defined(__amd64)
+#	include <asm/desc.h>
+#endif
 #include <sys/privregs.h>
-#include <asm/desc.h>
 #include <asm/tlbflush.h>
 #include <linux/kallsyms.h>
 #include <linux/seq_file.h>
@@ -31,6 +32,11 @@
 /**********************************************************************/
 /*   Backwards compat for older kernels.			      */
 /**********************************************************************/
+#if defined(__arm__)
+#	define	store_gdt(ptr) (ptr)->size = 0, (ptr)->address = 0
+#	define	store_idt(ptr) (ptr)->size = 0, (ptr)->address = 0
+#endif
+
 #if !defined(store_gdt) && !defined(CONFIG_PARAVIRT)
 	/***********************************************/
 	/*   For   Paravirt,  these  will  be  inline  */
@@ -94,6 +100,20 @@ typedef struct gate64 gate_t;
 # elif defined(__i386)
 #define gate_offset(g) ((u32) (g).base0 | ((u32) (g).base1 << 16))
 typedef struct gate32 gate_t;
+
+# elif defined(__arm__)
+	/***********************************************/
+	/*   We  dont  have descriptors/gates on ARM,  */
+	/*   but     this    avoids    a    lot    of  */
+	/*   conditionalisation.		       */
+	/***********************************************/
+#define	_PAGE_NX 0
+#define	GDT_ENTRIES 0
+#define	IDT_ENTRIES 0
+#define gate_offset(g) ((u32) (g).base0 | ((u32) (g).base1 << 16))
+typedef struct gate32 gate_t;
+# define desc_ptr x86_descriptor
+# define read_cr3() 0
 
 # else
 #   error "Dont know how to handle GATEs on this cpu"
@@ -213,14 +233,8 @@ static gate_t s;
 	/*   dont perturb these (dpl, stack, type).    */
 	/***********************************************/
 	s = *(gate_t *) &idt_table_ptr[intr];
-//	s.segment = __KERNEL_CS;
 	s.base0 = (u16) (func & 0xffff);
 	s.base1 = (u16) ((func & 0xffff0000) >> 16);
-//	int dpl = 3;
-//	int type = CPU_GATE_INTERRUPT;
-//	s.flags =	0x80 |		// present
-//			(dpl << 5) |
-//			type;		// CPU_GATE_INTERRUPT
 
 	if (dtrace_here) {
 		gate_t *g2 = &idt_table_ptr[intr];
@@ -242,6 +256,9 @@ static gate_t s;
 			g2->flags & 0x1f
 			);
 	}
+
+# elif defined(__arm__)
+	TODO();
 
 #else
 #  error "set_idt_entry: please help me"
@@ -652,7 +669,9 @@ dtrace_int_page_fault_handler(int type, struct pt_regs *regs)
 /**********************************************************************/
 static void 
 dtrace_write_idt_entry(int vec, const gate_t *val)
-{	int	i;
+{
+# if defined(__i386) || defined(__amd64)
+	int	i;
 
 	/***********************************************/
 	/*   Update  the  IDT,  but  this may have no  */
@@ -673,6 +692,7 @@ dtrace_write_idt_entry(int vec, const gate_t *val)
 	for (i = 0; i < nr_cpus; i++) {
 		SMP_CALL_FUNCTION_SINGLE(i, dtrace_write_idt_entry2, (void *) vec, TRUE);
 	}
+# endif
 }
 /**********************************************************************/
 /*   Hypercall  to  Xen  to  sync  the  IDT. We attempt to avoid any  */
@@ -793,6 +813,10 @@ static int gdt_seq_show(struct seq_file *seq, void *v)
 		flags & 0x04 ? "16" : "32"
 		);
 	}
+
+# elif defined(__arm__)
+	return 0;
+
 # else
 # 	error "Please implement /proc/dtrace/gdt"
 # endif
@@ -911,6 +935,10 @@ static int idt_seq_show(struct seq_file *seq, void *v)
 		modname ? modname : "kernel",
 		cp ? cp : "");
 	}
+
+# elif defined(__arm__)
+	return 0;
+
 # else
 # 	error "Please implement /proc/dtrace/idt"
 # endif
@@ -1000,7 +1028,10 @@ static inline pmd_t *
 sync_swapper_pte(struct mm_struct *mm, unsigned long address)
 {
 //typedef struct { pgdval_t pgd; } pgd_t;
-#if defined(swapper_pg_dir)
+#if defined(__arm__)
+	TODO();
+	return 0;
+#elif defined(swapper_pg_dir)
 	/***********************************************/
 	/*   Old kernels, or some compile options may  */
 	/*   #define this as NULL.		       */
@@ -1042,9 +1073,9 @@ static pgd_t *swapper_pg_dir;
                return NULL;
 	}
 
-        pmd = pmd_offset(pud, address);
-        pmd_k = pmd_offset(pud_k, address);
-        if (!pmd_present(*pmd_k)) {
+	pmd = pmd_offset(pud, address);
+	pmd_k = pmd_offset(pud_k, address);
+	if (!pmd_present(*pmd_k)) {
                return NULL;
 	}
 
@@ -1055,7 +1086,7 @@ static pgd_t *swapper_pg_dir;
         if (!pmd_present(*pmd))
 		set_pmd(pmd, *pmd_k);
         else
-               BUG_ON(pmd_page(*pmd) != pmd_page(*pmd_k));
+		BUG_ON(pmd_page(*pmd) != pmd_page(*pmd_k));
 //printk("pmd_k=%p\n", pmd_k);
 
         return pmd_k;

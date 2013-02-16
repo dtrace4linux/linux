@@ -196,7 +196,7 @@ get_refcount(struct module *mp)
 	/*   behavior. We dont really care about this  */
 	/*   for now.				       */
 	/***********************************************/
-# else
+# elif defined(CONFIG_SMP)
 	{int	i;
 	for (i = 0; i < NR_CPUS; i++)
 		sum += local_read(&mp->ref[i].count);

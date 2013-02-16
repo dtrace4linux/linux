@@ -179,10 +179,15 @@ int priv_policy_only(const cred_t *, int, int);
 /*   a naming conflict.						      */
 /**********************************************************************/
 static inline unsigned long read_cr2_register(void)
-{	unsigned long val;
+{
 
+#if defined(__arm__)
+	return 0;
+#else
+	unsigned long val;
 	asm volatile("mov %%cr2,%0\n" : "=r" (val));
 	return val;
+#endif
 }
 
 /*

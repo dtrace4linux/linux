@@ -44,7 +44,11 @@ dtrace_getvmreg(uint32_t reg, volatile uint16_t *flags)
 
 	*flags |= CPU_DTRACE_ILLOP;
 	return 0;
-#endif	/* __i386 */
+
+#elif defined(__arm__)
+	*flags |= CPU_DTRACE_ILLOP;
+	return 0;
+#endif
 }
 
 /**********************************************************************/
@@ -133,7 +137,19 @@ dtrace_casptr(void *target, void *cmp, void *new)
 	return ret;
 }
 
-#endif	/* __i386 */
+#elif defined(__arm__)
+uint32_t
+dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
+{
+	return cmpxchg((void **) target, (void **) cmp, (void **) new);
+}
+void *
+dtrace_casptr(void *target, void *cmp, void *new) 
+{
+	return cmpxchg((void **) target, (void **) cmp, (void **) new);
+}
+
+#endif
 
 /**********************************************************************/
 /*   Used in probe mode to get the n'th caller, but GCC, nor can any  */
@@ -178,7 +194,7 @@ void
 dtrace_copystr(uintptr_t uaddr, uintptr_t kaddr, size_t size,
 	 volatile uint16_t *flags) 
 {
-	copy_from_user((void *) kaddr, (void *) uaddr, size);
+	(void) copy_from_user((void *) kaddr, (void *) uaddr, size);
 }
 
 /*ARGSUSED*/
@@ -231,8 +247,8 @@ dtrace_interrupt_disable(void)
 		: "=a" (ret)
 	);
 	return ret;
-#elif defined(__i386)
 
+#elif defined(__i386)
 	__asm(
 		"pushf\n"
 		"pop %%eax\n"
@@ -240,6 +256,10 @@ dtrace_interrupt_disable(void)
 		: "=a" (ret)
 		:
 	);
+	return ret;
+
+# elif defined(__arm__)
+	raw_local_irq_save(ret);
 	return ret;
 # endif
 }
@@ -263,6 +283,11 @@ dtrace_interrupt_get(void)
 		:
 	);
 	return ret;
+
+# elif defined(__arm__)
+	raw_local_save_flags(ret);
+	return ret;;
+
 # endif
 }
 /**********************************************************************/
@@ -299,6 +324,9 @@ dtrace_interrupt_enable(dtrace_icookie_t flags)
 		:
 		: "a" (flags)
 	);
+
+# elif defined(__arm__)
+	raw_local_irq_restore(flags);
 #endif
 }
 
@@ -346,7 +374,7 @@ asm_placeholder(void)
 		"ret\n"
 		
 		);
-#else
+# elif defined(__i386)
 	__asm(
 		FUNCTION(dtrace_membar_consumer)
 		"sfence\n"
@@ -357,8 +385,22 @@ asm_placeholder(void)
 		"ret\n"
 
 		);
+# elif defined(__arm__)
+
+# else
+#	error "dtrace_asm.c: Not supported on this cpu.\n"
 #endif
 }
+#if defined(__arm__)
+void
+dtrace_membar_consumer()
+{
+}
+void
+dtrace_membar_producer()
+{
+}
+#endif
 
 /**********************************************************************/
 /*   Stubbed  out  code  --  this  was the original, but its getting  */

@@ -49,6 +49,7 @@
 # if defined(HAVE_STACKTRACE_OPS)
 #	include <asm/stacktrace.h>
 # endif
+#include <asm/processor.h>
 #include "dtrace_proto.h"
 
 typedef struct ucontext ucontext_t;
@@ -348,7 +349,15 @@ dtrace_getupcstack(uint64_t *pcstack, int pcstack_limit)
 	/*   set to -1).			       */
 	/***********************************************/
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#  if defined(KSTK_EIP)
+	/***********************************************/
+	/*   Handle  ARM and more kernel independent,  */
+	/*   but might not exist.		       */
+	/***********************************************/
+	bos = sp = (unsigned long *) KSTK_EIP(current);
+#  else
 	bos = sp = (unsigned long *) task_pt_regs(current)->sp;
+#  endif
 #else
 	bos = sp = task_pt_regs(current)->rsp;
 #endif
@@ -578,7 +587,7 @@ http://www.opensource.apple.com/source/xnu/xnu-1456.1.26/bsd/dev/i386/fbt_x86.c
 */
 /**********************************************************************/
 void
-dtrace_invop_callsite()
+dtrace_invop_callsite(void)
 {
 }
 
@@ -845,7 +854,7 @@ dtrace_getreg(struct pt_regs *rp, uint_t reg)
 		return (0);
 	}
 
-#else
+#elif defined(__i386)
 	if (reg > SS) {
 		DTRACE_CPUFLAG_SET(CPU_DTRACE_ILLOP);
 		return (0);
@@ -857,6 +866,10 @@ dtrace_getreg(struct pt_regs *rp, uint_t reg)
 	/*   funnyism of Linux reg layout.	       */
 	/***********************************************/
 	return ((&rp->r_gs)[reg]);
+# elif defined(__arm__)
+	return 0;
+# else
+#	error "dtrace_isa.c: Unsupported CPU architecture"
 #endif
 }
 

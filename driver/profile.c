@@ -98,6 +98,9 @@ static dtrace_provider_id_t profile_id;
 #endif
 #endif
 #endif
+# if defined(__arm__)
+#	define	PROF_ARTIFICIAL_FRAMES	3
+# endif
 
 #define	PROF_NAMELEN		15
 

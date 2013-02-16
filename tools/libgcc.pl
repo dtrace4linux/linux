@@ -1,9 +1,10 @@
 #! /usr/bin/perl
 
 # Script to locate libgcc.a on your system, needed for 
-# x86-32 64-bit div/mod instructions.
+# x86-32 64-bit div/mod instructions in the kernel.
 
 # 10-Feb-2013 PDF Dont complain if this is an ARM machine.
+# 16-Feb-2013 PDF Add support for ARM.
 
 use warnings;
 use strict;
@@ -12,13 +13,16 @@ use FileHandle;
 
 sub main
 {
+	if (!$ENV{BUILD_DIR}) {
+		$ENV{BUILD_DIR} = "build-" . `uname -r`;
+		chomp($ENV{BUILD_DIR});
+	}
 	die "\$BUILD_DIR must be defined before running this script" if !$ENV{BUILD_DIR};
 
 	my $fh;
 
 	$fh = new FileHandle("uname -m |");
 	my $ln = <$fh>;
-	exit(0) if $ln =~ /^arm/;
 
 	my $target = "$ENV{BUILD_DIR}/libgcc.a";
 	exit(0) if -f $target;
@@ -69,7 +73,9 @@ EOF
 	###############################################
 	#   Try an alternate tactic - this for AS2.   #
 	###############################################
-	$fh = new FileHandle("find /usr/lib/gcc-lib -name libgcc.a |");
+	my $gcc_dir = "/usr/lib/gcc-lib";
+	$gcc_dir = "/usr/lib/gcc" if ! -d $gcc_dir && -d "/usr/lib/gcc";
+	$fh = new FileHandle("find $gcc_dir -name libgcc.a |");
 	while (<$fh>) {
 		chomp;
 		if (!symlink($_, $target)) {

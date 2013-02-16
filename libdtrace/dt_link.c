@@ -501,6 +501,8 @@ dump_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	elf_file.ehdr.e_machine = EM_SPARC;
 #elif defined(__i386) || defined(__amd64)
 	elf_file.ehdr.e_machine = EM_386;
+#elif defined(__arm__)
+	elf_file.ehdr.e_machine = EM_ARM;
 #endif
 	elf_file.ehdr.e_version = EV_CURRENT;
 	elf_file.ehdr.e_shoff = sizeof (Elf32_Ehdr);

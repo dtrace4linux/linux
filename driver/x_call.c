@@ -38,8 +38,10 @@
 #include "dtrace_proto.h"
 
 #include <linux/cpumask.h>
-#include <asm/smp.h>
-#include <asm/ipi.h>
+# if defined(__i386) || defined(__amd64)
+#	include <asm/smp.h>
+#	include <asm/ipi.h>
+# endif
 
 
 # if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
@@ -591,8 +593,10 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 		xen_send_ipi(mask, vector);
 		return;
 	}
+# if defined(__arm__)
+	TODO();
 
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+# elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
 	/***********************************************/
 	/*   Theres  'flat' and theres 'cluster'. The  */
 	/*   cluster  functions  handle  more  than 8  */
@@ -654,8 +658,10 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 /*   inlined.							      */
 /**********************************************************************/
 void dtrace_ack_apic(void) 
-{ 
+{
+# if defined(__i386) || defined(__amd64)
 	*((volatile u32 *) (APIC_BASE + APIC_EOI)) = 0;
+# endif
 }
 /**********************************************************************/
 /*   This  is the IPI interrupt handler - we got invoked, so we must  */

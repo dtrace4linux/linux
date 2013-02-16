@@ -62,6 +62,9 @@ ifdef BUILD_i386
 	LDFLAGS += --wrap __divdi3 
 	dtracedrv-objs += ../libgcc.a
 endif
+ifdef BUILD_ARM
+	dtracedrv-objs += divmod64.o ../libgcc.a
+endif
 
 obj-m := dtracedrv.o
 

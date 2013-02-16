@@ -101,6 +101,12 @@ Feb 2011
 #include <sys/atomic.h>
 # endif
 
+# if defined(__arm__)
+#	define __NR_iopl 1000
+#	define __NR_vm86 1001
+#	define __NR_vm86old 1002
+# endif
+
 #define	SYSTRACE_ARTIFICIAL_FRAMES	1
 
 #define	STF_ENTRY		0x10000
@@ -119,7 +125,9 @@ Feb 2011
 /*   Get a list of system call names here.			      */
 /**********************************************************************/
 static char *syscallnames[] = {
-# if defined(__i386)
+# if defined(__arm__)
+#	include	"syscalls-arm.tbl"
+# elif defined(__i386)
 #	include	"syscalls-x86.tbl"
 # else
 #	include	"syscalls-x86-64.tbl"
@@ -127,7 +135,9 @@ static char *syscallnames[] = {
 	};
 # define NSYSCALL (sizeof syscallnames / sizeof syscallnames[0])
 static char *syscallnames32[] = {
-# include	"syscalls-x86.tbl"
+# if defined(__i386) || defined(__amd64)
+# 	include	"syscalls-x86.tbl"
+# endif
 	};
 # define NSYSCALL32 (sizeof syscallnames32 / sizeof syscallnames32[0])
 
@@ -407,6 +417,9 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 void
 systrace_assembler_dummy(void)
 {
+# if defined(__arm__)
+
+# else
 	__asm(
 		/***********************************************/
 		/*   Be careful here. We arent in a safe mode  */
@@ -669,6 +682,7 @@ systrace_assembler_dummy(void)
 		/*   sys_rt_sigreturn to do the real work.     */
 		/***********************************************/
 		);
+# endif /* defined(__arm__) */
 
 }
 # define IS_PTREG_SYSCALL(n) \
@@ -691,6 +705,9 @@ systrace_assembler_dummy(void)
 void
 systrace_assembler_dummy(void)
 {
+# if defined(__arm__)
+
+# else
 	__asm(
 		/***********************************************/
 		/*   Following  function template is used for  */
@@ -746,6 +763,8 @@ systrace_assembler_dummy(void)
 		"syscall_ptreg_template_size: .long .-syscall_ptreg_template\n"
 		END_FUNCTION(syscall_ptreg_template)
 		);
+
+# endif
 }
 # define IS_PTREG_SYSCALL(n) \
 		((n) == __NR_iopl || \
@@ -1437,7 +1456,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	                : "=a" (rval)
 	                : "S" (pregs), "D" (sy->stsy_underlying)
 			);
-# else
+# elif defined(__amd64)
 
 	/***********************************************/
 	/*   x86-64  handler  here. Some kernels will  */
@@ -1522,6 +1541,13 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 		}
 	else
 	        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+
+# elif defined(__arm__)
+
+        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+
+# else
+# 	error	"Cannot handle this CPU\n"
 # endif
 
 //HERE();
@@ -1644,8 +1670,6 @@ get_interposer32(int sysnum, int enable)
 	  }
 
 	return syscall_info[sysnum].s_template32;
-//	return syscall_template;
-//	return (void *) dtrace_systrace_syscall;
 }
 #endif
 

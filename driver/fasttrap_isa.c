@@ -50,7 +50,9 @@
 #include <linux/vmalloc.h>
 #include <linux/mman.h>
 #undef user_desc_t
-#include <asm/desc.h>
+# if defined(__i386) || defined(__amd64)
+#	include <asm/desc.h>
+# endif
 
 #define SVFORK     0x00040000   /* child of vfork that has not yet exec'd */
 
@@ -855,6 +857,9 @@ fasttrap_usdt_args32(fasttrap_probe_t *probe, struct regs *rp, int argc,
 static int
 fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 {
+# if defined(__arm__)
+	return 0;
+# else
 	uint16_t sel = 0, ndx;
 #if linux
 #	define user_desc_t struct desc_struct
@@ -990,8 +995,8 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 	}
 
 	*addr += USEGD_GETBASE(desc);
-
 	return (0);
+#endif
 }
 
 /**********************************************************************/
@@ -1364,6 +1369,7 @@ PRINT_CASE(FASTTRAP_T_JCC);
 		break;
 	}
 
+# if !defined(__arm__)
 	case FASTTRAP_T_LOOP:
 	{
 		uint_t taken = 0;
@@ -1410,6 +1416,7 @@ PRINT_CASE(FASTTRAP_T_JCXZ);
 			new_pc = pc + tp->ftt_size;
 		break;
 	}
+# endif /* !defined(__arm__) */
 
 	case FASTTRAP_T_PUSHL_EBP:
 	{
@@ -1817,6 +1824,9 @@ printk("private-alloc %p\n", p->p_private_page);
 		/*   Make  sure  the page is executable. Fast  */
 		/*   track if PTE is ok.		       */
 		/***********************************************/
+# if !defined(_PAGE_NX)
+#	define	_PAGE_NX 0
+# endif
 		set_page_prot(addr, i, ~_PAGE_NX, 0);
 
 		if (tp->ftt_retids != NULL) {
@@ -1971,6 +1981,8 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_R9:		return (rp->r_r9);
 	case REG_R8:		return (rp->r_r8);
 #endif
+
+# if defined(__i386) || defined(__amd64)
 	case REG_RDI:		return (rp->r_rdi);
 	case REG_RSI:		return (rp->r_rsi);
 	case REG_RBP:		return (rp->r_rbp);
@@ -1991,6 +2003,7 @@ fasttrap_getreg(struct regs *rp, uint_t reg)
 	case REG_ES:		return rp->r_es;
 	case REG_FSBASE:	return (lx_rdmsr(MSR_AMD_FSBASE));
 	case REG_GSBASE:	return (lx_rdmsr(MSR_AMD_GSBASE));
+# endif /* defined(__i386) || defined(__amd64) */
 	}
 
 	printk("register=%x\n", reg);

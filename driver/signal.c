@@ -3,6 +3,9 @@
 #include "dtrace_proto.h"
 #include <asm/pgtable.h>
 
+# if defined(__arm__)
+#	define _PAGE_RW 0
+# endif
 /**********************************************************************/
 /*   The  code  below  is  to  patch the signal delivery code in the  */
 /*   kernel.  We need to watch signal delivery in the fasttrap code,  */
@@ -20,6 +23,7 @@ void	dnr1_handler(struct pt_regs *);
 void
 init_signal_dummy(void)
 {
+# if defined(__amd64) || defined(__i386)
 	__asm(
 	FUNCTION(dnr1_handler)
 #if defined(__amd64)
@@ -37,7 +41,7 @@ init_signal_dummy(void)
 	"push	%rbx\n"
 	"push	%rcx\n"
 	"push	%rdx\n"
-#else
+#elif defined(__i386)
 	"push	%eax\n"
 	"push	%ebx\n"
 	"push	%ecx\n"
@@ -65,7 +69,8 @@ init_signal_dummy(void)
 	"pop	%r13\n"
 	"pop	%r14\n"
 	"pop	%r15\n"
-#else
+
+#elif defined(__i386)
 	"pop	%ebp\n"
 	"pop	%edi\n"
 	"pop	%esi\n"
@@ -82,6 +87,7 @@ init_signal_dummy(void)
 
 	END_FUNCTION(dnr1_handler)
 	);
+# endif
 }
 
 /**********************************************************************/

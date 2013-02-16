@@ -14,6 +14,7 @@
 # 21-Jun-2011 PDF Changes to better handle asm-i386 and 2.6.18 kernels
 # 08-Apr-2012 PDF Add fix for 3.3 syscalls. (We will need to support ia-32 sometime)
 # 17-Aug-2012 PDF Look in /usr/include/asm/unistd_XX.h (Debian 6).
+# 16-Feb-2013 PDF Update for armel machine.
 
 use strict;
 use warnings;
@@ -21,8 +22,8 @@ use warnings;
 use File::Basename;
 use FileHandle;
 use Getopt::Long;
-use IO::File;
-use POSIX;
+
+my $uname_m;
 
 #######################################################################
 #   Command line switches.					      #
@@ -41,6 +42,10 @@ sub main
 
 	usage() if ($opts{help});
 
+	if (!$ENV{BUILD_DIR}) {
+		$ENV{BUILD_DIR} = "build-" . `uname -r`;
+		chomp($ENV{BUILD_DIR});
+	}
 	if (!$ENV{BUILD_DIR} && !$opts{n} && !$opts{tmp}) {
 		die "\$BUILD_DIR must be defined before running this script";
 	}
@@ -48,17 +53,12 @@ sub main
 	my $ver = $opts{ver};
 	$ver = `uname -r` if !$ver;
 	chomp($ver);
+	$uname_m = `uname -m`;
+	chomp($uname_m);
 
 	foreach my $bits (qw/32 64/) {
-		my $name = $bits == 32 ? "x86" : "x86-64";
-#	        my $machine = `uname -m`;
-#	        if ($machine =~ /x86_64/) {
-#	        	$bits = 64;
-#	        } elsif ($machine =~ /i[34567]86/) {
-#	        	$bits = 32;
-#	        } else {
-#	        	die "Unexpected machine: $machine";
-#	        }
+		my $name = $uname_m =~ /^arm/ ? "arm" :
+			$bits == 32 ? "x86" : "x86-64";
 
 		my %calls;
 		my @unistd_h_candidates = get_unistd($bits, $ver);
@@ -153,6 +153,8 @@ sub main
 				print $fh "#define NR_ia32_$name $c\n";
 			}
 		}
+
+		last if $uname_m =~ /^arm/;
 	}
 
 }
@@ -164,6 +166,10 @@ sub main
 sub get_unistd
 {	my $bits = shift;
 	my $ver = shift;
+
+	if ($uname_m =~ /^arm/) {
+		return "/usr/include/asm/unistd.h";
+	}
 
 	###############################################
 	#   Linux 3.3 handling.			      #
@@ -230,16 +236,21 @@ sub map_define
 	my $name = shift;
 	my $calls = shift;
 
-	$val =~ s/\s+.*$//;
+#print "val='$val'\n";
+	$val =~ s/\/\*.*$//;
+	$val =~ s/\s*$//;
 	return $val if $val =~ /^\d+$/;
 	$val =~ s/[()]//g;
-	if ($val =~ /^(.*)\+(\d+)/) {
+	if ($val =~ /^(.*)\+ *(\d+)/) {
 		my ($name, $addend) = ($1, $2);
+		return $addend if $uname_m =~ /^arm/;
 		return $calls->{$name} + $addend;
 	}
 	return if $name eq '__NR_syscall_max';
 	return if $name eq '__NR__exit';
-	print "Line $.: warning - unknown value: $name=$val\n";
+	return if $name eq '__NR_OABI_SYSCALL_BASE';
+	return if $name eq '__NR_sync_file_range2';
+	print "Line $.: warning - unknown value: $name='$val'\n";
 	return;
 }
 #######################################################################

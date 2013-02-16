@@ -173,11 +173,14 @@ void dummy_trampoline(void)
 	/*   how   clever   I   am,   but  this  aint  */
 	/*   clever...its just heavy, man ! :-)	       */
 	/***********************************************/
+# if defined(__i386) || defined(__amd64)
 	asm(FUNCTION(local__alloc_workqueue_key));
 	asm("jmp *__alloc_workqueue_key_ptr\n");
 
 	asm(FUNCTION(local_lockdep_init_map));
 	asm("jmp *lockdep_init_map_ptr\n");
+# endif
+
 }
 static void
 taskq_callback(struct work_struct *work)

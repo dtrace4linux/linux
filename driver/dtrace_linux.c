@@ -27,12 +27,15 @@
 #include <linux/slab.h>
 #include <linux/sys.h>
 #include <linux/thread_info.h>
-#include <linux/smp.h>
-#include <asm/smp.h>
+#include <linux/profile.h>
+//#include <linux/smp.h>
+//#include <asm/smp.h>
 #include <linux/vmalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/current.h>
-#include <asm/desc.h>
+# if defined(__i386) || defined(__amd64)
+#	include <asm/desc.h>
+# endif
 #include <sys/rwlock.h>
 #include <sys/privregs.h>
 //#include <asm/pgtable.h>
@@ -173,6 +176,7 @@ dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
 /**********************************************************************/
 static int tsc_max_delta;
 static struct timespec *xtime_cache_ptr;
+ktime_t (*ktime_get_ptr)(void);
 
 /**********************************************************************/
 /*   Ensure we are at the head of the chains. Unfortunately, kprobes  */
@@ -288,7 +292,11 @@ void	xcall_fini(void);
 void
 dtrace_clflush(void *ptr)
 {
+# if defined(__arm__)
+	local_flush_tlb_kernel_page(ptr);
+# else
         __asm__("clflush %0\n" : "+m" (*(char *)ptr));
+# endif
 }
 
 /**********************************************************************/
@@ -550,6 +558,8 @@ dtrace_data_model(proc_t *p)
 {
 # if defined(__i386)
 	return DATAMODEL_ILP32;
+# elif defined(__arm__)
+	return DATAMODEL_ILP32;
 # else
 	/***********************************************/
 	/*   Could  be  32 or 64 bit. We will use the  */
@@ -681,6 +691,13 @@ dtrace_linux_init(void)
 	xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime_cache");
 	if (xtime_cache_ptr == NULL)
 		xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime");
+# if defined(__arm__)
+	ktime_get_ptr = (ktime_t (*)(void)) get_proc_addr("ktime_get");
+	# define rdtscll(t) t = ktime_get_ptr().tv64
+	# define __flush_tlb_all() local_flush_tlb_all()
+	# define _PAGE_NX 0
+	# define _PAGE_RW 0
+# endif
 	rdtscll(t);
 	(void) dtrace_gethrtime();
 	rdtscll(t1);
@@ -1234,7 +1251,7 @@ lx_get_curthread_id()
   : "=a" (ret) 		              \
   : "c" (ptr) 	                      \
   )
-# else
+# elif defined(__amd64)
 #define __validate_ptr(ptr, ret)      \
  __asm__ __volatile__(      	      \
   "  mov $1, %0\n" 		      \
@@ -1251,12 +1268,15 @@ lx_get_curthread_id()
   : "=a" (ret) 		      	      \
   : "c" (ptr) 	                      \
   )
+# elif defined(__arm__)
+#define __validate_ptr(ptr, ret)      ret = 0
 # endif
 
 /**********************************************************************/
 /*   Solaris  rdmsr  routine  only takes one arg, so we need to wrap  */
-/*   the call.							      */
+/*   the call. Called from fasttrap_isa.c. Not needed for ARM.	      */
 /**********************************************************************/
+# if defined(__i386) || defined(__amd64)
 u64
 lx_rdmsr(int x)
 {	u32 val1, val2;
@@ -1264,6 +1284,8 @@ lx_rdmsr(int x)
 	rdmsr(x, val1, val2);
 	return ((u64) val2 << 32) | val1;
 }
+# endif
+
 int
 validate_ptr(const void *ptr)
 {	int	ret;
@@ -1319,6 +1341,11 @@ typedef struct page_perms_t {
 static int
 mem_set_perms(unsigned long addr, page_perms_t *pp, unsigned long and_perms, unsigned long or_perms)
 {
+# if defined(__arm__)
+	printk("mem_set_perms: please implement(arm)\n");
+
+	return 0;
+# else
 /**********************************************************************/
 /*   Following  code  is Xen/paravirt safe. Xen wont let us directly  */
 /*   touch  the  page  table,  so  we  use  the  appropriate wrapper  */
@@ -1472,6 +1499,7 @@ static pte_t *(*lookup_address)(void *, int *);
 //	}
 //# endif
 //	return ret;
+#endif
 }
 /**********************************************************************/
 /*   Invoked  by  pid  provider (fastrap_isa.c) when poking into the  */

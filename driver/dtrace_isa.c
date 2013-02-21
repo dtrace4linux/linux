@@ -38,6 +38,9 @@
 #include <sys/privregs.h>
 #include "../port.h"
 # define regs pt_regs
+# if defined(__arm__)
+#	undef HAVE_STACKTRACE_OPS
+# endif
 # endif
 
 #include <sys/dtrace_impl.h>

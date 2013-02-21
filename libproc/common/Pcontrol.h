@@ -284,8 +284,6 @@ extern char	procfs_path[PATH_MAX];
 #elif defined(__i386) || defined(__amd64)
 #define	BPT	((instr_t)0xcc)
 #elif defined(__arm__)
-# undef R15
-# undef R13
 #include <sys/ucontext.h>
 #define	BPT	((instr_t)0xe7f001f0)
 #endif

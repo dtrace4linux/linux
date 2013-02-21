@@ -209,6 +209,7 @@ static int dcpc_aframes = 0;	/* override for artificial frame setting */
  * Called from the platform overflow interrupt handler. 'bitmap' is a mask
  * which contains the pic(s) that have overflowed.
  */
+#if 0
 static void
 dcpc_fire(uint64_t bitmap)
 {
@@ -255,6 +256,7 @@ dcpc_fire(uint64_t bitmap)
 		}
 	}
 }
+#endif
 
 static void
 dcpc_create_probe(dtrace_provider_id_t id, const char *probename,
@@ -1035,6 +1037,7 @@ dcpc_disable(void *arg, dtrace_id_t id, void *parg)
 }
 
 /*ARGSUSED*/
+#if 0
 static int
 dcpc_cpu_setup(cpu_setup_t what, processorid_t cpu, void *arg)
 {
@@ -1095,6 +1098,7 @@ dcpc_cpu_setup(cpu_setup_t what, processorid_t cpu, void *arg)
 #endif
 	return (0);
 }
+#endif
 
 static dtrace_pattr_t dcpc_attr = {
 { DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_COMMON },
@@ -1118,11 +1122,13 @@ static dtrace_pops_t dcpc_pops = {
 };
 
 /*ARGSUSED*/
+#if 0
 static int
 dcpc_open(dev_t *devp, int flag, int otyp, cred_t *cred_p)
 {
 	return (0);
 }
+#endif
 
 #if defined(sun)
 /*ARGSUSED*/

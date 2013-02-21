@@ -14,70 +14,9 @@ typedef int     greg_t;
 #endif
 #endif /* __KERNEL__ */
 
-# if 0
-struct _fpreg { /* structure of a temp real fp register */
-        unsigned short significand[4];  /* 64 bit mantissa value */
-        unsigned short exponent;        /* 15 bit exponent and sign bit */
-};
-# endif
-
 #if defined(__amd64)
 
-# if 0
-typedef struct fpu {
-        union {
-                struct fpchip_state {
-                        uint16_t cw;
-                        uint16_t sw;
-                        uint8_t  fctw;
-                        uint8_t  __fx_rsvd;
-                        uint16_t fop;
-                        uint64_t rip;
-                        uint64_t rdp;
-                        uint32_t mxcsr;
-                        uint32_t mxcsr_mask;
-                        union {
-                                uint16_t fpr_16[5];
-                                upad128_t __fpr_pad;
-                        } st[8];
-                        upad128_t xmm[16];
-                        upad128_t __fx_ign2[6];
-                        uint32_t status;        /* sw at exception */
-                        uint32_t xstatus;       /* mxcsr at exception */
-                } fpchip_state;
-                uint32_t        f_fpregs[130];
-        } fp_reg_set;
-} fpregset_t;
-# endif
-
-#else   /* __i386 */
-
-/*
- * This definition of the floating point structure is binary
- * compatible with the Intel386 psABI definition, and source
- * compatible with that specification for x87-style floating point.
- * It also allows SSE/SSE2 state to be accessed on machines that
- * possess such hardware capabilities.
- */
-# if 0
-typedef struct fpu {
-        union {
-                struct fpchip_state {
-                        uint32_t state[27];     /* 287/387 saved state */
-                        uint32_t status;        /* saved at exception */
-                        uint32_t mxcsr;         /* SSE control and status */
-                        uint32_t xstatus;       /* SSE mxcsr at exception */
-                        uint32_t __pad[2];      /* align to 128-bits */
-                        upad128_t xmm[8];       /* %xmm0-%xmm7 */
-                } fpchip_state;
-                struct fp_emul_space {          /* for emulator(s) */
-                        uint8_t fp_emul[246];
-                        uint8_t fp_epad[2];
-                } fp_emul_space;
-                uint32_t        f_fpregs[95];   /* union of the above */
-        } fp_reg_set;
-} fpregset_t;
-# endif
+#elif defined(__i386)
 
 /*
  * (This structure definition is specified in the i386 ABI supplement)
@@ -120,28 +59,30 @@ typedef int64_t greg64_t;
 # define NGREG	_NGREG
 
 # if !defined(EFL)
-# define	EDI	4
-# define	ESI	5
-# define	EBP	6
-# define	ESP	7
-# define	EBX	8
-# define	EDX	9
-# define	ECX	10
-# define	EAX	11
-# define	TRAPNO	12
-# define	ERR	13
-# define	EIP	14
-# define	EFL	16
-# define	UESP	17
+# 	define	EDI	4
+#	define	ESI	5
+#	define	EBP	6
+#	define	ESP	7
+#	define	EBX	8
+#	define	EDX	9
+#	define	ECX	10
+#	define	EAX	11
+#	define	TRAPNO	12
+#	define	ERR	13
+#	define	EIP	14
+#	define	EFL	16
+#	define	UESP	17
 # endif
-# define DS 7
-# define ES 8
-# define FS 9
-# define GS 10
-# define CS  13
-# define SS   16
+
+# define DS	7
+# define ES	8
+# define FS	9
+# define GS	10
+# define CS 	13
+# define SS  	16
 
 /* x86-64 */
+# if defined(__amd64)
 #define REG_GSBASE      27
 #define REG_FSBASE      26
 #define REG_DS          25
@@ -177,8 +118,6 @@ typedef int64_t greg64_t;
 #define MSR_AMD_FSBASE  0xc0000100      /* 64-bit base address for %fs */
 #define MSR_AMD_GSBASE  0xc0000101      /* 64-bit base address for %gs */
 
-#if defined(__amd64)
-
 #define REG_PC  REG_RIP
 #define REG_FP  REG_RBP
 #define REG_SP  REG_RSP
@@ -186,7 +125,7 @@ typedef int64_t greg64_t;
 #define REG_R0  REG_RAX
 #define REG_R1  REG_RDX
 
-#else   /* __i386 */
+#elif defined(__i386)
 
 #define REG_PC  EIP
 #define REG_FP  EBP
@@ -203,6 +142,8 @@ typedef int64_t greg64_t;
 # if defined(__arm__)
 #	define	R15	15
 #	define	R13	13
+#	define	REG_RSP	13
+#	define	REG_RIP	12
 # endif
 
 # endif

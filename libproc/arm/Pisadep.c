@@ -473,21 +473,11 @@ Pstack_iter(struct ps_prochandle *P, const prgregset_t regs,
 uintptr_t
 Psyscall_setup(struct ps_prochandle *P, int nargs, int sysindex, uintptr_t sp)
 {
-	if (P->status.pr_dmodel == PR_MODEL_ILP32) {
-		sp -= sizeof (int) * (nargs+2);
-
-		P->status.pr_lwp.pr_reg[REG_RAX] = sysindex;
-		P->status.pr_lwp.pr_reg[REG_RSP] = sp;
-		P->status.pr_lwp.pr_reg[REG_RIP] = P->sysaddr;
-	} else {
-		int pusharg = (nargs > 6) ? nargs - 6: 0;
-
-		sp -= sizeof (int64_t) * (pusharg+2);
-
-		P->status.pr_lwp.pr_reg[REG_RAX] = sysindex;
-		P->status.pr_lwp.pr_reg[REG_RSP] = sp;
-		P->status.pr_lwp.pr_reg[REG_RIP] = P->sysaddr;
-	}
+	sp -= sizeof (int) * (nargs+2);
+	printf("%s:%d: Please verify\n", __func__, __LINE__);
+	P->status.pr_lwp.pr_reg[REG_R0] = sysindex;
+	P->status.pr_lwp.pr_reg[REG_RSP] = sp;
+	P->status.pr_lwp.pr_reg[REG_RIP] = P->sysaddr;
 
 	return (sp);
 }
@@ -515,29 +505,8 @@ Psyscall_copyinargs(struct ps_prochandle *P, int nargs, argdes_t *argp,
 		int pusharg = (nargs > 6) ? nargs - 6: 0;
 
 		for (i = 0, adp = argp; i < nargs; i++, adp++) {
-			switch (i) {
-			case 0:
-				(void) Pputareg(P, REG_RDI, adp->arg_value);
-				break;
-			case 1:
-				(void) Pputareg(P, REG_RSI, adp->arg_value);
-				break;
-			case 2:
-				(void) Pputareg(P, REG_RDX, adp->arg_value);
-				break;
-			case 3:
-				(void) Pputareg(P, REG_RCX, adp->arg_value);
-				break;
-			case 4:
-				(void) Pputareg(P, REG_R8, adp->arg_value);
-				break;
-			case 5:
-				(void) Pputareg(P, REG_R9, adp->arg_value);
-				break;
-			default:
-				arglist[i - 5] = (uint64_t)adp->arg_value;
-				break;
-			}
+			printf("%s:%d: Please verify\n", __func__, __LINE__);
+			(void) Pputareg(P, i, adp->arg_value);
 		}
 
 		arglist[0] = P->status.pr_lwp.pr_reg[REG_RIP];
@@ -578,35 +547,11 @@ Psyscall_copyoutargs(struct ps_prochandle *P, int nargs, argdes_t *argp,
 			return (-1);
 
 		for (i = 0, adp = argp; i < nargs; i++, adp++) {
-			switch (i) {
-			case 0:
-				adp->arg_value =
-				    P->status.pr_lwp.pr_reg[REG_RDI];
-				break;
-			case 1:
-				adp->arg_value =
-				    P->status.pr_lwp.pr_reg[REG_RSI];
-				break;
-			case 2:
-				adp->arg_value =
-				    P->status.pr_lwp.pr_reg[REG_RDX];
-				break;
-			case 3:
-				adp->arg_value =
-				    P->status.pr_lwp.pr_reg[REG_RCX];
-				break;
-			case 4:
-				adp->arg_value =
-				    P->status.pr_lwp.pr_reg[REG_R8];
-				break;
-			case 5:
-				adp->arg_value =
-				    P->status.pr_lwp.pr_reg[REG_R9];
-				break;
-			default:
-				adp->arg_value = arglist[i - 6];
-				break;
-			}
+			/***********************************************/
+			/*   Need to verify this for ARM.	       */
+			/***********************************************/
+			adp->arg_value =
+			    P->status.pr_lwp.pr_reg[i];
 		}
 
 		return (0);

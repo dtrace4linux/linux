@@ -141,7 +141,7 @@ dtrace_casptr(void *target, void *cmp, void *new)
 uint32_t
 dtrace_cas32(uint32_t *target, uint32_t cmp, uint32_t new)
 {
-	return cmpxchg((void **) target, (void **) cmp, (void **) new);
+	return (uint32_t) cmpxchg((void **) target, (void **) cmp, (void **) new);
 }
 void *
 dtrace_casptr(void *target, void *cmp, void *new) 

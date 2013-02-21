@@ -1,3 +1,11 @@
+Thu Feb 21 23:25:12 2013  fox
+
+     816* Various: Changes to compile on 3.6.8/ARM/RaspberryPi kernel.
+          ARM is still no good to run. This build *should* compile
+	  apart from the very last section on divmod64.c processing,
+	  but am releasing to keep current. Theres still a lot
+	  of execution time work to do.
+
 Mon Feb 11 21:26:31 2013  fox
 
      815* libdtrace/dt_link.c: Start to implement dt_modtext for ARM.

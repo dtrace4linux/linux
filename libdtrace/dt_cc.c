@@ -93,7 +93,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <ucontext.h>
+# if !defined(__arm__)
+#	include <ucontext.h>
+# endif
 #include <limits.h>
 #include <ctype.h>
 #include <dirent.h>

@@ -114,7 +114,6 @@ typedef int64_t greg64_t;
 #define REG_RDI         0
 
 /* AMD's FS.base and GS.base MSRs */
-
 #define MSR_AMD_FSBASE  0xc0000100      /* 64-bit base address for %fs */
 #define MSR_AMD_GSBASE  0xc0000101      /* 64-bit base address for %gs */
 
@@ -133,6 +132,37 @@ typedef int64_t greg64_t;
 #define REG_PS  EFL
 #define REG_R0  EAX
 #define REG_R1  EDX
+
+/* AMD's FS.base and GS.base MSRs */
+#define MSR_AMD_FSBASE  0xc0000100      /* 64-bit base address for %fs */
+#define MSR_AMD_GSBASE  0xc0000101      /* 64-bit base address for %gs */
+
+	/***********************************************/
+	/*   These  registers  are  wrong  for i386 -  */
+	/*   this   is   needed   by   the   code  in  */
+	/*   fasttrap_isa.c  in  case  user  tries to  */
+	/*   probe them.			       */
+	/***********************************************/
+#define REG_GSBASE      19
+#define REG_FSBASE      18
+#define REG_DS          17
+#define REG_ES          16
+#define REG_GS          15
+#define REG_FS          14
+#define REG_SS          13
+#define REG_RSP         12
+#define REG_RFL         11
+#define REG_CS          10
+#define REG_RIP         9
+#define REG_ERR         8
+#define REG_TRAPNO      7
+#define REG_RBP         6
+#define REG_RBX         5
+#define REG_RAX         4
+#define REG_RCX         3
+#define REG_RDX         2
+#define REG_RSI         1
+#define REG_RDI         0
 
 #endif  /* __i386 */
 

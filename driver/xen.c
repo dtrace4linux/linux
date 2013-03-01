@@ -80,12 +80,16 @@ dtrace_xen_hypercall(int call, void *a, void *b, void *c)
 	hp = (void *) (hypercall_page + call * 32);
 	ret = hp(a, b, c);
 	return ret;
+#else
+	return 0;
 #endif /* DO_XEN */
 }
 
+#if DO_XEN
 static struct xen_cpu_info_t {
 	int	xen_port;
 	} xen_cpu_info[NCPU];
+#endif
 
 void
 xen_xcall_init(void)

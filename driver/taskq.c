@@ -29,7 +29,9 @@
 /*   come under the CDDL.					      */
 /**********************************************************************/
 
+# if !defined(__arm__)
 #define __alloc_workqueue_key local__alloc_workqueue_key
+# endif
 #define lockdep_init_map local_lockdep_init_map
 
 #include <dtrace_linux.h>

@@ -1,3 +1,8 @@
+Wed Mar  6 22:49:14 2013  fox
+
+     818* dtrace.c: dtrace_probe: When checking for Xen probes with
+     interrupts disabled, be careful of deref of null ptr.
+
 Fri Mar  1 21:53:13 2013  fox
 
      817* linux/sys/regset.h: Fix for i386 build after rearranging for

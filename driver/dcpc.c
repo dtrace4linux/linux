@@ -662,7 +662,7 @@ static void
 dcpc_block_interrupts(void)
 {
 	cpu_t *c = cpu_list;
-	uint8_t *state;
+	uint32_t *state;
 
 	ASSERT(cpu_core[c->cpu_id].cpuc_dcpc_intr_state != DCPC_INTR_INACTIVE);
 
@@ -1045,7 +1045,7 @@ dcpc_cpu_setup(cpu_setup_t what, processorid_t cpu, void *arg)
 	TODO();
 #else
 	cpu_t *c;
-	uint8_t *state;
+	uint32_t *state;
 
 	ASSERT(MUTEX_HELD(&cpu_lock));
 

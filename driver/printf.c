@@ -42,8 +42,8 @@ hrtime_str(hrtime_t s)
 {	int	s1 = s / (1000 * 1000 * 1000);
 	int	s2 = s % (1000 * 1000 * 1000);
 	int	i;
-static char buf[32];
-static char tmp[32];
+static char buf[44];
+static char tmp[44];
 	char	*bp = buf;
 
 	for (i = 0; ; ) {
@@ -98,7 +98,8 @@ dtrace_kernel_panic(struct notifier_block *this, unsigned long event, void *ptr)
 /**********************************************************************/
 volatile int dtrace_printf_lock = -1;
 # define ADDCH(ch) {dtrace_buf[dbuf_i] = ch; dbuf_i = (dbuf_i + 1) % LOG_BUFSIZ;}
-static	char	tmp[40];
+#define	MAX_DIGITS 40 /* In case of buggy divmod64.c */
+static	char	tmp[48];
 
 void
 dtrace_printf(const char *fmt, ...)
@@ -268,7 +269,7 @@ static hrtime_t	hrt0;
 				ADDCH('-');
 				n = -n;
 			}
-			for (i = 0; i < 40; i++) {
+			for (i = 0; i < MAX_DIGITS; i++) {
 				tmp[i] = '0' + (n % 10);
 				n /= 10;
 				if (n == 0)
@@ -278,7 +279,7 @@ static hrtime_t	hrt0;
 				ADDCH(tmp[i--]);
 		  	break;
 		  case 'p':
-#if defined(__i386)
+#if defined(__i386) || defined(__arm__)
 		  	width = 8;
 #else
 		  	width = 16;

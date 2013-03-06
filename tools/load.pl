@@ -211,8 +211,13 @@ sub main
 	if ($fh) {
 		while (<$fh>) {
 			chomp;
+			###############################################
+			#   Be  careful  in  case  /boot/System file  #
+			#   doesnt  agree  with /proc/kallsyms; only  #
+			#   on my hacked system.		      #
+			###############################################
 			my $s = (split(" ", $_))[2];
-			$syms{$s} = $_;
+			$syms{$s} = $_ if !defined($syms{$s});
 		}
 	}
 	###############################################

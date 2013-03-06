@@ -270,11 +270,19 @@ typedef enum {
 /*   Macro to create a function (like ENTRY()) inside an __asm block  */
 /*   in a C function.						      */
 /**********************************************************************/
-# define FUNCTION(x) 			\
-        ".text\n" 			\
-	".globl " #x "\n" 		\
-        ".type   " #x ", @function\n"	\
-	#x ":\n"
+# if defined(__i386) || defined(__amd64)
+# 	define FUNCTION(x) 			\
+	        ".text\n" 			\
+		".globl " #x "\n" 		\
+	        ".type   " #x ", @function\n"	\
+		#x ":\n"
+# elif defined(__arm__)
+# 	define FUNCTION(x) 			\
+	        ".text\n" 			\
+		".global " #x "\n" 		\
+	        ".type   " #x ", %function\n"	\
+		#x ":\n"
+#endif
 # define END_FUNCTION(x) \
 	".size " #x ", .-" #x "\n"
 

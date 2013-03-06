@@ -6262,6 +6262,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	void __dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 		    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4);
 	int cpu;
+	cpu_core_t *cpup;
 
 	/***********************************************/
 	/*   Allow us to disable dtrace as soon as we  */
@@ -6283,7 +6284,13 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/*   dtrace_int[13]_handler.		       */
 	/***********************************************/
 	cpu = cpu_get_id();
-	if (cpu_get_this()->cpuc_regs->r_rfl & X86_EFLAGS_IF) {
+
+	/***********************************************/
+	/*   cpuc_regs  may  be null until we get the  */
+	/*   first probe. Silly me.		       */
+	/***********************************************/
+	cpup = cpu_get_this();
+	if (cpup && cpup->cpuc_regs && cpup->cpuc_regs->r_rfl & X86_EFLAGS_IF) {
 		if (dtrace_safe) {
 			cnt_probe_safe++;
 			return;

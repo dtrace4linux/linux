@@ -1,3 +1,9 @@
+Sun Mar 17 07:13:40 2013  fox
+
+     819* driver/dtrace_linux.c: Fix xtime_cache_ptr so that
+          the timestamp function works on Ubuntu 12.04 (or any >= 3.4
+	  kernel).
+
 Wed Mar  6 22:49:14 2013  fox
 
      818* dtrace.c: dtrace_probe: When checking for Xen probes with

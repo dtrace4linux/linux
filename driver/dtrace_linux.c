@@ -691,6 +691,36 @@ dtrace_linux_init(void)
 	xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime_cache");
 	if (xtime_cache_ptr == NULL)
 		xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime");
+
+	/***********************************************/
+	/*   Dirty    code:   in   3.4   and   above,  */
+	/*   xtime_cache  is  hiding inside a private  */
+	/*   struct.  We  replicate the first part of  */
+	/*   the  struct here to get to the location.  */
+	/*   Without   this,  DIF_VAR_TIMESTAMP  wont  */
+	/*   return a useful value.		       */
+	/***********************************************/
+	if (xtime_cache_ptr == NULL) {
+		char *p = get_proc_addr("timekeeper");
+		if (p) {
+			/***********************************************/
+			/*   See kernel/time/timekeeping.c	       */
+			/***********************************************/
+			struct timekeeper_hack {
+				void *clock;
+				u32 mult;
+				int shift;
+				u64 cycle_interval;
+				u64 xtime_interval;
+				s64 xtime_remainder;
+				u32 raw_interval;
+				u64 xtime_nsec;
+				s64 ntp_error;
+				int ntp_error_shift;
+				};
+			xtime_cache_ptr = (struct timespec *) (p + sizeof(struct timekeeper_hack));
+		}
+	}
 # if defined(__arm__)
 	ktime_get_ptr = (ktime_t (*)(void)) get_proc_addr("ktime_get");
 	# define rdtscll(t) t = ktime_get_ptr().tv64

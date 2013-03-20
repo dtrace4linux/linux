@@ -24,12 +24,9 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dt_grammar.y	1.9	06/01/07 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#define YYERROR_VERBOSE
-#include <port.h>
 #include <dt_impl.h>
-#include <string.h>
 
 #define	OP1(op, c)	dt_node_op1(op, c)
 #define	OP2(op, l, r)	dt_node_op2(op, l, r)
@@ -48,21 +45,21 @@
 }
 
 %token	DT_TOK_COMMA DT_TOK_ELLIPSIS
-%token	DT_TOK_ASGN "=" DT_TOK_ADD_EQ "+=" DT_TOK_SUB_EQ "-=" DT_TOK_MUL_EQ "*="
-%token	DT_TOK_DIV_EQ "/=" DT_TOK_MOD_EQ "%=" DT_TOK_AND_EQ "&=" DT_TOK_XOR_EQ "^=" DT_TOK_OR_EQ "|="
-%token	DT_TOK_LSH_EQ "<<=" DT_TOK_RSH_EQ ">>=" DT_TOK_QUESTION "?" DT_TOK_COLON ":"
-%token	DT_TOK_LOR "||" DT_TOK_LXOR "^^" DT_TOK_LAND "&&"
+%token	DT_TOK_ASGN DT_TOK_ADD_EQ DT_TOK_SUB_EQ DT_TOK_MUL_EQ
+%token	DT_TOK_DIV_EQ DT_TOK_MOD_EQ DT_TOK_AND_EQ DT_TOK_XOR_EQ DT_TOK_OR_EQ
+%token	DT_TOK_LSH_EQ DT_TOK_RSH_EQ DT_TOK_QUESTION DT_TOK_COLON
+%token	DT_TOK_LOR DT_TOK_LXOR DT_TOK_LAND
 %token	DT_TOK_BOR DT_TOK_XOR DT_TOK_BAND DT_TOK_EQU DT_TOK_NEQ
-%token	DT_TOK_LT "<" DT_TOK_LE "<=" DT_TOK_GT ">" DT_TOK_GE ">=" DT_TOK_LSH "<<" DT_TOK_RSH ">>"
-%token	DT_TOK_ADD "+" DT_TOK_SUB "-" DT_TOK_MUL "*" DT_TOK_DIV "/" DT_TOK_MOD "%"
-%token	DT_TOK_LNEG "!" DT_TOK_BNEG "~" DT_TOK_ADDADD "++" DT_TOK_SUBSUB "--"
+%token	DT_TOK_LT DT_TOK_LE DT_TOK_GT DT_TOK_GE DT_TOK_LSH DT_TOK_RSH
+%token	DT_TOK_ADD DT_TOK_SUB DT_TOK_MUL DT_TOK_DIV DT_TOK_MOD
+%token	DT_TOK_LNEG DT_TOK_BNEG DT_TOK_ADDADD DT_TOK_SUBSUB
 %token	DT_TOK_PREINC DT_TOK_POSTINC DT_TOK_PREDEC DT_TOK_POSTDEC
 %token	DT_TOK_IPOS DT_TOK_INEG DT_TOK_DEREF DT_TOK_ADDROF
-%token	DT_TOK_OFFSETOF "offsetof" DT_TOK_SIZEOF "sizeof" DT_TOK_STRINGOF "stringof" DT_TOK_XLATE "xlate"
-%token	DT_TOK_LPAR "(" DT_TOK_RPAR ")" DT_TOK_LBRAC "{" DT_TOK_RBRAC "}" DT_TOK_PTR "->" DT_TOK_DOT "."
+%token	DT_TOK_OFFSETOF DT_TOK_SIZEOF DT_TOK_STRINGOF DT_TOK_XLATE
+%token	DT_TOK_LPAR DT_TOK_RPAR DT_TOK_LBRAC DT_TOK_RBRAC DT_TOK_PTR DT_TOK_DOT
 
-%token <l_str>	DT_TOK_STRING "<string>"
-%token <l_str>	DT_TOK_IDENT "identifier"
+%token <l_str>	DT_TOK_STRING
+%token <l_str>	DT_TOK_IDENT
 %token <l_str>	DT_TOK_PSPEC
 %token <l_str>	DT_TOK_AGG
 %token <l_str>	DT_TOK_TNAME
@@ -160,12 +157,8 @@
 %type	<l_node>	init_declarator_list
 %type	<l_node>	init_declarator
 
-%type	<l_node>	parameter_declaration_specifiers
-
-%type	<l_decl>	declaration_specifiers
 %type	<l_decl>	type_specifier
 %type	<l_decl>	type_qualifier
-%type	<l_decl>	storage_class_specifier
 %type	<l_decl>	struct_or_union_specifier
 %type	<l_decl>	specifier_qualifier_list
 %type	<l_decl>	enum_specifier
@@ -213,10 +206,9 @@
 
 %%
 
-/* Removed DT_TOK_EOF due to portability issues amongst bison/yacc */
-dtrace_program: d_expression { return (dt_node_root($1)); }
-	|	d_program { return (dt_node_root($1)); }
-	|	d_type { return (dt_node_root($1)); }
+dtrace_program: d_expression DT_TOK_EOF { return (dt_node_root($1)); }
+	|	d_program DT_TOK_EOF { return (dt_node_root($1)); }
+	|	d_type DT_TOK_EOF { return (dt_node_root($1)); }
 	;
 
 d_expression:	DT_CTX_DEXPR { $$ = NULL; }
@@ -601,21 +593,21 @@ declaration:	declaration_specifiers ';' {
 	;
 
 declaration_specifiers:
-		d_storage_class_specifier { $$ = 0; }
-	|	d_storage_class_specifier declaration_specifiers { $$ = $2; }
-	|	type_specifier 
+		d_storage_class_specifier
+	|	d_storage_class_specifier declaration_specifiers
+	|	type_specifier
 	|	type_specifier declaration_specifiers
-	|	type_qualifier 
+	|	type_qualifier
 	|	type_qualifier declaration_specifiers
 	;
 
 parameter_declaration_specifiers:
-		storage_class_specifier { $$ = $1; }
-	|	storage_class_specifier declaration_specifiers { $$ = $2; }
-	|	type_specifier { $$ = $1;}
-	|	type_specifier declaration_specifiers { $$ = $2; }
-	|	type_qualifier { $$ = $1; }
-	|	type_qualifier declaration_specifiers { $$ = $2;}
+		storage_class_specifier
+	|	storage_class_specifier declaration_specifiers
+	|	type_specifier
+	|	type_specifier declaration_specifiers
+	|	type_qualifier
+	|	type_qualifier declaration_specifiers
 	;
 
 storage_class_specifier:
@@ -627,7 +619,7 @@ storage_class_specifier:
 	;
 
 d_storage_class_specifier:
-		storage_class_specifier { }
+		storage_class_specifier
 	|	DT_KEY_SELF { dt_decl_class(DT_DC_SELF); }
 	|	DT_KEY_THIS { dt_decl_class(DT_DC_THIS); }
 	;

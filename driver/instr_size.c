@@ -110,6 +110,12 @@ dtrace_dis_get_byte(void *p)
 static int
 dtrace_dis_isize(uchar_t *instr, dis_isize_t which, model_t model, int *rmindex)
 {
+# if defined(__arm__)
+	if (rmindex != NULL)
+		*rmindex = 0;
+	return 4;
+
+# elif defined(__amd64) || defined(__i386)
 	int sz;
 	dis86_t	x;
 	uint_t mode = SIZE32;
@@ -131,6 +137,10 @@ dtrace_dis_isize(uchar_t *instr, dis_isize_t which, model_t model, int *rmindex)
 	if (rmindex != NULL)
 		*rmindex = x.d86_rmindex;
 	return (sz);
+# else
+#	error "dtrace_dis_isize: cannot handle this cpu"
+#endif
+
 }
 
 int

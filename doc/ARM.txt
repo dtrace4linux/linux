@@ -1,0 +1,67 @@
+Author: Paul Fox
+Date: 27 Apr 2013
+
+  DTrace can run on the ARM processor. The ARM CPU exists as a number
+  of variants, from tiny embedded CPUs, to full blown general purpose
+  CPUs, commonly found in smart phones and other systems. As of this writing,
+  ARM/64 is coming.
+  
+  The earliest ARM processors had limited memory support (many instructions
+  refer to 26-bit addresses); later processors can support 4GB of memory.
+  
+  The ARM port of DTrace has been done in a KVM virtual machine, targetting
+  a custom kernel (Debian/Wheezy and 3.6.11 kernel) for the RaspberryPi,
+  which is a ARMv6 architecture kernel and CPU.
+  
+  This specific kernel was chosen, simply so that I could tally the kernel
+  binary with the source code, in order to clarify how the ARM
+  architecture worked, and specifics of debugging probe functions.
+  In theory DTrace should work on earlier and later kernels.
+  
+  As of this writing, SMP kernels have not been tried. Almost certainly,
+  DTrace will not work on an SMP system (because I have not validated
+  the xcall CPU code). It *might*, but I am suspect it will not, and there
+  is a need to verify this.
+  
+  This port relies on the register_undef_hook() kernel function
+  to intercept the FBT probes. FBT probes are implemented by
+  using an undefined-instruction and handling the traps they generated.
+  This is different to x86, where 0xCC (INT3) and single-step mode is
+  used to manage probes which are taken. (ARM appears not to have
+  single-step mode execution).
+  
+  The file toxic.c is updated to avoid those parts of the
+  interrupt fabric which are needed for the probes to fire, so we are
+  more conservative in what can be probed (this mostly wont matter
+  to most people). "dtrace -n fbt:::" is *safe*, as far as my testing
+  is concerned, and the toxic probe functions reflect areas which have
+  caused trouble. It is possible that more research is needed if you
+  attempt to step out of what I have personally tested.
+
+Google Inc, acknowledgement:
+
+  GCC emits calls for certain 64-bit int operations (divide and 
+  unsigned divide). These come from libgcc.a. The code in
+  driver/arm_divmod64.S comes from Google, to which I owe thanks.
+  My ARM assembly skills are not strong enough to write this from
+  scratch, and it is helpful as it allows various aspects of DTrace
+  to just work. 
+
+Summary:
+  
+     * ARMv6 architecture only
+     * No support for Thumb mode (or, not tested with Thumb user apps)
+     * Validated against RaspberryPi
+     * Not validated against Android
+     * Not validated on SMP
+     * Not validated on ARM/64
+     * Not validated on < ARMv6 or > ARMv6
+  
+     * FBT works
+     * USDT has not been validated
+     * SYSCALL is dummied out - to be fixed in subsequent release
+  
+Future:
+  
+  Some of the items above will be addressed in future versions, especially
+  SYSCALL, followed by SMP, and eventually, Android.

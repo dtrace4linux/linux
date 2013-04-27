@@ -34,6 +34,7 @@
 #include <linux/list.h>
 #include <linux/kallsyms.h>
 #include <linux/seq_file.h>
+#include <sys/procfs_isa.h>
 
 # undef NULL
 # define NULL 0
@@ -52,7 +53,11 @@ MODULE_DESCRIPTION("DTRACE/Instruction Tracing Driver");
 /*   GCC aligns to a quad boundary).				      */
 /**********************************************************************/
 #if defined(linux)
-#  define	INSTR_PATCHVAL		0xcc
+#  if defined(__arm__)
+#    define	INSTR_PATCHVAL		0xe1200070
+#  else
+#    define	INSTR_PATCHVAL		0xcc
+#  endif
 #else
 #  if defined(__amd64)
 #    define	INSTR_PATCHVAL		0xcc
@@ -67,8 +72,8 @@ MODULE_DESCRIPTION("DTRACE/Instruction Tracing Driver");
 typedef struct instr_probe {
 	struct instr_probe *insp_hashnext;
 	uint8_t		*insp_patchpoint;
-	uint8_t		insp_patchval;
-	uint8_t		insp_savedval;
+	instr_t		insp_patchval;
+	instr_t		insp_savedval;
 	uint8_t		insp_inslen;	/* Length of instr we are patching */
 	char		insp_modrm;	/* Offset to modrm byte of instruction */
 	char		insp_enabled;
@@ -1101,7 +1106,9 @@ static struct miscdevice instr_dev = {
 static int initted;
 
 int instr_init(void)
-{	int	ret;
+{
+# if !defined(__arm__)
+	int	ret;
 	struct proc_dir_entry *ent;
 
 	ret = misc_register(&instr_dev);
@@ -1135,16 +1142,17 @@ int instr_init(void)
 
 	initted = 1;
 
+# endif
 	return 0;
 }
 void instr_exit(void)
 {
+# if !defined(__arm__)
 	if (initted) {
 		remove_proc_entry("dtrace/instr", 0);
 		instr_cleanup(NULL);
 		misc_deregister(&instr_dev);
 		initted = FALSE;
 	}
-
-//	printk(KERN_WARNING "instr driver unloaded.\n");
+# endif
 }

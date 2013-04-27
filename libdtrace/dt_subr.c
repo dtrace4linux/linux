@@ -526,8 +526,19 @@ dt_sysconf(dtrace_hdl_t *dtp, int name)
 {
 	const dtrace_vector_t *v = dtp->dt_vector;
 
-	if (v == NULL)
+	if (v == NULL) {
+#if linux
+		/***********************************************/
+		/*   Avoid  picking  1  more  than the actual  */
+		/*   number of cpus in dt_consume_begin. On a  */
+		/*   non-SMP  kernel, we abort with an EINVAL  */
+		/*   in the BUFSNAP code.		       */
+		/***********************************************/
+		if (name == _SC_CPUID_MAX)
+			return sysconf(_SC_CPUID_MAX) - 1;
+#endif
 		return (sysconf(name));
+		}
 
 	return (v->dtv_sysconf(dtp->dt_varg, name));
 }

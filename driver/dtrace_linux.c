@@ -749,6 +749,16 @@ static int
 dtrace_linux_fini(void)
 {	int	ret = 1;
 
+	/***********************************************/
+	/*   If kernel doesnt have this enabled, then  */
+	/*   we  wont  have  set  up the notifier and  */
+	/*   cannot    detect    new    procs   being  */
+	/*   created/exiting.			       */
+	/***********************************************/
+	if (fn_profile_event_unregister == NULL &&
+	    fn_profile_event_register == NULL)
+	    	return 1;
+
 	if (fn_profile_event_unregister) {
 		int pret = (*fn_profile_event_unregister)(PROFILE_TASK_EXIT, &n_exit);
 		if (pret) {

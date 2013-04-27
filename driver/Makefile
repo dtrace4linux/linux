@@ -63,6 +63,7 @@ ifdef BUILD_i386
 	dtracedrv-objs += ../libgcc.a
 endif
 ifdef BUILD_ARM
+	dtracedrv-objs += intr_arm.o 
 	dtracedrv-objs += arm_divmod64.o 
 endif
 

@@ -28,6 +28,7 @@
 #include <linux/kallsyms.h>
 #include <linux/seq_file.h>
 #include <sys/trap.h>
+#include <sys/procfs_isa.h>
 
 /**********************************************************************/
 /*   Backwards compat for older kernels.			      */
@@ -369,7 +370,11 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	cpu_trap_t	trap_info;
 	cpu_trap_t	*tp;
 	int	ret;
-
+# if defined(__arm__)
+	int	bkpt_offset = 0;
+# else
+	int	bkpt_offset = 1;
+# endif
 //dtrace_printf("#%lu INT3 PC:%p REGS:%p CPU:%d mode:%d\n", cnt_int3_1, regs->r_pc-1, regs, cpu_get_id(), this_cpu->cpuc_mode);
 //preempt_disable();
 	cnt_int3_1++;
@@ -386,6 +391,8 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	/*   a probe?				       */
 	/***********************************************/
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE) {
+		instr_t pc = (instr_t *) regs->r_pc - bkpt_offset;
+
 		/***********************************************/
 		/*   Is this one of our probes?		       */
 		/***********************************************/
@@ -395,7 +402,7 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 		/*   Save   original   location   for   debug  */
 		/*   purposes in cpu_x86.c		       */
 		/***********************************************/
-		tp->ct_orig_pc0 = (unsigned char *) regs->r_pc - 1;
+		tp->ct_orig_pc0 = pc;
 		
 		/***********************************************/
 		/*   Protect  ourselves  in case dtrace_probe  */
@@ -409,7 +416,7 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 		/*   Now try for a probe.		       */
 		/***********************************************/
 //dtrace_printf("CPU:%d ... calling invop\n", cpu_get_id());
-		ret = dtrace_invop(regs->r_pc - 1, (uintptr_t *) regs, 
+		ret = dtrace_invop(pc, (uintptr_t *) regs, 
 			regs->r_rax, &tp->ct_tinfo);
 		if (ret) {
 			cnt_int3_2++;
@@ -1099,6 +1106,11 @@ static pgd_t *swapper_pg_dir;
 void
 intr_exit(void)
 {
+# if defined(__arm__)
+	void arm_intr_exit(void);
+	arm_intr_exit();
+	return;
+# else
 	remove_proc_entry("dtrace/idt", 0);
 	remove_proc_entry("dtrace/gdt", 0);
 
@@ -1129,6 +1141,7 @@ intr_exit(void)
 	if (ipi_vector) {
 	        dtrace_write_idt_entry(ipi_vector, &saved_ipi);
 	}
+# endif
 }
 
 
@@ -1208,7 +1221,15 @@ static struct map tbl[] = {
 /**********************************************************************/
 void
 intr_init(void)
-{	struct proc_dir_entry *ent;
+{
+
+# if defined(__arm__)
+	void arm_intr_init(void);
+	arm_intr_init();
+	return;
+# else
+
+	struct proc_dir_entry *ent;
 static	struct x86_descriptor desc1;
 
 	my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
@@ -1392,4 +1413,5 @@ if (*first_v > ipi_vector)
 	/*   fire from an NMI.			       */
 	/***********************************************/
 //	set_idt_entry(2, (unsigned long) dtrace_int_nmi);
+#endif
 }

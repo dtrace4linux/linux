@@ -52,6 +52,7 @@ void	kmem_free(void *, int size);
 
 char	*dtrace_memchr(const char *, int, int);
 int	is_toxic_func(unsigned long a, const char *name);
+int	is_toxic_return(const char *name);
 int	memory_set_rw(void *addr, int num_pages, int is_kernel_addr);
 void	set_page_prot(unsigned long addr, int len, long and_prot, long or_prot);
 int	on_notifier_list(uint8_t *);
@@ -63,6 +64,7 @@ void	prcom_add_instruction(char *name, uint8_t *instr);
 void	prcom_add_callback(char *probe, char *func, int (*callback)(dtrace_id_t, struct pt_regs *regs));
 void	prcom_add_function(char *probe, char *func);
 void	dtrace_parse_kernel(int, void (*callback)(uint8_t *, int), uint8_t *);
+int	is_probable_instruction(instr_t *, int is_entry);
 void	dtrace_instr_dump(char *label, uint8_t *insn);
 dtrace_icookie_t dtrace_interrupt_get(void);
 void	xcall_slave2(void);

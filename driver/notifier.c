@@ -74,7 +74,7 @@ static provider_t map[] = {
 
 static int enabled;
 static void (*fn_notifier_call_chain)(void);
-static int patchval;
+static instr_t patchval;
 static int inslen;
 static int modrm;
 
@@ -170,7 +170,7 @@ notifier_enable(void *arg, dtrace_id_t id, void *parg)
 		fn_notifier_call_chain = get_proc_addr("notifier_call_chain");
 		if (fn_notifier_call_chain &&
 		    memory_set_rw(fn_notifier_call_chain, 1, TRUE)) {
-			patchval = *(unsigned char *) fn_notifier_call_chain;
+			patchval = *(instr_t *) fn_notifier_call_chain;
 			inslen = dtrace_instr_size_modrm((uchar_t *) fn_notifier_call_chain, &modrm);
 		} else
 			fn_notifier_call_chain = NULL;
@@ -195,8 +195,8 @@ notifier_disable(void *arg, dtrace_id_t id, void *parg)
 {
 	enabled = FALSE;
 	if (fn_notifier_call_chain && patchval &&
-	    *(unsigned char *) fn_notifier_call_chain == PATCHVAL) {
-		*(unsigned char *) fn_notifier_call_chain = patchval;
+	    *(instr_t *) fn_notifier_call_chain == PATCHVAL) {
+		*(instr_t *) fn_notifier_call_chain = patchval;
 	}
 }
 

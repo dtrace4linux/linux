@@ -49,7 +49,30 @@
 /*   for them.							      */
 /**********************************************************************/
 char toxic_probe_tbl[] = {
-//"ack_APIC_irq "
+# if defined(__arm__)
+	/***********************************************/
+	/*   FBT  leverages  the register_undef_hook,  */
+	/*   so need to skip this.		       */
+	/***********************************************/
+	"do_undefinstr "
+	"v6_pabort "
+	"v6_early_abort "
+	"vector_swi "
+	"call_fpe " // entry-armv.S determine if an FP co-processor instruction
+	"do_translation_fault " // nested trap?
+	"do_DataAbort " 	// Needed as part of implementation
+	"do_PrefetchAbort " 	// Needed as part of implementation
+	"__und_invalid " 	// Needed as part of implementation
+	"__und_fault "		// Needed as part of implementation
+	"__und_svc "		// Needed as part of implementation
+	"__und_usr "		// Needed as part of implementation
+	"__und_usr_thumb "	// Needed as part of implementation
+	"__dabt_svc "		// Needed as part of implementation
+	"__dabt_invalid "	// Needed as part of implementation
+	"__und_svc_finish:return "
+	"__pabt_svc "		// :return probe
+	"__irq_svc:return "	// clrex happens just before this, so need to be careful
+# endif
 
 	"__atomic_notifier_call_chain "
 	"__kmalloc "
@@ -134,6 +157,27 @@ is_toxic_func(unsigned long a, const char *name)
 	for (cp = toxic_probe_tbl; *cp; ) {
 		if (strncmp(cp, (char *) name, len) == 0 &&
 		    cp[len] == ' ')
+		    	return 1;
+		while (*cp && *cp != ' ')
+			cp++;
+		while (*cp == ' ')
+			cp++;
+	}
+	return 0;
+}
+
+/**********************************************************************/
+/*   For ARM, there are some :return probes we mustnt intercept.      */
+/**********************************************************************/
+int 
+is_toxic_return(const char *name)
+{	char	*cp;
+	int	len = strlen((char *) name);
+
+	for (cp = toxic_probe_tbl; *cp; ) {
+		if (*cp == *name &&
+		    strncmp(cp, (char *) name, len) == 0 &&
+		    cp[len] == ':')
 		    	return 1;
 		while (*cp && *cp != ' ')
 			cp++;

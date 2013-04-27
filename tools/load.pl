@@ -141,6 +141,10 @@ sub main
 		" grab_panic=$opts{panic}" .
 		" arg_kallsyms_lookup_name=0x$kallsyms_lookup_name"
 		);
+	if (! -d "/proc/dtrace") {
+		print "/proc/dtrace does not exist. Maybe the driver didnt load properly.\n";
+		exit(1);
+	}
 
 	if ($ret) {
 		my $log = -f "/var/log/messages" ? "/var/log/messages" : 
@@ -300,7 +304,7 @@ sub main
 		###############################################
 		#   Some symbols are cpu specific.	      #
 		###############################################
-		if ($amd64 && $uname_m !~ /64/) {
+		if ($amd64) { # && $uname_m =~ /64/) {
 			next;
 		}
 		

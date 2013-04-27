@@ -93,10 +93,20 @@ struct dtrace_cpu { /* Avoid name clash with kernel 'cpu' structure. */
 /*   Structure  used  when  hitting  a trap instruction, to describe  */
 /*   what the instruction looks like (dtrace_invop)		      */
 /**********************************************************************/
+#if linux
+	#if defined(__i386) || defined(__amd64)
+	typedef unsigned char instr_t;
+	#endif
+
+	# if defined(__arm__)
+	typedef unsigned int instr_t;
+	# endif
+#endif
+
 typedef struct trap_instr_t {
 	int		t_doprobe;
 	int		t_modrm;
-	unsigned char	t_opcode;
+	instr_t		t_opcode;
 	unsigned char	t_inslen;
 	} trap_instr_t;
 

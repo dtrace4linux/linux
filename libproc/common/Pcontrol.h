@@ -280,12 +280,12 @@ extern char	procfs_path[PATH_MAX];
  * Architecture-dependent definition of the breakpoint instruction.
  */
 #if defined(sparc) || defined(__sparc)
-#define	BPT	((instr_t)0x91d02001)
+#define	BPT	(0x91d02001)
 #elif defined(__i386) || defined(__amd64)
-#define	BPT	((instr_t)0xcc)
+#define	BPT	(0xcc)
 #elif defined(__arm__)
 #include <sys/ucontext.h>
-#define	BPT	((instr_t)0xe7f001f0)
+#define	BPT	(0xe7f001f8)
 #endif
 
 /*

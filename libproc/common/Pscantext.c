@@ -38,6 +38,7 @@
 #include "Pcontrol.h"
 #include "Pisadep.h"
 #include "Putil.h"
+#include <sys/dtrace.h>
 
 #define	BLKSIZE	(8 * 1024)
 

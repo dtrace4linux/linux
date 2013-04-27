@@ -105,6 +105,10 @@ Feb 2011
 #	define __NR_iopl 1000
 #	define __NR_vm86 1001
 #	define __NR_vm86old 1002
+int syscall_ptreg_template_size;
+int syscall_template_size;
+void syscall_ptreg_template(void) {}
+void syscall_template(void) {}
 # endif
 
 #define	SYSTRACE_ARTIFICIAL_FRAMES	1
@@ -2349,6 +2353,9 @@ int systrace_init(void)
 		printk("systrace: too many syscalls(32b)? %d is too large\n", (int) NSYSCALL32);
 		return 0;
 	}
+
+printk("SYSTRACE IS DISABLED!\n");
+return 0;
 
 	ret = misc_register(&systrace_dev);
 	if (ret) {

@@ -29,9 +29,7 @@
 /*   come under the CDDL.					      */
 /**********************************************************************/
 
-# if !defined(__arm__)
 #define __alloc_workqueue_key local__alloc_workqueue_key
-# endif
 #define lockdep_init_map local_lockdep_init_map
 
 #include <dtrace_linux.h>
@@ -122,7 +120,8 @@ typedef struct my_work_t {
 static my_work_t *callo;
 
 
-static int taskq_enabled = TRUE;
+static int taskq_enabled;
+
 /**********************************************************************/
 /*   Hold on to the dtrace_taskq, from dtrace.c, so we can reuse for  */
 /*   the timeout() functions.					      */
@@ -181,6 +180,20 @@ void dummy_trampoline(void)
 
 	asm(FUNCTION(local_lockdep_init_map));
 	asm("jmp *lockdep_init_map_ptr\n");
+# elif defined(__arm__)
+	asm(FUNCTION(local__alloc_workqueue_key));
+	asm("ldr	ip, .L3x\n");
+	asm("ldr	ip, [ip, #0]\n");
+	asm("bx ip\n");
+	asm(".L3x:	.word __alloc_workqueue_key_ptr\n");
+
+	asm(FUNCTION(local_lockdep_init_map));
+	asm("ldr	ip, .L4x\n");
+	asm("ldr	ip, [ip, #0]\n");
+	asm("bx ip\n");
+	asm(".L4x:	.word local_lockdep_init_map\n");
+# else
+	# error "missing trampoline definition for this CPU"
 # endif
 
 }
@@ -208,7 +221,6 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 		/***********************************************/
 		if (__alloc_workqueue_key_ptr == NULL) {
 			printk("taskq_create failed because of lack of pointers\n");
-			taskq_enabled = FALSE;
 			return 0;
 			}
 #endif
@@ -231,9 +243,9 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 #endif
 	}
 
-
 	tq = (taskq_t *) create_workqueue(name);
 	global_tq = tq;
+	taskq_enabled = TRUE;
 	return tq;
 }
 
@@ -266,7 +278,7 @@ void
 taskq_destroy(taskq_t *tq)                                                   
 {	struct workqueue_struct *wq = (struct workqueue_struct *) tq;
 
-	if (!taskq_enabled)
+	if (!taskq_enabled || wq == NULL)
 		return;
 	if (flush_workqueue_ptr)
 		flush_workqueue_ptr(wq);

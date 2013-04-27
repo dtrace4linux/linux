@@ -18,34 +18,7 @@
 # endif
 
 # if defined(__arm__)
-/**********************************************************************/
-/*   Not  sure  if these two functions are correct, but we can debug  */
-/*   when our printk() invokes this.				      */
-/**********************************************************************/
-long long
-__wrap___aeabi_ldivmod(long long a, long long b)
-{	long long a1 = a;
-	long long b1 = b;
-
-	a1 = do_div(a1, b1);
-
-# if DEBUG
-	printk("__wrap___aeabi_ldivmod: %lld / %lld = %lld\n", a, b, a1);
-# endif
-	return a1;
-}
-long long
-__wrap___aeabi_uldivmod(unsigned long long a, unsigned long long b)
-{	unsigned long long a1 = a;
-	unsigned long long b1 = b;
-
-	a1 = do_div(a1, b1);
-
-# if DEBUG
-	printk("__wrap___aeabi_uldivmod: %llu / %llu = %llu\n", a, b, a1);
-# endif
-	return a1;
-}
+	// See arm_divmod64.S
 # endif /* defined(__arm__) */
 
 long long
@@ -106,3 +79,4 @@ raise(int sig)
 {
 	return 0;
 }
+

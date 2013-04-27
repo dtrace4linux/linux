@@ -19,6 +19,7 @@
 #include <dtrace_proto.h>
 #include <linux/miscdevice.h>
 #include <linux/kallsyms.h>
+#include <sys/procfs_isa.h>
 
 #define regs pt_regs
 #include <sys/stack.h>
@@ -68,7 +69,7 @@ typedef struct provider {
 	int			p_enabled;
 	dtrace_id_t		p_id;
 	dtrace_id_t		p_id2;
-	int			p_patchval;
+	instr_t			p_patchval;
 	int			p_inslen;
 	int			p_modrm;
 	dtrace_provider_id_t 	p_provider_id;
@@ -319,6 +320,7 @@ dtrace_parse_function(pf_info_t *infp, uint8_t *instr, uint8_t *limit)
 	int	invop = 0;
 	int	size;
 	int	modrm;
+	int	do_entry = TRUE;
 
 	/***********************************************/
 	/*   Dont  let  us  register  anything on the  */
@@ -352,10 +354,10 @@ dtrace_parse_function(pf_info_t *infp, uint8_t *instr, uint8_t *limit)
 	/***********************************************/
 	//do_print = strncmp(infp->name, "flush_old_exec", 9) == 0;
 
+	invop = DTRACE_INVOP_ANY;
 #ifdef __amd64
 // am not happy with 0xe8 CALLR instructions, so disable them for now.
 if (*instr == 0xe8) return;
-	invop = DTRACE_INVOP_ANY;
 	switch (instr[0] & 0xf0) {
 	  case 0x00:
 	  case 0x10:
@@ -399,7 +401,7 @@ if (*instr == 0xe8) return;
 //		printk("fbt:F instr %s:%p size=%d %02x %02x %02x %02x %02x %02x\n", name, instr, size, instr[0], instr[1], instr[2], instr[3], instr[4], instr[5]);
 		break;
 	  }
-#else
+# elif defined(__i386)
 	/***********************************************/
 	/*   GCC    generates   lots   of   different  */
 	/*   assembler  functions plus we have inline  */
@@ -411,7 +413,6 @@ if (*instr == 0xe8) return;
 	/*   opcodes.  (Apart  from HLT - which I may  */
 	/*   get around to fixing).		       */
 	/***********************************************/
-	invop = DTRACE_INVOP_ANY;
 	switch (instr[0] & 0xf0) {
 	  case 0x00:
 	  case 0x10:
@@ -449,6 +450,19 @@ if (*instr == 0xe8) return;
 //		printk("fbt:F instr %s:%p size=%d %02x %02x %02x %02x %02x %02x\n", name, instr, size, instr[0], instr[1], instr[2], instr[3], instr[4], instr[5]);
 		break;
 	  }
+# elif defined(__arm__)
+	/***********************************************/
+	/*   Make  sure function is valid for ARM and  */
+	/*   the instruction emulator.		       */
+	/***********************************************/
+	{int ret = is_probable_instruction(instr, TRUE);
+	if (ret == 0)
+		do_entry = FALSE;
+	if (ret < 0)
+		return;
+	}
+# else
+# 	error "dtrace_parse_function: cpu not supported"
 #endif
 	/***********************************************/
 	/*   Handle  fact we may not be ready to cope  */
@@ -459,9 +473,13 @@ if (*instr == 0xe8) return;
 		return;
 	}
 
-	if ((*infp->func_entry)(infp, instr, size, modrm) == 0)
+	/***********************************************/
+	/*   Create  an  entry  probe, but only if we  */
+	/*   can handle this entry point.	       */
+	/***********************************************/
+	if (do_entry &&
+	    (*infp->func_entry)(infp, instr, size, modrm) == 0)
 		return;
-
 	/***********************************************/
 	/*   Special code here for debugging - we can  */
 	/*   make  the  name of a probe a function of  */
@@ -565,7 +583,7 @@ if (*instr == 0xe8) return;
 		  default:
 		  	continue;
 		  }
-#else /* i386 */
+# elif defined(__i386)
 		switch (*instr) {
 		  case FBT_RET:
 			invop = DTRACE_INVOP_RET;
@@ -583,6 +601,23 @@ if (*instr == 0xe8) return;
 		  default:
 		  	continue;
 		  }
+# elif defined(__arm__)
+		/***********************************************/
+		/*   Make  sure function is valid for ARM and  */
+		/*   the instruction emulator.		       */
+		/***********************************************/
+		{int ret = is_probable_instruction(instr, FALSE);
+		if (ret == 0)
+			continue;
+		if (ret < 0)
+			return;
+
+		if (is_toxic_return(infp->name))
+			continue;
+
+		}
+# else
+# 	error "dtrace_parse_function: cpu not supported"
 #endif
 
 		/*
@@ -609,6 +644,9 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
 static void
 dtrace_parse_kernel_function(int type, void (*callback)(uint8_t *, int), struct module *modp, char *name, uint8_t *instr, uint8_t *limit, uint8_t *val)
 {
+# if defined(__arm__)
+	return;
+# else
 	int	size;
 	int	modrm;
 
@@ -659,6 +697,7 @@ printk("inst:%p %d %02x %02x %02x %02x %02x %04x\n", instr, size, *instr, instr[
 			}
 		  }
 	}
+# endif
 }
 void
 dtrace_parse_kernel(int type, void (*callback)(uint8_t *, int), uint8_t *val)

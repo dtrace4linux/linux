@@ -37,6 +37,7 @@
 #include <sys/stack.h>
 #include <sys/frame.h>
 #include <sys/privregs.h>
+#include <sys/procfs_isa.h>
 
 # undef NULL
 # define NULL 0
@@ -78,7 +79,12 @@ MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 /*   GCC aligns to a quad boundary).				      */
 /**********************************************************************/
 #if defined(linux)
-#  define	FBT_PATCHVAL		0xcc
+#  if defined(__arm__)
+#    define	FBT_PATCHVAL		0xe7f001f8 // undefined-instr (kprobes)
+//#    define	FBT_PATCHVAL		0xe1200070 // BKPT
+#  else
+#    define	FBT_PATCHVAL		0xcc
+#  endif
 #else
 #  if defined(__amd64)
 #    define	FBT_PATCHVAL		0xcc
@@ -94,11 +100,11 @@ MODULE_DESCRIPTION("DTRACE/Function Boundary Tracing Driver");
 
 typedef struct fbt_probe {
 	struct fbt_probe *fbtp_hashnext;
-	uint8_t		*fbtp_patchpoint;
+	instr_t		*fbtp_patchpoint;
 	int8_t		fbtp_rval;
 	char		fbtp_enabled;
-	uint8_t		fbtp_patchval;
-	uint8_t		fbtp_savedval;
+	instr_t		fbtp_patchval;
+	instr_t		fbtp_savedval;
 	uint8_t		fbtp_inslen;	/* Length of instr we are patching */
 	char		fbtp_modrm;	/* Offset to modrm byte of instruction */
 	uint8_t		fbtp_type;
@@ -112,6 +118,19 @@ typedef struct fbt_probe {
 	unsigned int	fbtp_fired;
 //	int		fbtp_primary;
 	struct fbt_probe *fbtp_next;
+# if defined(__arm__)
+	/***********************************************/
+	/*   Because  ARM doesnt handle a single-step  */
+	/*   trap,  when  we  hit a probe, we need to  */
+	/*   execute the original instruction and JMP  */
+	/*   to  the  instruction  afterwards.  We do  */
+	/*   this  in  the N-instruction buffer. This  */
+	/*   avoids  a  lot  of  complexity  and race  */
+	/*   conditions,  at  the  expense  of  extra  */
+	/*   memory.				       */
+	/***********************************************/
+	int		fbtp_instr_buf[5];
+# endif
 } fbt_probe_t;
 
 //static dev_info_t		*fbt_devi;
@@ -139,7 +158,7 @@ static	const char *(*my_kallsyms_lookup)(unsigned long addr,
 /*   For debugging - make sure we dont add a patch to the same addr.  */
 /**********************************************************************/
 static int
-fbt_is_patched(char *name, uint8_t *addr)
+fbt_is_patched(char *name, instr_t *addr)
 {
 	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
 
@@ -151,6 +170,25 @@ fbt_is_patched(char *name, uint8_t *addr)
 	}
 	return 0;
 }
+# if defined(__arm__)
+/**********************************************************************/
+/*   Find  the  3-instruction  buffer  for  ARM,  so when we hit the  */
+/*   probe,  we can JMP to the fbtp_instr_buf, which consists of the  */
+/*   first  instruction  being  the one we probed, followed by a JMP  */
+/*   back   to   the  original  location  +1  (actually,  +4,  since  */
+/*   instructions are 4-bytes long). Called from cpy_arm.c	      */
+/**********************************************************************/
+int *
+fbt_get_instr_buf(instr_t *addr)
+{
+	fbt_probe_t *fbt = fbt_probetab[FBT_ADDR2NDX(addr)];
+	for (; fbt != NULL; fbt = fbt->fbtp_hashnext) {
+		if (fbt->fbtp_patchpoint == addr)
+			return fbt->fbtp_instr_buf;
+	}
+	return NULL;
+}
+# endif
 /**********************************************************************/
 /*   Here  from  INT3 interrupt context to see if the address we hit  */
 /*   is one of ours.						      */
@@ -194,6 +232,7 @@ fbt_invop(uintptr_t addr, uintptr_t *stack, uintptr_t rval, trap_instr_t *tinfo)
 		/***********************************************/
 		if (1) {
 			tinfo->t_opcode = fbt->fbtp_savedval;
+//printk("fbt: opc=%p %p\n", tinfo->t_opcode, fbt->fbtp_savedval);
 			tinfo->t_inslen = fbt->fbtp_inslen;
 			tinfo->t_modrm = fbt->fbtp_modrm;
 			if (!tinfo->t_doprobe)
@@ -590,7 +629,7 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 }
 
 static int
-fbt_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
+fbt_prov_entry(pf_info_t *infp, instr_t *instr, int size, int modrm)
 {
 	fbt_probe_t *fbt;
 
@@ -648,13 +687,15 @@ fbt_prov_entry(pf_info_t *infp, uint8_t *instr, int size, int modrm)
 /*   represent the entire suite).				      */
 /**********************************************************************/
 static int
-fbt_prov_return(pf_info_t *infp, uint8_t *instr, int size)
+fbt_prov_return(pf_info_t *infp, instr_t *instr, int size)
 {
 	fbt_probe_t *fbt;
 	fbt_probe_t *retfbt = infp->retptr;
 
-if (*instr == 0xcc)
-return 1;
+# if defined(__i386) || defined(__amd64)
+	if (*instr == 0xcc)
+		return 1;
+# endif
 	/***********************************************/
 	/*   Sanity check for bad things happening.    */
 	/***********************************************/
@@ -683,14 +724,15 @@ return 1;
 	/*   around so we are consistent.	       */
 	/***********************************************/
 	fbt->fbtp_rval = DTRACE_INVOP_ANY;
-#ifdef __amd64
+#if defined(__amd64)
 	ASSERT(*instr == FBT_RET);
 	fbt->fbtp_roffset =
 	    (uintptr_t)(instr - (uint8_t *)infp->st_value);
-#else
+#elif defined(__i386)
 	fbt->fbtp_roffset =
 	    (uintptr_t)(instr - (uint8_t *)infp->st_value) + 1;
-
+#elif defined(__arm__)
+	fbt->fbtp_roffset = 0;
 #endif
 
 	/***********************************************/
@@ -823,6 +865,7 @@ fbt_enable(void *arg, dtrace_id_t id, void *parg)
 			printk("fbt_enable:patch %p p:%02x %s\n", fbt->fbtp_patchpoint, fbt->fbtp_patchval, fbt->fbtp_name);
 		if (memory_set_rw(fbt->fbtp_patchpoint, 1, TRUE)) {
 			*fbt->fbtp_patchpoint = fbt->fbtp_patchval;
+//printk("FBT: set pp=%p:%p\n", fbt->fbtp_patchpoint, *fbt->fbtp_patchpoint);
 		}
 	}
 	return 0;
@@ -1289,12 +1332,12 @@ static int fbt_seq_show(struct seq_file *seq, void *v)
 	/*   We   actually   need  to  disable  these  */
 	/*   probes.				       */
 	/***********************************************/
-printk("fbtproc %p\n", fbt->fbtp_patchpoint);
+//printk("fbtproc %p\n", fbt->fbtp_patchpoint);
 	if (!validate_ptr(fbt->fbtp_patchpoint)) {
 		s = 0xfff;
 		strcpy(ibuf, "<unmapped>");
 	} else {
-		s = dtrace_instr_size(fbt->fbtp_patchpoint);
+		s = dtrace_instr_size((uchar_t *) fbt->fbtp_patchpoint);
 		ibuf[0] = '\0';
 		for (cp = ibuf, i = 0; i < s; i++) {
 			snprintf(cp, sizeof ibuf - (cp - ibuf) - 3, "%02x ", 
@@ -1304,7 +1347,11 @@ printk("fbtproc %p\n", fbt->fbtp_patchpoint);
 	}
 	cp = (char *) my_kallsyms_lookup((unsigned long) fbt->fbtp_patchpoint, 
 		&size, &offset, &modname, name);
+# if defined(__arm__)
+	seq_printf(seq, "%d %04u%c %p %08x %d %2d %s:%s:%s %s\n", n-1, 
+# else
 	seq_printf(seq, "%d %04u%c %p %02x %d %2d %s:%s:%s %s\n", n-1, 
+# endif
 		fbt->fbtp_fired,
 		fbt->fbtp_overrun ? '*' : ' ',
 		fbt->fbtp_patchpoint,

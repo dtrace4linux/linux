@@ -249,7 +249,16 @@ typedef unsigned long long hrtime_t;
 	#     include <linux/slab.h>
 	# endif
 
-	/***********************************************/
+/* see cpuvar.h
+	#if defined(__i386) || defined(__amd64)
+	typedef uchar_t instr_t;
+	#endif
+
+	# if defined(__arm__)
+	typedef uint32_t instr_t;
+	# endif
+
+*/	/***********************************************/
 	/*   Define our own private mutexes so we can  */
 	/*   avoid  problems  and clashes with kernel  */
 	/*   implemented ones. Our mutexes are really  */

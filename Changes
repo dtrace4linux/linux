@@ -1,4 +1,17 @@
+Tue Apr 23 22:32:39 2013  fox
+
+     823* tools/load.pl: Fix for missing ia32_sys_call_table on amd64
+          kernel.
+
 Sun Mar 17 07:13:40 2013  fox
+
+     822* libdtrace/dt_subr.c: Fix for sysconf(_SC_CPUID_MAX) returning 1
+          more than the actual cpus (this is a 'max' not a counter).
+
+     821* driver/taskq.c: Fixes for ARM.
+
+     820* driver/dtrace_linux.c: Be careful when kernel not compiled
+          with CONFIG_PROFILE (ARM) as we would die on a driver reload.
 
      819* driver/dtrace_linux.c: Fix xtime_cache_ptr so that
           the timestamp function works on Ubuntu 12.04 (or any >= 3.4

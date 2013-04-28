@@ -1,3 +1,7 @@
+Sun Apr 28 08:59:18 2013  fox
+
+     824* driver/systrace.c: Re-enable syscall::: for x86 arch.
+
 Tue Apr 23 22:32:39 2013  fox
 
      823* tools/load.pl: Fix for missing ia32_sys_call_table on amd64

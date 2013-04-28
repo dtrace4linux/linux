@@ -2354,8 +2354,10 @@ int systrace_init(void)
 		return 0;
 	}
 
+# if defined(__arm__)
 printk("SYSTRACE IS DISABLED!\n");
 return 0;
+# endif
 
 	ret = misc_register(&systrace_dev);
 	if (ret) {

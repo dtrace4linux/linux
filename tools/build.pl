@@ -102,6 +102,7 @@ sub main
 	} elsif ($uname_m =~ /^arm/) {
 		spawn("tools/mksyscall.pl");
 		print "warning: building on ARM is experimental at present.\n";
+		print "         Only ARMv6/non-SMP is verified, on RaspberryPi\n";
 		$ENV{CPU_BITS} = "32";
 		$ENV{PTR32} = "-D_ILP32 -D_LONGLONG_TYPE";
 		print $fh "export CPU_BITS=$ENV{CPU_BITS}\n";

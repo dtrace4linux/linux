@@ -1,4 +1,12 @@
+Wed May  1 21:06:11 2013  fox
+
+     826* driver/systrace.c: Fix stupid typo for x86_64 whereby
+          syscall:::return probes may not fire if i386 syscall
+	  entry doesnt exist. (I said it was a stupid typo).
+
 Sun Apr 28 08:59:18 2013  fox
+
+     825* Archive: 1.0147
 
      824* driver/systrace.c: Re-enable syscall::: for x86 arch.
 

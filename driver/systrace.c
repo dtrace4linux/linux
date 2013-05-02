@@ -55,7 +55,7 @@ Feb 2011
 /**********************************************************************/
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 29-Jun-2012 1.7 $ 			      */
+/* $Header: Last edited: 30-Apr-2013 1.8 $ 			      */
 
 /**********************************************************************/
 /*   Dont  define this for a 32b kernel. In a 64b kernel, we need to  */
@@ -101,16 +101,6 @@ Feb 2011
 #include <sys/atomic.h>
 # endif
 
-# if defined(__arm__)
-#	define __NR_iopl 1000
-#	define __NR_vm86 1001
-#	define __NR_vm86old 1002
-int syscall_ptreg_template_size;
-int syscall_template_size;
-void syscall_ptreg_template(void) {}
-void syscall_template(void) {}
-# endif
-
 #define	SYSTRACE_ARTIFICIAL_FRAMES	1
 
 #define	STF_ENTRY		0x10000
@@ -145,8 +135,6 @@ static char *syscallnames32[] = {
 	};
 # define NSYSCALL32 (sizeof syscallnames32 / sizeof syscallnames32[0])
 
-int xx = NSYSCALL;
-int xx32 = NSYSCALL32;
 struct sysent {
         asmlinkage int64_t         (*sy_callc)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);  /* C-style call hander or wrapper */
 };
@@ -249,7 +237,43 @@ typedef struct patch_t {
 	unsigned char	p_array[64];
 	} patch_t;
 
-#if defined(__amd64)
+/**********************************************************************/
+/*   We  need  to  intercept  each syscall. We do this with a little  */
+/*   wrapper  of  assembler  -  because  we lose the knowledge about  */
+/*   which syscall is being invoked. So we create NSYSCALL copies of  */
+/*   the  template  code and patch in the $nn value for the syscall.  */
+/*   We  have  different  scenarios  on 64b - since the calling code  */
+/*   from assembler puts differing things in the registers for those  */
+/*   syscalls which can affect the caller ([OUT] parameters).	      */
+/*   								      */
+/*   On  32b,  we  have  two  templates to handle the ptregs calling  */
+/*   convention and non-ptreg calling convention.		      */
+/*   								      */
+/*   Its  oh-so  ugly,  but  then  we  are tracking the kernel - all  */
+/*   kernels							      */
+/**********************************************************************/
+static struct syscall_info {
+	void *s_template;
+	void *s_template32;
+	} syscall_info[NSYSCALL > NSYSCALL32 ? NSYSCALL : NSYSCALL32];
+extern void syscall_template(void);
+extern void syscall_ptreg_template(void);
+extern int syscall_template_size;
+extern int syscall_ptreg_template_size;
+char	*templates;
+
+/**********************************************************************/
+/*   Invoke the ARM handler code here.				      */
+/**********************************************************************/
+# if defined(__arm__)
+	/***********************************************/
+	/*   Code  for ARM in a separate file because  */
+	/*   its a replica with enough differences of  */
+	/*   the x86 setup and special cases.	       */
+	/***********************************************/
+#	include "arm_systrace.c"
+
+# elif defined(__amd64)
 /**********************************************************************/
 /*   Function pointers.						      */
 /**********************************************************************/
@@ -421,9 +445,6 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 void
 systrace_assembler_dummy(void)
 {
-# if defined(__arm__)
-
-# else
 	__asm(
 		/***********************************************/
 		/*   Be careful here. We arent in a safe mode  */
@@ -686,14 +707,12 @@ systrace_assembler_dummy(void)
 		/*   sys_rt_sigreturn to do the real work.     */
 		/***********************************************/
 		);
-# endif /* defined(__arm__) */
-
 }
 # define IS_PTREG_SYSCALL(n) \
 		((n) == __NR_clone || \
 		 (n) == __NR_fork || \
 		 (n) == __NR_iopl || \
-(n) == __NR_rt_sigsuspend || \
+		 (n) == __NR_rt_sigsuspend || \
 		 (n) == __NR_sigaltstack || \
 		 (n) == __NR_vfork)
 	/* amd64 */
@@ -709,9 +728,6 @@ systrace_assembler_dummy(void)
 void
 systrace_assembler_dummy(void)
 {
-# if defined(__arm__)
-
-# else
 	__asm(
 		/***********************************************/
 		/*   Following  function template is used for  */
@@ -768,7 +784,6 @@ systrace_assembler_dummy(void)
 		END_FUNCTION(syscall_ptreg_template)
 		);
 
-# endif
 }
 # define IS_PTREG_SYSCALL(n) \
 		((n) == __NR_iopl || \
@@ -783,34 +798,10 @@ systrace_assembler_dummy(void)
 		 (n) == __NR_vm86old)
 #endif
 
-/**********************************************************************/
-/*   We  need  to  intercept  each syscall. We do this with a little  */
-/*   wrapper  of  assembler  -  because  we lose the knowledge about  */
-/*   which syscall is being invoked. So we create NSYSCALL copies of  */
-/*   the  template  code and patch in the $nn value for the syscall.  */
-/*   We  have  different  scenarios  on 64b - since the calling code  */
-/*   from assembler puts differing things in the registers for those  */
-/*   syscalls which can affect the caller ([OUT] parameters).	      */
-/*   								      */
-/*   On  32b,  we  have  two  templates to handle the ptregs calling  */
-/*   convention and non-ptreg calling convention.		      */
-/*   								      */
-/*   Its  oh-so  ugly,  but  then  we  are tracking the kernel - all  */
-/*   kernels							      */
-/**********************************************************************/
-static struct syscall_info {
-	void *s_template;
-	void *s_template32;
-	} syscall_info[NSYSCALL > NSYSCALL32 ? NSYSCALL : NSYSCALL32];
-extern void syscall_template(void);
-extern void syscall_ptreg_template(void);
-extern int syscall_template_size;
-extern int syscall_ptreg_template_size;
-char	*templates;
-
 void
 init_syscalls(void)
-{	int	i;
+{
+	int	i;
 	void *(*vmalloc_exec)(unsigned long);
 	char	*cp;
 	int	offset1 = 0;
@@ -821,6 +812,9 @@ init_syscalls(void)
 	if (templates)
 		return;
 
+# if defined(__arm__)
+	arm_systrace_init();
+# endif
 	/***********************************************/
 	/*   Get  the  dynamic proc addresses we need  */
 	/*   to  do  our work. The reason for so many  */
@@ -857,7 +851,8 @@ init_syscalls(void)
 	save_rest_ptr = (char *) get_proc_addr("save_rest");
 # endif
 	do_fork_ptr = (void *) get_proc_addr("do_fork");
-#endif
+# endif /* defined(__amd64) */
+
 	vmalloc_exec = get_proc_addr("vmalloc_exec");
 
 	/***********************************************/
@@ -873,6 +868,20 @@ init_syscalls(void)
 	/*   Find  the  magic offset we need to patch  */
 	/*   in.				       */
 	/***********************************************/
+# if defined(__arm__)
+	for (cp = (char *) syscall_template; cp < (char *) syscall_template + syscall_template_size; cp += sizeof(int)) {
+		if (*(int *) cp == 0x1234) {
+			offset1 = cp - (char *) syscall_template;
+			break;
+		}
+	}
+	for (cp = (char *) syscall_ptreg_template; cp < (char *) syscall_ptreg_template + syscall_ptreg_template_size; cp += sizeof(int)) {
+		if (*(int *) cp == 0x1234) {
+			offset2 = cp - (char *) syscall_ptreg_template;
+			break;
+		}
+	}
+# else
 	for (cp = (char *) syscall_template; cp < (char *) syscall_template + syscall_template_size; cp++) {
 		if (*(short *) cp == 0x1234) {
 			offset1 = cp - (char *) syscall_template;
@@ -885,23 +894,34 @@ init_syscalls(void)
 			break;
 		}
 	}
+# endif
 
 	/***********************************************/
 	/*   Now  create  N  copies  of the template,  */
 	/*   where   we  patch  the  actual  #syscall  */
 	/*   number into the copy of the code.	       */
 	/***********************************************/
+	
+	/***********************************************/
+	/*   Template_size may be zero if this is not  */
+	/*   x86 architecture.			       */
+	/***********************************************/
+	if (template_size == 0)
+		return;
+
 	templates = vmalloc_exec(num_syscalls * template_size);
 	cp = templates;
 	for (i = 0; i < NSYSCALL; i++) {
 		syscall_info[i].s_template = cp;
 		if (IS_PTREG_SYSCALL(i)) {
 			dtrace_memcpy(cp, syscall_ptreg_template, syscall_ptreg_template_size);
-			*(int *) (cp + offset2) = i;
+			if (offset2 > 0)
+				*(int *) (cp + offset2) = i;
 			cp += syscall_ptreg_template_size;
 		} else {
 			dtrace_memcpy(cp, syscall_template, syscall_template_size);
-			*(int *) (cp + offset1) = i;
+			if (offset1 > 0)
+				*(int *) (cp + offset1) = i;
 			cp += syscall_template_size;
 		}
 	}
@@ -1020,7 +1040,7 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
 	}
 
 # define TRACE_AFTER(call, a, b, c, d, e, f) \
-        if ((id = systrace_sysent32[call].stsy_return) != DTRACE_IDNONE) { \
+        if ((id = systrace_sysent[call].stsy_return) != DTRACE_IDNONE) { \
 		/***********************************************/	\
 		/*   Map   Linux   style   syscall returns to  */	\
 		/*   standard Unix format.		       */	\
@@ -1544,11 +1564,11 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 			);
 		}
 	else
-	        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+		rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
 
 # elif defined(__arm__)
 
-        rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
+	rval = (*sy->stsy_underlying)(arg0, arg1, arg2, arg3, arg4, arg5);
 
 # else
 # 	error	"Cannot handle this CPU\n"
@@ -1583,6 +1603,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 /*   amd64 needs some special handlers, because of the layout of the  */
 /*   stack on syscall entry.					      */
 /**********************************************************************/
+# if defined(__amd64) || defined(__i386)
 static void *
 get_interposer(int sysnum, int enable)
 {
@@ -1624,6 +1645,8 @@ get_interposer(int sysnum, int enable)
 # endif
 	return syscall_info[sysnum].s_template;
 }
+# endif /* defined(__amd64) || defined(__i386) */
+
 #if SYSCALL_64_32
 static void *
 get_interposer32(int sysnum, int enable)
@@ -1869,8 +1892,12 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 
 #if defined(__amd64)
 #  define bits_name "x64"
-#else
+# elif defined(__i386)
 #  define bits_name "x32"
+# elif defined(__arm__)
+#  define bits_name "arm"
+# else
+#  define bits_name "???"
 #endif
 
 		if (systrace_sysent[i].stsy_underlying == NULL)
@@ -2284,7 +2311,9 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 	}
 
 	seq_printf(seq, "%s%s %p %p %3d %8llu %s\n",
-# if defined(__i386)
+# if defined(__arm__)
+		"arm",
+# elif defined(__i386)
 		"x32",
 # else
 		n >= NSYSCALL ? "x32" : "x64",
@@ -2354,11 +2383,6 @@ int systrace_init(void)
 		return 0;
 	}
 
-# if defined(__arm__)
-printk("SYSTRACE IS DISABLED!\n");
-return 0;
-# endif
-
 	ret = misc_register(&systrace_dev);
 	if (ret) {
 		printk(KERN_WARNING "systrace: Unable to register misc device\n");
@@ -2372,10 +2396,6 @@ return 0;
 	ent = create_proc_entry("dtrace/syscall", 0444, NULL);
 	if (ent)
 		ent->proc_fops = &sys_proc_fops;
-	/***********************************************/
-	/*   Helper not presently implemented :-(      */
-	/***********************************************/
-//	printk(KERN_WARNING "systrace loaded: /dev/systrace now available\n");
 
 	return 0;
 }
@@ -2385,7 +2405,6 @@ void systrace_exit(void)
 	if (initted) {
 		systrace_detach();
 
-//	printk(KERN_WARNING "systrace driver unloaded.\n");
 		misc_deregister(&systrace_dev);
 	}
 }

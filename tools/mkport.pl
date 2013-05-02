@@ -405,7 +405,7 @@ int main(int argc, char **argv)
 }
 EOF
 	$fh->close();
-	system("gcc -o /tmp/$ENV{USER}.demangle /tmp/demangle.c -lbfd");
+	system("gcc -o /tmp/$ENV{USER}.demangle /tmp/demangle.c -lbfd 2>/dev/null");
 	return -f "/tmp/$ENV{USER}.demangle";
 }
 

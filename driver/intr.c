@@ -186,7 +186,7 @@ int dtrace_page_fault_xen(void);
 
 int dtrace_is_xen(void);
 static void dtrace_write_idt_entry(int vec, const gate_t *val);
-static void dtrace_write_idt_entry2(int vec);
+static void dtrace_write_idt_entry2(void *v);
 
 /**********************************************************************/
 /*   Update the IDT table for an interrupt. We just set the function  */
@@ -391,7 +391,7 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 	/*   a probe?				       */
 	/***********************************************/
 	if (this_cpu->cpuc_mode == CPUC_MODE_IDLE) {
-		instr_t pc = (instr_t *) regs->r_pc - bkpt_offset;
+		instr_t *pc = (instr_t *) regs->r_pc - bkpt_offset;
 
 		/***********************************************/
 		/*   Is this one of our probes?		       */
@@ -416,8 +416,8 @@ dtrace_int3_handler(int type, struct pt_regs *regs)
 		/*   Now try for a probe.		       */
 		/***********************************************/
 //dtrace_printf("CPU:%d ... calling invop\n", cpu_get_id());
-		ret = dtrace_invop(pc, (uintptr_t *) regs, 
-			regs->r_rax, &tp->ct_tinfo);
+		ret = dtrace_invop((uintptr_t) pc, (uintptr_t *) regs, 
+			(uintptr_t) regs->r_rax, &tp->ct_tinfo);
 		if (ret) {
 			cnt_int3_2++;
 			/***********************************************/
@@ -697,7 +697,7 @@ dtrace_write_idt_entry(int vec, const gate_t *val)
 	/*   happened.				       */
 	/***********************************************/
 	for (i = 0; i < nr_cpus; i++) {
-		SMP_CALL_FUNCTION_SINGLE(i, dtrace_write_idt_entry2, (void *) vec, TRUE);
+		SMP_CALL_FUNCTION_SINGLE(i, dtrace_write_idt_entry2, (void *) (long) vec, TRUE);
 	}
 # endif
 }
@@ -706,9 +706,10 @@ dtrace_write_idt_entry(int vec, const gate_t *val)
 /*   kernel  dependencies  so  we  can trace the real Xen hypercalls  */
 /*   from dtrace.						      */
 /**********************************************************************/
+#	define	CAST_TO_INT(ptr)	((int) (long) (ptr))
 static void
-dtrace_write_idt_entry2(int vec)
-{
+dtrace_write_idt_entry2(void *v)
+{	int vec = CAST_TO_INT(v);
 #if defined(CONFIG_PARAVIRT) && defined(__HYPERVISOR_set_trap_table)
 	gate_t *val = &idt_table_ptr[vec];
 	{struct trap_info {

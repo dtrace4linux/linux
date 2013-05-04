@@ -1,3 +1,21 @@
+Sat May  4 19:17:55 2013  fox
+
+     830* driver/intr.c: Fix FBT probes for i386/x64 due to bug put in
+          for the __arm__ port.
+
+     829* driver/systrace.c: Fix for >=3.8 kernels, since they went and
+          hid sys_call_table (i386/amd64 only - not ARM, yet).
+
+Fri May  3 23:09:37 2013  fox
+
+     828* cmd/convert/dwarf.c: Allow for 
+          struct fred {} xx[10];
+	  (struct lock_class_key)
+
+Thu May  2 22:25:29 2013  fox
+
+     827* Archive: 1.0148
+
 Wed May  1 21:06:11 2013  fox
 
      826* driver/systrace.c: Fix stupid typo for x86_64 whereby

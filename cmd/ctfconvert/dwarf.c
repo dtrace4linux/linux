@@ -795,6 +795,14 @@ die_array_resolve(tdesc_t *tdp, tdesc_t **tdpp, void *private)
 	debug(3, "trying to resolve array %d (cont %d)\n", tdp->t_id,
 	    tdp->t_ardef->ad_contents->t_id);
 
+#if linux
+	/***********************************************/
+	/*   struct lock_class_key {} xx[10]	       */
+	/*   This  happens  and  is allowed for later  */
+	/*   gcc, so we need to allow this.	       */
+	/***********************************************/
+	sz = tdesc_size(tdp->t_ardef->ad_contents);
+#else
 	if ((sz = tdesc_size(tdp->t_ardef->ad_contents)) == 0) {
 		debug(3, "unable to resolve array %s (%d) contents %d\n",
 		    tdesc_name(tdp), tdp->t_id,
@@ -803,6 +811,7 @@ die_array_resolve(tdesc_t *tdp, tdesc_t **tdpp, void *private)
 		dw->dw_nunres++;
 		return (1);
 	}
+#endif
 
 	tdp->t_size = sz * tdp->t_ardef->ad_nelems;
 	tdp->t_flags |= TDESC_F_RESOLVED;

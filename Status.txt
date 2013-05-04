@@ -8,7 +8,7 @@ Working Features
   o Works on AS4/64 bit kernels, Ubuntu 8.xx - 12.xx (32-bit and 64-bit).
     Not every kernel version tested, but should build on at least 2.6.12
     onwards.
-  o Tested up to 3.4 kernels, but not proven/tested under later kernels.
+  o Tested up to 3.8 kernels, but not proven/tested under later kernels.
   o FBT Provider: fully functional, except argument types are not presently
     supported. You can access arg0, arg1, ... as values or pointers but
     no type info to support structure accessing. Should be safe to probe
@@ -32,12 +32,12 @@ Working Features
     iosnoop.d or other scripts out there).
   o vminfo provider - probes for the stats in /proc/vmstats
   o PID provider (dtrace -n pidNNN:::).
+  o ARMv6/RaspberryPi on 3.4.6 kernel (USDT is not tested or likely to work)
+    - the instr provider isnt supported (yet)
+    - no SMP support
 
 Partially Working / Not yet quality controlled:
 
-  o ARM Support - as of this writing, compiles, but not fully debugged.
-    Not tested on a variety of ARM CPUs and configurations. Tested on
-    debian-armel VM.
   o USDT Basic C/C++ works - demo program supplied, but not fully
     quality controlled that all D functions work.
   o CTF framework for the kernel: Since we dont build the kernel, the

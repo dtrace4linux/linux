@@ -1858,7 +1858,29 @@ systrace_provide(void *arg, const dtrace_probedesc_t *desc)
 
 	if (sysent == NULL)
 		sysent = fbt_get_sys_call_table();
+	/***********************************************/
+	/*   For  >=  3.8  kernels, sys_call_table is  */
+	/*   hidden. So, we need to go find it.	       */
+	/***********************************************/
+#if defined(__amd64) || defined(__i386)
+	if (sysent == NULL) {
+		unsigned char *p = get_proc_addr("tracesys");
+		unsigned char	*pend = p + 512;
+		for ( ; p < pend; p++) {
+			if (p[0] == 0xff &&
+			    p[1] == 0x14 &&
+			    p[2] == 0xc5) {
+			    	long addr = *(int *) (p+3);
+				sysent = (struct sysent *) addr;
+			    	printk("found sys_call_table from tracesys at %p\n", sysent);
+				break;
+			}
+		}
+	}
+#endif
+
 #if defined(__amd64)
+
 	if (sysent32 == NULL)
 		sysent32 = get_proc_addr("ia32_sys_call_table");
 #endif
@@ -2298,6 +2320,10 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 	n -= 2;
 	if (n >= NSYSCALL + NSYSCALL32)
 		return 0;
+	if (sysent == NULL) {
+		seq_printf(seq, "# cannot locate sys_call_table\n");
+		return 0;
+	}
 # if defined(__i386)
 	if (n >= NSYSCALL)
 		return 0;

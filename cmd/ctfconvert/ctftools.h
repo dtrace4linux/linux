@@ -408,10 +408,10 @@ void check_hash(void);
 void resolve_typed_bitfields(void);
 
 /* stabs.c */
-int stabs_read(tdata_t *, Elf *, const char *);
+int stabs_read(int, tdata_t *, Elf *, const char *);
 
 /* dwarf.c */
-int dw_read(tdata_t *, Elf *, const char *);
+int dw_read(int, tdata_t *, Elf *, const char *);
 const char *dw_tag2str(uint_t);
 
 /* tdata.c */

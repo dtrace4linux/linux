@@ -10,6 +10,7 @@
 /*   								      */
 /*   Paul Fox March 2011					      */
 /**********************************************************************/
+# if !HAVE_DWARF_H_ENUM
 #define DW_AT_sibling                           0x01
 #define DW_AT_location                          0x02
 #define DW_AT_name                              0x03
@@ -168,4 +169,5 @@
 #define DW_ATE_unsigned_char            0x8
 #define DW_ATE_imaginary_float          0x9  /* DWARF3 */
 #define DW_ATE_packed_decimal           0xa  /* DWARF3f */
+# endif
 

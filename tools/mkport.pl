@@ -17,6 +17,7 @@
 # 10-Oct-2012 PDF Add support for HAVE_LINUX_MIGRATE_H
 # 26-Oct-2012 PDF Add support for HAVE_LINUX_FDTABLE_H
 # 12-Feb-2013 PDF Attempt to speedup and optimise for ARM.
+# 04-May-2013 PDF Add autodetection of /usr/include/dwarf.h
 
 use strict;
 use warnings;
@@ -31,6 +32,7 @@ my $build;
 
 my $username = getpwuid(getuid());
 my $uname_m;
+my %exports;
 
 #######################################################################
 #   Command line switches.					      #
@@ -99,6 +101,12 @@ sub main
 		print $ofh "{\"\", \"$name\"},\n";
 	}
 	$ofh->close();
+
+	###############################################
+	#   Check       which       version       of  #
+	#   /usr/include/dwarf.h is in use.	      #
+	###############################################
+	$inc .= check_dwarf_h();
 
 	###############################################
 	#   Annoying lex differences.		      #
@@ -251,7 +259,7 @@ sub main
 		while (<$fh>) {
 			$old .= $_;
 		}
-		exit(0) if $old eq $inc;
+		exit(0) if $old eq $inc && -f "$ENV{BUILD_DIR}/port.sh";
 	}
 
 	if (! -d "$ENV{BUILD_DIR}") {
@@ -263,6 +271,17 @@ sub main
 	die "Cannot create $ENV{BUILD_DIR}/port.h" if !$fh;
 	print $fh $inc;
 
+	###############################################
+	#   Generate shell version.		      #
+	###############################################
+	$fh = new FileHandle(">$ENV{BUILD_DIR}/port.sh");
+	die "Cannot create $ENV{BUILD_DIR}/port.sh" if !$fh;
+	foreach my $ln (split("\n", $inc)) {
+		my (undef, $define, $var, $val) = split(" ", $ln);
+		next if !$define || $define ne 'define';
+		print $fh "export VAR_$var=$val\n";
+	}
+	print $fh "export $_=$exports{$_}\n" foreach sort(keys(%exports));
 }
 
 ######################################################################
@@ -291,6 +310,38 @@ sub check_bx_vs_ebx
 		}
 	}
 	return "# define HAVE_EBX_REGISTER 1\n";
+}
+######################################################################
+#   Check which version of dwarf.h we have.			     #
+######################################################################
+sub check_dwarf_h
+{
+	my $fh = new FileHandle(">/tmp/$ENV{USER}.dwarf.c");
+	print $fh <<EOF;
+void	dwarf_begin();
+void main(int argc, char **argv)
+{
+	dwarf_begin();
+}
+EOF
+	$fh->close();
+	my $ret = system("gcc -o /tmp/$ENV{USER}.dwarf /tmp/$ENV{USER}.dwarf.c -ldw");
+
+	my $str = "";
+	if ($ret == 0) {
+		$str .= "# define HAVE_LIB_LIBDW 1\n";
+		$exports{LIBDWARF} = "-ldw";
+	} else {
+		$str .= "# define HAVE_LIB_LIBDWARF 1\n";
+		$exports{LIBDWARF} = "-ldwarf";
+	}
+
+	$fh = new FileHandle("/usr/include/dwarf.h");
+	return $str if ! $fh;
+	while (<$fh>) {
+		return "$str# define HAVE_DWARF_H_ENUM 1\n" if /^enum/;
+	}
+	return $str;
 }
 ######################################################################
 #   Determine  the  type of yytext so that libdtrace/dt_lex.l works  #

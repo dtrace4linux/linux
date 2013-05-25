@@ -106,7 +106,8 @@
 #endif /* __APPLE__ */
 
 /* The version of DWARF which we support. */
-#define	DWARF_VERSION	2
+#define	DWARF_LO_VERSION	2
+#define	DWARF_HI_VERSION	4
 
 /*
  * We need to define a couple of our own intrinsics, to smooth out some of the
@@ -575,6 +576,7 @@ die_mem_offset(dwarf_t *dw, Dwarf_Die die, Dwarf_Half name,
 	if ((attr = die_attr(dw, die, name, req)) == NULL)
 		return (0); /* die_attr will terminate for us if necessary */
 
+/* Need to map this for libdw. */
 	if (dwarf_loclist(attr, &loc, &locnum, &dw->dw_err) != DW_DLV_OK) {
 		terminate("die %llu: failed to get mem offset location list\n",
 		    die_off(dw, die));
@@ -1884,7 +1886,7 @@ break;
 
 /*ARGSUSED*/
 int
-dw_read(tdata_t *td, Elf *elf, const char *filename)
+dw_read(int fd, tdata_t *td, Elf *elf, const char *filename)
 {
 	Dwarf_Unsigned abboff, hdrlen, nxthdr;
 	Dwarf_Half vers, addrsz;
@@ -1903,8 +1905,12 @@ dw_read(tdata_t *td, Elf *elf, const char *filename)
 	dw.dw_enumhash = hash_new(TDESC_HASH_BUCKETS, tdesc_namehash,
 	    tdesc_namecmp);
 
+# if HAVE_LIB_LIBDW
+	if ((dw.dw_dw = dwarf_begin(fd, DW_DLC_READ)) == 0) {
+# else
 	if ((rc = dwarf_elf_init(elf, DW_DLC_READ, NULL, NULL, &dw.dw_dw,
 	    &dw.dw_err)) == DW_DLV_NO_ENTRY) {
+# endif
 		errno = ENOENT;
 		return (-1);
 	} else if (rc != DW_DLV_OK) {
@@ -1933,7 +1939,7 @@ dw_read(tdata_t *td, Elf *elf, const char *filename)
 		terminate("file contains too many types\n");
 
 	debug(1, "DWARF version: %d\n", vers);
-	if (vers != DWARF_VERSION) {
+	if (vers < DWARF_LO_VERSION || vers > DWARF_HI_VERSION) {
 		terminate("file contains incompatible version %d DWARF code "
 		    "(version 2 required)\n", vers);
 	}

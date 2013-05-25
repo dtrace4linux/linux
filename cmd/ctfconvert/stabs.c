@@ -174,7 +174,7 @@ fnarg_free(iidesc_t *ii)
  * assembled under an iidesc list.
  */
 int
-stabs_read(tdata_t *td, Elf *elf, const char *file)
+stabs_read(int fd, tdata_t *td, Elf *elf, const char *file)
 {
 	Elf_Scn *scn;
 	Elf_Data *data;

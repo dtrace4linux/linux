@@ -177,6 +177,7 @@ dtrace_cacheid_t dtrace_predcache_id = DTRACE_CACHEIDNONE + 1;
 static int tsc_max_delta;
 static struct timespec *xtime_cache_ptr;
 ktime_t (*ktime_get_ptr)(void);
+struct timespec (*__current_kernel_time_ptr)(void);
 
 /**********************************************************************/
 /*   Ensure we are at the head of the chains. Unfortunately, kprobes  */
@@ -381,6 +382,16 @@ atomic_add_64(uint64_t *p, int n)
 /*   inferiors  because they will attempt to lock on a mutex, and we  */
 /*   end  up  not being able to trace fbt::kernel:nr_active. We have  */
 /*   to emulate a stable clock reading ourselves. 		      */
+/*   								      */
+/*   Later  Linux  kernels  hide  the  xtime_cache  data  inside the  */
+/*   'timekeeper'     struct     (kernel/time/timekeeping.c).     So  */
+/*   dtrace_linux_init() will attempt to find something.	      */
+/*   								      */
+/*   Brendan Giggs gives us this test case to prove if the mechanism  */
+/*   is working properly.					      */
+/*   								      */
+/* dtrace -n 'syscall:::entry { self->ts = timestamp; }
+    syscall:::return /self->ts/ { @["ns"] = quantize(timestamp - self->ts); }' */
 /**********************************************************************/
 hrtime_t
 dtrace_gethrtime()
@@ -392,6 +403,15 @@ dtrace_gethrtime()
 	if (ktime_get_ts == NULL) return 0;
 	ktime_get_ts(&ts);
 	*/
+
+	/***********************************************/
+	/*   Later  kernels  use this to allow access  */
+	/*   to the timespec in timekeeper.xtime.      */
+	/***********************************************/
+	if (__current_kernel_time_ptr) {
+		ts = __current_kernel_time_ptr();
+		return (hrtime_t) ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
+	}
 
 	/***********************************************/
 	/*   TODO:  This  needs  to  be fixed: we are  */
@@ -416,6 +436,12 @@ dtrace_gethrtime()
 		do_gettimeofday(&tv);
 		return (hrtime_t) tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
 #else
+		/***********************************************/
+		/*   This  is  very  poor  - the Brendan Gigg  */
+		/*   test  will  fail.  Let me know if we get  */
+		/*   here.  It  wont stop dtrace from working  */
+		/*   but it will be ugly.		       */
+		/***********************************************/
 		return 0;
 #endif
 	}
@@ -684,13 +710,14 @@ dtrace_linux_init(void)
 	}
 
 	/***********************************************/
-	/*   Compute     tsc_max_delta     so    that  */
-	/*   dtrace_gethrtime  doesnt hang around for  */
-	/*   too long. Similar to Solaris code.	       */
+	/*   Get  the pointer to one of the key (lock  */
+	/*   free)  areas  where  time may be stored.  */
+	/*   This changed across the kernels.	       */
 	/***********************************************/
 	xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime_cache");
 	if (xtime_cache_ptr == NULL)
 		xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime");
+	__current_kernel_time_ptr = (struct timespec (*)(void)) get_proc_addr("__current_kernel_time");
 
 	/***********************************************/
 	/*   Dirty    code:   in   3.4   and   above,  */

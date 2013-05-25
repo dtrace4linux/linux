@@ -8,6 +8,7 @@ HDRS = \
 	ctftools.h \
 	fifo.h \
 	hash.h \
+	libdwarfext.h \
 	list.h \
 	linux.h \
 	memory.h \
@@ -41,7 +42,7 @@ OBJ=	$(OBJDIR)/ctfconvert.o \
 	$(OBJDIR)/tdata.o \
 	$(OBJDIR)/traverse.o \
 	$(OBJDIR)/util.o
-LIBS = ../../build/libctf.a -ldwarf -lelf -lz
+LIBS = ../../build/libctf.a $(LIBDWARF) -liberty -lelf -lz
 
 ######################################################################
 #   Fedora core will use /usr/lib64/libdwarf.so. We might want, but  #
@@ -50,9 +51,10 @@ LIBS = ../../build/libctf.a -ldwarf -lelf -lz
 #   cross-platform builds.					     #
 ######################################################################
 all:
-	@if [ ! -f /usr/lib/libdwarf.a -a ! -f /usr/lib64/libdwarf.so ]; then \
+	@. ../../build/port.sh ; \
+	if [ ! -f /usr/lib/libdwarf.a ]; then \
 		echo "=================================================================" ; \
-		echo "=== You need /usr/lib/libdwarf.a and /usr/lib/libbfd.a installed to build." ; \
+		echo "=== You need /usr/lib/libdwarf.a (libdw is not yet supported) to build." ; \
 		echo "=== " ; \
 		echo "=== apt-get install binutils-dev" ; \
 		echo "=== apt-get install libdw-dev" ; \
@@ -104,7 +106,7 @@ $(OBJDIR)/dump.o: dump.c $(HDRS)
 	$(CC) -c dump.c
 	mv dump.o $(OBJDIR)
 
-$(OBJDIR)/dwarf.o: dwarf.c $(HDRS)
+$(OBJDIR)/dwarf.o: dwarf.c $(HDRS) ../../build/port.h
 	$(CC) -c dwarf.c
 	mv dwarf.o $(OBJDIR)
 

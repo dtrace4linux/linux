@@ -1,4 +1,16 @@
+Sat May 25 17:05:25 2013  fox
+
+     833* dtrace_linux.c: Fix for dtrace_gethrtime() for later kernels
+          where global 'xtime'/'xtime_cache' isnt available.
+
+Sun May  5 17:03:01 2013  fox
+
+     832* ctfconvert/dwarf.c: Allow DWARF-2 to DWARF-4. This is possibly
+          dangerous without code changes and proper validation.
+
 Sat May  4 19:17:55 2013  fox
+
+     831* cmd/ctfconvert: Some partial changes to move to libdw.
 
      830* driver/intr.c: Fix FBT probes for i386/x64 due to bug put in
           for the __arm__ port.

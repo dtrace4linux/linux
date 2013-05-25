@@ -844,7 +844,7 @@ dump_ptr(char *ptr, char *msgbuf)
         int     i;
 
         for (i = 0; i < 8; i++) {
-                snprintf(msgbuf, sizeof msgbuf, "%02x", *ptr++ & 0xff);
+                snprintf(msgbuf, 2, "%02x", *ptr++ & 0xff);
 		msgbuf += 2;
         }
         return ptr;

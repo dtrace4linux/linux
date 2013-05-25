@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "linux.h"
+
 #define	MIN(a, b) 		((a) > (b) ? (b) : (a))
 
 #include "strtab.h"
@@ -47,8 +48,6 @@
 #include "darwin_shim.h"
 #include "strtab.h"
 #include "memory.h"
-
-#define	MIN(a, b) 		((a) > (b) ? (b) : (a))
 
 #endif /* __APPLE__ */
 

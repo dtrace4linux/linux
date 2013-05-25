@@ -85,7 +85,7 @@ handle_sig(int sig)
 static int
 file_read(tdata_t *td, const char *filename, int ignore_non_c)
 {
-	typedef int (*reader_f)(tdata_t *, Elf *, const char *);
+	typedef int (*reader_f)(int, tdata_t *, Elf *, const char *);
 	static const reader_f readers[] = {
 #if !defined(__APPLE__)
 		stabs_read,
@@ -122,7 +122,7 @@ file_read(tdata_t *td, const char *filename, int ignore_non_c)
 	}
 
 	for (i = 0; readers[i] != NULL; i++) {
-		if ((rc = readers[i](td, elf, filename)) == 0)
+		if ((rc = readers[i](fd, td, elf, filename)) == 0)
 			break;
 
 		assert(rc < 0 && errno == ENOENT);

@@ -1,3 +1,7 @@
+Mon May 27 20:49:14 2013  fox
+
+     834* driver/intr_x86-64.S: Fix for when CONFIG_PARAVIRT is not turned on.
+
 Sat May 25 17:05:25 2013  fox
 
      833* dtrace_linux.c: Fix for dtrace_gethrtime() for later kernels

@@ -55,7 +55,9 @@
 #include <asm/segment.h>
 #include <asm/calling.h>
 #include <asm/asm-offsets.h>
-#include <asm/paravirt.h>
+#ifdef CONFIG_PARAVIRT
+#	include <asm/paravirt.h>
+#endif
 #include <linux/version.h>
 # if defined(HAVE_INCLUDE_ASM_MSR_INDEX_H)
 #   include <asm/msr-index.h>

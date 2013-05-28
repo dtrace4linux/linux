@@ -28,8 +28,6 @@
 #include <linux/sys.h>
 #include <linux/thread_info.h>
 #include <linux/profile.h>
-//#include <linux/smp.h>
-//#include <asm/smp.h>
 #include <linux/vmalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/current.h>
@@ -178,6 +176,7 @@ static int tsc_max_delta;
 static struct timespec *xtime_cache_ptr;
 ktime_t (*ktime_get_ptr)(void);
 struct timespec (*__current_kernel_time_ptr)(void);
+static u64 (*native_sched_clock_ptr)(void);
 
 /**********************************************************************/
 /*   Ensure we are at the head of the chains. Unfortunately, kprobes  */
@@ -404,6 +403,13 @@ dtrace_gethrtime()
 	ktime_get_ts(&ts);
 	*/
 
+	/***********************************************/
+	/*   This seems to be the lowest level access  */
+	/*   to tsc and return nsec.		       */
+	/***********************************************/
+	if (native_sched_clock_ptr) {
+		return (*native_sched_clock_ptr)();
+	}
 	/***********************************************/
 	/*   Later  kernels  use this to allow access  */
 	/*   to the timespec in timekeeper.xtime.      */
@@ -718,6 +724,7 @@ dtrace_linux_init(void)
 	if (xtime_cache_ptr == NULL)
 		xtime_cache_ptr = (struct timespec *) get_proc_addr("xtime");
 	__current_kernel_time_ptr = (struct timespec (*)(void)) get_proc_addr("__current_kernel_time");
+	native_sched_clock_ptr = get_proc_addr("native_sched_clock");
 
 	/***********************************************/
 	/*   Dirty    code:   in   3.4   and   above,  */

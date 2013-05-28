@@ -1,3 +1,8 @@
+Tue May 28 23:10:14 2013  fox
+
+     835* driver/dtrace_linux.c: New fix for dtrace_gethrtime(). For kernels
+          which expose native_sched_clock(), use that for nsec timer accuracy.
+
 Mon May 27 20:49:14 2013  fox
 
      834* driver/intr_x86-64.S: Fix for when CONFIG_PARAVIRT is not turned on.

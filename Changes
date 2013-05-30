@@ -1,3 +1,16 @@
+Thu May 30 23:45:21 2013  fox
+
+     836* tools/mkport.pl: Better detection for 
+          HAVE_ELF_GETSHDRSTRNDX. Without this, Brendan Giggs
+	  "struct sock" test broke.
+	  http://sourceforge.net/apps/trac/elftoolchain/wiki/LibElfIncompatibilityRedHatElfUtils
+	  has the gory details - they changed (fixed) the return code
+	  for elf_getshstrndx which is annoying since we need to know the version
+	  of elfutils to see which API it conforms to. I am seriously unimpressed
+	  that sprawled through the releases - it was a broken API change and
+	  it is a broken API change. WTF are two dyslexically impossible to
+	  read function names used?
+
 Tue May 28 23:10:14 2013  fox
 
      835* driver/dtrace_linux.c: New fix for dtrace_gethrtime(). For kernels

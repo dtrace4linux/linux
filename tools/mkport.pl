@@ -18,6 +18,7 @@
 # 26-Oct-2012 PDF Add support for HAVE_LINUX_FDTABLE_H
 # 12-Feb-2013 PDF Attempt to speedup and optimise for ARM.
 # 04-May-2013 PDF Add autodetection of /usr/include/dwarf.h
+# 30-May-2013 PDF Better libelf HAVE_ELF_GETSHDRSTRNDX detection.
 
 use strict;
 use warnings;
@@ -184,7 +185,10 @@ sub main
 	#   to  the  same  code, but they dont agree  #
 	#   with the API for the return value.	      #
 	###############################################
-	foreach my $elf ("/usr/lib/libelf.so", "/usr/lib64/libelf.so") {
+	foreach my $elf ("/usr/lib/libelf.so", 
+			"/usr/lib64/libelf.so",
+			"/usr/lib/x86_64-linux-gnu/libelf.so.1") {
+		next if ! -f $elf;
 		my $ret = system(" objdump -T $elf 2>/dev/null | grep elf_getshdrstrndx >/dev/null");
 		if ($ret == 0) {
 			$inc .= "# define HAVE_ELF_GETSHDRSTRNDX 1\n";

@@ -101,7 +101,7 @@ $(BINDIR)/dt_lex.c: dt_lex.l
 	lex -t -v dt_lex.l > $(BINDIR)/dt_lex.c
 
 $(BINDIR)/drti.o: drti.c $(H)
-	$(CC) $(BUILD_BITS) $(CPPFLAGS) -c drti.c
+	$(CC) -fPIC $(BUILD_BITS) $(CPPFLAGS) -c drti.c
 	mv drti.o $(BINDIR)
 
 $(LIB)(dis_tables.o): ../driver/dis_tables.c $(H)

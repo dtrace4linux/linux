@@ -52,9 +52,10 @@ LIBS = ../../build/libctf.a $(LIBDWARF) -liberty -lelf -lz
 ######################################################################
 all:
 	@. ../../build/port.sh ; \
-	if [ ! -f /usr/lib/libdwarf.a ]; then \
+	if [ ! -f /usr/lib/libdwarf.a -a ! -f /usr/lib64/libdwarf.a ]; then \
 		echo "=================================================================" ; \
-		echo "=== You need /usr/lib/libdwarf.a (libdw is not yet supported) to build." ; \
+		echo "=== You need /usr/lib/libdwarf.a or /ur/lib64/libdwarf.a " ; \
+		echo "=== (libdw is not yet supported) to build." ; \
 		echo "=== " ; \
 		echo "=== apt-get install binutils-dev" ; \
 		echo "=== apt-get install libdw-dev" ; \

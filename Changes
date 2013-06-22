@@ -1,3 +1,8 @@
+Sat Jun 22 18:47:16 2013  fox
+
+     837* libdtrace/makefile: Create drti.o with -fPIC to avoid a build
+          error with "ruby".
+
 Thu May 30 23:45:21 2013  fox
 
      836* tools/mkport.pl: Better detection for 

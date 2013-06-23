@@ -1,3 +1,10 @@
+Sun Jun 23 21:27:38 2013  fox
+
+     838* libproc/common/Psymtab.c: Avoid core dump on "dtrace -c ls".
+          Missing prototype. Cleaned up some other compiler warnings.
+
+	  "dtrace -c ls" still doesnt work.
+
 Sat Jun 22 18:47:16 2013  fox
 
      837* libdtrace/makefile: Create drti.o with -fPIC to avoid a build

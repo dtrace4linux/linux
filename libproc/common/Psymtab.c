@@ -52,6 +52,8 @@
 #include "Putil.h"
 #include "Psymtab_machelf.h"
 
+rd_agent_t *rd_new(struct ps_prochandle *php, int pid);
+
 static file_info_t *build_map_symtab(struct ps_prochandle *, map_info_t *);
 static map_info_t *exec_map(struct ps_prochandle *);
 static map_info_t *object_to_map(struct ps_prochandle *, Lmid_t, const char *);
@@ -368,7 +370,7 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 	}
 
 #if defined(linux)
-	fptr->file_lname = strdup(lop->rl_nameaddr);
+	fptr->file_lname = strdup((char *) lop->rl_nameaddr);
 /*printf("filename=%s\n", fptr->file_lname);*/
 #else
 	if (Pread_string(P, buf, sizeof (buf), lop->rl_nameaddr) > 0) {
@@ -750,7 +752,7 @@ Paddr_to_loadobj(struct ps_prochandle *P, uintptr_t addr)
 	 * information up to date in the load object.
 	 */
 	(void) build_map_symtab(P, mptr);
-printf("mapping %p to loadobj\n", addr);
+printf("mapping %p to loadobj\n", (void *) addr);
 	return (mptr->map_file->file_lo);
 }
 
@@ -994,7 +996,7 @@ Preadauxvec(struct ps_prochandle *P)
 				unsigned long lo = 0;
 				if (strstr(buf, "/ld-") != 0) {
 					sscanf(buf, "%lx", &lo);
-					P->auxv[i].a_un.a_ptr = lo;
+					P->auxv[i].a_un.a_ptr = (void *) lo;
 					break;
 					}
 			}
@@ -2462,7 +2464,7 @@ sym_by_name_binary(sym_tbl_t *symtab, const char *name, GElf_Sym *symp,
 	max = symtab->sym_count - 1;
 
 	if (_libproc_debug)
-		printf("sym: count=%d (looking for '%s')\n", symtab->sym_count, name);
+		printf("sym: count=%d (looking for '%s')\n", (int) symtab->sym_count, name);
 
 	while (min <= max) {
 		mid = (max + min) / 2;
@@ -3259,7 +3261,7 @@ Penv_iter(struct ps_prochandle *P, proc_env_f *func, void *data)
 			nenv = 0;
 		}
 
-		if ((envoff = envp[nenv++]) == NULL)
+		if ((envoff = envp[nenv++]) == 0)
 			break;
 
 		/*

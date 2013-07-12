@@ -13,7 +13,7 @@
 /*   each  statistic,  we  provide  a  probe  which  intercepts  the  */
 /*   increment of that data item.				      */
 /*--------------------------------------------------------------------*/
-/*  $Header: Last edited: 05-Feb-2013 1.4 $ 			      */
+/*  $Header: Last edited: 11-Jul-2013 1.5 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -132,7 +132,10 @@ void vminfo_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 	sdt_add_locator(vm_event_addr(KSWAPD_LOW_WMARK_HIT_QUICKLY), "vminfo:::kswapd_low_wmark_hit_quickly");
 	sdt_add_locator(vm_event_addr(KSWAPD_HIGH_WMARK_HIT_QUICKLY), "vminfo:::kswapd_high_wmark_hit_quickly");
-	sdt_add_locator(vm_event_addr(KSWAPD_SKIP_CONGESTION_WAIT), "vminfo:::kswapd_skip_congestion_wait");
+	/***********************************************/
+	/*   Disappears in 3.9 kernel.		       */
+	/***********************************************/
+	/*sdt_add_locator(vm_event_addr(KSWAPD_SKIP_CONGESTION_WAIT), "vminfo:::kswapd_skip_congestion_wait");*/
 #endif
 	sdt_add_locator(vm_event_addr(PAGEOUTRUN), "vminfo:::pageoutrun");
 	sdt_add_locator(vm_event_addr(ALLOCSTALL), "vminfo:::allocstall");

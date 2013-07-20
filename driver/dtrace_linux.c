@@ -2680,34 +2680,36 @@ dtracedrv_write(struct file *file, const char __user *buf,
 	}
 	return count;
 }
-static int proc_calc_metrics(char *page, char **start, off_t off,
-				 int count, int *eof, int len)
+
+/** "proc/dtrace/debug" */
+static ssize_t proc_dtrace_debug_show(struct seq_file *seq, void *v)
 {
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
-static ssize_t proc_dtrace_debug_read_proc(struct file *fp, char __user *buf, size_t len, loff_t *off)
-{
-	int len;
-	len = snprintf(page, count, 
+	seq_printf(seq,
 		"here=%d\n"
 		"cpuid=%d\n",
 		dtrace_here,
 		cpu_get_id());
-	return proc_calc_metrics(page, start, off, count, eof, len);
+	return 0;
 }
-static int proc_dtrace_security_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
+static struct seq_operations proc_dtrace_debug_seq_ops = {
+	.show = proc_dtrace_debug_show
+};
+static int proc_dtrace_debug_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &proc_dtrace_debug_seq_ops);
+}
+static struct file_operations proc_dtrace_debug = {
+	.owner   = THIS_MODULE,
+	.open    = proc_dtrace_debug_seq_open,
+	.read    = seq_read
+};
+
+/** "proc/dtrace/security" */
+static int proc_dtrace_security_show(struct seq_file *seq, void *v)
 {	int len = count;
 	char	tmpbuf[128];
 	int	i;
-	int	n = 0;
 	int	size;
-	char	*buf = page;
 
 	/***********************************************/
 	/*   Dump out the security table.	       */
@@ -2734,15 +2736,27 @@ static int proc_dtrace_security_read_proc(char *page, char **start, off_t off,
 		if (di_list[i].di_priv & DTRACE_PRIV_OWNER)
 			strcat(tp, " priv_owner");
 
-		size = snprintf(buf, len, "%s\n", tmpbuf);
-		buf += size;
+		size = seq_printf(seq, "%s\n", tmpbuf);
 		len -= size;
-		n += size;
 	}
-	return proc_calc_metrics(page, start, off, count, eof, n);
+	return 0;
 }
-static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
+
+static struct seq_operations proc_dtrace_security_seq_ops = {
+	.show = proc_dtrace_security_show
+};
+static int proc_dtrace_security_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &proc_dtrace_security_seq_ops);
+}
+static struct file_operations proc_dtrace_security = {
+	.owner   = THIS_MODULE,
+	.open    = sys_seq_open,
+	.read    = seq_read
+};
+
+/** "proc/dtrace/stats" */
+static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 {	int	i, size;
 	int	n = 0;
 	char	*buf = page;
@@ -2821,23 +2835,39 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 	for (i = 0; i < MAX_DCNT && n < count; i++) {
 		if (dcnt[i] == 0)
 			continue;
-		size = snprintf(buf, count - n, "dcnt%d=%lu\n", i, dcnt[i]);
-		buf += size;
-		n += size;
-		}
-
-	for (i = 0; stats[i].name; i++) {
-		if (stats[i].type == TYPE_LONG_LONG)
-			size = snprintf(buf, count - n, "%s=%llu\n", stats[i].name, *(unsigned long long *) stats[i].ptr);
-		else if (stats[i].type == TYPE_LONG)
-			size = snprintf(buf, count - n, "%s=%lu\n", stats[i].name, *stats[i].ptr);
-		else
-			size = snprintf(buf, count - n, "%s=%d\n", stats[i].name, *(int *) stats[i].ptr);
-		buf += size;
+		size = seq_nprintf(seq, "dcnt%d=%lu\n", i, dcnt[i]);
 		n += size;
 	}
 
-	return proc_calc_metrics(page, start, off, count, eof, n);
+	for (i = 0; stats[i].name; i++) {
+		if (stats[i].type == TYPE_LONG_LONG)
+			seq_printf(seq, "%s=%llu\n", stats[i].name, *(unsigned long long *) stats[i].ptr);
+		else if (stats[i].type == TYPE_LONG)
+			seq_printf(seq, "%s=%lu\n", stats[i].name, *stats[i].ptr);
+		else
+			seq_printf(seq, "%s=%d\n", stats[i].name, *(int *) stats[i].ptr);
+	}
+
+	return 0;
+}
+
+static struct seq_operations proc_dtrace_stats_seq_ops = {
+	.show = proc_dtrace_stats_show
+};
+static int proc_dtrace_stats_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &proc_dtrace_stats_seq_ops);
+}
+static struct file_operations proc_dtrace_stats = {
+	.owner   = THIS_MODULE,
+	.open    = sys_seq_open,
+	.read    = seq_read
+};
+
+/** "proc/dtrace/trace" */
+static int proc_dtrace_trace_show(struct seq_file *seq, void *v)
+{
+	return 0;
 }
 static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
@@ -2877,6 +2907,23 @@ static int proc_dtrace_trace_write_proc(struct file *file, const char __user *bu
 
 	return count;
 }
+
+static struct seq_operations proc_dtrace_trace_seq_ops = {
+	.show = proc_dtrace_trace_show
+};
+static int proc_dtrace_trace_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &proc_dtrace_trace_seq_ops);
+}
+static struct file_operations proc_dtrace_trace = {
+	.owner   = THIS_MODULE,
+	.open    = sys_seq_open,
+	.read    = seq_read,
+	// TODO:
+	// .write   = proc_dtrace_trace_write_proc
+};
+
+/** \proc */
 
 static int dtracedrv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {	int	ret;
@@ -2948,20 +2995,6 @@ static struct miscdevice helper_dev = {
         MISC_DYNAMIC_MINOR,
         "dtrace_helper",
         &helper_fops
-};
-
-static struct file_operations proc_dtrace_debug = {
-	.read = proc_dtrace_debug_read_proc
-};
-static struct file_operations proc_dtrace_security = {
-	.read = proc_dtrace_security_read_proc
-};
-static struct file_operations proc_dtrace_stats = {
-	.read = proc_dtrace_stats_read_proc
-};
-static struct file_operations proc_dtrace_trace = {
-	.read = proc_dtrace_trace_read_proc,
-	.write = proc_dtrace_trace_write_proc
 };
 
 /**********************************************************************/

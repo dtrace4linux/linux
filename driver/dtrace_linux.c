@@ -2683,7 +2683,7 @@ dtracedrv_write(struct file *file, const char __user *buf,
 }
 
 /** "proc/dtrace/debug" */
-static ssize_t proc_dtrace_debug_show(struct seq_file *seq, void *v)
+static int proc_dtrace_debug_show(struct seq_file *seq, void *v)
 {
 	seq_printf(seq,
 		"here=%d\n"

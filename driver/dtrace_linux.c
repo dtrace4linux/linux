@@ -2893,9 +2893,9 @@ static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
 /**********************************************************************/
 /*   Special hack for debugging.				      */
 /**********************************************************************/
-static int proc_dtrace_trace_write_proc(struct file *file, const char __user *buffer,
-	unsigned long count, void *pda)
-{	int	n = count > 32 ? 32 : count;
+static ssize_t proc_dtrace_trace_write_proc(struct file *fp, const char __user *buffer, size_t count, loff_t *off)
+{
+	int	n = count > 32 ? 32 : count;
 
 	dtrace_printf("proc_dtrace_trace_write_proc: %*.*s\n", n, n, buffer);
 	if (strncmp(buffer, "stack", 5) == 0)
@@ -2915,8 +2915,7 @@ static struct file_operations proc_dtrace_trace = {
 	.owner   = THIS_MODULE,
 	.open    = proc_dtrace_trace_seq_open,
 	.read    = seq_read,
-	// TODO:
-	// .write   = proc_dtrace_trace_write_proc
+	.write   = proc_dtrace_trace_write_proc
 };
 
 /** \proc */

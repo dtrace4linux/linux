@@ -2756,8 +2756,7 @@ static struct file_operations proc_dtrace_security = {
 
 /** "proc/dtrace/stats" */
 static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
-{	int	i, size;
-	int	n = 0;
+{	int	i;
 	extern unsigned long cnt_0x7f;
 	extern unsigned long cnt_gpf1;
 	extern unsigned long cnt_gpf2;
@@ -2830,11 +2829,10 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 		{0}
 		};
 
-	for (i = 0; i < MAX_DCNT && n < count; i++) {
+	for (i = 0; i < MAX_DCNT; i++) {
 		if (dcnt[i] == 0)
 			continue;
-		size = seq_nprintf(seq, "dcnt%d=%lu\n", i, dcnt[i]);
-		n += size;
+		seq_nprintf(seq, "dcnt%d=%lu\n", i, dcnt[i]);
 	}
 
 	for (i = 0; stats[i].name; i++) {

@@ -2832,7 +2832,7 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 	for (i = 0; i < MAX_DCNT; i++) {
 		if (dcnt[i] == 0)
 			continue;
-		seq_nprintf(seq, "dcnt%d=%lu\n", i, dcnt[i]);
+		seq_printf(seq, "dcnt%d=%lu\n", i, dcnt[i]);
 	}
 
 	for (i = 0; stats[i].name; i++) {

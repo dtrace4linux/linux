@@ -2750,7 +2750,7 @@ static int proc_dtrace_security_seq_open(struct inode *inode, struct file *file)
 }
 static struct file_operations proc_dtrace_security = {
 	.owner   = THIS_MODULE,
-	.open    = sys_seq_open,
+	.open    = proc_dtrace_security_seq_open,
 	.read    = seq_read
 };
 
@@ -2859,7 +2859,7 @@ static int proc_dtrace_stats_seq_open(struct inode *inode, struct file *file)
 }
 static struct file_operations proc_dtrace_stats = {
 	.owner   = THIS_MODULE,
-	.open    = sys_seq_open,
+	.open    = proc_dtrace_stats_seq_open,
 	.read    = seq_read
 };
 
@@ -2916,7 +2916,7 @@ static int proc_dtrace_trace_seq_open(struct inode *inode, struct file *file)
 }
 static struct file_operations proc_dtrace_trace = {
 	.owner   = THIS_MODULE,
-	.open    = sys_seq_open,
+	.open    = proc_dtrace_trace_seq_open,
 	.read    = seq_read,
 	// TODO:
 	// .write   = proc_dtrace_trace_write_proc

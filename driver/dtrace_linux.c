@@ -2863,32 +2863,8 @@ static struct file_operations proc_dtrace_stats = {
 /** "proc/dtrace/trace" */
 static int proc_dtrace_trace_show(struct seq_file *seq, void *v)
 {
-	return 0;
-}
-static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int	j;
-	int	pos = 0;
-	int	n = 0;
-	char	*buf = page;
-
-	if (off >= log_bufsiz) {
-		*eof = 1;
-		return 0;
-	}
-
-	j = (dbuf_i + 1) % log_bufsiz;
-	while (pos < off + count && n < count && j != dbuf_i) {
-		if (dtrace_buf[j] && pos++ >= off) {
-			*buf++ = dtrace_buf[j];
-			n++;
-		}
-		j = (j + 1) % log_bufsiz;
-	}
-	if (j == dbuf_i)
-		*eof = 1;
-	*start = page;
-	return n;
+	// TODO: or we can use dtracedrv_read() instead
+	return seq_printf(seq, "%s\n", dtrace_buf);
 }
 /**********************************************************************/
 /*   Special hack for debugging.				      */
@@ -2914,7 +2890,7 @@ static int proc_dtrace_trace_seq_open(struct inode *inode, struct file *file)
 static struct file_operations proc_dtrace_trace = {
 	.owner   = THIS_MODULE,
 	.open    = proc_dtrace_trace_seq_open,
-	.read    = seq_read,
+	.read    = seq_read, // dtracedrv_read() ?
 	.write   = proc_dtrace_trace_write_proc
 };
 

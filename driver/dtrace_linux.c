@@ -2758,7 +2758,6 @@ static struct file_operations proc_dtrace_security = {
 static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 {	int	i, size;
 	int	n = 0;
-	char	*buf = page;
 	extern unsigned long cnt_0x7f;
 	extern unsigned long cnt_gpf1;
 	extern unsigned long cnt_gpf2;

@@ -2707,15 +2707,14 @@ static struct file_operations proc_dtrace_debug = {
 
 /** "proc/dtrace/security" */
 static int proc_dtrace_security_show(struct seq_file *seq, void *v)
-{	int len = count;
+{
 	char	tmpbuf[128];
 	int	i;
-	int	size;
 
 	/***********************************************/
 	/*   Dump out the security table.	       */
 	/***********************************************/
-	for (i = 0; i < di_cnt && di_list[i].di_type && len > 0; i++) {
+	for (i = 0; i < di_cnt && di_list[i].di_type; i++) {
 		char	*tp;
 		char	*tpend = tmpbuf + sizeof tmpbuf;
 		strcpy(tmpbuf, 
@@ -2737,8 +2736,7 @@ static int proc_dtrace_security_show(struct seq_file *seq, void *v)
 		if (di_list[i].di_priv & DTRACE_PRIV_OWNER)
 			strcat(tp, " priv_owner");
 
-		size = seq_printf(seq, "%s\n", tmpbuf);
-		len -= size;
+		seq_printf(seq, "%s\n", tmpbuf);
 	}
 	return 0;
 }

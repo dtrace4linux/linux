@@ -16,6 +16,7 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
+#include "proc_compat.h"
 
 #include <linux/proc_fs.h>
 #include <asm/current.h>
@@ -1230,7 +1231,6 @@ intr_init(void)
 	return;
 # else
 
-	struct proc_dir_entry *ent;
 static	struct x86_descriptor desc1;
 
 	my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
@@ -1277,12 +1277,8 @@ static	struct x86_descriptor desc1;
 	/*   Add  an  /proc/dtrace/idt, so we can see  */
 	/*   what it looks like from user space.       */
 	/***********************************************/
-	ent = create_proc_entry("dtrace/idt", 0444, NULL);
-	if (ent)
-		ent->proc_fops = &idt_proc_fops;
-	ent = create_proc_entry("dtrace/gdt", 0444, NULL);
-	if (ent)
-		ent->proc_fops = &gdt_proc_fops;
+	proc_create("dtrace/idt", 0444, NULL, &idt_proc_fops);
+	proc_create("dtrace/gdt", 0444, NULL, &gdt_proc_fops);
 
 	/***********************************************/
 	/*   Lock   the   page   fault  handler  into  */

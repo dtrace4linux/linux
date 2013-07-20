@@ -72,6 +72,8 @@ Feb 2011
 # undef zone
 # define zone linux_zone
 #include <dtrace_linux.h>
+#include "proc_compat.h"
+
 #include <sys/privregs.h>
 #include <sys/dtrace_impl.h>
 #include <linux/sched.h>
@@ -2394,7 +2396,6 @@ static int initted;
 
 int systrace_init(void)
 {	int	ret;
-	struct proc_dir_entry *ent;
 
 	/***********************************************/
 	/*   This  is  a  run-time  and not a compile  */
@@ -2419,9 +2420,7 @@ int systrace_init(void)
 
 	systrace_attach();
 
-	ent = create_proc_entry("dtrace/syscall", 0444, NULL);
-	if (ent)
-		ent->proc_fops = &sys_proc_fops;
+	proc_create("dtrace/syscall", 0444, NULL, &sys_proc_fops);
 
 	return 0;
 }

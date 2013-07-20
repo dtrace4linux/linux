@@ -17,6 +17,7 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
+#include "proc_compat.h"
 
 #include <linux/cpumask.h>
 #include <linux/errno.h>
@@ -2689,10 +2690,9 @@ static int proc_calc_metrics(char *page, char **start, off_t off,
 	if (len<0) len = 0;
 	return len;
 }
-static int proc_dtrace_debug_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int len;
-
+static ssize_t proc_dtrace_debug_read_proc(struct file *fp, char __user *buf, size_t len, loff_t *off)
+{
+	int len;
 	len = snprintf(page, count, 
 		"here=%d\n"
 		"cpuid=%d\n",
@@ -2950,13 +2950,26 @@ static struct miscdevice helper_dev = {
         &helper_fops
 };
 
+static struct file_operations proc_dtrace_debug = {
+	.read = proc_dtrace_debug_read_proc
+};
+static struct file_operations proc_dtrace_security = {
+	.read = proc_dtrace_security_read_proc
+};
+static struct file_operations proc_dtrace_stats = {
+	.read = proc_dtrace_stats_read_proc
+};
+static struct file_operations proc_dtrace_trace = {
+	.read = proc_dtrace_trace_read_proc,
+	.write = proc_dtrace_trace_write_proc
+};
+
 /**********************************************************************/
 /*   This is where we start after loading the driver.		      */
 /**********************************************************************/
 
 static int __init dtracedrv_init(void)
 {	int	i, ret;
-	struct proc_dir_entry *ent;
 
 	/***********************************************/
 	/*   Create the parent directory.	       */
@@ -3022,18 +3035,10 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	/*   Create /proc/dtrace subentries.	       */
 	/***********************************************/
-	ent = create_proc_entry("debug", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_debug_read_proc;
-
-	ent = create_proc_entry("security", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_security_read_proc;
-
-	ent = create_proc_entry("stats", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_stats_read_proc;
-
-	ent = create_proc_entry("trace", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_trace_read_proc;
-	ent->write_proc = proc_dtrace_trace_write_proc;
+	proc_create("debug", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_debug);
+	proc_create("security", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_security);
+	proc_create("stats", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_stats);
+	proc_create("trace", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_trace);
 
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */

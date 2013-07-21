@@ -2849,19 +2849,16 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-static struct seq_operations proc_dtrace_stats_seq_ops = {
-	.show = proc_dtrace_stats_show
-};
-static int proc_dtrace_stats_seq_open(struct inode *inode, struct file *file)
+static int proc_dtrace_stats_single_open(struct inode *inode, struct file *file)
 {
-	return seq_open(file, &proc_dtrace_stats_seq_ops);
+	return single_open(file, &proc_dtrace_stats_show, NULL);
 }
 static struct file_operations proc_dtrace_stats = {
 	.owner   = THIS_MODULE,
-	.open    = proc_dtrace_stats_seq_open,
+	.open    = proc_dtrace_stats_single_open,
+	.read    = seq_read,
 	.llseek  = seq_lseek,
-	.release = seq_release,
-	.read    = seq_read
+	.release = single_release
 };
 
 /** "proc/dtrace/trace" */

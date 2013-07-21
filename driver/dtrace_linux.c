@@ -2682,6 +2682,10 @@ dtracedrv_write(struct file *file, const char __user *buf,
 	return count;
 }
 
+/**
+ * "proc/dtrace"
+ */
+
 /** "proc/dtrace/debug" */
 static int proc_dtrace_debug_show(struct seq_file *seq, void *v)
 {
@@ -2692,19 +2696,16 @@ static int proc_dtrace_debug_show(struct seq_file *seq, void *v)
 		cpu_get_id());
 	return 0;
 }
-static struct seq_operations proc_dtrace_debug_seq_ops = {
-	.show = proc_dtrace_debug_show
-};
-static int proc_dtrace_debug_seq_open(struct inode *inode, struct file *file)
+static int proc_dtrace_debug_single_open(struct inode *inode, struct file *file)
 {
-	return seq_open(file, &proc_dtrace_debug_seq_ops);
+	return single_open(file, &proc_dtrace_debug_show, NULL);
 }
 static struct file_operations proc_dtrace_debug = {
 	.owner   = THIS_MODULE,
-	.open    = proc_dtrace_debug_seq_open,
+	.open    = proc_dtrace_debug_single_open,
+	.read    = seq_read,
 	.llseek  = seq_lseek,
-	.release = seq_release,
-	.read    = seq_read
+	.release = single_release
 };
 
 /** "proc/dtrace/security" */

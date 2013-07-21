@@ -2881,19 +2881,16 @@ static ssize_t proc_dtrace_trace_write_proc(struct file *fp, const char __user *
 	return count;
 }
 
-static struct seq_operations proc_dtrace_trace_seq_ops = {
-	.show = proc_dtrace_trace_show
-};
-static int proc_dtrace_trace_seq_open(struct inode *inode, struct file *file)
+static int proc_dtrace_trace_single_open(struct inode *inode, struct file *file)
 {
-	return seq_open(file, &proc_dtrace_trace_seq_ops);
+	return single_open(file, &proc_dtrace_trace_show, NULL);
 }
 static struct file_operations proc_dtrace_trace = {
 	.owner   = THIS_MODULE,
-	.open    = proc_dtrace_trace_seq_open,
+	.open    = proc_dtrace_trace_single_open,
+	.read    = seq_read, // dtracedrv_read() ?
 	.llseek  = seq_lseek,
 	.release = seq_release,
-	.read    = seq_read, // dtracedrv_read() ?
 	.write   = proc_dtrace_trace_write_proc
 };
 

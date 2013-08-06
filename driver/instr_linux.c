@@ -21,6 +21,8 @@
 /**********************************************************************/
 
 #include <dtrace_linux.h>
+#include "proc_compat.h"
+
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <dtrace_proto.h>
@@ -1109,7 +1111,6 @@ int instr_init(void)
 {
 # if !defined(__arm__)
 	int	ret;
-	struct proc_dir_entry *ent;
 
 	ret = misc_register(&instr_dev);
 	if (ret) {
@@ -1131,9 +1132,7 @@ int instr_init(void)
 
 	dtrace_invop_add(instr_invop);
 	
-	ent = create_proc_entry("dtrace/instr", 0444, NULL);
-	if (ent)
-		ent->proc_fops = &instr_proc_fops;
+	proc_create("dtrace/instr", 0444, NULL, &instr_proc_fops);
 
 	if (dtrace_register("instr", &instr_attr, DTRACE_PRIV_KERNEL, 0,
 	    &instr_pops, NULL, &instr_id)) {

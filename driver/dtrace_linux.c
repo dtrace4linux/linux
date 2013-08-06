@@ -17,12 +17,14 @@
 #include "dtrace_linux.h"
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
+#include "proc_compat.h"
 
 #include <linux/cpumask.h>
 #include <linux/errno.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/sys.h>
@@ -2679,40 +2681,43 @@ dtracedrv_write(struct file *file, const char __user *buf,
 	}
 	return count;
 }
-static int proc_calc_metrics(char *page, char **start, off_t off,
-				 int count, int *eof, int len)
-{
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
-static int proc_dtrace_debug_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int len;
 
-	len = snprintf(page, count, 
+/**
+ * "proc/dtrace"
+ */
+
+/** "proc/dtrace/debug" */
+static int proc_dtrace_debug_show(struct seq_file *seq, void *v)
+{
+	seq_printf(seq,
 		"here=%d\n"
 		"cpuid=%d\n",
 		dtrace_here,
 		cpu_get_id());
-	return proc_calc_metrics(page, start, off, count, eof, len);
+	return 0;
 }
-static int proc_dtrace_security_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int len = count;
+static int proc_dtrace_debug_single_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, &proc_dtrace_debug_show, NULL);
+}
+static struct file_operations proc_dtrace_debug = {
+	.owner   = THIS_MODULE,
+	.open    = proc_dtrace_debug_single_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
+};
+
+/** "proc/dtrace/security" */
+static int proc_dtrace_security_show(struct seq_file *seq, void *v)
+{
 	char	tmpbuf[128];
 	int	i;
-	int	n = 0;
-	int	size;
-	char	*buf = page;
 
 	/***********************************************/
 	/*   Dump out the security table.	       */
 	/***********************************************/
-	for (i = 0; i < di_cnt && di_list[i].di_type && len > 0; i++) {
+	for (i = 0; i < di_cnt && di_list[i].di_type; i++) {
 		char	*tp;
 		char	*tpend = tmpbuf + sizeof tmpbuf;
 		strcpy(tmpbuf, 
@@ -2734,18 +2739,26 @@ static int proc_dtrace_security_read_proc(char *page, char **start, off_t off,
 		if (di_list[i].di_priv & DTRACE_PRIV_OWNER)
 			strcat(tp, " priv_owner");
 
-		size = snprintf(buf, len, "%s\n", tmpbuf);
-		buf += size;
-		len -= size;
-		n += size;
+		seq_printf(seq, "%s\n", tmpbuf);
 	}
-	return proc_calc_metrics(page, start, off, count, eof, n);
+	return 0;
 }
-static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int	i, size;
-	int	n = 0;
-	char	*buf = page;
+
+static int proc_dtrace_security_single_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, &proc_dtrace_security_show, NULL);
+}
+static struct file_operations proc_dtrace_security = {
+	.owner   = THIS_MODULE,
+	.open    = proc_dtrace_security_single_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
+};
+
+/** "proc/dtrace/stats" */
+static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
+{	int	i;
 	extern unsigned long cnt_0x7f;
 	extern unsigned long cnt_gpf1;
 	extern unsigned long cnt_gpf2;
@@ -2818,58 +2831,48 @@ static int proc_dtrace_stats_read_proc(char *page, char **start, off_t off,
 		{0}
 		};
 
-	for (i = 0; i < MAX_DCNT && n < count; i++) {
+	for (i = 0; i < MAX_DCNT; i++) {
 		if (dcnt[i] == 0)
 			continue;
-		size = snprintf(buf, count - n, "dcnt%d=%lu\n", i, dcnt[i]);
-		buf += size;
-		n += size;
-		}
+		seq_printf(seq, "dcnt%d=%lu\n", i, dcnt[i]);
+	}
 
 	for (i = 0; stats[i].name; i++) {
 		if (stats[i].type == TYPE_LONG_LONG)
-			size = snprintf(buf, count - n, "%s=%llu\n", stats[i].name, *(unsigned long long *) stats[i].ptr);
+			seq_printf(seq, "%s=%llu\n", stats[i].name, *(unsigned long long *) stats[i].ptr);
 		else if (stats[i].type == TYPE_LONG)
-			size = snprintf(buf, count - n, "%s=%lu\n", stats[i].name, *stats[i].ptr);
+			seq_printf(seq, "%s=%lu\n", stats[i].name, *stats[i].ptr);
 		else
-			size = snprintf(buf, count - n, "%s=%d\n", stats[i].name, *(int *) stats[i].ptr);
-		buf += size;
-		n += size;
+			seq_printf(seq, "%s=%d\n", stats[i].name, *(int *) stats[i].ptr);
 	}
 
-	return proc_calc_metrics(page, start, off, count, eof, n);
+	return 0;
 }
-static int proc_dtrace_trace_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{	int	j;
-	int	pos = 0;
-	int	n = 0;
-	char	*buf = page;
 
-	if (off >= log_bufsiz) {
-		*eof = 1;
-		return 0;
-	}
+static int proc_dtrace_stats_single_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, &proc_dtrace_stats_show, NULL);
+}
+static struct file_operations proc_dtrace_stats = {
+	.owner   = THIS_MODULE,
+	.open    = proc_dtrace_stats_single_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
+};
 
-	j = (dbuf_i + 1) % log_bufsiz;
-	while (pos < off + count && n < count && j != dbuf_i) {
-		if (dtrace_buf[j] && pos++ >= off) {
-			*buf++ = dtrace_buf[j];
-			n++;
-		}
-		j = (j + 1) % log_bufsiz;
-	}
-	if (j == dbuf_i)
-		*eof = 1;
-	*start = page;
-	return n;
+/** "proc/dtrace/trace" */
+static int proc_dtrace_trace_show(struct seq_file *seq, void *v)
+{
+	// TODO: or we can use dtracedrv_read() instead
+	return seq_printf(seq, "%s\n", dtrace_buf);
 }
 /**********************************************************************/
 /*   Special hack for debugging.				      */
 /**********************************************************************/
-static int proc_dtrace_trace_write_proc(struct file *file, const char __user *buffer,
-	unsigned long count, void *pda)
-{	int	n = count > 32 ? 32 : count;
+static ssize_t proc_dtrace_trace_write_proc(struct file *fp, const char __user *buffer, size_t count, loff_t *off)
+{
+	int	n = count > 32 ? 32 : count;
 
 	dtrace_printf("proc_dtrace_trace_write_proc: %*.*s\n", n, n, buffer);
 	if (strncmp(buffer, "stack", 5) == 0)
@@ -2877,6 +2880,21 @@ static int proc_dtrace_trace_write_proc(struct file *file, const char __user *bu
 
 	return count;
 }
+
+static int proc_dtrace_trace_single_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, &proc_dtrace_trace_show, NULL);
+}
+static struct file_operations proc_dtrace_trace = {
+	.owner   = THIS_MODULE,
+	.open    = proc_dtrace_trace_single_open,
+	.read    = seq_read, // dtracedrv_read() ?
+	.llseek  = seq_lseek,
+	.release = seq_release,
+	.write   = proc_dtrace_trace_write_proc
+};
+
+/** \proc */
 
 static int dtracedrv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {	int	ret;
@@ -2956,7 +2974,6 @@ static struct miscdevice helper_dev = {
 
 static int __init dtracedrv_init(void)
 {	int	i, ret;
-	struct proc_dir_entry *ent;
 
 	/***********************************************/
 	/*   Create the parent directory.	       */
@@ -3022,18 +3039,10 @@ static struct proc_dir_entry *dir;
 	/***********************************************/
 	/*   Create /proc/dtrace subentries.	       */
 	/***********************************************/
-	ent = create_proc_entry("debug", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_debug_read_proc;
-
-	ent = create_proc_entry("security", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_security_read_proc;
-
-	ent = create_proc_entry("stats", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_stats_read_proc;
-
-	ent = create_proc_entry("trace", S_IFREG | S_IRUGO | S_IWUGO, dir);
-	ent->read_proc = proc_dtrace_trace_read_proc;
-	ent->write_proc = proc_dtrace_trace_write_proc;
+	proc_create("debug", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_debug);
+	proc_create("security", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_security);
+	proc_create("stats", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_stats);
+	proc_create("trace", S_IFREG | S_IRUGO | S_IWUGO, dir, &proc_dtrace_trace);
 
 	/***********************************************/
 	/*   Helper not presently implemented :-(      */

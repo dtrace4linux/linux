@@ -20,6 +20,8 @@
 //#pragma ident	"@(#)fbt.c	1.11	04/12/18 SMI"
 
 #include <dtrace_linux.h>
+#include "proc_compat.h"
+
 #include <sys/dtrace_impl.h>
 #include <sys/dtrace.h>
 #include <dtrace_proto.h>
@@ -1403,7 +1405,6 @@ static int initted;
 
 int fbt_init(void)
 {	int	ret;
-	struct proc_dir_entry *ent;
 
 	ret = misc_register(&fbt_dev);
 	if (ret) {
@@ -1425,9 +1426,7 @@ int fbt_init(void)
 
 /*	dtrace_invop_add(fbt_invop);*/
 	
-	ent = create_proc_entry("dtrace/fbt", 0444, NULL);
-	if (ent)
-		ent->proc_fops = &fbt_proc_fops;
+	proc_create("dtrace/fbt", 0444, NULL, &fbt_proc_fops);
 
 	if (dtrace_register("fbt", &fbt_attr, DTRACE_PRIV_KERNEL, 0,
 	    &fbt_pops, NULL, &fbt_id)) {

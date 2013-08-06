@@ -28,6 +28,8 @@
 
 # if linux
 #include "dtrace_linux.h"
+#include "proc_compat.h"
+
 #include <sys/zone.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
@@ -2471,7 +2473,6 @@ fasttrap_attach(void)
 {
 	ulong_t nent = 1000;
 	int	i;
-	struct proc_dir_entry *ent;
 
 # if defined(sun)
 	switch (cmd) {
@@ -2570,9 +2571,7 @@ HERE();
 	}
 
 HERE();
-	ent = create_proc_entry("dtrace/fasttrap", 0444, NULL);
-	if (ent)
-		ent->proc_fops = &fasttrap_proc_fops;
+	proc_create("dtrace/fasttrap", 0444, NULL, &fasttrap_proc_fops);
 	(void) dtrace_meta_register("fasttrap", &fasttrap_mops, NULL,
 	    &fasttrap_meta_id);
 HERE();

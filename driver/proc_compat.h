@@ -1,8 +1,8 @@
 
 /**
- * proc compat with kernel older 3.10
+ * proc compat with kernel older 2.6.18 (Centos 5.5)
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 inline struct proc_dir_entry* proc_create_data(
 	const char *name, umode_t mode, struct proc_dir_entry *parent,
 	const struct file_operations *proc_fops, void *data)

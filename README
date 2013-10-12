@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-Feb 2013
+Aug 2013
 Paul D. Fox
 paul.d.fox@gmail.com
 http://www.twitter.com/crispeditor
@@ -89,6 +89,7 @@ You may need to grab some extra packages for building DTrace.
 Use either of the following to download extra packages. This
 list may be incomplete depending on the version of your kernel/distro.
 
+	$ tools/get-deps-arch.pl 	# if using ArchLinux
 	$ tools/get-deps.pl 		# if using Ubuntu
 	$ tools/get-deps-fedora.sh	# RedHat/Fedora
 
@@ -113,7 +114,6 @@ Installing will copy them to Solaris compliant locations:
 
 	/usr/sbin/dtrace
 	/usr/lib/dtrace/64/drti.o
-
 
 You dont need to 'install' to run dtrace, but you will need
 to load the driver.
@@ -140,7 +140,10 @@ a kernel build environment is available.
 INSTALLATION
 ============
 
-Run 'make' with no arguments to see the current options.
+Run 'make' with no arguments to see the current options. You
+may need to run one of the tools/get-deps scripts for your OS
+flavor to ensure you have the tools and kernel build
+environment for your kernel.
 
 make all
 	to compile the drivers and user space commands. Check the file

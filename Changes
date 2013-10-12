@@ -1,3 +1,12 @@
+Sat Oct 12 08:07:40 2013  fox
+
+     841* intr.c: Fix for 3.11 kernel (store_gdt)
+
+Sat Aug  3 21:33:35 2013  fox
+
+     840* driver/proc_compat.h: create_proc_entry only if < 2.6.18 kernel.
+          (Centos 5.5 fix)
+
 Thu Jul 11 23:00:12 2013  fox
 
      839* driver/vminfo.c: Fix for 3.9 kernel.

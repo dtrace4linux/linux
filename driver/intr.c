@@ -7,7 +7,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 30-Nov-2012 1.17 $ 			      */
+/*   $Header: Last edited: 12-Oct-2013 1.18 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -46,6 +46,23 @@
 	/***********************************************/
 #define store_gdt(ptr) asm volatile("sgdt %0":"=m" (*ptr))
 #define store_idt(ptr) asm volatile("sidt %0":"=m" (*ptr))
+#endif
+
+#if !defined(store_gdt) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+	/***********************************************/
+	/*   Xen  removed  this - oh, so nice of you.  */
+	/*   Not! We want the GDT to debug dtrace, so  */
+	/*   that was a bad thing. And done in such a  */
+	/*   way  that  its  difficult  to  guarantee  */
+	/*   compile    on    earlier/later   kernels  */
+	/*   with/without   Xen.   That   really   is  */
+	/*   appalling.  We only need this if you try  */
+	/*   and cat the /proc/dtrace/gdt, so nothing  */
+	/*   lost  if  this  is  nooped, but it could  */
+	/*   crash  a  Xen  machine  if  you are in a  */
+	/*   hypervisor.			       */
+	/***********************************************/
+#define store_gdt(ptr) asm volatile("sgdt %0":"=m" (*ptr))
 #endif
 
 struct x86_descriptor {
@@ -769,7 +786,7 @@ static int gdt_seq_show(struct seq_file *seq, void *v)
 {	int	n = (int) (long) v;
 	unsigned long *g;
 	unsigned long *gdt_table_ptr;
-	struct x86_descriptor desc;
+	struct x86_descriptor desc = {0};
 
 	store_gdt((struct desc_ptr *) &desc);
 	if (n == 1) {
@@ -782,6 +799,10 @@ static int gdt_seq_show(struct seq_file *seq, void *v)
 		return 0;
 
 	gdt_table_ptr = (unsigned long *) desc.address;
+	if (gdt_table_ptr == NULL) {
+		seq_printf(seq, "No GDT support on this processor\n");
+		return 0;
+		}
 	g = &gdt_table_ptr[(n - 2) * 2];
 # if defined(__amd64)
 

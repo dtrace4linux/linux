@@ -765,7 +765,9 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	uint8_t *instr, uint8_t *limit, int symndx)
 {
 	pf_info_t	inf;
+int io_prov_sdt(pf_info_t *infp, uint8_t *instr, int size, int modrm);
 
+	memset(&inf, 0, sizeof inf);
 	inf.mp = mp;
 	inf.pmp = pmp;
 	inf.modname = modname;
@@ -776,6 +778,7 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 
 	inf.func_entry = fbt_prov_entry;
 	inf.func_return = fbt_prov_return;
+	inf.func_sdt = io_prov_sdt;
 
 	dtrace_parse_function(&inf, instr, limit);
 }

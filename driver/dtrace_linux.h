@@ -368,6 +368,7 @@ typedef struct pf_info_t {
 	uint8_t		*st_value;
 	int		(*func_entry)(struct pf_info_t *, uint8_t *, int, int);
 	int		(*func_return)(struct pf_info_t *, uint8_t *, int);
+	int		(*func_sdt)(struct pf_info_t *, uint8_t *, int, int);
 	void		*retptr;
 	int		flags;
 	} pf_info_t;
@@ -421,6 +422,7 @@ timeout_id_t timeout(void (*func)(void *), void *arg, unsigned long ticks);
 void untimeout(timeout_id_t id);
 void *prcom_get_arg(int n, int size);
 void *par_setup_thread1(struct task_struct *tp);
+int	get_proc_name(unsigned long, char *buf);
 
 /**********************************************************************/
 /*   Some  kernels  dont  define if not SMP, but we define anyway so  */

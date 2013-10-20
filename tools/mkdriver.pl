@@ -24,6 +24,12 @@ sub main
 	my $cmd = shift @ARGV;
 	die "Usage: mkdriver.pl [all | clean]\n" if !$cmd;
 
+	my $driver = "driver";
+	if ($cmd eq 'driver-2') {
+		$driver = "driver-2";
+		$cmd = shift @ARGV;
+	}
+
 	###############################################
 	#   Allow  clean  out  of  context.  We dont  #
 	#   really  need  this  since  all  volatile  #
@@ -33,12 +39,12 @@ sub main
 		if (!defined($ENV{BUILD_DIR})) {
 			return system("rm -rf build*");
 		}
-		return system("rm -rf $ENV{BUILD_DIR}/driver");
+		return system("rm -rf $ENV{BUILD_DIR}/$driver");
 	}
 
 	$ENV{BUILD_DIR} = "build" if ! $ENV{BUILD_DIR};
 	die "$0: \$BUILD_DIR not defined of directory does not exist." if ! -d $ENV{BUILD_DIR};
-	if (! -d "$ENV{BUILD_DIR}/driver" && !mkdir("$ENV{BUILD_DIR}/driver", 0755)) {
+	if (! -d "$ENV{BUILD_DIR}/$driver" && !mkdir("$ENV{BUILD_DIR}/$driver", 0755)) {
 		die "Cannot create $ENV{BUILD_DIR} - $!\n";
 	}
 
@@ -46,8 +52,8 @@ sub main
 	#   Symlink the files to build/dtrace/ dir.   #
 	###############################################
 	foreach my $f (qw/Makefile *.c *.h *.S/) {
-		foreach my $f1 (glob("driver/$f")) {
-			my $target = "$ENV{BUILD_DIR}/driver/" . basename($f1);
+		foreach my $f1 (glob("$driver/$f")) {
+			my $target = "$ENV{BUILD_DIR}/$driver/" . basename($f1);
 			my $lnk = readlink("$target");
 			if (! $lnk || $lnk ne "../../$f1") {
 				unlink($target);
@@ -63,8 +69,8 @@ sub main
 	#   Now do the build.			      #
 	###############################################
 	$cmd = Cwd::realpath(dirname($0)) . "/make-me";
-	if (!chdir("$ENV{BUILD_DIR}/driver")) {
-		die "Cannot cd to $ENV{BUILD_DIR}/driver dir -- $!\n";
+	if (!chdir("$ENV{BUILD_DIR}/$driver")) {
+		die "Cannot cd to $ENV{BUILD_DIR}/$driver dir -- $!\n";
 	}
 
 	print "Executing: $cmd\n";

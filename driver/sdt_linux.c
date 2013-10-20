@@ -44,6 +44,7 @@
 #include <sys/dtrace_impl.h>
 #include "dtrace_proto.h"
 #include <linux/mount.h>
+#include <linux/kallsyms.h>
 
 # define regs pt_regs
 #include <sys/stack.h>
@@ -71,6 +72,8 @@ static sdt_provider_t *io_prov;
 /*   Needed to map a mountpoint to a printable name.		      */
 /**********************************************************************/
 extern char *(*dentry_path_fn)(struct dentry *, char *, int);
+
+int io_prov_sdt(pf_info_t *infp, uint8_t *instr, int size, int modrm);
 
 /**********************************************************************/
 /*   Go hunting for the static io:: provider slots.		      */
@@ -116,6 +119,9 @@ printk("io_prov_entry called %s:%s\n", infp->modname, infp->name);
 	infp->retptr = NULL;
 	return 1;
 }
+/**********************************************************************/
+/*   Handle creation of a return probe.				      */
+/**********************************************************************/
 static int
 io_prov_return(pf_info_t *infp, uint8_t *instr, int size)
 {
@@ -186,6 +192,7 @@ io_prov_create(char *func, char *name, int flags)
 
 	inf.func_entry = io_prov_entry;
 	inf.func_return = io_prov_return;
+	inf.func_sdt = io_prov_sdt;
 	inf.flags = flags;
 
 	dtrace_parse_function(&inf, start, start + size);
@@ -459,6 +466,8 @@ sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 		}
 	}
 # endif
+
+printk("unloading sdt %ld\n", id);
 
 	while (sdp != NULL) {
 		old = sdp;
@@ -802,5 +811,151 @@ void sdt_exit(void)
 	}
 
 /*	printk(KERN_WARNING "sdt driver unloaded.\n");*/
+}
+
+/**********************************************************************/
+/*   Dynamic SDT traces based on discovery from the loaded kernel or  */
+/*   modules.							      */
+/*   								      */
+/*   Placed  at  end  of  file,  since  we need the ref to sdt_pops,  */
+/*   above.							      */
+/**********************************************************************/
+#define MAX_DYN_SDT 32
+static sdt_provider_t sdt_dyn_providers[MAX_DYN_SDT];
+
+int
+io_prov_sdt(pf_info_t *infp, uint8_t *instr, int size, int modrm)
+{
+	sdt_probe_t *sdp;
+	sdt_provider_t *prov;
+	uint8_t *offset;
+	char	*name;
+	char	namebuf[KSYM_NAME_LEN];
+	char	provname[64];
+	char	modname[64];
+	char	probename[64];
+	char	funcname[64];
+	int	sz;
+	char	*cp, *cp1;
+	unsigned long addr = (unsigned long) instr + 5 + *(int32_t *) (instr+1);
+
+static dtrace_pattr_t sdt_attr = {
+{ DTRACE_STABILITY_EVOLVING, DTRACE_STABILITY_EVOLVING, DTRACE_CLASS_ISA },
+{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_UNKNOWN },
+{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_UNKNOWN },
+{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_ISA },
+{ DTRACE_STABILITY_PRIVATE, DTRACE_STABILITY_PRIVATE, DTRACE_CLASS_ISA },
+};
+
+printk("io_prov_sdt called %s:%s\n", infp->modname, infp->name);
+
+	/***********************************************/
+	/*   Map   the   target   of   the  SDT  call  */
+	/*   instruction into a symbol name so we can  */
+	/*   extract the provider and probe name.      */
+	/***********************************************/
+	sz = get_proc_name(addr, namebuf);
+//	printk("io_prov_sdt: func=%s\n", namebuf);
+	if (strncmp(namebuf, "__dtrace_", 9) != 0)
+		return 1;
+	cp1 = namebuf + 9;
+	for (cp = provname; cp < &provname[sizeof provname - 1]; cp++) {
+		if (strncmp(cp1, "___", 3) == 0)
+			break;
+		*cp = *cp1++;
+	}
+	*cp = '\0';
+	cp1 += 3;
+	for (cp = modname; cp < &modname[sizeof modname - 1]; cp++) {
+		if (strncmp(cp1, "___", 3) == 0)
+			break;
+		*cp = *cp1++;
+	}
+	*cp = '\0';
+	cp1 += 3;
+	for (cp = probename; cp < &probename[sizeof probename - 1]; cp++) {
+		if (strncmp(cp1, "___", 3) == 0)
+			break;
+		*cp = *cp1++;
+	}
+	*cp = '\0';
+	cp1 += 3;
+	for (cp = funcname; cp < &funcname[sizeof funcname - 1]; cp++) {
+		if (strncmp(cp1, "___", 3) == 0)
+			break;
+		*cp = *cp1++;
+	}
+	*cp = '\0';
+	cp1 += 3;
+printk("io_prov_sdt: func=%s %s:%s:%s:%s\n", namebuf, provname, modname, probename, funcname);
+
+	/***********************************************/
+	/*   Try and find an existing version of this  */
+	/*   provider,  else  allocate  a new one and  */
+	/*   register it.			       */
+	/***********************************************/
+	for (prov = sdt_dyn_providers; prov->sdtp_prefix != NULL; prov++) {
+		if (strcmp(prov->sdtp_name, provname) == 0)
+			break;
+	}
+	/***********************************************/
+	/*   If  not  already  in the table, register  */
+	/*   the provider.			       */
+	/***********************************************/
+	if (prov->sdtp_prefix == NULL) {
+		extern mutex_t dtrace_provider_lock;
+
+		if (prov - sdt_dyn_providers >= MAX_DYN_SDT - 1) {
+			printk("out of table space: %d slots available\n", MAX_DYN_SDT);
+			return 1;
+			}
+		prov->sdtp_name = kstrdup(provname, KM_SLEEP);
+		prov->sdtp_attr = &sdt_attr;
+
+		/***********************************************/
+		/*   This  is  ugly  - we are already holding  */
+		/*   the    lock    so    we    cannot   call  */
+		/*   dtrace_register.  But  module loading is  */
+		/*   rare,  so  any  race conditions shouldnt  */
+		/*   exist to allow a re-entrancy problem.     */
+		/***********************************************/
+		dmutex_exit(&dtrace_provider_lock);
+		if (dtrace_register(prov->sdtp_name, prov->sdtp_attr,
+		    DTRACE_PRIV_KERNEL, NULL,
+		    &sdt_pops, prov, &prov->sdtp_id) != 0) {
+			dmutex_enter(&dtrace_provider_lock);
+			cmn_err(CE_WARN, "failed to register sdt provider %s",
+			    prov->sdtp_name);
+			return 1;
+		}
+		dmutex_enter(&dtrace_provider_lock);
+	}
+
+	name = kstrdup(probename, KM_SLEEP);
+	sdp = kmem_zalloc(sizeof (sdt_probe_t), KM_SLEEP);
+	sdp->sdp_id = dtrace_probe_create(prov->sdtp_id,
+			    infp->modname, probename, funcname, 0, sdp);
+	sdp->sdp_name = name;
+	sdp->sdp_namelen = strlen(name);
+	sdp->sdp_inslen = size;
+	sdp->sdp_modrm = modrm;
+	sdp->sdp_provider = prov;
+	sdp->sdp_flags = infp->flags;
+	sdp->sdp_entry = FALSE;
+
+	/***********************************************/
+	/*   Add the entry to the hash table.	       */
+	/***********************************************/
+	offset = instr;
+	sdp->sdp_hashnext =
+	    sdt_probetab[SDT_ADDR2NDX(offset)];
+	sdt_probetab[SDT_ADDR2NDX(offset)] = sdp;
+
+	sdp->sdp_patchval = PATCHVAL;
+	sdp->sdp_patchpoint = (uint8_t *)offset;
+	sdp->sdp_savedval = *sdp->sdp_patchpoint;
+
+	infp->retptr = NULL;
+	return 1;
 }
 

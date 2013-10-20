@@ -1,0 +1,40 @@
+SDT Probes
+Date: 20 Oct 2013
+
+SDT probes on Solaris are probes which are actual calls to DTrace,
+compiled when the kernel or module is compiled. Calls to variations
+of the DTRACE_PROBE macros insert appropriate markers so
+that these probe points are exposed and can be seen in "dtrace -l".
+
+DTrace for Linux assumes we are not going to change the kernel.
+Changes to the boot-loaded kernel require code to parse out these
+probes and make them a part of DTrace. This is not presently implemented.
+
+However DTrace does provide for SDT probes in dynamically loaded
+modules. The code in driver-2 provides a simple hello-world
+driver which exposes /proc/hello-world. The open() and read()
+code shows the use of SDT probes.
+
+The probes work by calling a dummy function - the dummy function
+is a dtrace mangled name encoding the provider/probename/function,
+and as the driver is loaded, you can see the probes in "dtrace -l"
+and use them as any other probe.
+
+If the driver is unloaded, the probes are removed, as expected, allowing
+debugging of a driver and reloading without causing harm.
+
+These probes are invoked as :
+
+<pre>
+	DTRACE_SDT_PROBE1(hworld, open_module, open1, entry, num_opens);
+</pre>
+
+The first four arguments correspond to the provider,
+module, probename, and function name. These are mostly arbitrary,
+although the module name is *ignored*. The actual driver module
+name is inserted at this point, to ensure the corresponding driver
+unload does the right thing.
+
+The remaining arguments are available as probe arguments. Presently,
+they are typeless (integer), so you would need to cast them to an
+appropriate type if you want to access internal structures.

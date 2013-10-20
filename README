@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-Aug 2013
+Oct 2013
 Paul D. Fox
 paul.d.fox@gmail.com
 http://www.twitter.com/crispeditor
@@ -162,6 +162,16 @@ make unl
 make test
 	To run the userland cmd/dtrace regression test
 
-For AS4/Centos
-==============
-	yum install elfutils-libelf-devel
+Dependencies
+============
+To build dtrace for linux requires a number of tools - mostly
+the basic Unix development tools, plus you will need the kernel
+source/build tree. dtrace does not affect or touch your kernel
+sources, but it needs the normal header files for creating a 
+loadable module.
+
+Examine the following scripts to help identify missing packages:
+
+	tools/get-deps-arch.sh
+	tools/get-deps-fedora.sh
+	tools/get-deps.pl

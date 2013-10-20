@@ -536,6 +536,21 @@ if (*instr == 0xe8) return;
 			return;
 
 
+		/***********************************************/
+		/*   If  the  target of the call looks like a  */
+		/*   dtrace SDT probe, then grab it.	       */
+		/***********************************************/
+		if (*instr == 0xe8 && infp->func_sdt) {
+			uint8_t *target = (unsigned long) instr + 5 + (uint8_t *) (long) *(int32_t *) (instr + 1);
+	//printk("target: %p %02x %02x %02x %02x %02x\n", target, *target, target[1], target[2], target[3], target[4]);
+			if (*target == 0xc3 &&
+			    target[1] == 0xcc &&
+			    target[2] == 0xcc &&
+			    target[3] == 0xcc &&
+			    target[4] == 0xcc) {
+				    (*infp->func_sdt)(infp, instr, size, modrm);
+			}
+		}
 #if 0
 		/***********************************************/
 		/*   Handle  the BUG_ON macro which generates  */

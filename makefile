@@ -83,6 +83,7 @@ do_cmds:
 	cd usdt/c ; $(MAKE) $(NOPWD)
 kernel:
 	tools/mkdriver.pl all
+	tools/mkdriver.pl driver-2 all
 	tools/mkctf.sh
 
 clean:

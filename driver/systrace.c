@@ -55,7 +55,7 @@ Feb 2011
 /**********************************************************************/
 
 //#pragma ident	"@(#)systrace.c	1.6	06/09/19 SMI"
-/* $Header: Last edited: 30-Apr-2013 1.8 $ 			      */
+/* $Header: Last edited: 18-Oct-2013 1.9 $ 			      */
 
 /**********************************************************************/
 /*   Dont  define this for a 32b kernel. In a 64b kernel, we need to  */
@@ -2310,8 +2310,8 @@ static void sys_seq_stop(struct seq_file *seq, void *v)
 static int sys_seq_show(struct seq_file *seq, void *v)
 {
 	int	n = (int) (long) v;
-	systrace_sysent_t *sysp;
-	struct sysent *syp;
+	systrace_sysent_t *sysp = NULL;
+	struct sysent *syp = NULL;
 
 //printk("%s v=%p\n", __func__, v);
 	if (n == 1) {
@@ -2331,6 +2331,13 @@ static int sys_seq_show(struct seq_file *seq, void *v)
 		return 0;
 # endif
 	if (n >= NSYSCALL) {
+		/***********************************************/
+		/*   On x86-64, we may not have i386 support,  */
+		/*   so handle this here.		       */
+		/***********************************************/
+		if (sysent32 == NULL)
+			return 0;
+
 		sysp = &systrace_sysent32[n - NSYSCALL];
 		syp = &sysent32[n - NSYSCALL];
 	} else {

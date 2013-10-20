@@ -32,6 +32,8 @@
 extern "C" {
 #endif
 
+#include <sys/sdt_linux.h>
+
 #ifndef _KERNEL
 
 #define	DTRACE_PROBE(provider, name) {					\

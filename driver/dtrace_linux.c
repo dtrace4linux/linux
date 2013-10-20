@@ -1169,6 +1169,28 @@ static int count;
 	}
 	return NULL;
 }
+/**********************************************************************/
+/*   Convert an address to a function name (if possible).	      */
+/**********************************************************************/
+int
+get_proc_name(unsigned long addr, char *buf)
+{
+	unsigned long symsize = 0;
+	unsigned long offset;
+	char	*modname = NULL;
+static	const char *(*my_kallsyms_lookup)(unsigned long addr,
+                        unsigned long *symbolsize,
+                        unsigned long *offset,
+                        char **modname, char *namebuf);
+
+	*buf = '\0';
+	if (my_kallsyms_lookup == NULL)
+		my_kallsyms_lookup = get_proc_addr("kallsyms_lookup");
+	if (my_kallsyms_lookup == NULL)
+		return 0;
+	my_kallsyms_lookup(addr, &symsize, &offset, &modname, buf);
+	return symsize;
+}
 int
 sulword(const void *addr, ulong_t value)
 {
@@ -2861,12 +2883,6 @@ static struct file_operations proc_dtrace_stats = {
 	.release = single_release
 };
 
-/** "proc/dtrace/trace" */
-static int proc_dtrace_trace_show(struct seq_file *seq, void *v)
-{
-	// TODO: or we can use dtracedrv_read() instead
-	return seq_printf(seq, "%s\n", dtrace_buf);
-}
 /**********************************************************************/
 /*   Special hack for debugging.				      */
 /**********************************************************************/
@@ -2881,9 +2897,74 @@ static ssize_t proc_dtrace_trace_write_proc(struct file *fp, const char __user *
 	return count;
 }
 
+/**********************************************************************/
+/*   Code for /proc/dtrace/trace				      */
+/**********************************************************************/
+
+static void *proc_dtrace_trace_seq_start(struct seq_file *seq, loff_t *pos)
+{
+	if (*pos < log_bufsiz)
+		return pos;
+	return NULL;
+}
+static void *proc_dtrace_trace_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+{
+	(*pos)++;
+	if (*pos >= log_bufsiz / 1024)
+		return NULL;
+
+	return pos;
+}
+static void proc_dtrace_trace_seq_stop(struct seq_file *seq, void *v)
+{
+}
+static int proc_dtrace_trace_seq_show(struct seq_file *seq, void *v)
+{	char	*cp;
+	extern int dbuf_i;
+	loff_t	*pos = v;
+	int	n = (int) (long) *pos;
+	int	n1 = 0;
+
+	if (n >= log_bufsiz)
+		return 0;
+
+	/***********************************************/
+	/*   Skip  any  nulls  since  we may not have  */
+	/*   filled the buffer yet.		       */
+	/***********************************************/
+	cp = dtrace_buf + dbuf_i;
+	for (n1 = 0; n1 < log_bufsiz && *cp == '\0'; n1++) {
+		if (++cp >= &dtrace_buf[log_bufsiz])
+			cp = dtrace_buf;
+	}
+
+	n = (cp - dtrace_buf + n * 1024) % log_bufsiz;
+	cp = dtrace_buf + n;
+
+	/***********************************************/
+	/*   Now  return  the  next  block of text up  */
+	/*   until the circular index.		       */
+	/***********************************************/
+	for (n1 = 0; cp != &dtrace_buf[dbuf_i] && n1 < 1024; ) {
+		if (cp >= &dtrace_buf[log_bufsiz])
+			cp = dtrace_buf;
+		if (*cp && seq_write(seq, cp, 1))
+			break;
+		cp++;
+		//(*pos)++;
+		n1++;
+	}
+	return 0;
+}
+struct seq_operations proc_dtrace_trace_show_ops = {
+	.start = proc_dtrace_trace_seq_start,
+	.next = proc_dtrace_trace_seq_next,
+	.stop = proc_dtrace_trace_seq_stop,
+	.show = proc_dtrace_trace_seq_show,
+	};
 static int proc_dtrace_trace_single_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, &proc_dtrace_trace_show, NULL);
+	return seq_open(file, &proc_dtrace_trace_show_ops);
 }
 static struct file_operations proc_dtrace_trace = {
 	.owner   = THIS_MODULE,
@@ -2894,7 +2975,7 @@ static struct file_operations proc_dtrace_trace = {
 	.write   = proc_dtrace_trace_write_proc
 };
 
-/** \proc */
+/** /proc */
 
 static int dtracedrv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {	int	ret;

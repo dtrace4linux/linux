@@ -1,3 +1,18 @@
+Sat Oct 19 17:47:23 2013  fox
+
+     844* driver/dtrace_linux.c: Fix for /proc/dtrace/trace on 3.11 kernel
+          which doesnt like big blobs of output.
+
+Fri Oct 18 22:51:33 2013  fox
+
+     843* driver/systrace.c: Dont GPF on an amd64 kernel with no
+          32-bit syscalls support when catting /proc/dtrace/syscall.
+
+Thu Oct 17 23:20:00 2013  fox
+
+     842* sdt_linux.c, prov_common.c, dtrace_linux.c: Support for
+          dynamic/private SDT probes in loadable modules.
+
 Sat Oct 12 08:07:40 2013  fox
 
      841* intr.c: Fix for 3.11 kernel (store_gdt)

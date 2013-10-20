@@ -35,6 +35,8 @@ Working Features
   o ARMv6/RaspberryPi on 3.4.6 kernel (USDT is not tested or likely to work)
     - the instr provider isnt supported (yet)
     - no SMP support
+  o driver-2/hworld.c - example SDT loadable driver, demonstrating dynamic
+    SDT probes. See doc/sdt-probes.txt for more details.
 
 Partially Working / Not yet quality controlled:
 

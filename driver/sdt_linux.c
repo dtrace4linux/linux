@@ -467,8 +467,6 @@ sdt_destroy(void *arg, dtrace_id_t id, void *parg)
 	}
 # endif
 
-printk("unloading sdt %ld\n", id);
-
 	while (sdp != NULL) {
 		old = sdp;
 

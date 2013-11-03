@@ -1,3 +1,17 @@
+Sun Nov  3 14:34:37 2013  fox
+
+     848* tools/readelf.pl: New/experimental script
+
+     847* driver/Makefile: Use -gdwarf-2 debug info so we work on
+          Ubuntu 13.10/gcc-4.8 (else mkctf.sh dies).
+
+Sat Nov  2 18:14:37 2013  fox
+
+     846* ctfconvert/dwarf.c: Silly hack for DWARF-4 issue. I still cant
+          figure out libdwarf vs libdw and how they not only evolve but
+	  the features dont allow one to be implemented from another.
+	  This is a fricking mess.
+
 Sun Oct 20 10:48:45 2013  fox
 
      845* Archive: 1.0151

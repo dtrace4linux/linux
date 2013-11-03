@@ -572,12 +572,24 @@ die_mem_offset(dwarf_t *dw, Dwarf_Die die, Dwarf_Half name,
 	Dwarf_Attribute attr;
 	Dwarf_Locdesc *loc;
 	Dwarf_Signed locnum;
+	int	ret;
 
 	if ((attr = die_attr(dw, die, name, req)) == NULL)
 		return (0); /* die_attr will terminate for us if necessary */
 
 /* Need to map this for libdw. */
-	if (dwarf_loclist(attr, &loc, &locnum, &dw->dw_err) != DW_DLV_OK) {
+	if ((ret = dwarf_loclist(attr, &loc, &locnum, &dw->dw_err)) != DW_DLV_OK) {
+		/***********************************************/
+		/*   GCC-4.8 and/or dwarf-4 is causing this.   */
+		/***********************************************/
+		static int printed;
+		if (1 || !printed) {
+			if (!printed)
+				printf("sorry: a dwarf-4 issue needs to be implemented to the ctf file will be incorrect for now (zero offset struct members). ret=%d\n", ret);
+			printed = 1;
+			*valp = 0;
+			return 1;
+		}
 		terminate("die %llu: failed to get mem offset location list\n",
 		    die_off(dw, die));
 	}

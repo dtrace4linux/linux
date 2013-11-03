@@ -32,4 +32,17 @@ if [ $? != 0 ]; then
 fi
 cd $pwd
 build/ctfconvert -L label -o build/linux-$BUILD_KERNEL.ctf build/driver/ctf_struct.o
+if [ $? != 0 ]; then
+	echo NOTE: Failing to build the ctf file for your kernel
+	echo will not prevent you using dtrace. You can still do
+	echo 
+	echo "  \$ make install"
+	echo 
+	echo to load the driver and use dtrace, but you wont have access
+	echo to kernel struct definitions "(which most people do not need)".
+	echo 
+	echo "The likely problem is newer GCC and DWARF debugging ELF"
+	echo "features not being handled by the ctfconvert utility."
+	exit 1
+fi
 ls -l build/linux-$BUILD_KERNEL.ctf

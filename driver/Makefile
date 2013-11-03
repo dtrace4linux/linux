@@ -73,7 +73,9 @@ H	= dtrace_linux.h dtrace_proto.h
 EXTRA_AFLAGS += \
 	-I$(M)/../../linux
 
-EXTRA_CFLAGS += -g \
+# Add -gdwarf-2 because gcc-4.8 will cause mkctf.sh to fail due to
+# something libdwarf doesnt like.
+EXTRA_CFLAGS += -g -gdwarf-2 \
 	-I$(M) \
 	-I$(M)/../.. \
 	-I$(M)/../../include \

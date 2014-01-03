@@ -2444,7 +2444,7 @@ priv_policy_only(const cred_t *a, int priv, int allzone)
 	/*   Let  root  have  access,  else we cannot  */
 	/*   really initialise the driver.	       */
 	/***********************************************/
-	if (a->cr_uid == 0)
+	if (KUIDT_VALUE(a->cr_uid) == 0)
 		return 1;
 
 	dpend = &di_list[di_cnt];
@@ -2452,11 +2452,11 @@ priv_policy_only(const cred_t *a, int priv, int allzone)
 	for (dp = di_list; dp < dpend; dp++) {
 		switch (dp->di_type) {
 		  case DIT_UID:
-		  	if (dp->di_id != a->cr_uid)
+		  	if (dp->di_id != KUIDT_VALUE(a->cr_uid))
 				continue;
 			break;
 		  case DIT_GID:
-		  	if (dp->di_id != a->cr_gid)
+		  	if (dp->di_id != KGIDT_VALUE(a->cr_gid))
 				continue;
 			break;
 		  case DIT_ALL:
@@ -2670,7 +2670,8 @@ dtracedrv_write(struct file *file, const char __user *buf,
 	/*   security model.			       */
 	/***********************************************/
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	if (current->cred->uid != 0 && current->cred->euid != 0)
+	if (KUIDT_VALUE(current->cred->uid) != 0 && 
+	    KUIDT_VALUE(current->cred->euid) != 0)
 #else
 	if (current->uid != 0 && current->euid != 0)
 #endif

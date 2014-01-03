@@ -31,10 +31,10 @@ psinfo_arg(int n, struct pt_regs *regs)
 	ps->pr_pgid = current->tgid;
 	ps->pr_ppid = current->parent ? current->parent->pid : 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	ps->pr_uid = current->cred->uid;
-	ps->pr_gid = current->cred->gid;
-	ps->pr_euid = current->cred->euid;
-	ps->pr_egid = current->cred->egid;
+	ps->pr_uid = KUIDT_VALUE(current->cred->uid);
+	ps->pr_gid = KGIDT_VALUE(current->cred->gid);
+	ps->pr_euid = KUIDT_VALUE(current->cred->euid);
+	ps->pr_egid = KGIDT_VALUE(current->cred->egid);
 #else
 	ps->pr_uid = current->uid;
 	ps->pr_gid = current->gid;

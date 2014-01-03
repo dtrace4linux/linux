@@ -1,4 +1,16 @@
+Fri Jan  3 16:11:59 2014  fox
+
+     852* driver/dtrace_linux.c, driver/dtrace_linux.h, driver/prov_proc.c:
+         Additional uid_t/kuid_t fixes.
+
+     851* driver/ctl.c, driver/dtrace.c, driver/dtrace_linux.h:
+          More fixes for uid_t/kuid_t.
+
+     850* driver/ctl.c: Fix for 3.8.0 kernel kuid_t
+
 Sun Nov  3 14:34:37 2013  fox
+
+     849* Archive: 1.0152
 
      848* tools/readelf.pl: New/experimental script
 

@@ -96,6 +96,17 @@ typedef uint32_t ipaddr_t;
 # define 	hz	HZ
 
 /**********************************************************************/
+/*   Code for 3.8.0 kernels which do strict kuid_t type checking.     */
+/**********************************************************************/
+#ifdef CONFIG_UIDGID_STRICT_TYPE_CHECKS
+#	define	KUIDT_VALUE(v) v.val
+#	define	KGIDT_VALUE(v) v.val
+#else
+#	define	KUIDT_VALUE(v) v
+#	define	KGIDT_VALUE(v) v
+#endif
+
+/**********************************************************************/
 /*   File  based  on  code  from  FreeBSD  to  support  the  missing  */
 /*   task_struct fields which dtrace wants.			      */
 /**********************************************************************/

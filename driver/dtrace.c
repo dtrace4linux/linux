@@ -1197,12 +1197,12 @@ dtrace_priv_proc_common_user(dtrace_state_t *state)
 	ASSERT(s_cr != NULL);
 
 	if ((cr = CRED()) != NULL &&
-	    s_cr->cr_uid == cr->cr_uid &&
-	    s_cr->cr_uid == cr->cr_ruid &&
-	    s_cr->cr_uid == cr->cr_suid &&
-	    s_cr->cr_gid == cr->cr_gid &&
-	    s_cr->cr_gid == cr->cr_rgid &&
-	    s_cr->cr_gid == cr->cr_sgid)
+	    KUIDT_VALUE(s_cr->cr_uid) == KUIDT_VALUE(cr->cr_uid) &&
+	    KUIDT_VALUE(s_cr->cr_uid) == KUIDT_VALUE(cr->cr_ruid) &&
+	    KUIDT_VALUE(s_cr->cr_uid) == KUIDT_VALUE(cr->cr_suid) &&
+	    KUIDT_VALUE(s_cr->cr_gid) == KUIDT_VALUE(cr->cr_gid) &&
+	    KUIDT_VALUE(s_cr->cr_gid) == KUIDT_VALUE(cr->cr_rgid) &&
+	    KUIDT_VALUE(s_cr->cr_gid) == KUIDT_VALUE(cr->cr_sgid))
 		return (1);
 
 	return (0);
@@ -1390,12 +1390,12 @@ dtrace_priv_probe(dtrace_state_t *state, dtrace_mstate_t *mstate,
 		ASSERT(s_cr != NULL);
 
 		if ((cr = CRED()) == NULL ||
-		    s_cr->cr_uid != cr->cr_uid ||
-		    s_cr->cr_uid != cr->cr_ruid ||
-		    s_cr->cr_uid != cr->cr_suid ||
-		    s_cr->cr_gid != cr->cr_gid ||
-		    s_cr->cr_gid != cr->cr_rgid ||
-		    s_cr->cr_gid != cr->cr_sgid ||
+		    KUIDT_VALUE(s_cr->cr_uid) != KUIDT_VALUE(cr->cr_uid) ||
+		    KUIDT_VALUE(s_cr->cr_uid) != KUIDT_VALUE(cr->cr_ruid) ||
+		    KUIDT_VALUE(s_cr->cr_uid) != KUIDT_VALUE(cr->cr_suid) ||
+		    KUIDT_VALUE(s_cr->cr_gid) != KUIDT_VALUE(cr->cr_gid) ||
+		    KUIDT_VALUE(s_cr->cr_gid) != KUIDT_VALUE(cr->cr_rgid) ||
+		    KUIDT_VALUE(s_cr->cr_gid) != KUIDT_VALUE(cr->cr_sgid) ||
 		    (proc = ttoproc(curthread)) == NULL ||
 		    (proc->p_flag & SNOCD)) {
 			if (mode & DTRACE_MODE_NOPRIV_DROP)
@@ -3350,7 +3350,7 @@ dtrace_printf("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)curthread->t_procp->p_cred->cr_uid);
 # else
-		return (uint64_t) CRED()->cr_uid;
+		return (uint64_t) KUIDT_VALUE(CRED()->cr_uid);
 # endif
 
 	case DIF_VAR_GID:
@@ -3375,7 +3375,7 @@ dtrace_printf("%s(%d): TODO!!\n", __func__, __LINE__);
 		 */
 		return ((uint64_t)curthread->t_procp->p_cred->cr_gid);
 # else
-		return (uint64_t) CRED()->cr_gid;
+		return (uint64_t) KUIDT_VALUE(CRED()->cr_gid);
 # endif
 
 	case DIF_VAR_ERRNO: {
@@ -7297,7 +7297,7 @@ dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp)
 		 */
 		priv = DTRACE_PRIV_ALL;
 	} else {
-		*uidp = crgetuid(cr);
+		*uidp = KUIDT_VALUE(crgetuid(cr));
 		*zoneidp = crgetzoneid(cr);
 
 		priv = 0;
@@ -7798,7 +7798,7 @@ dtrace_register(const char *name, const dtrace_pattr_t *pap, uint32_t priv,
 	provider->dtpv_attr = *pap;
 	provider->dtpv_priv.dtpp_flags = priv;
 	if (cr != NULL) {
-		provider->dtpv_priv.dtpp_uid = crgetuid(cr);
+		provider->dtpv_priv.dtpp_uid = KUIDT_VALUE(crgetuid(cr));
 		provider->dtpv_priv.dtpp_zoneid = crgetzoneid(cr);
 	}
 	provider->dtpv_pops = *pops;
@@ -16596,7 +16596,7 @@ PRINT_CASE(DTRACEIOC_ENABLE);
 		}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-                uid = get_current()->cred->uid;
+                uid = KUIDT_VALUE(get_current()->cred->uid);
 # elif linux
                 uid = get_current()->uid;
 # else

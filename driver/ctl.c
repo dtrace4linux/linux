@@ -240,7 +240,7 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		char	*dst;
 		char	buf[512];
 		int	len;
-		uid_t	uid1, uid2 = (uid_t) -1;
+		uid_t	uid1, uid2 = -1;
 
 	  	if (copyin((void *) arg, &mem, sizeof mem))
 			return -EFAULT;
@@ -260,7 +260,7 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		if (child) {
 			get_task_struct(child);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-			uid2 = child->cred->uid;
+			uid2 = KUIDT_VALUE(child->cred->uid);
 #else
 			uid2 = current->uid;
 #endif
@@ -272,7 +272,7 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		/*   Do the permission check.		       */
 		/***********************************************/
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-		uid1 = current->cred->uid;
+		uid1 = KUIDT_VALUE(current->cred->uid);
 #else
 		uid1 = current->uid;
 #endif

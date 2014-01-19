@@ -47,7 +47,7 @@ install_dependencies()
 	sudo apt-get install "$@" libc6-dev 
 	sudo apt-get install "$@" openssh-server \
    		binutils-dev zlib1g-dev \
-   		elfutils libdwarf-dev libelf-dev libc-dev \
+   		elfutils libdwarf-dev libiberty-dev libelf-dev libc-dev \
 		zlib1g-dev \
 		linux-libc-dev \
 		linux-headers-$(uname -r) \

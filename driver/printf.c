@@ -133,9 +133,9 @@ dtrace_vprintf(const char *fmt, va_list ap)
 	short	l_mode;
 	short	zero;
 	short	width;
-static char digits[] = "0123456789abcdef";
-	hrtime_t hrt = dtrace_gethrtime();
-static hrtime_t	hrt0;
+	hrtime_t hrt;
+	static char digits[] = "0123456789abcdef";
+	static hrtime_t	hrt0;
 
 # if 0
 	/***********************************************/
@@ -143,10 +143,14 @@ static hrtime_t	hrt0;
 	/*   to see first entries.		       */
 	/***********************************************/
 	if (dbuf_i >= LOG_BUFSIZ - 2048)
-		return;
+		goto exit;
 # endif
 	if (dtrace_printf_disable)
-		return;
+		goto exit;
+
+	preempt_disable_notrace();
+
+	hrt = dtrace_gethrtime();
 
 	/***********************************************/
 	/*   Try  and  avoid intermingled output from  */
@@ -163,7 +167,7 @@ static hrtime_t	hrt0;
 	/*   just for a bit more entropy.	       */
 	/***********************************************/
 	if (*fmt == '\0')
-		return;
+		goto exit;
 	dtrace_printf_lock = smp_processor_id();
 
 	/***********************************************/
@@ -322,6 +326,8 @@ static hrtime_t	hrt0;
 
 	dtrace_printf_lock = -1;
 
+exit:
+	preempt_enable_no_resched_notrace();
 }
 
 /**********************************************************************/

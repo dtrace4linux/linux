@@ -315,7 +315,11 @@ dtrace_clflush(void *ptr)
 /**********************************************************************/
 cred_t *
 CRED()
-{	cred_t	*cr = &cpu_cred[cpu_get_id()];
+{
+	cred_t	*cr;
+	/* FIXME: This is a hack */
+#if 0
+	cr = &cpu_cred[cpu_get_id()];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	cr->cr_uid = current->cred->uid;
@@ -325,6 +329,9 @@ CRED()
 	cr->cr_gid = current->gid;
 #endif
 //printk("get cred end %d %d\n", cr->cr_uid, cr->cr_gid);
+#else
+	cr = &cpu_cred[0];
+#endif
 
 	return cr;
 }

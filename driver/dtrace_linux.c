@@ -1815,7 +1815,7 @@ return 0;
 /*   shadow_procs for this purpose now.				      */
 /**********************************************************************/
 static struct par_alloc_t *hd_par;
-static mutex_t par_mutex;
+static MUTEX_DEFINE(par_mutex);
 
 void *
 par_alloc(int domain, void *ptr, int size, int *init)

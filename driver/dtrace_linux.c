@@ -771,10 +771,12 @@ dtrace_linux_init(void)
 	# define _PAGE_NX 0
 	# define _PAGE_RW 0
 # endif
+	preempt_disable();
 	rdtscll(t);
 	(void) dtrace_gethrtime();
 	rdtscll(t1);
 	tsc_max_delta = t1 - t;
+	preempt_enable();
 
 	/***********************************************/
 	/*   Let  us  grab  the  panics  if we are in  */

@@ -173,7 +173,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 # define linux_get_syscall() get_current()->thread.trap_no
 #endif
 
-MUTEX_DEFINE(slock);
+DEFINE_MUTEX(slock);
 static int do_slock;
 
 /**********************************************************************/
@@ -1378,7 +1378,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 	/*   we are debugging.			       */
 	/***********************************************/
 	if (do_slock) {
-		dmutex_enter(&slock);
+		mutex_enter(&slock);
 	}
 
 //printk("ia32 %s before\n", syscallnames32[syscall]);
@@ -1404,12 +1404,12 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
          */
 # if defined(TODOxxx)
         {proc_t *p = ttoproc(curthread);
-        dmutex_enter(&p->p_lock);
+        mutex_enter(&p->p_lock);
         if (curthread->t_dtrace_stop && !curthread->t_lwp->lwp_nostop) {
                 curthread->t_dtrace_stop = 0;
                 stop(PR_REQUESTED, 0);
         }
-        dmutex_exit(&p->p_lock);
+        mutex_exit(&p->p_lock);
 	}
 # else
 	{
@@ -1595,7 +1595,7 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 		}
 
 	if (do_slock) {
-		dmutex_exit(&slock);
+		mutex_exit(&slock);
 	}
 
         return (rval);

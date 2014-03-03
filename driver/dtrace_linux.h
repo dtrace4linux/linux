@@ -63,7 +63,7 @@
 /**********************************************************************/
 #define	PATCHVAL	0xcc	/* INT3 instruction */
 
-# define MUTEX_HELD dtrace_mutex_is_locked
+# define MUTEX_HELD mutex_is_locked
 
 #define PRIV_EFFECTIVE          (1 << 0)
 #define PRIV_DTRACE_KERNEL      (1 << 1)
@@ -422,7 +422,6 @@ int sulword(const void *addr, ulong_t value);
 int instr_in_text_seg(struct module *mp, char *name, Elf_Sym *sym);
 cpu_core_t	*cpu_get_this(void);
 int	is_kernel_text(unsigned long);
-int	dtrace_mutex_is_locked(mutex_t *);
 asmlinkage int dtrace_memcpy_with_error(void *, void *, size_t);
 void set_console_on(int flag);
 void dtrace_linux_panic(const char *, ...);

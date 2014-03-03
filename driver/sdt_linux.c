@@ -917,16 +917,16 @@ printk("io_prov_sdt: func=%s %s:%s:%s:%s\n", namebuf, provname, modname, probena
 		/*   rare,  so  any  race conditions shouldnt  */
 		/*   exist to allow a re-entrancy problem.     */
 		/***********************************************/
-		dmutex_exit(&dtrace_provider_lock);
+		mutex_exit(&dtrace_provider_lock);
 		if (dtrace_register(prov->sdtp_name, prov->sdtp_attr,
 		    DTRACE_PRIV_KERNEL, NULL,
 		    &sdt_pops, prov, &prov->sdtp_id) != 0) {
-			dmutex_enter(&dtrace_provider_lock);
+			mutex_enter(&dtrace_provider_lock);
 			cmn_err(CE_WARN, "failed to register sdt provider %s",
 			    prov->sdtp_name);
 			return 1;
 		}
-		dmutex_enter(&dtrace_provider_lock);
+		mutex_enter(&dtrace_provider_lock);
 	}
 
 	name = kstrdup(probename, KM_SLEEP);

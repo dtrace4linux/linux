@@ -291,7 +291,7 @@ taskq_destroy(taskq_t *tq)
 /*   executed  in  the  context  of  a  process which doesnt care or  */
 /*   couldnt  be  locking  dtrace  - avoiding deadlock. This is only  */
 /*   used  for fasttrap garbage collection but we mustnt fire whilst  */
-/*   the  tear  down occurs, else dmutex_enter will deadlock or call  */
+/*   the  tear  down occurs, else mutex_enter will deadlock or call  */
 /*   schedule() from an invalid context.			      */
 /**********************************************************************/
 

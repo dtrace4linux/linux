@@ -146,7 +146,7 @@ cpu_core_t	*cpu_core;
 cpu_t		*cpu_table;
 cred_t		*cpu_cred;
 int	nr_cpus = 1;
-MUTEX_DEFINE(mod_lock);
+DEFINE_MUTEX(mod_lock);
 
 /**********************************************************************/
 /*   Set  to  true  by  debug code that wants to immediately disable  */
@@ -164,7 +164,7 @@ int dtrace_shutdown;
 /**********************************************************************/
 sol_proc_t	*shadow_procs;
 
-MUTEX_DEFINE(cpu_lock);
+DEFINE_MUTEX(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
 
@@ -895,17 +895,6 @@ dtrace_mach_aframes(void)
 	return 1;
 }
 
-/**********************************************************************/
-/*   Make    this    a   function,   since   on   earlier   kernels,  */
-/*   mutex_is_locked() is an inline complex function which cannot be  */
-/*   used   in   an   expression  context  (ASSERT(MUTEX_HELD())  in  */
-/*   dtrace.c)							      */
-/**********************************************************************/
-int
-dtrace_mutex_is_locked(mutex_t *mp)
-{
-	return dmutex_is_locked(mp);
-}
 /**********************************************************************/
 /*   Avoid  calling  real  memcpy,  since  we  will  call  this from  */
 /*   interrupt context.						      */
@@ -1824,7 +1813,7 @@ return 0;
 /*   shadow_procs for this purpose now.				      */
 /**********************************************************************/
 static struct par_alloc_t *hd_par;
-static MUTEX_DEFINE(par_mutex);
+static DEFINE_MUTEX(par_mutex);
 
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
@@ -1840,16 +1829,16 @@ Need to FIX!
 return NULL;
 #endif
 
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {
 			if (init)
 				*init = FALSE;
-			dmutex_exit(&par_mutex);
+			mutex_exit(&par_mutex);
 			return p;
 		}
 	}
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 
 	if (init)
 		*init = TRUE;
@@ -1859,10 +1848,10 @@ return NULL;
 	dtrace_bzero(p+1, size);
 	p->pa_domain = domain;
 	p->pa_ptr = ptr;
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	p->pa_next = hd_par;
 	hd_par = p;
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 
 	return p;
 }
@@ -1890,10 +1879,10 @@ par_free(int domain, void *ptr)
 #if 0
 return;
 #endif
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;
-		dmutex_exit(&par_mutex);
+		mutex_exit(&par_mutex);
 		kfree(ptr);
 		return;
 		}
@@ -1901,13 +1890,13 @@ return;
 //		printk("p1=%p\n", p1);
 		}
 	if (p1 == NULL) {
-		dmutex_exit(&par_mutex);
+		mutex_exit(&par_mutex);
 		printk("where did p1 go?\n");
 		return;
 	}
 	if (p1->pa_next == p && p1->pa_domain == domain)
 		p1->pa_next = p->pa_next;
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 	kfree(ptr);
 }
 /**********************************************************************/
@@ -1918,14 +1907,14 @@ static void *
 par_lookup(void *ptr)
 {	par_alloc_t *p;
 	
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr) {
-			dmutex_exit(&par_mutex);
+			mutex_exit(&par_mutex);
 			return p;
 		}
 	}
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 	return NULL;
 }
 /**********************************************************************/
@@ -2040,12 +2029,12 @@ proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 	sol_proc.p_pid = current->pid;
 	curthread = &sol_proc;
 
-	dmutex_init(&sol_proc.p_lock);
-	dmutex_enter(&sol_proc.p_lock);
+	mutex_init(&sol_proc.p_lock);
+	mutex_enter(&sol_proc.p_lock);
 
 	dtrace_fasttrap_exit_ptr(&sol_proc);
 
-	dmutex_exit(&sol_proc.p_lock);
+	mutex_exit(&sol_proc.p_lock);
 
 	return 0;
 }
@@ -2390,12 +2379,11 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 	if (TRACE_ALLOC || dtrace_here)
 		dtrace_printf("vmem_create(size=%d)\n", (int) size);
 
-	dmutex_init(&seqp->seq_mutex);
+	mutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
 	seqp->seq_magic = SEQ_MAGIC;
 
 	dtrace_printf("vmem_create(%s) %p\n", name, seqp);
-/*	mutex_dump(&seqp->seq_mutex);*/
 	
 	return seqp;
 }
@@ -3109,11 +3097,11 @@ static struct proc_dir_entry *dir;
 		/*   to handle actual online cpus.	       */
 		/***********************************************/
 		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
-		dmutex_init(&cpu_list[i].cpu_ft_lock.k_mutex);
+		mutex_init(&cpu_list[i].cpu_ft_lock.k_mutex);
 	}
 	cpu_list[nr_cpus-1].cpu_next = cpu_list;
 	for (i = 0; i < nr_cpus; i++) {
-		dmutex_init(&cpu_core[i].cpuc_pid_lock);
+		mutex_init(&cpu_core[i].cpuc_pid_lock);
 	}
 	/***********************************************/
 	/*   Initialise  the  shadow  procs.  We dont  */
@@ -3123,8 +3111,8 @@ static struct proc_dir_entry *dir;
 	shadow_procs = (sol_proc_t *) vmalloc(sizeof(sol_proc_t) * PID_MAX_DEFAULT);
 	memset(shadow_procs, 0, sizeof(sol_proc_t) * PID_MAX_DEFAULT);
 	for (i = 0; i < PID_MAX_DEFAULT; i++) {
-		dmutex_init(&shadow_procs[i].p_lock);
-		dmutex_init(&shadow_procs[i].p_crlock);
+		mutex_init(&shadow_procs[i].p_lock);
+		mutex_init(&shadow_procs[i].p_crlock);
 		}
 
 	/***********************************************/

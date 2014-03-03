@@ -75,7 +75,7 @@ extern size_t _allsyscalls_size;
 /*   We  use  the  kernels  stack  dumper  to  avoid issues with cpu  */
 /*   architecture and frame pointer.				      */
 /**********************************************************************/
-MUTEX_DEFINE(dtrace_stack_mutex);
+DEFINE_MUTEX(dtrace_stack_mutex);
 # if defined(HAVE_STACKTRACE_OPS)
 static pc_t	*g_pcstack;
 static int	g_pcstack_limit;
@@ -257,7 +257,7 @@ end_stack:
 	/*   in  the  callback, so lets avoid relying  */
 	/*   on the kernel stack walker.	       */
 	/***********************************************/
-	dmutex_enter(&dtrace_stack_mutex);
+	mutex_enter(&dtrace_stack_mutex);
 	g_depth = 0;
 	g_pcstack = pcstack;
 	g_pcstack_limit = pcstack_limit;
@@ -268,7 +268,7 @@ end_stack:
 	dump_trace(NULL, NULL, NULL, &print_trace_ops, NULL);
 #endif
 	depth = g_depth;
-	dmutex_exit(&dtrace_stack_mutex);
+	mutex_exit(&dtrace_stack_mutex);
 #endif
 
 	while (depth < pcstack_limit)

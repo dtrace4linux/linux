@@ -104,7 +104,7 @@ struct modctl;
 	#   include	<asm/stacktrace.h>
 	# endif
 
-	#define MUTEX_NOT_HELD(x)	!dtrace_mutex_is_locked(x)
+	#define MUTEX_NOT_HELD(x)	!mutex_is_locked(x)
 
 	#define PS_VM 0x00020000 /* CPU in v8086 mode */
 
@@ -265,24 +265,10 @@ typedef unsigned long long hrtime_t;
 	/*   semaphores,  since we cannot use a mutex  */
 	/*   inside an interrupt.		       */
 	/***********************************************/
-	typedef struct mutex_t {
-		struct semaphore m_sem;
-		void		*m_count;
-		unsigned long	m_flags;
-		int		m_cpu;
-		int		m_level;
-		int		m_initted;
-		int		m_type;
-		} mutex_t;
+	typedef struct mutex mutex_t;
 	#define kmutex_t mutex_t
-	#define MUTEX_DEFINE(name) mutex_t name = {.m_initted = 2 }
-	void dmutex_init(mutex_t *mp);
-	void dmutex_enter(mutex_t *mp);
-	void dmutex_exit(mutex_t *mp);
 	void mutex_enter(mutex_t *mp);
 	void mutex_exit(mutex_t *mp);
-	int dmutex_is_locked(mutex_t *mp);
-	void mutex_dump(mutex_t *mp);
 	
 	# include	<sys/cpuvar_defs.h>
 	# include	<sys/cpuvar.h>

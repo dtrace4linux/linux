@@ -67,7 +67,6 @@ module_param(arg_kallsyms_lookup_name, charp, 0);
 extern char dtrace_buf[];
 extern const int log_bufsiz;
 extern int dbuf_i;
-extern int dtrace_safe;
 
 /**********************************************************************/
 /*   TRUE when we have called dtrace_linux_init(). After that point,  */
@@ -283,8 +282,6 @@ void	signal_fini(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 void	io_prov_init(void);
-void	xcall_init(void);
-void	xcall_fini(void);
 //static void print_pte(pte_t *pte, int level);
 
 /**********************************************************************/
@@ -2261,7 +2258,6 @@ syms_write(struct file *file, const char __user *buf,
 		/***********************************************/
 		dtrace_linux_init();
 
-		xcall_init();
   		dtrace_profile_init();
 		dtrace_prcom_init();
 		dcpc_init();
@@ -2686,8 +2682,6 @@ dtracedrv_write(struct file *file, const char __user *buf,
 		len = bpend - cp;
 		if (len >= 6 && strncmp(cp, "here=", 5) == 0) {
 		    	dtrace_here = simple_strtoul(cp + 5, NULL, 0);
-		} else if (len >= 6 && strncmp(cp, "dtrace_safe=", 5) == 0) {
-		    	dtrace_safe = simple_strtoul(cp + 5, NULL, 0);
 		} else if (di_cnt < MAX_SEC_LIST) {
 			int	ret = parse_sec(&di_list[di_cnt], cp, bpend);
 			if (ret < 0)
@@ -2787,10 +2781,7 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 	extern unsigned long long cnt_int3_2;
 	extern unsigned long long cnt_int3_3;
 	extern unsigned long cnt_ipi1;
-	extern unsigned long long cnt_probe_recursion;
 	extern unsigned long cnt_probes;
-	extern unsigned long long cnt_probe_noint;
-	extern unsigned long long cnt_probe_safe;
 	extern unsigned long cnt_mtx1;
 	extern unsigned long cnt_mtx2;
 	extern unsigned long cnt_mtx3;
@@ -2808,11 +2799,7 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 		unsigned long *ptr;
 		char	*name;
 		} stats[] = {
-		{TYPE_INT, (unsigned long *) &dtrace_safe, "dtrace_safe"},
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
-		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
-		LONG_LONG(cnt_probe_noint, "probe_noint"),
-		LONG_LONG(cnt_probe_safe, "probe_safe"),
 		LONG_LONG(cnt_int1_1, "int1"),
 		LONG_LONG(cnt_int3_1, "int3_1"),
 		LONG_LONG(cnt_int3_2, "int3_2(ours)"),
@@ -3209,8 +3196,6 @@ static void __exit dtracedrv_exit(void)
 	remove_proc_entry("dtrace", 0);
 	misc_deregister(&helper_dev);
 	misc_deregister(&dtracedrv_dev);
-
-	xcall_fini();
 }
 module_init(dtracedrv_init);
 module_exit(dtracedrv_exit);

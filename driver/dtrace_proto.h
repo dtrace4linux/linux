@@ -67,7 +67,6 @@ void	dtrace_parse_kernel(int, void (*callback)(uint8_t *, int), uint8_t *);
 int	is_probable_instruction(instr_t *, int is_entry);
 void	dtrace_instr_dump(char *label, uint8_t *insn);
 dtrace_icookie_t dtrace_interrupt_get(void);
-void	xcall_slave2(void);
 char * hrtime_str(hrtime_t s);
 int dtrace_xen_hypercall(int call, void *a, void *b, void *c);
 int	dtrace_is_xen(void);

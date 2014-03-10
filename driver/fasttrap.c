@@ -59,18 +59,18 @@ sprlock(int pid)
 //printk("sprlock: pid=%d\n", pid);
 	if (!p)
 		return NULL;
-	dmutex_enter(&p->p_lock);
+	mutex_enter(&p->p_lock);
 	return p;
 }
 void
 sprlock_proc(proc_t *p)
 {
-	dmutex_enter(&p->p_lock);
+	mutex_enter(&p->p_lock);
 }
 void
 sprunlock(proc_t *p)
 {
-	dmutex_exit(&p->p_lock);
+	mutex_exit(&p->p_lock);
 }
 # define RW_WRITER 2
 #define SEXITING   0x00000002   /* process is exiting */
@@ -93,7 +93,7 @@ static void swap_func(void *p1, void *p2, int size)
 }
 # define qsort(base, num, size, cmp) sort(base, num, size, cmp, swap_func)
 
-MUTEX_DEFINE(pidlock);
+DEFINE_MUTEX(pidlock);
 
 void (*dtrace_fasttrap_fork_ptr)(proc_t *, proc_t *);
 void (*dtrace_fasttrap_exec_ptr)(proc_t *);
@@ -220,7 +220,7 @@ static dev_info_t *fasttrap_devi;
 static dtrace_meta_provider_id_t fasttrap_meta_id;
 
 static timeout_id_t fasttrap_timeout;
-static MUTEX_DEFINE(fasttrap_cleanup_mtx);
+static DEFINE_MUTEX(fasttrap_cleanup_mtx);
 static uint_t fasttrap_cleanup_work;
 
 /*
@@ -256,7 +256,7 @@ static fasttrap_hash_t		fasttrap_provs;
 static fasttrap_hash_t		fasttrap_procs;
 
 static uint64_t			fasttrap_pid_count;	/* pid ref count */
-static MUTEX_DEFINE(fasttrap_count_mtx);		/* lock on ref count */
+static DEFINE_MUTEX(fasttrap_count_mtx);		/* lock on ref count */
 
 #define	FASTTRAP_ENABLE_FAIL	1
 #define	FASTTRAP_ENABLE_PARTIAL	2
@@ -333,9 +333,9 @@ HERE();
 	sqp->sq_info.si_code = TRAP_DTRACE;
 	sqp->sq_info.si_addr = (caddr_t)pc;
 
-	dmutex_enter(&p->p_lock);
+	mutex_enter(&p->p_lock);
 	sigaddqa(p, t, sqp);
-	dmutex_exit(&p->p_lock);
+	mutex_exit(&p->p_lock);
 
 	if (t != NULL)
 		aston(t);
@@ -373,8 +373,8 @@ HERE();
 	/*   kernel.				       */
 	/***********************************************/
 	for (i = 0; i < num_online_cpus(); i++) {
-		dmutex_enter(&cpu_core[i].cpuc_pid_lock);
-		dmutex_exit(&cpu_core[i].cpuc_pid_lock);
+		mutex_enter(&cpu_core[i].cpuc_pid_lock);
+		mutex_exit(&cpu_core[i].cpuc_pid_lock);
 HERE();
 	}
 }
@@ -397,10 +397,10 @@ fasttrap_pid_cleanup_cb(void *data)
 	in = 1;
 
 HERE();
-	dmutex_enter(&fasttrap_cleanup_mtx);
+	mutex_enter(&fasttrap_cleanup_mtx);
 	while (fasttrap_cleanup_work) {
 		fasttrap_cleanup_work = 0;
-		dmutex_exit(&fasttrap_cleanup_mtx);
+		mutex_exit(&fasttrap_cleanup_mtx);
 
 		later = 0;
 
@@ -412,7 +412,7 @@ HERE();
 		 */
 		for (i = 0; i < fasttrap_provs.fth_nent; i++) {
 			bucket = &fasttrap_provs.fth_table[i];
-			dmutex_enter(&bucket->ftb_mtx);
+			mutex_enter(&bucket->ftb_mtx);
 			fpp = (fasttrap_provider_t **)&bucket->ftb_data;
 
 			while ((fp = *fpp) != NULL) {
@@ -421,7 +421,7 @@ HERE();
 					continue;
 				}
 
-				dmutex_enter(&fp->ftp_mtx);
+				mutex_enter(&fp->ftp_mtx);
 
 				/*
 				 * If this provider has consumers actively
@@ -431,7 +431,7 @@ HERE();
 				 */
 				if (fp->ftp_ccount != 0 ||
 				    fp->ftp_mcount != 0) {
-					dmutex_exit(&fp->ftp_mtx);
+					mutex_exit(&fp->ftp_mtx);
 					fp->ftp_marked = 0;
 					continue;
 				}
@@ -439,7 +439,7 @@ HERE();
 				if (!fp->ftp_retired || fp->ftp_rcount != 0)
 					fp->ftp_marked = 0;
 
-				dmutex_exit(&fp->ftp_mtx);
+				mutex_exit(&fp->ftp_mtx);
 
 				/*
 				 * If we successfully unregister this
@@ -463,10 +463,10 @@ HERE();
 					fasttrap_provider_free(fp);
 				}
 			}
-			dmutex_exit(&bucket->ftb_mtx);
+			mutex_exit(&bucket->ftb_mtx);
 		}
 
-		dmutex_enter(&fasttrap_cleanup_mtx);
+		mutex_enter(&fasttrap_cleanup_mtx);
 	}
 
 	ASSERT(fasttrap_timeout != 0);
@@ -488,7 +488,7 @@ HERE();
 	else
 		fasttrap_timeout = 0;
 
-	dmutex_exit(&fasttrap_cleanup_mtx);
+	mutex_exit(&fasttrap_cleanup_mtx);
 	in = 0;
 }
 
@@ -499,11 +499,11 @@ static void
 fasttrap_pid_cleanup(void)
 {
 HERE();
-	dmutex_enter(&fasttrap_cleanup_mtx);
+	mutex_enter(&fasttrap_cleanup_mtx);
 	fasttrap_cleanup_work = 1;
 	if (fasttrap_timeout == 0)
 		fasttrap_timeout = timeout(&fasttrap_pid_cleanup_cb, NULL, 1);
-	dmutex_exit(&fasttrap_cleanup_mtx);
+	mutex_exit(&fasttrap_cleanup_mtx);
 }
 
 /*
@@ -538,9 +538,9 @@ printk("in fasttrap_fork\n");
 	 * We don't have to worry about the child process disappearing
 	 * because we're in fork().
 	 */
-	dmutex_enter(&cp->p_lock);
+	mutex_enter(&cp->p_lock);
 	sprlock_proc(cp);
-	dmutex_exit(&cp->p_lock);
+	mutex_exit(&cp->p_lock);
 
 	/*
 	 * Iterate over every tracepoint looking for ones that belong to the
@@ -550,7 +550,7 @@ printk("in fasttrap_fork\n");
 		fasttrap_tracepoint_t *tp;
 		fasttrap_bucket_t *bucket = &fasttrap_tpoints.fth_table[i];
 
-		dmutex_enter(&bucket->ftb_mtx);
+		mutex_enter(&bucket->ftb_mtx);
 		for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 			if (tp->ftt_pid == ppid &&
 			    tp->ftt_proc->ftpc_acount != 0) {
@@ -568,10 +568,10 @@ printk("in fasttrap_fork\n");
 				ASSERT(tp->ftt_proc->ftpc_acount != 0);
 			}
 		}
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 	}
 
-	dmutex_enter(&cp->p_lock);
+	mutex_enter(&cp->p_lock);
 	sprunlock(cp);
 }
 
@@ -586,7 +586,7 @@ fasttrap_exec_exit(proc_t *p)
 	ASSERT(p == curproc);
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
-	dmutex_exit(&p->p_lock);
+	mutex_exit(&p->p_lock);
 //printk("fasttrap_exec_exit: pid=%d\n", p->p_pid);
 
 	/*
@@ -595,7 +595,7 @@ fasttrap_exec_exit(proc_t *p)
 	 */
 	fasttrap_provider_retire(p->p_pid, FASTTRAP_PID_NAME, 0);
 
-	dmutex_enter(&p->p_lock);
+	mutex_enter(&p->p_lock);
 }
 
 
@@ -650,7 +650,7 @@ HERE();
 	 * defunct.
 	 */
 again:
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		/*
 		 * Note that it's safe to access the active count on the
@@ -702,7 +702,7 @@ HERE();
 		}
 HERE();
 
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 HERE();
 
 		if (new_tp != NULL) {
@@ -725,7 +725,7 @@ HERE();
 		membar_producer();
 		bucket->ftb_data = new_tp;
 		membar_producer();
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 
 		/*
 		 * Activate the tracepoint in the ISA-specific manner.
@@ -751,7 +751,7 @@ HERE();
 	}
 
 HERE();
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	/*
 	 * Initialize the tracepoint that's been preallocated with the probe.
@@ -821,7 +821,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	 * ones registered with it.
 	 */
 	bucket = &fasttrap_tpoints.fth_table[FASTTRAP_TPOINTS_INDEX(pid, pc)];
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 	for (tp = bucket->ftb_data; tp != NULL; tp = tp->ftt_next) {
 		if (tp->ftt_pid == pid && tp->ftt_pc == pc &&
 		    tp->ftt_proc == provider->ftp_proc)
@@ -899,7 +899,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 			*tmp_tp = tp;
 		}
 
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 
 		/*
 		 * Tag the modified probe with the generation in which it was
@@ -909,7 +909,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 		return;
 	}
 
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	/*
 	 * We can't safely remove the tracepoint from the set of active
@@ -945,7 +945,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	/*
 	 * Remove the probe from the hash table of active tracepoints.
 	 */
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 	pp = (fasttrap_tracepoint_t **)&bucket->ftb_data;
 	ASSERT(*pp != NULL);
 	while (*pp != tp) {
@@ -956,7 +956,7 @@ fasttrap_tracepoint_disable(proc_t *p, fasttrap_probe_t *probe, uint_t index)
 	*pp = tp->ftt_next;
 	membar_producer();
 
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	/*
 	 * Tag the modified probe with the generation in which it was changed.
@@ -975,7 +975,7 @@ fasttrap_enable_callbacks(void)
 	 */
 HERE();
 //printk("fasttrap_pid_count=%ld\n", fasttrap_pid_count);
-	dmutex_enter(&fasttrap_count_mtx);
+	mutex_enter(&fasttrap_count_mtx);
 	if (fasttrap_pid_count == 0) {
 		ASSERT(dtrace_pid_probe_ptr == NULL);
 		ASSERT(dtrace_return_probe_ptr == NULL);
@@ -985,7 +985,7 @@ HERE();
 	ASSERT(dtrace_pid_probe_ptr == &fasttrap_pid_probe);
 	ASSERT(dtrace_return_probe_ptr == &fasttrap_return_probe);
 	fasttrap_pid_count++;
-	dmutex_exit(&fasttrap_count_mtx);
+	mutex_exit(&fasttrap_count_mtx);
 }
 
 static void
@@ -994,7 +994,7 @@ fasttrap_disable_callbacks(void)
 	ASSERT(MUTEX_HELD(&cpu_lock));
 
 HERE();
-	dmutex_enter(&fasttrap_count_mtx);
+	mutex_enter(&fasttrap_count_mtx);
 	ASSERT(fasttrap_pid_count > 0);
 	fasttrap_pid_count--;
 	if (fasttrap_pid_count == 0) {
@@ -1027,7 +1027,7 @@ HERE();
 # endif
 	}
 HERE();
-	dmutex_exit(&fasttrap_count_mtx);
+	mutex_exit(&fasttrap_count_mtx);
 HERE();
 }
 
@@ -1050,9 +1050,9 @@ fasttrap_pid_enable(void *arg, dtrace_id_t id, void *parg)
 	 * must increment this even if we aren't able to properly enable
 	 * this probe.
 	 */
-	dmutex_enter(&probe->ftp_prov->ftp_mtx);
+	mutex_enter(&probe->ftp_prov->ftp_mtx);
 	probe->ftp_prov->ftp_rcount++;
-	dmutex_exit(&probe->ftp_prov->ftp_mtx);
+	mutex_exit(&probe->ftp_prov->ftp_mtx);
 
 	/*
 	 * If this probe's provider is retired (meaning it was valid in a
@@ -1074,7 +1074,7 @@ HERE();
 			return 0;
 HERE();
 
-		dmutex_enter(&pidlock);
+		mutex_enter(&pidlock);
 		p = prfind(probe->ftp_pid);
 
 		/*
@@ -1085,14 +1085,14 @@ HERE();
 		ASSERT(p->p_parent == curproc);
 		ASSERT(p->p_stat == SIDL);
 
-		dmutex_enter(&p->p_lock);
-		dmutex_exit(&pidlock);
+		mutex_enter(&p->p_lock);
+		mutex_exit(&pidlock);
 
 		sprlock_proc(p);
 	}
 
 	ASSERT(!(p->p_flag & SVFORK));
-	dmutex_exit(&p->p_lock);
+	mutex_exit(&p->p_lock);
 HERE();
 //printk("pid=%d p=%p\n", probe->ftp_pid, p);
 
@@ -1132,7 +1132,7 @@ HERE();
 				i--;
 			}
 
-			dmutex_enter(&p->p_lock);
+			mutex_enter(&p->p_lock);
 			sprunlock(p);
 
 			/*
@@ -1144,7 +1144,7 @@ HERE();
 		}
 	}
 
-	dmutex_enter(&p->p_lock);
+	mutex_enter(&p->p_lock);
 	sprunlock(p);
 
 	probe->ftp_enabled = 1;
@@ -1172,11 +1172,11 @@ HERE();
 HERE();
 	if ((p = sprlock(probe->ftp_pid)) != NULL) {
 		ASSERT(!(p->p_flag & SVFORK));
-		dmutex_exit(&p->p_lock);
+		mutex_exit(&p->p_lock);
 	}
 
 HERE();
-	dmutex_enter(&provider->ftp_mtx);
+	mutex_enter(&provider->ftp_mtx);
 
 HERE();
 	/*
@@ -1200,9 +1200,9 @@ HERE();
 		 */
 		if (provider->ftp_retired && !provider->ftp_marked)
 			whack = provider->ftp_marked = 1;
-		dmutex_exit(&provider->ftp_mtx);
+		mutex_exit(&provider->ftp_mtx);
 
-		dmutex_enter(&p->p_lock);
+		mutex_enter(&p->p_lock);
 		sprunlock(p);
 	} else {
 		/*
@@ -1211,7 +1211,7 @@ HERE();
 		 */
 		if (provider->ftp_rcount == 0 && !provider->ftp_marked)
 			whack = provider->ftp_marked = 1;
-		dmutex_exit(&provider->ftp_mtx);
+		mutex_exit(&provider->ftp_mtx);
 	}
 
 	if (whack)
@@ -1335,17 +1335,17 @@ fasttrap_proc_lookup(pid_t pid)
 
 	bucket = &fasttrap_procs.fth_table[FASTTRAP_PROCS_INDEX(pid)];
 HERE();
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 HERE();
 
 	for (fprc = bucket->ftb_data; fprc != NULL; fprc = fprc->ftpc_next) {
 		if (fprc->ftpc_pid == pid && fprc->ftpc_acount != 0) {
-			dmutex_enter(&fprc->ftpc_mtx);
-			dmutex_exit(&bucket->ftb_mtx);
+			mutex_enter(&fprc->ftpc_mtx);
+			mutex_exit(&bucket->ftb_mtx);
 			fprc->ftpc_rcount++;
 			atomic_add_64(&fprc->ftpc_acount, 1);
 			ASSERT(fprc->ftpc_acount <= fprc->ftpc_rcount);
-			dmutex_exit(&fprc->ftpc_mtx);
+			mutex_exit(&fprc->ftpc_mtx);
 HERE();
 
 			return (fprc);
@@ -1357,15 +1357,15 @@ HERE();
 	 * Drop the bucket lock so we don't try to perform a sleeping
 	 * allocation under it.
 	 */
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	new_fprc = kmem_zalloc(sizeof (fasttrap_proc_t), KM_SLEEP);
 	new_fprc->ftpc_pid = pid;
 	new_fprc->ftpc_rcount = 1;
 	new_fprc->ftpc_acount = 1;
-	dmutex_init(&new_fprc->ftpc_mtx);
+	mutex_init(&new_fprc->ftpc_mtx);
 
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 
 	/*
 	 * Take another lap through the list to make sure a proc hasn't
@@ -1373,12 +1373,12 @@ HERE();
 	 */
 	for (fprc = bucket->ftb_data; fprc != NULL; fprc = fprc->ftpc_next) {
 		if (fprc->ftpc_pid == pid && fprc->ftpc_acount != 0) {
-			dmutex_enter(&fprc->ftpc_mtx);
-			dmutex_exit(&bucket->ftb_mtx);
+			mutex_enter(&fprc->ftpc_mtx);
+			mutex_exit(&bucket->ftb_mtx);
 			fprc->ftpc_rcount++;
 			atomic_add_64(&fprc->ftpc_acount, 1);
 			ASSERT(fprc->ftpc_acount <= fprc->ftpc_rcount);
-			dmutex_exit(&fprc->ftpc_mtx);
+			mutex_exit(&fprc->ftpc_mtx);
 
 			kmem_free(new_fprc, sizeof (fasttrap_proc_t));
 HERE();
@@ -1391,7 +1391,7 @@ HERE();
 	new_fprc->ftpc_next = bucket->ftb_data;
 	bucket->ftb_data = new_fprc;
 
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	return (new_fprc);
 }
@@ -1404,19 +1404,19 @@ fasttrap_proc_release(fasttrap_proc_t *proc)
 	pid_t pid = proc->ftpc_pid;
 
 HERE();
-	dmutex_enter(&proc->ftpc_mtx);
+	mutex_enter(&proc->ftpc_mtx);
 
 	ASSERT(proc->ftpc_rcount != 0);
 	ASSERT(proc->ftpc_acount <= proc->ftpc_rcount);
 
 	if (--proc->ftpc_rcount != 0) {
 HERE();
-		dmutex_exit(&proc->ftpc_mtx);
+		mutex_exit(&proc->ftpc_mtx);
 		return;
 	}
 
 HERE();
-	dmutex_exit(&proc->ftpc_mtx);
+	mutex_exit(&proc->ftpc_mtx);
 
 	/*
 	 * There should definitely be no live providers associated with this
@@ -1425,7 +1425,7 @@ HERE();
 	ASSERT(proc->ftpc_acount == 0);
 
 	bucket = &fasttrap_procs.fth_table[FASTTRAP_PROCS_INDEX(pid)];
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 
 	fprcp = (fasttrap_proc_t **)&bucket->ftb_data;
 	while ((fprc = *fprcp) != NULL) {
@@ -1445,7 +1445,7 @@ HERE();
 
 	*fprcp = fprc->ftpc_next;
 
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 HERE();
 
 	kmem_free(fprc, sizeof (fasttrap_proc_t));
@@ -1472,7 +1472,7 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	ASSERT(pattr != NULL);
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 
 	/*
 	 * Take a lap through the list and return the match if we find it.
@@ -1480,8 +1480,8 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
 		    !fp->ftp_retired) {
-			dmutex_enter(&fp->ftp_mtx);
-			dmutex_exit(&bucket->ftb_mtx);
+			mutex_enter(&fp->ftp_mtx);
+			mutex_exit(&bucket->ftb_mtx);
 			return (fp);
 		}
 	}
@@ -1490,24 +1490,24 @@ fasttrap_provider_lookup(pid_t pid, const char *name,
 	 * Drop the bucket lock so we don't try to perform a sleeping
 	 * allocation under it.
 	 */
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	/*
 	 * Make sure the process exists, isn't a child created as the result
 	 * of a vfork(2), and isn't a zombie (but may be in fork).
 	 */
-	dmutex_enter(&pidlock);
+	mutex_enter(&pidlock);
 	if ((p = prfind(pid)) == NULL) {
 HERE();
-		dmutex_exit(&pidlock);
+		mutex_exit(&pidlock);
 		return (NULL);
 	}
 HERE();
-	dmutex_enter(&p->p_lock);
-	dmutex_exit(&pidlock);
+	mutex_enter(&p->p_lock);
+	mutex_exit(&pidlock);
 	if (p->p_flag & (SVFORK | SEXITING)) {
 HERE();
-		dmutex_exit(&p->p_lock);
+		mutex_exit(&p->p_lock);
 		return (NULL);
 	}
 HERE();
@@ -1523,21 +1523,21 @@ HERE();
 	 * Grab the credentials for this process so we have
 	 * something to pass to dtrace_register().
 	 */
-	dmutex_enter(&p->p_crlock);
+	mutex_enter(&p->p_crlock);
 	crhold(p->p_cred);
 	cred = p->p_cred;
-	dmutex_exit(&p->p_crlock);
-	dmutex_exit(&p->p_lock);
+	mutex_exit(&p->p_crlock);
+	mutex_exit(&p->p_lock);
 
 	new_fp = kmem_zalloc(sizeof (fasttrap_provider_t), KM_SLEEP);
 	new_fp->ftp_pid = pid;
 	new_fp->ftp_proc = fasttrap_proc_lookup(pid);
-	dmutex_init(&new_fp->ftp_mtx);
-	dmutex_init(&new_fp->ftp_cmtx);
+	mutex_init(&new_fp->ftp_mtx);
+	mutex_init(&new_fp->ftp_cmtx);
 
 	ASSERT(new_fp->ftp_proc != NULL);
 
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 
 	/*
 	 * Take another lap through the list to make sure a provider hasn't
@@ -1546,8 +1546,8 @@ HERE();
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
 		    !fp->ftp_retired) {
-			dmutex_enter(&fp->ftp_mtx);
-			dmutex_exit(&bucket->ftb_mtx);
+			mutex_enter(&fp->ftp_mtx);
+			mutex_exit(&bucket->ftb_mtx);
 			fasttrap_provider_free(new_fp);
 			crfree(cred);
 			return (fp);
@@ -1570,7 +1570,7 @@ HERE();
 	    DTRACE_PRIV_PROC | DTRACE_PRIV_OWNER | DTRACE_PRIV_ZONEOWNER, cred,
 	    pattr == &pid_attr ? &pid_pops : &usdt_pops, new_fp,
 	    &new_fp->ftp_provid) != 0) {
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 		fasttrap_provider_free(new_fp);
 		crfree(cred);
 		return (NULL);
@@ -1580,8 +1580,8 @@ HERE();
 	bucket->ftb_data = new_fp;
 
 //printk("%s(%d):new USDT provider: '%s'\n", __FILE__, __LINE__, provname);
-	dmutex_enter(&new_fp->ftp_mtx);
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_enter(&new_fp->ftp_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 	crfree(cred);
 	return (new_fp);
@@ -1624,19 +1624,19 @@ HERE();
 	 * corresponds to this process's hash chain in the provider hash
 	 * table. Don't sweat it if we can't find the process.
 	 */
-	dmutex_enter(&pidlock);
+	mutex_enter(&pidlock);
 	if ((p = prfind(pid)) == NULL) {
 HERE();
-		dmutex_exit(&pidlock);
+		mutex_exit(&pidlock);
 		return;
 	}
 HERE();
 
-	dmutex_enter(&p->p_lock);
-	dmutex_exit(&pidlock);
+	mutex_enter(&p->p_lock);
+	mutex_exit(&pidlock);
 
 	p->p_dtrace_probes--;
-	dmutex_exit(&p->p_lock);
+	mutex_exit(&p->p_lock);
 }
 
 static void
@@ -1650,7 +1650,7 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 	ASSERT(strlen(name) < sizeof (fp->ftp_name));
 
 	bucket = &fasttrap_provs.fth_table[FASTTRAP_PROVS_INDEX(pid, name)];
-	dmutex_enter(&bucket->ftb_mtx);
+	mutex_enter(&bucket->ftb_mtx);
 
 	for (fp = bucket->ftb_data; fp != NULL; fp = fp->ftp_next) {
 		if (fp->ftp_pid == pid && strcmp(fp->ftp_name, name) == 0 &&
@@ -1660,17 +1660,17 @@ fasttrap_provider_retire(pid_t pid, const char *name, int mprov)
 
 	if (fp == NULL) {
 //printk("didnt find pid\n");
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 		return;
 	}
 
 HERE();
-	dmutex_enter(&fp->ftp_mtx);
+	mutex_enter(&fp->ftp_mtx);
 	ASSERT(!mprov || fp->ftp_mcount > 0);
 	if (mprov && --fp->ftp_mcount != 0)  {
 HERE();
-		dmutex_exit(&fp->ftp_mtx);
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&fp->ftp_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 		return;
 	}
 HERE();
@@ -1696,7 +1696,7 @@ HERE();
 	fp->ftp_retired = 1;
 	fp->ftp_marked = 1;
 	provid = fp->ftp_provid;
-	dmutex_exit(&fp->ftp_mtx);
+	mutex_exit(&fp->ftp_mtx);
 
 	/*
 	 * We don't have to worry about invalidating the same provider twice
@@ -1707,7 +1707,7 @@ HERE();
 	dtrace_invalidate(provid);
 HERE();
 
-	dmutex_exit(&bucket->ftb_mtx);
+	mutex_exit(&bucket->ftb_mtx);
 
 printk("%s:%d: calling pid cleanup\n", __func__, __LINE__);
 	fasttrap_pid_cleanup();
@@ -1767,7 +1767,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	 * for pending deletions when we drop this reference count.
 	 */
 	provider->ftp_ccount++;
-	dmutex_exit(&provider->ftp_mtx);
+	mutex_exit(&provider->ftp_mtx);
 
 	/*
 	 * Grab the creation lock to ensure consistency between calls to
@@ -1776,7 +1776,7 @@ fasttrap_add_probe(fasttrap_probe_spec_t *pdata)
 	 * before taking this lock to avoid a three-way deadlock with the
 	 * DTrace framework.
 	 */
-	dmutex_enter(&provider->ftp_cmtx);
+	mutex_enter(&provider->ftp_cmtx);
 
 	if (name == NULL) {
 HERE();
@@ -1873,7 +1873,7 @@ HERE();
 		    pdata->ftps_mod, pdata->ftps_func, name, aframes, pp);
 	}
 
-	dmutex_exit(&provider->ftp_cmtx);
+	mutex_exit(&provider->ftp_cmtx);
 
 	/*
 	 * We know that the provider is still valid since we incremented the
@@ -1881,10 +1881,10 @@ HERE();
 	 * while we were using it (e.g. because the process called exec(2) or
 	 * exit(2)), take note of that and try to clean it up now.
 	 */
-	dmutex_enter(&provider->ftp_mtx);
+	mutex_enter(&provider->ftp_mtx);
 	provider->ftp_ccount--;
 	whack = provider->ftp_retired;
-	dmutex_exit(&provider->ftp_mtx);
+	mutex_exit(&provider->ftp_mtx);
 
 	if (whack)
 		fasttrap_pid_cleanup();
@@ -1898,11 +1898,11 @@ no_mem:
 	 * the user has accidentally created many more probes than was
 	 * intended (e.g. pid123:::).
 	 */
-	dmutex_exit(&provider->ftp_cmtx);
-	dmutex_enter(&provider->ftp_mtx);
+	mutex_exit(&provider->ftp_cmtx);
+	mutex_enter(&provider->ftp_mtx);
 	provider->ftp_ccount--;
 	provider->ftp_marked = 1;
-	dmutex_exit(&provider->ftp_mtx);
+	mutex_exit(&provider->ftp_mtx);
 
 	fasttrap_pid_cleanup();
 
@@ -2104,7 +2104,7 @@ HERE();
 	provider->ftp_mcount++;
 
 HERE();
-	dmutex_exit(&provider->ftp_mtx);
+	mutex_exit(&provider->ftp_mtx);
 
 	return (provider);
 }
@@ -2151,11 +2151,11 @@ HERE();
 	 * dtrace_probe_lookup() and dtrace_probe_create() in the face of
 	 * other threads creating probes.
 	 */
-	dmutex_enter(&provider->ftp_cmtx);
+	mutex_enter(&provider->ftp_cmtx);
 
 	if (dtrace_probe_lookup(provider->ftp_provid, dhpb->dthpb_mod,
 	    dhpb->dthpb_func, dhpb->dthpb_name) != 0) {
-		dmutex_exit(&provider->ftp_cmtx);
+		mutex_exit(&provider->ftp_cmtx);
 		return;
 	}
 
@@ -2166,7 +2166,7 @@ HERE();
 
 	if (fasttrap_total > fasttrap_max) {
 		atomic_add_32(&fasttrap_total, -ntps);
-		dmutex_exit(&provider->ftp_cmtx);
+		mutex_exit(&provider->ftp_cmtx);
 		return;
 	}
 
@@ -2232,7 +2232,7 @@ HERE();
 	pp->ftp_id = dtrace_probe_create(provider->ftp_provid, dhpb->dthpb_mod,
 	    dhpb->dthpb_func, dhpb->dthpb_name, FASTTRAP_OFFSET_AFRAMES, pp);
 
-	dmutex_exit(&provider->ftp_cmtx);
+	mutex_exit(&provider->ftp_cmtx);
 }
 
 /*ARGSUSED*/
@@ -2330,25 +2330,25 @@ fasttrap_ioctl(struct file *fp, int cmd, intptr_t arg, int md, cred_t *cr, int *
 			proc_t *p;
 			pid_t pid = probe->ftps_pid;
 
-			dmutex_enter(&pidlock);
+			mutex_enter(&pidlock);
 			/*
 			 * Report an error if the process doesn't exist
 			 * or is actively being birthed.
 			 */
 			if ((p = prfind(pid)) == NULL || p->p_stat == SIDL) {
-				dmutex_exit(&pidlock);
+				mutex_exit(&pidlock);
 				return (ESRCH);
 			}
-			dmutex_enter(&p->p_lock);
-			dmutex_exit(&pidlock);
+			mutex_enter(&p->p_lock);
+			mutex_exit(&pidlock);
 
 			if ((ret = priv_proc_cred_perm(cr, p, NULL,
 			    VREAD | VWRITE)) != 0) {
-				dmutex_exit(&p->p_lock);
+				mutex_exit(&p->p_lock);
 				return (ret);
 			}
 
-			dmutex_exit(&p->p_lock);
+			mutex_exit(&p->p_lock);
 		}
 
 		ret = fasttrap_add_probe(probe);
@@ -2370,30 +2370,30 @@ err:
 			proc_t *p;
 			pid_t pid = instr.ftiq_pid;
 
-			dmutex_enter(&pidlock);
+			mutex_enter(&pidlock);
 			/*
 			 * Report an error if the process doesn't exist
 			 * or is actively being birthed.
 			 */
 			if ((p = prfind(pid)) == NULL || p->p_stat == SIDL) {
-				dmutex_exit(&pidlock);
+				mutex_exit(&pidlock);
 				return (ESRCH);
 			}
-			dmutex_enter(&p->p_lock);
-			dmutex_exit(&pidlock);
+			mutex_enter(&p->p_lock);
+			mutex_exit(&pidlock);
 
 			if ((ret = priv_proc_cred_perm(cr, p, NULL,
 			    VREAD)) != 0) {
-				dmutex_exit(&p->p_lock);
+				mutex_exit(&p->p_lock);
 				return (ret);
 			}
 
-			dmutex_exit(&p->p_lock);
+			mutex_exit(&p->p_lock);
 		}
 
 		index = FASTTRAP_TPOINTS_INDEX(instr.ftiq_pid, instr.ftiq_pc);
 
-		dmutex_enter(&fasttrap_tpoints.fth_table[index].ftb_mtx);
+		mutex_enter(&fasttrap_tpoints.fth_table[index].ftb_mtx);
 		tp = fasttrap_tpoints.fth_table[index].ftb_data;
 		while (tp != NULL) {
 			if (instr.ftiq_pid == tp->ftt_pid &&
@@ -2405,13 +2405,13 @@ err:
 		}
 
 		if (tp == NULL) {
-			dmutex_exit(&fasttrap_tpoints.fth_table[index].ftb_mtx);
+			mutex_exit(&fasttrap_tpoints.fth_table[index].ftb_mtx);
 			return (ENOENT);
 		}
 
 		bcopy(&tp->ftt_instr, &instr.ftiq_instr,
 		    sizeof (instr.ftiq_instr));
-		dmutex_exit(&fasttrap_tpoints.fth_table[index].ftb_mtx);
+		mutex_exit(&fasttrap_tpoints.fth_table[index].ftb_mtx);
 
 		if (copyout(&instr, (void *)arg, sizeof (instr)) != 0)
 			return (EFAULT);
@@ -2532,7 +2532,7 @@ fasttrap_attach(void)
 	fasttrap_tpoints.fth_table = kmem_zalloc(fasttrap_tpoints.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 	for (i = 0; i < fasttrap_tpoints.fth_nent; i++) {
-		dmutex_init(&fasttrap_tpoints.fth_table[i].ftb_mtx);
+		mutex_init(&fasttrap_tpoints.fth_table[i].ftb_mtx);
 	}
 
 	/*
@@ -2550,7 +2550,7 @@ fasttrap_attach(void)
 	fasttrap_provs.fth_table = kmem_zalloc(fasttrap_provs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 	for (i = 0; i < fasttrap_provs.fth_nent; i++) {
-		dmutex_init(&fasttrap_provs.fth_table[i].ftb_mtx);
+		mutex_init(&fasttrap_provs.fth_table[i].ftb_mtx);
 	}
 
 	/*
@@ -2567,7 +2567,7 @@ HERE();
 	fasttrap_procs.fth_table = kmem_zalloc(fasttrap_procs.fth_nent *
 	    sizeof (fasttrap_bucket_t), KM_SLEEP);
 	for (i = 0; i < fasttrap_procs.fth_nent; i++) {
-		dmutex_init(&fasttrap_procs.fth_table[i].ftb_mtx);
+		mutex_init(&fasttrap_procs.fth_table[i].ftb_mtx);
 	}
 
 HERE();
@@ -2620,7 +2620,7 @@ HERE();
 	 * to a non-zero value, and wait for the current timeout to complete.
 	 */
 HERE();
-	dmutex_enter(&fasttrap_cleanup_mtx);
+	mutex_enter(&fasttrap_cleanup_mtx);
 	fasttrap_cleanup_work = 0;
 
 HERE();
@@ -2629,14 +2629,14 @@ HERE();
 		fasttrap_timeout = (timeout_id_t)1;
 
 		if (tmp != 0) {
-			dmutex_exit(&fasttrap_cleanup_mtx);
+			mutex_exit(&fasttrap_cleanup_mtx);
 			(void) untimeout(tmp);
-			dmutex_enter(&fasttrap_cleanup_mtx);
+			mutex_enter(&fasttrap_cleanup_mtx);
 		}
 	}
 
 	fasttrap_cleanup_work = 0;
-	dmutex_exit(&fasttrap_cleanup_mtx);
+	mutex_exit(&fasttrap_cleanup_mtx);
 HERE();
 
 	/*
@@ -2647,7 +2647,7 @@ HERE();
 		fasttrap_provider_t **fpp, *fp;
 		fasttrap_bucket_t *bucket = &fasttrap_provs.fth_table[i];
 
-		dmutex_enter(&bucket->ftb_mtx);
+		mutex_enter(&bucket->ftb_mtx);
 		fpp = (fasttrap_provider_t **)&bucket->ftb_data;
 		while ((fp = *fpp) != NULL) {
 			/*
@@ -2657,8 +2657,8 @@ HERE();
 			 * bucket lock so there's no chance of another thread
 			 * blocking on the provider's lock.
 			 */
-			dmutex_enter(&fp->ftp_mtx);
-			dmutex_exit(&fp->ftp_mtx);
+			mutex_enter(&fp->ftp_mtx);
+			mutex_exit(&fp->ftp_mtx);
 
 			if (dtrace_unregister(fp->ftp_provid) != 0) {
 				fail = 1;
@@ -2669,7 +2669,7 @@ HERE();
 			}
 		}
 
-		dmutex_exit(&bucket->ftb_mtx);
+		mutex_exit(&bucket->ftb_mtx);
 	}
 HERE();
 
@@ -2680,10 +2680,10 @@ HERE();
 		 * and start a new timeout if any work has accumulated while
 		 * we've been unsuccessfully trying to detach.
 		 */
-		dmutex_enter(&fasttrap_cleanup_mtx);
+		mutex_enter(&fasttrap_cleanup_mtx);
 		fasttrap_timeout = 0;
 		work = fasttrap_cleanup_work;
-		dmutex_exit(&fasttrap_cleanup_mtx);
+		mutex_exit(&fasttrap_cleanup_mtx);
 
 		if (work)
 			fasttrap_pid_cleanup();
@@ -2695,9 +2695,9 @@ HERE();
 	}
 
 #ifdef DEBUG
-	dmutex_enter(&fasttrap_count_mtx);
+	mutex_enter(&fasttrap_count_mtx);
 	ASSERT(fasttrap_pid_count == 0);
-	dmutex_exit(&fasttrap_count_mtx);
+	mutex_exit(&fasttrap_count_mtx);
 #endif
 
 HERE();

@@ -67,7 +67,6 @@ module_param(arg_kallsyms_lookup_name, charp, 0);
 extern char dtrace_buf[];
 extern const int log_bufsiz;
 extern int dbuf_i;
-extern int dtrace_safe;
 
 /**********************************************************************/
 /*   TRUE when we have called dtrace_linux_init(). After that point,  */
@@ -146,7 +145,7 @@ cpu_core_t	*cpu_core;
 cpu_t		*cpu_table;
 cred_t		*cpu_cred;
 int	nr_cpus = 1;
-MUTEX_DEFINE(mod_lock);
+DEFINE_MUTEX(mod_lock);
 
 /**********************************************************************/
 /*   Set  to  true  by  debug code that wants to immediately disable  */
@@ -164,7 +163,7 @@ int dtrace_shutdown;
 /**********************************************************************/
 sol_proc_t	*shadow_procs;
 
-MUTEX_DEFINE(cpu_lock);
+DEFINE_MUTEX(cpu_lock);
 int	panic_quiesce;
 sol_proc_t	*curthread;
 
@@ -283,8 +282,6 @@ void	signal_fini(void);
 int	systrace_init(void);
 void	systrace_exit(void);
 void	io_prov_init(void);
-void	xcall_init(void);
-void	xcall_fini(void);
 //static void print_pte(pte_t *pte, int level);
 
 /**********************************************************************/
@@ -315,7 +312,11 @@ dtrace_clflush(void *ptr)
 /**********************************************************************/
 cred_t *
 CRED()
-{	cred_t	*cr = &cpu_cred[cpu_get_id()];
+{
+	cred_t	*cr;
+	/* FIXME: This is a hack */
+#if 0
+	cr = &cpu_cred[cpu_get_id()];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	cr->cr_uid = current->cred->uid;
@@ -325,6 +326,9 @@ CRED()
 	cr->cr_gid = current->gid;
 #endif
 //printk("get cred end %d %d\n", cr->cr_uid, cr->cr_gid);
+#else
+	cr = &cpu_cred[0];
+#endif
 
 	return cr;
 }
@@ -410,7 +414,14 @@ dtrace_gethrtime()
 	/*   to tsc and return nsec.		       */
 	/***********************************************/
 	if (native_sched_clock_ptr) {
-		return (*native_sched_clock_ptr)();
+		hrtime_t r;
+
+		/* XXX: This is a hack */
+		preempt_disable();
+		r = (*native_sched_clock_ptr)();
+		preempt_enable();
+
+		return r;
 	}
 	/***********************************************/
 	/*   Later  kernels  use this to allow access  */
@@ -764,10 +775,12 @@ dtrace_linux_init(void)
 	# define _PAGE_NX 0
 	# define _PAGE_RW 0
 # endif
+	preempt_disable();
 	rdtscll(t);
 	(void) dtrace_gethrtime();
 	rdtscll(t1);
 	tsc_max_delta = t1 - t;
+	preempt_enable();
 
 	/***********************************************/
 	/*   Let  us  grab  the  panics  if we are in  */
@@ -886,17 +899,6 @@ dtrace_mach_aframes(void)
 	return 1;
 }
 
-/**********************************************************************/
-/*   Make    this    a   function,   since   on   earlier   kernels,  */
-/*   mutex_is_locked() is an inline complex function which cannot be  */
-/*   used   in   an   expression  context  (ASSERT(MUTEX_HELD())  in  */
-/*   dtrace.c)							      */
-/**********************************************************************/
-int
-dtrace_mutex_is_locked(mutex_t *mp)
-{
-	return dmutex_is_locked(mp);
-}
 /**********************************************************************/
 /*   Avoid  calling  real  memcpy,  since  we  will  call  this from  */
 /*   interrupt context.						      */
@@ -1815,7 +1817,7 @@ return 0;
 /*   shadow_procs for this purpose now.				      */
 /**********************************************************************/
 static struct par_alloc_t *hd_par;
-static mutex_t par_mutex;
+static DEFINE_MUTEX(par_mutex);
 
 void *
 par_alloc(int domain, void *ptr, int size, int *init)
@@ -1831,16 +1833,16 @@ Need to FIX!
 return NULL;
 #endif
 
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr && p->pa_domain == domain) {
 			if (init)
 				*init = FALSE;
-			dmutex_exit(&par_mutex);
+			mutex_exit(&par_mutex);
 			return p;
 		}
 	}
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 
 	if (init)
 		*init = TRUE;
@@ -1850,10 +1852,10 @@ return NULL;
 	dtrace_bzero(p+1, size);
 	p->pa_domain = domain;
 	p->pa_ptr = ptr;
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	p->pa_next = hd_par;
 	hd_par = p;
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 
 	return p;
 }
@@ -1881,10 +1883,10 @@ par_free(int domain, void *ptr)
 #if 0
 return;
 #endif
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	if (hd_par == p && hd_par->pa_domain == domain) {
 		hd_par = hd_par->pa_next;
-		dmutex_exit(&par_mutex);
+		mutex_exit(&par_mutex);
 		kfree(ptr);
 		return;
 		}
@@ -1892,13 +1894,13 @@ return;
 //		printk("p1=%p\n", p1);
 		}
 	if (p1 == NULL) {
-		dmutex_exit(&par_mutex);
+		mutex_exit(&par_mutex);
 		printk("where did p1 go?\n");
 		return;
 	}
 	if (p1->pa_next == p && p1->pa_domain == domain)
 		p1->pa_next = p->pa_next;
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 	kfree(ptr);
 }
 /**********************************************************************/
@@ -1909,14 +1911,14 @@ static void *
 par_lookup(void *ptr)
 {	par_alloc_t *p;
 	
-	dmutex_enter(&par_mutex);
+	mutex_enter(&par_mutex);
 	for (p = hd_par; p; p = p->pa_next) {
 		if (p->pa_ptr == ptr) {
-			dmutex_exit(&par_mutex);
+			mutex_exit(&par_mutex);
 			return p;
 		}
 	}
-	dmutex_exit(&par_mutex);
+	mutex_exit(&par_mutex);
 	return NULL;
 }
 /**********************************************************************/
@@ -2031,12 +2033,12 @@ proc_exit_notifier(struct notifier_block *n, unsigned long code, void *ptr)
 	sol_proc.p_pid = current->pid;
 	curthread = &sol_proc;
 
-	dmutex_init(&sol_proc.p_lock);
-	dmutex_enter(&sol_proc.p_lock);
+	mutex_init(&sol_proc.p_lock);
+	mutex_enter(&sol_proc.p_lock);
 
 	dtrace_fasttrap_exit_ptr(&sol_proc);
 
-	dmutex_exit(&sol_proc.p_lock);
+	mutex_exit(&sol_proc.p_lock);
 
 	return 0;
 }
@@ -2263,7 +2265,6 @@ syms_write(struct file *file, const char __user *buf,
 		/***********************************************/
 		dtrace_linux_init();
 
-		xcall_init();
   		dtrace_profile_init();
 		dtrace_prcom_init();
 		dcpc_init();
@@ -2381,12 +2382,11 @@ vmem_create(const char *name, void *base, size_t size, size_t quantum,
 	if (TRACE_ALLOC || dtrace_here)
 		dtrace_printf("vmem_create(size=%d)\n", (int) size);
 
-	dmutex_init(&seqp->seq_mutex);
+	mutex_init(&seqp->seq_mutex);
 	seqp->seq_id = 0;
 	seqp->seq_magic = SEQ_MAGIC;
 
 	dtrace_printf("vmem_create(%s) %p\n", name, seqp);
-/*	mutex_dump(&seqp->seq_mutex);*/
 	
 	return seqp;
 }
@@ -2689,8 +2689,6 @@ dtracedrv_write(struct file *file, const char __user *buf,
 		len = bpend - cp;
 		if (len >= 6 && strncmp(cp, "here=", 5) == 0) {
 		    	dtrace_here = simple_strtoul(cp + 5, NULL, 0);
-		} else if (len >= 6 && strncmp(cp, "dtrace_safe=", 5) == 0) {
-		    	dtrace_safe = simple_strtoul(cp + 5, NULL, 0);
 		} else if (di_cnt < MAX_SEC_LIST) {
 			int	ret = parse_sec(&di_list[di_cnt], cp, bpend);
 			if (ret < 0)
@@ -2790,10 +2788,7 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 	extern unsigned long long cnt_int3_2;
 	extern unsigned long long cnt_int3_3;
 	extern unsigned long cnt_ipi1;
-	extern unsigned long long cnt_probe_recursion;
 	extern unsigned long cnt_probes;
-	extern unsigned long long cnt_probe_noint;
-	extern unsigned long long cnt_probe_safe;
 	extern unsigned long cnt_mtx1;
 	extern unsigned long cnt_mtx2;
 	extern unsigned long cnt_mtx3;
@@ -2811,11 +2806,7 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 		unsigned long *ptr;
 		char	*name;
 		} stats[] = {
-		{TYPE_INT, (unsigned long *) &dtrace_safe, "dtrace_safe"},
 		{TYPE_LONG_LONG, &cnt_probes, "probes"},
-		{TYPE_LONG, (unsigned long *) &cnt_probe_recursion, "probe_recursion"},
-		LONG_LONG(cnt_probe_noint, "probe_noint"),
-		LONG_LONG(cnt_probe_safe, "probe_safe"),
 		LONG_LONG(cnt_int1_1, "int1"),
 		LONG_LONG(cnt_int3_1, "int3_1"),
 		LONG_LONG(cnt_int3_2, "int3_2(ours)"),
@@ -3100,11 +3091,11 @@ static struct proc_dir_entry *dir;
 		/*   to handle actual online cpus.	       */
 		/***********************************************/
 		cpu_list[i].cpu_next_onln = &cpu_list[i+1];
-		dmutex_init(&cpu_list[i].cpu_ft_lock.k_mutex);
+		mutex_init(&cpu_list[i].cpu_ft_lock.k_mutex);
 	}
 	cpu_list[nr_cpus-1].cpu_next = cpu_list;
 	for (i = 0; i < nr_cpus; i++) {
-		dmutex_init(&cpu_core[i].cpuc_pid_lock);
+		mutex_init(&cpu_core[i].cpuc_pid_lock);
 	}
 	/***********************************************/
 	/*   Initialise  the  shadow  procs.  We dont  */
@@ -3114,8 +3105,8 @@ static struct proc_dir_entry *dir;
 	shadow_procs = (sol_proc_t *) vmalloc(sizeof(sol_proc_t) * PID_MAX_DEFAULT);
 	memset(shadow_procs, 0, sizeof(sol_proc_t) * PID_MAX_DEFAULT);
 	for (i = 0; i < PID_MAX_DEFAULT; i++) {
-		dmutex_init(&shadow_procs[i].p_lock);
-		dmutex_init(&shadow_procs[i].p_crlock);
+		mutex_init(&shadow_procs[i].p_lock);
+		mutex_init(&shadow_procs[i].p_crlock);
 		}
 
 	/***********************************************/
@@ -3212,8 +3203,6 @@ static void __exit dtracedrv_exit(void)
 	remove_proc_entry("dtrace", 0);
 	misc_deregister(&helper_dev);
 	misc_deregister(&dtracedrv_dev);
-
-	xcall_fini();
 }
 module_init(dtracedrv_init);
 module_exit(dtracedrv_exit);

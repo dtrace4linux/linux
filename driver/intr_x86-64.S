@@ -391,7 +391,7 @@ INTERRUPT  T_DTRACE_RET, 1, 0, dtrace_int_dtrace_ret, dtrace_int_dtrace_ret_hand
 	FUNCTION dtrace_int_ipi
 dtrace_int_ipi:
 	PUSH_REGS 0, 0
-	call xcall_slave
+	//call xcall_slave
 	POP_REGS 0, 0
 	INTR_RETURN 0
 
@@ -422,7 +422,7 @@ dtrace_int_nmi:
 	jz  do_kernel_nmi
 	// For us...
 	movb $0,nmi_masks(%rax)
-	call xcall_slave
+	//call xcall_slave
 	POP_REGS 0, 0
 	INTR_RETURN 0
 
@@ -436,24 +436,6 @@ iret_instr:
 	INTR_RETURN 0
 
 iret_addr: .quad iret_instr
-
-/**********************************************************************/
-/*   Following  is  a  hack  experiment  to  intercept  certain  Xen  */
-/*   callbacks for IPI debugging.				      */
-/**********************************************************************/
-//.data
-//.global hypcnt
-//hypcnt: .quad 0
-//.text
-//	FUNCTION hypcall
-//	.p2align 5
-//hypcall:
-//	incq hypcnt
-//	PUSH_REGS 0,0
-//	call xcall_slave
-//	POP_REGS 0,0
-////	jmp 0xffffffff81666e00 // xen_hvm_callback_vector xen_evtchn_do_upcall
-//	jmp 0xffffffff81666d00 // xen_hypercall_callback
 
 /**********************************************************************/
 /*   We  define  mcount  function,  so  that  we  dont call into the  */

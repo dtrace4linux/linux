@@ -211,7 +211,6 @@ static struct notifier_block n_module_load = {
 /**********************************************************************/
 # define FAST_PROBE_TEARDOWN 0
 static unsigned long long cnt_free1;
-static volatile int lock_teardown = -1;
 
 # endif
 /*
@@ -10751,16 +10750,7 @@ dtrace_ecb_destroy(dtrace_ecb_t *ecb)
 	ASSERT(state->dts_ecbs[epid - 1] == ecb);
 	state->dts_ecbs[epid - 1] = NULL;
 
-	/***********************************************/
-	/*   Mark us as the teardown leader, and keep  */
-	/*   track of how many probes as we started.   */
-	/*   avoid  dtrace_sync  calls  when  tearing  */
-	/*   down a large number of probes.	       */
-	/***********************************************/
-	if (lock_teardown < 0) {
-		cnt_free1 = cnt_probes;
-		lock_teardown = smp_processor_id();
-	}
+	cnt_free1 = cnt_probes;
 
 #if linux
 	/***********************************************/
@@ -14079,11 +14069,6 @@ dtrace_printf("teardown start xcalls=%lu probes=%llu\n", cnt_xcall1, cnt_probes 
 		if (!match)
 			break;
 	}
-
-	/***********************************************/
-	/*   Exit the 'critical' region for teardown.  */
-	/***********************************************/
-	lock_teardown = -1;
 
 	/***********************************************/
 	/*   Dump some stats on how long the teardown  */

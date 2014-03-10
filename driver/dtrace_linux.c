@@ -414,7 +414,14 @@ dtrace_gethrtime()
 	/*   to tsc and return nsec.		       */
 	/***********************************************/
 	if (native_sched_clock_ptr) {
-		return (*native_sched_clock_ptr)();
+		hrtime_t r;
+
+		/* XXX: This is a hack */
+		preempt_disable();
+		r = (*native_sched_clock_ptr)();
+		preempt_enable();
+
+		return r;
 	}
 	/***********************************************/
 	/*   Later  kernels  use this to allow access  */

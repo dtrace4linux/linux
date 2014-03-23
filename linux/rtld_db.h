@@ -175,6 +175,7 @@ struct rd_agent {
 	rd_helper_t			rd_helper;	/* private to helper */
 #if defined(linux)
 	int				rd_pid;
+	uintptr_t			rda_addr;
 #endif
 };
 

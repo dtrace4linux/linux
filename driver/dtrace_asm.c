@@ -237,58 +237,15 @@ dtrace_fuword64_nocheck(void *addr)
 /**********************************************************************/
 dtrace_icookie_t
 dtrace_interrupt_disable(void)
-{	long	ret;
+{
 
-#if defined(__amd64)
-	__asm(
-        	"pushfq\n"
-        	"popq    %%rax\n"
-        	"cli\n"
-		: "=a" (ret)
-	);
-	return ret;
-
-#elif defined(__i386)
-	__asm(
-		"pushf\n"
-		"pop %%eax\n"
-		"cli\n"
-		: "=a" (ret)
-		:
-	);
-	return ret;
-
-# elif defined(__arm__)
-	raw_local_irq_save(ret);
-	return ret;
-# endif
+	return arch_local_irq_save();
 }
+
 dtrace_icookie_t
 dtrace_interrupt_get(void)
-{	long	ret;
-
-#if defined(__amd64)
-	__asm(
-        	"pushfq\n"
-        	"popq    %%rax\n"
-		: "=a" (ret)
-	);
-	return ret;
-#elif defined(__i386)
-
-	__asm(
-		"pushf\n"
-		"pop %%eax\n"
-		: "=a" (ret)
-		:
-	);
-	return ret;
-
-# elif defined(__arm__)
-	raw_local_save_flags(ret);
-	return ret;;
-
-# endif
+{
+	return native_save_fl();
 }
 /**********************************************************************/
 /*   This   routine   restores   interrupts   previously   saved  by  */
@@ -299,35 +256,7 @@ dtrace_interrupt_get(void)
 void
 dtrace_interrupt_enable(dtrace_icookie_t flags)
 {
-
-#if defined(__amd64)
-	__asm(
-	        "pushq   %0\n"
-	        "popfq\n"
-		:
-		: "m" (flags)
-	);
-
-#elif defined(__i386)
-
-//	/***********************************************/
-//	/*   We  get kernel warnings because we break  */
-//	/*   the  rules  if  we  do the equivalent to  */
-//	/*   x86-64. This seems to work.	       */
-//	/***********************************************/
-//	raw_local_irq_enable();
-////	native_irq_enable();
-//	return;
-	__asm(
-		"push %0\n"
-		"popf\n"
-		:
-		: "a" (flags)
-	);
-
-# elif defined(__arm__)
-	raw_local_irq_restore(flags);
-#endif
+	arch_local_irq_restore(flags);
 }
 
 /*ARGSUSED*/

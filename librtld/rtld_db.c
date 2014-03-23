@@ -193,6 +193,7 @@ rd_loadobj_iter(rd_agent_t *rap, rl_iter_f *cb, void *client_data)
 	FILE	*fp;
 	int	ret;
 
+	printf("%s\n", __func__);
 	snprintf(buf, sizeof buf, "/proc/%d/maps", rap->rd_pid);
 	if ((fp = fopen(buf, "r")) == NULL) {
 		return RD_ERR;
@@ -205,8 +206,9 @@ rd_loadobj_iter(rd_agent_t *rap, rl_iter_f *cb, void *client_data)
 		uint_t	abort_iter;
 		rd_loadobj_t lobj;
 
-		if (strcmp(buf + strlen(buf) - 3, ".so") != 0)
+		if (strcmp(buf + strlen(buf) - 4, ".so\n") != 0)
 			continue;
+		buf[strlen(buf)-1] = '\0';
 		lib = strrchr(buf, ' ');
 		if (lib == NULL)
 			continue;
@@ -218,12 +220,13 @@ rd_loadobj_iter(rd_agent_t *rap, rl_iter_f *cb, void *client_data)
 
 		addr = strtol(addr_str, NULL, 16);
 
-//printf("rd_loadobj_iter: %s %p\n", lib, addr);
+printf("rd_loadobj_iter: %s %p\n", lib, addr);
 		lobj.rl_base = addr;
 		lobj.rl_nameaddr = lib;
 		ret = cb(&lobj, client_data);
 	}
 	fclose(fp);
+	return RD_OK;
 }
 rd_err_e
 rd_get_dyns(rd_agent_t *rap, psaddr_t addr, void **dynpp, size_t *dynpp_sz)
@@ -254,16 +257,28 @@ rd_errstr(int rderr)
 	printf("proc-stub:%s err=%d\n", __func__, rderr);
 	return "rd_errstr:dont know what error\n";
 }
-rd_event_addr()
+rd_err_e
+rd_event_addr(rd_agent_t *rdap, rd_event_e event, rd_notify_t *notify)
 {
-	printf("proc-stub:%s\n", __func__);
+	printf("proc-stub:%s addr=%p\n", __func__, rdap->rda_addr);
+	notify->type = RD_NOTIFY_BPT;
+        notify->u.bptaddr = rdap->rda_addr;
+
+	return RD_OK;
 }
-rd_event_enable()
+int
+rd_event_enable(rd_agent_t *rdap, int onoff)
 {
 	printf("proc-stub:%s\n", __func__);
+	return RD_OK;
 }
-rd_event_getmsg()
+rd_err_e
+rd_event_getmsg(rd_agent_t *rdap, rd_event_msg_t *msg)
 {
 	printf("proc-stub:%s\n", __func__);
+	msg->type = RD_POSTINIT;
+        msg->u.state = RD_CONSISTENT;
+
+        return RD_OK;
 }
 

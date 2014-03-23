@@ -1,3 +1,22 @@
+Sun Mar 23 21:57:52 2014  fox
+
+     853* .release
+          README
+          driver/dtrace_asm.c
+          driver/dtrace_linux.c
+          driver/mutex.c
+          driver/prov_common.c
+          driver/xen.c
+          libdtrace/dt_proc_linux.c
+          librtld/rtld_db.c
+          linux/rtld_db.h
+          tools/get-deps.pl
+        dtrace_asm.c: Avoid CLI/STI to avoid issue on Xen kernels. 
+	   (Ubuntu 12.04).
+	Minor changes elsewhere - dt_proc_linux.c is an attempt to 
+	make the "-c" and pid provider work when we launch a
+	process but its not yet finished.
+
 Fri Jan  3 16:11:59 2014  fox
 
      852* driver/dtrace_linux.c, driver/dtrace_linux.h, driver/prov_proc.c:

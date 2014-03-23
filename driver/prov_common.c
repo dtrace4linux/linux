@@ -253,8 +253,15 @@ static provider_t map[MAX_PROVIDER_TBL] = {
 		.p_arg1 = "psinfo_t *",
 	},
 	{
+		/***********************************************/
+		/*   We  did use __perf_event_task_sched_in -  */
+		/*   but  thats  an  inline function, and may  */
+		/*   not exist depending on how the kernel is  */
+		/*   compiled.				       */
+		/***********************************************/
 		.p_probe = "sched:::on-cpu",
-		.p_func_name = "__perf_event_task_sched_in",
+		.p_func_name = "finish_task_switch",
+		/*.p_func_name = "__perf_event_task_sched_in",*/
 	},
 	{
 		.p_probe = "proc:::start",

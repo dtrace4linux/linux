@@ -125,10 +125,23 @@ mutex_enter_common(mutex_t *mp, int dflag)
 		return;
 	}
 
-	if (disable_ints && dflag)
-	    flags = dtrace_interrupt_disable();
-	else
-	      flags = dtrace_interrupt_get();
+	/***********************************************/
+	/*   We  grab  the  current interrupt state -  */
+	/*   purely   to   help  with  debugging  and  */
+	/*   tracing.  We  run  without  touching the  */
+	/*   interrupts, in the normal case.	       */
+	/***********************************************/
+	if (disable_ints && dflag) {
+		/***********************************************/
+		/*   This  is  not  normally  executed  - its  */
+		/*   compiled  out.  We  do  this  for  debug  */
+		/*   scenarios when the const disable_ints is  */
+		/*   hand set to non-zero.		       */
+		/***********************************************/
+		flags = dtrace_interrupt_disable();
+	} else {
+		flags = dtrace_interrupt_get();
+	}
 
 	for (cnt = 0; dtrace_casptr(&mp->m_count, 0, (void *) 1) == (void *) 1; ) {
 		/***********************************************/

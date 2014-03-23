@@ -97,14 +97,6 @@ xen_xcall_init(void)
 #if DO_XEN
 	int	c;
 
-#define	EVTCHNOP_bind_virq        1
-	struct evtchn_bind_virq {
-	        /* IN parameters. */
-	        uint32_t virq;
-	        uint32_t vcpu;
-	        /* OUT parameters. */
-	        uint32_t port;
-	} bind_virq;
 
 	struct evtchn_bind_ipi {
 	        uint32_t vcpu;
@@ -138,6 +130,20 @@ static  struct callback_register callback = {
 	/*   any indication of IPI interrupts.	       */
 	/***********************************************/
 	for (c = 0; c < nr_cpus; c++) {
+#if 0
+		/***********************************************/
+		/*   20140321  This  always fails and we dont  */
+		/*   do anything with the result, so omit for  */
+		/*   now.				       */
+		/***********************************************/
+#define	EVTCHNOP_bind_virq        1
+		struct evtchn_bind_virq {
+		        /* IN parameters. */
+		        uint32_t virq;
+		        uint32_t vcpu;
+		        /* OUT parameters. */
+		        uint32_t port;
+		} bind_virq;
 		int	port;
 		int	virq = 64+c;
 
@@ -149,12 +155,13 @@ static  struct callback_register callback = {
 		if (port == 0) {
 			port = bind_virq.port;
 		}
+#endif
 
 #define EVTCHNOP_bind_ipi         7
 		bind_ipi.vcpu = c;
 		ret = dtrace_xen_hypercall(__HYPERVISOR_event_channel_op,
 			(void *) EVTCHNOP_bind_ipi, &bind_ipi, 0);
-		printk("xen: [%d] bind_ipi=%d\n", c, ret);
+		printk("xen: [%d] ret=%d bind_ipi.port=%d\n", c, ret, bind_ipi.port);
 
 		xen_cpu_info[c].xen_port = bind_ipi.port;
 	}

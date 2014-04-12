@@ -238,8 +238,17 @@ dtrace_fuword64_nocheck(void *addr)
 dtrace_icookie_t
 dtrace_interrupt_disable(void)
 {
+	/***********************************************/
+	/*   Use        this        rather       than  */
+	/*   arch_local_irq_save()   due   to   older  */
+	/*   kernels.  We  dont  want  to  invoke the  */
+	/*   trace_irqs_off functions.		       */
+	/***********************************************/
+	unsigned long flags;
 
-	return arch_local_irq_save();
+	raw_local_irq_save(flags);
+	return flags;
+/*	return arch_local_irq_save();*/
 }
 
 dtrace_icookie_t
@@ -256,7 +265,8 @@ dtrace_interrupt_get(void)
 void
 dtrace_interrupt_enable(dtrace_icookie_t flags)
 {
-	arch_local_irq_restore(flags);
+	raw_local_irq_restore(flags);
+/*	arch_local_irq_restore(flags);*/
 }
 
 /*ARGSUSED*/

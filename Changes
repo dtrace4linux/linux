@@ -1,4 +1,14 @@
+Sat Apr 12 20:47:38 2014  fox
+
+     855* 
+          /home/fox/src/dtrace/driver/dtrace_asm.c
+        dtrace_asm.c: Avoid arch_local_irq_save/restore due to older kernels.
+
 Sun Mar 23 21:57:52 2014  fox
+
+     854* .release
+          archive.sh
+          Archive: 1.0153
 
      853* .release
           README

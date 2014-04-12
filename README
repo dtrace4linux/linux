@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-Jan 2014
+Apr 2014
 Paul D. Fox
 paul.d.fox@gmail.com
 http://www.twitter.com/crispeditor
@@ -14,11 +14,7 @@ Blog - latest news and stuff about the dtrace project:
 Download dtrace tarballs for linux here:
 
    https://github.com/dtrace4linux/linux
-   ftp://crisp.dynalias.com/pub/release/website/dtrace
-
-My public dropbox, likely out of date:
-
-   http://dl.dropbox.com/u/45405441/dtrace-latest.tar.gz
+   ftp://crisp.publicvm.com/pub/release/website/dtrace
 
 Introduction
 ============

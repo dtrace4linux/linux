@@ -42,7 +42,9 @@ OBJ=	$(OBJDIR)/ctfconvert.o \
 	$(OBJDIR)/tdata.o \
 	$(OBJDIR)/traverse.o \
 	$(OBJDIR)/util.o
-LIBS = ../../build/libctf.a $(LIBDWARF) -liberty -lelf -lz
+LIBS = ../../build/libctf.a $(LIBDWARF) -lbfd -lelf -lz
+# Older machines used this. We may need to autodetect which is correct.
+#LIBS = ../../build/libctf.a $(LIBDWARF) -liberty -lelf -lz
 
 ######################################################################
 #   Fedora core will use /usr/lib64/libdwarf.so. We might want, but  #

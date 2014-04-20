@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include "linux.h"
 
-#define	MIN(a, b) 		((a) > (b) ? (b) : (a))
+//#define	MIN(a, b) 		((a) > (b) ? (b) : (a))
 
 #include "strtab.h"
 #include "memory.h"

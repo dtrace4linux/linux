@@ -33,9 +33,20 @@ install_dependencies()
 		;;
 	  *)
 	  	###############################################
+	  	#   Ubuntu  13.10  is  very  broken. Do  #
+	  	#   this.				      #
+	  	###############################################
+	  if [ ! -d /usr/include/sys -a -d -a -d /usr/include/x86_64-linux-gnu/sys ];then
+	  	ln -s /usr/include/x86_64-linux-gnu/sys /usr/include/sys
+	  fi
+	  	;;
+	  
+
+	  	###############################################
 	  	#   Ubuntu  11.10/i386  is  very  broken. Do  #
 	  	#   this.				      #
 	  	###############################################
+
 		if [ ! -d /usr/include/sys -a -d /usr/include/i386-linux-gnu/sys ]; then
 			ln -s /usr/include/i386-linux-gnu/sys /usr/include/sys
 		fi

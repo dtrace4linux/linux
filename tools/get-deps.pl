@@ -39,9 +39,7 @@ install_dependencies()
 	  if [ ! -d /usr/include/sys -a -d /usr/include/x86_64-linux-gnu/sys ]; then
 			ln -s /usr/include/x86_64-linux-gnu/sys /usr/include/sys
 		fi
-	  	;;
-	esac
-	  
+
 	  	###############################################
 	  	#   Ubuntu  11.10/i386  is  very  broken. Do  #
 	  	#   this.				      #

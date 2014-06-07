@@ -45,7 +45,7 @@ install_dependencies()
 	sudo apt-get install "$@" flex bison make
 	sudo apt-get install "$@" libelf-dev
 	sudo apt-get install "$@" libc6-dev 
-	sudo apt-get install "$@" openssh-server \
+	sudo apt-get install "$@" \
    		binutils-dev zlib1g-dev \
    		elfutils libdwarf-dev libiberty-dev libelf-dev libc-dev \
 		zlib1g-dev \

@@ -253,6 +253,7 @@ sub main
 		xtime:optional
 		__module_text_address
 		add_timer_on
+		old_rsp:optional
 		/) {
 		my $done = 0;
 		my $amd64 = 0;

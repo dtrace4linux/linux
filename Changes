@@ -1,3 +1,22 @@
+Sat Aug  2 11:36:57 2014  fox
+
+     857* driver/Makefile
+          driver/systrace.c
+          driver/systrace_asm.S
+          tests/syscalls.c
+          tools/load.pl
+          Fix the ptregs issues on >= 3.7 kernels. sys_execve/x32 has
+	  moved to compat_sys_execve.
+
+Sun Jun  8 13:52:17 2014  fox
+
+     856* .release
+          README
+          cmd/ctfconvert/makefile
+          cmd/ctfconvert/strtab.c
+          tools/get-deps.pl
+	  Dont install openssh-server unless its "me".
+
 Sat Apr 12 20:47:38 2014  fox
 
      855* 

@@ -54,13 +54,20 @@ install_dependencies()
 	sudo apt-get install "$@" flex bison make
 	sudo apt-get install "$@" libelf-dev
 	sudo apt-get install "$@" libc6-dev 
-	sudo apt-get install "$@" openssh-server \
+	sudo apt-get install "$@" \
    		binutils-dev zlib1g-dev \
    		elfutils libdwarf-dev libiberty-dev libelf-dev libc-dev \
 		zlib1g-dev \
 		linux-libc-dev \
 		linux-headers-$(uname -r) \
 		$i386_pkgs
+	###############################################
+	#   This is for me, and my many VMs.	      #
+	###############################################
+	if [ -d /home/fox ]; then
+		sudo apt-get install "$@" openssh-server
+	fi
+
 	###############################################
 	#   Thanks  to Sunny Fugate for pointing out  #
 	#   how   to  ensure  <gnu/stubs-32.h>  gets  #

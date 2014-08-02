@@ -40,6 +40,7 @@ dtracedrv-objs := \
 	sdt_subr.o \
 	signal.o \
 	systrace.o \
+	systrace_asm.o \
 	taskq.o \
 	tcp.o \
 	toxic.o \

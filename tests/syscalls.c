@@ -170,6 +170,7 @@ int main(int argc, char **argv)
 	dup(-1);
 	dup2(-1, -1);
 	shmctl(0, 0, 0, 0);
+	execve("/bin/nothing", "/bin/nothing", 0);
 	alarm(9999);
 	bind(0, 0, 0);
 	socket(0, 0, 0);
@@ -261,6 +262,8 @@ int main(int argc, char **argv)
 	while (wait(&status) >= 0)
 		;
 	}
+
+	sigaltstack(0, 0);
 
 	/***********************************************/
 	/*   Some syscalls arent directly accessible,  */

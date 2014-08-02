@@ -147,6 +147,10 @@ systrace_sysent_t *systrace_sysent32;
 struct sysent *sysent;
 struct sysent *sysent32;
 static dtrace_provider_id_t systrace_id;
+/**********************************************************************/
+/*   Needed for >= 3.7 kernels.					      */
+/**********************************************************************/
+long	old_rsp_37;
 
 unsigned long long	cnt_syscall1;
 unsigned long long	cnt_syscall2;
@@ -463,8 +467,11 @@ systrace_assembler_dummy(void)
 		/*   cannot be C code yet.		       */
 		/***********************************************/
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+		// See systrace_asm.S
+
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		FUNCTION(systrace_part1_sys_clone)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		/***********************************************/
 		/*   For   kernel  2.6.32  and  above  (maybe  */
 		/*   before),  the  clone  hack  we do doesnt  */
@@ -485,48 +492,60 @@ systrace_assembler_dummy(void)
 		"leaq 8(%rsp), %r8\n"
 		"call dtrace_systrace_syscall_clone\n"
 		"jmp *ptregscall_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_clone)
 # else
+		FUNCTION(systrace_part1_sys_clone)
 		"lea    -0x28(%rsp),%r8\n"
 		"mov $dtrace_systrace_syscall_clone,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
-# endif
 		END_FUNCTION(systrace_part1_sys_clone)
+# endif
 
 		/***********************************************/
 		/*   Handle  fork()  -  normally  rare, since  */
 		/*   glibc invokes clone() instead.	       */
 		/***********************************************/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+		// See systrace_asm.S
+
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		FUNCTION(systrace_part1_sys_fork)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rdi\n"
 		"call dtrace_systrace_syscall_fork\n"
 		"jmp *ptregscall_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_fork)
 # else
+		FUNCTION(systrace_part1_sys_fork)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_fork,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
-# endif
 		END_FUNCTION(systrace_part1_sys_fork)
+# endif
 
 		/***********************************************/
 		/*   iopl(int    level)    affect   the   i/o  */
 		/*   priviledge level.			       */
 		/***********************************************/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+		// See systrace_asm.S
+
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		FUNCTION(systrace_part1_sys_iopl)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rsi\n"
 		"call dtrace_systrace_syscall_iopl\n"
 		"jmp *ptregscall_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_iopl)
 # else
+		FUNCTION(systrace_part1_sys_iopl)
 		"lea    -0x28(%rsp),%rsi\n"
 		"mov $dtrace_systrace_syscall_iopl,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
-# endif
 		END_FUNCTION(systrace_part1_sys_iopl)
+# endif
 
 		/***********************************************/
 		/*   sigaltstack.			       */
@@ -567,38 +586,58 @@ systrace_assembler_dummy(void)
 		/*   it  should  be faster than fork, but may  */
 		/*   not be.				       */
 		/***********************************************/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+		// See systrace_asm.S
+
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		FUNCTION(systrace_part1_sys_vfork)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rdi\n"
 		"call dtrace_systrace_syscall_vfork\n"
 		"jmp *ptregscall_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_vfork)
 # else
+		FUNCTION(systrace_part1_sys_vfork)
 		"lea    -0x28(%rsp),%rdi\n"
 		"mov $dtrace_systrace_syscall_vfork,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
-# endif
 		END_FUNCTION(systrace_part1_sys_vfork)
+# endif
 
 		/***********************************************/
 		/*   Following  mirror the above ptregs calls  */
 		/*   but for 32bit apps.		       */
 		/***********************************************/
 #if defined(NR_ia32_clone)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+		FUNCTION(systrace_part1_sys_clone_ia32)
+		"mov %r8,%rcx\n"
+		"mov $dtrace_systrace_syscall_clone_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_clone_ia32)
+# else
 		FUNCTION(systrace_part1_sys_clone_ia32)
 		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_clone_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_clone_ia32)
+# endif
 #endif
 		
 #if defined(NR_ia32_execve)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+		FUNCTION(systrace_part1_sys_execve_ia32)
+		"mov $dtrace_systrace_syscall_execve_ia32,%rax\n"
+		"jmp *ia32_ptregs_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_execve_ia32)
+# else
 		FUNCTION(systrace_part1_sys_execve_ia32)
 		"lea    -0x28(%rsp),%rcx\n"
 		"mov $dtrace_systrace_syscall_execve_ia32,%rax\n"
 		"jmp *ia32_ptregs_common_ptr\n"
 		END_FUNCTION(systrace_part1_sys_execve_ia32)
+# endif
 #endif
 		
 #if defined(NR_ia32_fork)
@@ -837,7 +876,12 @@ init_syscalls(void)
 	sys_clone_ptr = get_proc_addr("sys_clone");
 	sys32_clone_ptr = get_proc_addr("sys32_clone");
 	sys_execve_ptr = get_proc_addr("sys_execve");
-	sys32_execve_ptr = get_proc_addr("sys32_execve");
+
+	/***********************************************/
+	/*   Handle 3.7 kernels.		       */
+	/***********************************************/
+	if ((sys32_execve_ptr = get_proc_addr("sys32_execve")) == NULL)
+		sys32_execve_ptr = get_proc_addr("compat_sys_execve");
 	sys32_sigreturn_ptr = get_proc_addr("sys32_sigreturn");
 	sys_fork_ptr = get_proc_addr("sys_fork");
 	sys_iopl_ptr = get_proc_addr("sys_iopl");
@@ -845,6 +889,7 @@ init_syscalls(void)
 	sys_rt_sigsuspend_ptr = get_proc_addr("sys_rt_sigsuspend");
 	sys_sigaltstack_ptr = get_proc_addr("sys_sigaltstack");
 	sys_vfork_ptr = get_proc_addr("sys_vfork");
+	old_rsp_37 = (long) get_proc_addr("old_rsp");
 
 	int_ret_from_sys_call_ptr = (char *) get_proc_addr("int_ret_from_sys_call");
 	ptregscall_common_ptr = (char *) get_proc_addr("ptregscall_common");
@@ -1062,7 +1107,27 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
                     (uintptr_t) (c), d, e, f);				\
 	}
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+asmlinkage int64_t
+dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
+	void __user *parent_tid, 
+	void __user *child_tid,
+	int tlsval
+	)
+{      	dtrace_id_t id;
+	long	ret;
+	struct pt_regs *regs = 0; /* Keep TRACE macros happy. */
+	long (*do_fork_ptr37)(unsigned long, unsigned long, unsigned long, void *, void *) = (void *) do_fork_ptr;
+
+	TRACE_BEFORE(__NR_clone, clone_flags, newsp, parent_tid, child_tid, tlsval, 0);
+
+	ret = do_fork_ptr37(clone_flags, newsp, 0, parent_tid, child_tid);
+
+	TRACE_AFTER(__NR_clone, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+}
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 	void __user *parent_tid, void __user *child_tid, struct pt_regs *regs)
@@ -1080,7 +1145,7 @@ dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 	if (newsp == 0)
 		newsp = regs->r_sp;
 
-        ret = do_fork_ptr(clone_flags, newsp, regs, 0, parent_tid, child_tid);
+	ret = do_fork_ptr(clone_flags, newsp, regs, 0, parent_tid, child_tid);
 
 	TRACE_AFTER(__NR_clone, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
 
@@ -1332,7 +1397,24 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 /*   the rest.							      */
 /**********************************************************************/
 #if defined(NR_ia32_clone)
-FUNC_IA32(clone, sys32_clone_ptr)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+asmlinkage int64_t \
+dtrace_systrace_syscall_clone_ia32(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+    uintptr_t arg3, uintptr_t arg4)
+{	long	ret;
+	dtrace_id_t id;
+	long (*do_fork_ptr37)(unsigned long, unsigned long, unsigned long, int *, int *) = (void *) do_fork_ptr;
+
+	TRACE_BEFORE_IA32(NR_ia32_clone, arg0, arg1, arg2, arg3, arg4, 0);
+
+	ret = do_fork_ptr37(arg0, arg1, 0, (int *) arg2, (int *) arg3);	
+
+	TRACE_AFTER_IA32(NR_ia32_clone, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+	return ret;
+}
+# else
+	FUNC_IA32x(clone, sys32_clone_ptr)
+# endif
 #endif
 #if defined(NR_ia32_execve)
 FUNC_IA32(execve, sys32_execve_ptr)
@@ -1628,8 +1710,8 @@ get_interposer(int sysnum, int enable)
 		return (void *) systrace_part1_sys_fork;
 	  case __NR_iopl:
 		return (void *) systrace_part1_sys_iopl;
-	  case __NR_sigaltstack:
-		return (void *) systrace_part1_sys_sigaltstack;
+//	  case __NR_sigaltstack:
+//		return (void *) systrace_part1_sys_sigaltstack;
 	  case __NR_rt_sigreturn:
 	  	patch_enable(&patch_rt_sigreturn, enable);
 		return NULL;

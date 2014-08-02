@@ -5,10 +5,10 @@ doesnt work.
 
 Working Features
 
-  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 12.xx (32-bit and 64-bit).
+  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 14.xx (32-bit and 64-bit).
     Not every kernel version tested, but should build on at least 2.6.12
     onwards.
-  o Tested up to 3.8 kernels, but not proven/tested under later kernels.
+  o Tested up to 3.13 kernels, but not proven/tested under later kernels.
   o FBT Provider: fully functional, except argument types are not presently
     supported. You can access arg0, arg1, ... as values or pointers but
     no type info to support structure accessing. Should be safe to probe

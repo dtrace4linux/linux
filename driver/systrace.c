@@ -1413,7 +1413,7 @@ dtrace_systrace_syscall_clone_ia32(uintptr_t arg0, uintptr_t arg1, uintptr_t arg
 	return ret;
 }
 # else
-	FUNC_IA32x(clone, sys32_clone_ptr)
+	FUNC_IA32(clone, sys32_clone_ptr)
 # endif
 #endif
 #if defined(NR_ia32_execve)

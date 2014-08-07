@@ -1,3 +1,8 @@
+Thu Aug  7 21:23:14 2014  fox
+
+     859* .release
+          Add missing driver/systrace_asm.S to the release.
+
 Wed Aug  6 22:22:40 2014  fox
 
      858* .release

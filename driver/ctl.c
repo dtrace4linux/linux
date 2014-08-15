@@ -240,7 +240,16 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		char	*dst;
 		char	buf[512];
 		int	len;
-		uid_t	uid1, uid2 = -1;
+
+		/***********************************************/
+		/*   Ideally  this  is  kuid_t. It used to be  */
+		/*   uid_t.  But  its  difficult  to  get the  */
+		/*   right  code  to  compile when faced with  */
+		/*   all   the   older   kernels.  A  uid  is  */
+		/*   typically a 32-bit value, so int is good  */
+		/*   enough.				       */
+		/***********************************************/
+		int	uid1, uid2;
 
 	  	if (copyin((void *) arg, &mem, sizeof mem))
 			return -EFAULT;
@@ -254,20 +263,15 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		/*   get_task_struct/put_task_struct modifies  */
 		/*   a lock counter.			       */
 		/***********************************************/
-// temp comment out the rcu_read_lock, due to GPL conflict in some kernels.
-//		rcu_read_lock();
 		child = find_task_by_vpid_ptr(mem.c_pid);
-		if (child) {
-			get_task_struct(child);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-			uid2 = KUIDT_VALUE(child->cred->uid);
-#else
-			uid2 = current->uid;
-#endif
-		}
-//		rcu_read_unlock();
 		if (child == NULL)
 			return -ESRCH;
+		get_task_struct(child);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+		uid2 = KUIDT_VALUE(child->cred->uid);
+#else
+		uid2 = current->uid;
+#endif
 		/***********************************************/
 		/*   Do the permission check.		       */
 		/***********************************************/

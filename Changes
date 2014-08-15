@@ -1,3 +1,8 @@
+Fri Aug 15 23:25:42 2014  fox
+
+     860* driver/ctl.c
+          Fix for 3.16.1 kernel and confusion of uid_t vs kuid_t.
+
 Thu Aug  7 21:23:14 2014  fox
 
      859* .release

@@ -71,7 +71,7 @@ all:
 		$(MAKE) all1 ; \
 	fi 
 
-all1: $(BINDIR)/ctfconvert $(BINDIR)/ctfdump
+all1: $(BINDIR)/ctfconvert $(BINDIR)/ctfdump $(BINDIR)/ctfmerge
 
 $(BINDIR)/ctfconvert: $(OBJDIR) $(OBJ)
 	$(CC) -o $(BINDIR)/ctfconvert $(OBJ) $(LIBS)
@@ -85,6 +85,9 @@ $(BINDIR)/ctfdump: $(OBJDIR)/compare.o $(OBJDIR)/dump.o $(OBJDIR)/utils.o
 		$(OBJDIR)/stabs.o $(OBJDIR)/stack.o $(OBJDIR)/strtab.o \
 		$(OBJDIR)/symbol.o $(OBJDIR)/tdata.o $(OBJDIR)/traverse.o \
 		$(OBJDIR)/utils.o $(OBJDIR)/util.o $(LIBS)
+
+$(BINDIR)/ctfmerge: $(OBJDIR) $(OBJ)
+	$(CC) -o $(BINDIR)/ctfmerge $(OBJ) $(LIBS)
 
 $(OBJDIR):
 	mkdir $(OBJDIR)

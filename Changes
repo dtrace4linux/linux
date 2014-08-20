@@ -1,3 +1,11 @@
+Wed Aug 20 20:59:48 2014  fox
+
+     862* cmd/ctfconvert/barrier.c
+          cmd/ctfconvert/barrier.h
+          cmd/ctfconvert/ctfmerge.c
+          cmd/ctfconvert/makefile
+          Properly build ctfmerge. We were generating two ctfconvert's.
+
 Tue Aug 19 22:36:14 2014  fox
 
      861* cmd/ctfconvert/makefile

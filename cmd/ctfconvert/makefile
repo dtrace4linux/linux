@@ -22,7 +22,7 @@ CC = gcc -g -I. -I../../ -I../../libctf -I../../common \
 
 BINDIR = ../../build
 OBJDIR = ../../build/ctfconvert.obj
-OBJ=	$(OBJDIR)/ctfconvert.o \
+OBJ=	\
 	$(OBJDIR)/alist.o \
 	$(OBJDIR)/ctf.o \
 	$(OBJDIR)/dwarf.o \
@@ -73,8 +73,8 @@ all:
 
 all1: $(BINDIR)/ctfconvert $(BINDIR)/ctfdump $(BINDIR)/ctfmerge
 
-$(BINDIR)/ctfconvert: $(OBJDIR) $(OBJ)
-	$(CC) -o $(BINDIR)/ctfconvert $(OBJ) $(LIBS)
+$(BINDIR)/ctfconvert: $(OBJDIR) $(OBJDIR)/ctfconvert.o $(OBJ)
+	$(CC) -o $(BINDIR)/ctfconvert $(OBJDIR)/ctfconvert.o $(OBJ) $(LIBS)
 
 $(BINDIR)/ctfdump: $(OBJDIR)/compare.o $(OBJDIR)/dump.o $(OBJDIR)/utils.o
 	$(CC) -o $(BINDIR)/ctfdump $(OBJDIR)/alist.o $(OBJDIR)/ctf.o $(OBJDIR)/dump.o \
@@ -86,8 +86,12 @@ $(BINDIR)/ctfdump: $(OBJDIR)/compare.o $(OBJDIR)/dump.o $(OBJDIR)/utils.o
 		$(OBJDIR)/symbol.o $(OBJDIR)/tdata.o $(OBJDIR)/traverse.o \
 		$(OBJDIR)/utils.o $(OBJDIR)/util.o $(LIBS)
 
-$(BINDIR)/ctfmerge: $(OBJDIR) $(OBJ)
-	$(CC) -o $(BINDIR)/ctfmerge $(OBJ) $(LIBS)
+CTFMERGE_OBJ = \
+	$(OBJDIR)/barrier.o \
+	$(OBJDIR)/ctfmerge.o \
+	$(OBJDIR)/fifo.o
+$(BINDIR)/ctfmerge: $(OBJDIR) $(CTFMERGE_OBJ) $(OBJ)
+	$(CC) -o $(BINDIR)/ctfmerge $(CTFMERGE_OBJ) $(OBJ) $(LIBS) -lpthread
 
 $(OBJDIR):
 	mkdir $(OBJDIR)
@@ -96,6 +100,10 @@ $(OBJDIR)/alist.o: alist.c $(HDRS)
 	$(CC) -c alist.c
 	mv alist.o $(OBJDIR)
 
+$(OBJDIR)/barrier.o: barrier.c $(HDRS)
+	$(CC) -c barrier.c
+	mv barrier.o $(OBJDIR)
+
 $(OBJDIR)/ctf.o: ctf.c $(HDRS)
 	$(CC) -c ctf.c
 	mv ctf.o $(OBJDIR)
@@ -103,6 +111,10 @@ $(OBJDIR)/ctf.o: ctf.c $(HDRS)
 $(OBJDIR)/ctfconvert.o: ctfconvert.c $(HDRS)
 	$(CC) -c ctfconvert.c
 	mv ctfconvert.o $(OBJDIR)
+
+$(OBJDIR)/ctfmerge.o: ctfmerge.c $(HDRS)
+	$(CC) -c ctfmerge.c
+	mv ctfmerge.o $(OBJDIR)
 
 $(OBJDIR)/compare.o: compare.c $(HDRS)
 	$(CC) -c compare.c
@@ -115,6 +127,10 @@ $(OBJDIR)/dump.o: dump.c $(HDRS)
 $(OBJDIR)/dwarf.o: dwarf.c $(HDRS) ../../build/port.h
 	$(CC) -c dwarf.c
 	mv dwarf.o $(OBJDIR)
+
+$(OBJDIR)/fifo.o: fifo.c $(HDRS)
+	$(CC) -c fifo.c
+	mv fifo.o $(OBJDIR)
 
 $(OBJDIR)/hash.o: hash.c $(HDRS)
 	$(CC) -c hash.c

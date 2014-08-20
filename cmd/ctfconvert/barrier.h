@@ -29,7 +29,7 @@
 
 #pragma ident	"@(#)barrier.h	1.2	05/06/08 SMI"
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(linux)
 /*
  * APIs for the barrier synchronization primitive.
  */

@@ -171,7 +171,7 @@
  * this comment will not live to see the stock hit five.
  */
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(linux)
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -244,11 +244,11 @@ usage(void)
 	    "\n"
 	    "  Note: if -L labelenv is specified and labelenv is not set in\n"
 	    "  the environment, a default value is used.\n",
-	    progname, progname, strlen(progname), " ",
+	    progname, progname, (int) strlen(progname), " ",
 	    progname, progname);
 }
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(linux)
 static void
 bigheap(void)
 {

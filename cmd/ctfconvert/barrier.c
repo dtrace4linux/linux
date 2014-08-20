@@ -36,7 +36,7 @@
  * returns from barrier_wait() with a return code of 1; the remaining threads
  * get a return code of 0.
  */
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(linux)
 #include <pthread.h>
 #include <synch.h>
 #include <stdio.h>
@@ -77,6 +77,9 @@ barrier_wait(barrier_t *bar)
 	}
 }
 #else
+#if defined(linux)
+#include <fcntl.h>
+#endif
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>

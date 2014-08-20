@@ -1,4 +1,13 @@
+/* 
+  Author: Paul D Fox
+  Date: July 2014
+
+  File to contain assembler code to compliment systrace.c, due to changing
+  calling sequences in the 'ptreg' syscalls.
+*/
+
 #include <linux/linkage.h>
+#include <linux/version.h>
 #include <asm/segment.h>
 #include <asm/cache.h>
 #include <asm/errno.h>
@@ -17,6 +26,12 @@
 	.type \name, @function
 .endm
 
+
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+/**********************************************************************/
+/*   Only  do  this  for new kernerls. Older kernels seem to compile  */
+/*   and run fine.						      */
+/**********************************************************************/
 
 /**********************************************************************/
 /*   Where  old_rsp  is  in  my  kernel  - but we cannot use it in a  */
@@ -120,5 +135,5 @@ systrace_part1_sys_iopl:
 	mov    0x68(%rsp),%r11
 	mov    %r11,0x8(%rsp)
 	retq
-
+#endif
 

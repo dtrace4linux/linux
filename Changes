@@ -1,5 +1,8 @@
 Wed Aug 20 20:59:48 2014  fox
 
+     863* driver/systrace_asm.S
+          Fix dup symbols for kernels < 3.7.
+
      862* cmd/ctfconvert/barrier.c
           cmd/ctfconvert/barrier.h
           cmd/ctfconvert/ctfmerge.c

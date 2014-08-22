@@ -85,7 +85,7 @@ You may need to grab some extra packages for building DTrace.
 Use either of the following to download extra packages. This
 list may be incomplete depending on the version of your kernel/distro.
 
-	$ tools/get-deps-arch.pl 	# if using ArchLinux
+	$ tools/get-deps-arch.sh	# if using ArchLinux
 	$ tools/get-deps.pl 		# if using Ubuntu
 	$ tools/get-deps-fedora.sh	# RedHat/Fedora
 

@@ -98,7 +98,7 @@ typedef uint32_t ipaddr_t;
 /**********************************************************************/
 /*   Code for 3.8.0 kernels which do strict kuid_t type checking.     */
 /**********************************************************************/
-#ifdef CONFIG_UIDGID_STRICT_TYPE_CHECKS
+#if defined(CONFIG_UIDGID_STRICT_TYPE_CHECKS) || LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #	define	KUIDT_VALUE(v) v.val
 #	define	KGIDT_VALUE(v) v.val
 #else

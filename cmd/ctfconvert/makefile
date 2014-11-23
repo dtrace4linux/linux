@@ -54,7 +54,10 @@ LIBS = ../../build/libctf.a $(LIBDWARF) -lbfd -lelf -lz
 ######################################################################
 all:
 	@. ../../build/port.sh ; \
-	if [ ! -f /usr/lib/libdwarf.a -a ! -f /usr/lib64/libdwarf.a ]; then \
+	if [ ! -f /usr/lib/libdwarf.a -a \
+	     ! -f /usr/lib64/libdwarf.a -a \
+	     ! -f /usr/lib/x86_64-linux-gnu/libdw.a \
+	     ]; then \
 		echo "=================================================================" ; \
 		echo "=== You need /usr/lib/libdwarf.a or /usr/lib64/libdwarf.a " ; \
 		echo "=== (libdw is not yet supported) to build." ; \

@@ -120,6 +120,8 @@ char toxic_probe_tbl[] = {
 //	"mutex_lock "
 //	"mutex_unlock "
 	"native_get_debugreg "
+	"native_* " // 3.13 kernels - lots more of these  - just blank the lot out
+			// we can do better than this, but this should be "safe"
 	"on_each_cpu " 		// Needed by dtrace_xcall
 	"oops_exit "
 	"oops_may_print "
@@ -152,11 +154,22 @@ char toxic_probe_tbl[] = {
 int 
 is_toxic_func(unsigned long a, const char *name)
 {	char	*cp;
+	char	*cp1;
 	int	len = strlen((char *) name);
 
 	for (cp = toxic_probe_tbl; *cp; ) {
-		if (strncmp(cp, (char *) name, len) == 0 &&
-		    cp[len] == ' ')
+		int	len0;
+		/***********************************************/
+		/*   Allow for simple wildcards.	       */
+		/***********************************************/
+		for (cp1 = cp; *cp1 != ' ' && *cp1 != '*'; cp1++)
+			;
+		len0 = cp1 - cp;
+		if (*cp1 == '*') {
+			if (len0 <= len && strncmp(cp, (char *) name, len0) == 0)
+			    	return 1;
+			}
+		else if (len0 == len && strncmp(cp, (char *) name, len0) == 0)
 		    	return 1;
 		while (*cp && *cp != ' ')
 			cp++;

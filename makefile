@@ -23,7 +23,7 @@ else
 endif
 
 # Use sudo if you want ...
-SUDO=setuid root
+SUDO=if [ -x $$HOME/bin/setuid ]; then setuid root ; else sudo fi
 
 ######################################################################
 #   List of drivers we have:					     #
@@ -118,7 +118,16 @@ install: build/dtrace build/config.sh
 
 newf:
 	tar cvf /tmp/new.tar `find . -newer TIMESTAMP -type f | \
-		grep -v /build | grep -v ./tags | \
+		grep -v /build/ | \
+		grep -v /build- | grep -v ./tags | \
+		grep -v ./cmd/dtrace/dtrace$$ | \
+		grep -v dt_grammar.h | \
+		grep -v '\*.so' | \
+		grep -v '\.o$$'`
+tar:
+	tar cvf /tmp/dtrace.tar `find . -type f -o -type l | \
+		grep -v /build/ | \
+		grep -v /build- | grep -v ./tags | \
 		grep -v ./cmd/dtrace/dtrace$$ | \
 		grep -v dt_grammar.h | \
 		grep -v '\*.so' | \

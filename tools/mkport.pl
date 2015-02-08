@@ -326,6 +326,7 @@ void	dwarf_begin();
 void main(int argc, char **argv)
 {
 	dwarf_begin();
+	dwarf_loclist();
 }
 EOF
 	$fh->close();

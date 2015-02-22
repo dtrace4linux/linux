@@ -1,0 +1,8 @@
+Set of one liners to help test specific system calls - those that
+cause problems with pt_regs and Linux kernel mutations. Feel free to
+use especially to validate on your OS.
+
+You can run build/sys{32,64} to test out most of these syscalls - some
+of them are rare, without the test utility.
+
+Paul Fox Feb 2015

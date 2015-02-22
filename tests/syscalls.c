@@ -10,6 +10,7 @@
 # include <string.h>
 # include <signal.h>
 # include <errno.h>
+/*# include <sys/vm86.h>*/
 
 static int cnt;
 static int line;
@@ -264,6 +265,8 @@ int main(int argc, char **argv)
 	}
 
 	sigaltstack(0, 0);
+
+	/*vm86(0, 0);*/
 
 	/***********************************************/
 	/*   Some syscalls arent directly accessible,  */

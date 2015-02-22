@@ -1035,13 +1035,16 @@ dtrace_bcopy(const void *src, void *dst, size_t len)
 static void
 dtrace_strcpy(const void *src, void *dst, size_t len)
 {
+	volatile uint16_t *flags;
+
+	flags = (volatile uint16_t *)&cpu_core[cpu_get_id()].cpuc_dtrace_flags;
+
 	if (len != 0) {
 		uint8_t *s1 = dst, c;
 		const uint8_t *s2 = src;
-
 		do {
 			*s1++ = c = dtrace_load8((uintptr_t)s2++);
-		} while (--len != 0 && c != '\0');
+		} while (--len != 0 && c != '\0' && (*flags & CPU_DTRACE_FAULT) == 0);
 	}
 }
 
@@ -4559,14 +4562,14 @@ PRINT_CASE(DIF_SUBR_LLTOSTR);
 	struct file *fp = (struct file *) tupregs[0].dttk_value;
 		if (fp) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-			regs[rd] = (uint64_t *) (void *) d_path(&fp->f_path, buf, sizeof buf);
+			regs[rd] = (uint64_t) (void *) d_path(&fp->f_path, buf, sizeof buf);
 #else
 			regs[rd] = d_path(&fp->f_dentry, fp->f_vfsmnt, buf, sizeof buf);
 #endif
 /*			regs[rd] = d_path(&get_current()->files->fdt->fd[1]->f_path, buf, sizeof buf);*/
 		}
 		else
-			regs[rd] = (uint64_t *) "<unknown>";
+			regs[rd] = (uint64_t) "<unknown>";
 		break;
 		}
 #endif
@@ -6290,6 +6293,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	/*   first probe. Silly me.		       */
 	/***********************************************/
 	cpup = cpu_get_this();
+
 	if (cpup && cpup->cpuc_regs && cpup->cpuc_regs->r_rfl & X86_EFLAGS_IF) {
 		if (dtrace_safe) {
 			cnt_probe_safe++;
@@ -6365,7 +6369,7 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 			return;
 		}
 	}
-//asm("cli\n");
+
 	cpu_core[cpu].cpuc_probe_level++;
 	cpu_core[cpu].cpuc_this_probe = id;
 	__dtrace_probe(id, arg0, arg1, arg2, arg3, arg4);
@@ -6396,7 +6400,6 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 	volatile uint16_t *flags;
 	hrtime_t now;
 
-//dtrace_printf("dtrace_probe(%d)\n", __LINE__);
 	cnt_probes++;
 # if linux
 	/***********************************************/
@@ -9696,6 +9699,7 @@ dtrace_difo_init(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 	dtrace_difo_hold(dp);
 }
 
+#if !defined(linux)
 static dtrace_difo_t *
 dtrace_difo_duplicate(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 {
@@ -9739,6 +9743,7 @@ dtrace_difo_duplicate(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 	dtrace_difo_init(new, vstate);
 	return (new);
 }
+#endif
 
 static void
 dtrace_difo_destroy(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
@@ -15385,6 +15390,7 @@ dtrace_helpers_destroy(void)
 	dmutex_exit(&dtrace_lock);
 }
 
+#if !defined(linux)
 static void
 dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 {
@@ -15466,6 +15472,7 @@ dtrace_helpers_duplicate(proc_t *from, proc_t *to)
 	if (hasprovs)
 		dtrace_helper_provider_register(to, newhelp, NULL);
 }
+#endif
 
 #if linux
 /**********************************************************************/
@@ -15698,6 +15705,7 @@ dtrace_resume(void)
 	dtrace_probe_foreach(offsetof(dtrace_pops_t, dtps_resume));
 }
 
+#if !defined(linux)
 static int
 dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
 {
@@ -15764,6 +15772,7 @@ dtrace_cpu_setup_initial(processorid_t cpu)
 {
 	(void) dtrace_cpu_setup(CPU_CONFIG, cpu);
 }
+#endif
 
 static void
 dtrace_toxrange_add(uintptr_t base, uintptr_t limit)

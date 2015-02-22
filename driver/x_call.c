@@ -115,6 +115,7 @@ unsigned long cnt_xcall8;
 unsigned long cnt_ipi1;
 unsigned long cnt_nmi1;
 unsigned long cnt_nmi2;
+unsigned long cnt_xcall_slave;
 
 /**********************************************************************/
 /*   Prototypes.						      */

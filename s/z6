@@ -1,0 +1,3 @@
+sync
+sleep 1
+root build/dtrace -n fbt::a[A-p]*:'{x++;}'

@@ -285,17 +285,17 @@ char	*templates;
 /**********************************************************************/
 static int64_t (*sys_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys32_clone_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-static int64_t (*sys_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+int64_t (*sys_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys32_execve_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_fork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_iopl_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-static int64_t (*sys_rt_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+int64_t (*sys_rt_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_rt_sigsuspend_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_sigaltstack_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys32_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
-static char *int_ret_from_sys_call_ptr;
+char *int_ret_from_sys_call_ptr;
 static char *ptregscall_common_ptr;
 static char *ia32_ptregs_common_ptr;
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
@@ -309,9 +309,11 @@ static long (*do_fork_ptr)(unsigned long, unsigned long, struct pt_regs *, unsig
 /*   see the forward references.				      */
 /**********************************************************************/
 void systrace_part1_sys_clone(void);
+void systrace_part1_sys_execve(void);
 void systrace_part1_sys_fork(void);
 void systrace_part1_sys_iopl(void);
 void systrace_part1_sys_sigaltstack(void);
+void systrace_part1_sys_rt_sigreturn(void);
 void systrace_part1_sys_rt_sigsuspend(void);
 void systrace_part1_sys_vfork(void);
 
@@ -326,19 +328,17 @@ void systrace_part1_sys_sigreturn_ia32(void);
 void systrace_part1_sys_vfork_ia32(void);
 
 static void systrace_disable(void *arg, dtrace_id_t id, void *parg);
-void patch_enable(patch_t *, int);
+void patch_enable(const char *msg, patch_t *, int);
 
 /**********************************************************************/
 /*   Following patches execve.					      */
 /**********************************************************************/
-asmlinkage int64_t
-dtrace_systrace_syscall_execve(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
-    uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
-asmlinkage int64_t
-dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+asmlinkage int64_t dtrace_systrace_syscall_execve(uintptr_t name, uintptr_t argv, uintptr_t envp);
+asmlinkage int64_t dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5);
 
-	static patch_t patch_execve = {
+# if defined(__i386)
+static patch_t patch_execve = {
 		.p_name = "stub_execve",
 		.p_offset = 1,
 		.p_code = (char *) dtrace_systrace_syscall_execve,
@@ -448,6 +448,8 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t arg0, uintptr_t arg1, uintptr_t a
 #endif
 			},
 		};
+# endif /* defined(__i386) */
+
 void
 systrace_assembler_dummy(void)
 {
@@ -467,7 +469,7 @@ systrace_assembler_dummy(void)
 		/*   cannot be C code yet.		       */
 		/***********************************************/
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 		// See systrace_asm.S
 
 # elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
@@ -505,7 +507,7 @@ systrace_assembler_dummy(void)
 		/*   Handle  fork()  -  normally  rare, since  */
 		/*   glibc invokes clone() instead.	       */
 		/***********************************************/
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 		// See systrace_asm.S
 
 # elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
@@ -528,7 +530,7 @@ systrace_assembler_dummy(void)
 		/*   iopl(int    level)    affect   the   i/o  */
 		/*   priviledge level.			       */
 		/***********************************************/
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 		// See systrace_asm.S
 
 # elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
@@ -550,19 +552,23 @@ systrace_assembler_dummy(void)
 		/***********************************************/
 		/*   sigaltstack.			       */
 		/***********************************************/
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+		// see systrace_asm.S
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		FUNCTION(systrace_part1_sys_sigaltstack)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 		"subq $6*8, %rsp\n"
 		"call *save_rest_ptr\n"
 		"leaq 8(%rsp), %rdx\n"
 		"call dtrace_systrace_syscall_sigaltstack\n"
 		"jmp *ptregscall_common_ptr\n"
+		END_FUNCTION(systrace_part1_sys_sigaltstack)
 # else
+		FUNCTION(systrace_part1_sys_sigaltstack)
 		"lea    -0x28(%rsp),%rdx\n"
 		"mov $dtrace_systrace_syscall_sigaltstack,%rax\n"
 		"jmp *ptregscall_common_ptr\n"
-# endif
 		END_FUNCTION(systrace_part1_sys_sigaltstack)
+# endif
 
 		/***********************************************/
 		/*   rt_sigsuspend			       */
@@ -586,7 +592,7 @@ systrace_assembler_dummy(void)
 		/*   it  should  be faster than fork, but may  */
 		/*   not be.				       */
 		/***********************************************/
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 		// See systrace_asm.S
 
 # elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
@@ -826,6 +832,12 @@ systrace_assembler_dummy(void)
 		);
 
 }
+
+/**********************************************************************/
+/*   Decide  which  template  to  use. Some of these have moved from  */
+/*   ptregs  style  and  the  definition below doesnt matter, if the  */
+/*   function is in systrace_asm.S (for >= 3.8 kernels).	      */
+/**********************************************************************/
 # define IS_PTREG_SYSCALL(n) \
 		((n) == __NR_iopl || \
 		 (n) == __NR_fork || \
@@ -1011,17 +1023,6 @@ dtrace_systrace_syscall(int syscall, struct pt_regs *ptregs,
 	/*   invoking  process is x32 or x64, and "do  */
 	/*   the right thing".			       */
 	/***********************************************/
-/*
-this was debug code - leave in for a while.
-int is_32 = current->thread.tls_array[GDT_ENTRY_TLS_MIN].d;
-struct user_regset_view *(*func)() = get_proc_addr("task_user_regset_view");
-struct user_regset_view *view = func ? func(current) : 0;
-struct mm_struct *mm = current->mm;
-printk("view=%p mach=%d mm=%p binfmt=%p f=%x\n", 
-view, view ? view->e_machine : -1, mm, mm ? mm->binfmt : 0,
-view->e_flags);
-is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
-*/
 	if (test_thread_flag(TIF_IA32)) {
 /*printk("thread: %x flag=%x\n", test_thread_flag(TIF_IA32), current_thread_info());*/
 		if ((unsigned) syscall >= NSYSCALL32) {
@@ -1059,7 +1060,7 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
 
 	/***********************************************/
 	/*   2.6.9 kernel passes a copy of pt_regs on  */
-	/*   stack  vs  later  kenels  which  pass  a  */
+	/*   stack  vs  later  kernels  which  pass a  */
 	/*   pointer to pt_regs.		       */
 	/***********************************************/
 # if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
@@ -1074,13 +1075,14 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
         if ((id = systrace_sysent[call].stsy_entry) != DTRACE_IDNONE) { \
 		cpu_core_t *this_cpu = cpu_get_this();			\
 		this_cpu->cpuc_regs = (struct pt_regs *) regs;		\
-									\
                 (*systrace_probe)(id, (uintptr_t) (arg0), arg1, 	\
 			(uintptr_t) arg2, (uintptr_t) arg3,  		\
 			(uintptr_t) arg4, arg5);			\
 	}
 # define TRACE_BEFORE_IA32(call, arg0, arg1, arg2, arg3, arg4, arg5) \
         if ((id = systrace_sysent32[call].stsy_entry) != DTRACE_IDNONE) { \
+		cpu_core_t *this_cpu = cpu_get_this();			\
+		this_cpu->cpuc_regs = (struct pt_regs *) regs;		\
                 (*systrace_probe)(id, (uintptr_t) (arg0), arg1, 	\
 			(uintptr_t) arg2, (uintptr_t) arg3,  		\
 			(uintptr_t) arg4, arg5);			\
@@ -1107,7 +1109,7 @@ is_32 = test_tsk_thread_flag(get_current(), TIF_IA32);
                     (uintptr_t) (c), d, e, f);				\
 	}
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 asmlinkage int64_t
 dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 	void __user *parent_tid, 
@@ -1116,7 +1118,7 @@ dtrace_systrace_syscall_clone(unsigned long clone_flags, unsigned long newsp,
 	)
 {      	dtrace_id_t id;
 	long	ret;
-	struct pt_regs *regs = 0; /* Keep TRACE macros happy. */
+	struct pt_regs *regs = 0;
 	long (*do_fork_ptr37)(unsigned long, unsigned long, unsigned long, void *, void *) = (void *) do_fork_ptr;
 
 	TRACE_BEFORE(__NR_clone, clone_flags, newsp, parent_tid, child_tid, tlsval, 0);
@@ -1165,16 +1167,34 @@ dtrace_systrace_syscall_clone(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 }
 # endif
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 asmlinkage int64_t
-dtrace_systrace_syscall_execve(uintptr_t name, uintptr_t argv, uintptr_t envp,
-    uintptr_t regs, uintptr_t arg4, uintptr_t arg5)
+dtrace_systrace_syscall_execve(uintptr_t name, uintptr_t argv, uintptr_t envp)
 {	dtrace_id_t id;
 	long	ret;
+//	struct pt_regs *regs = (struct pt_regs *) &name;
+	struct pt_regs *regs = NULL;
 
-	TRACE_BEFORE(__NR_execve, name, argv, envp, regs, arg4, arg5);
+	TRACE_BEFORE(__NR_execve, name, argv, envp, NULL, 0, 0);
 
-        ret = sys_execve_ptr(name, argv, envp, regs, 0, 0);
+	ret = ((int (*)(uintptr_t, uintptr_t, uintptr_t)) sys_execve_ptr)(name, argv, envp);
+//dtrace_printf("execv %p := %d\n", name, ret);
+
+	TRACE_AFTER(__NR_execve, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
+
+	return ret;
+}
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+asmlinkage int64_t
+dtrace_systrace_syscall_execve(uintptr_t name, uintptr_t argv, uintptr_t envp)
+{	dtrace_id_t id;
+	long	ret;
+	struct pt_regs *regs = task_pt_regs(current);
+
+y
+	TRACE_BEFORE(__NR_execve, name, argv, envp, regs, 0, 0);
+
+	ret = sys_execve_ptr(name, argv, envp, regs, 0, 0);
 
 	TRACE_AFTER(__NR_execve, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
 
@@ -1208,6 +1228,14 @@ dtrace_systrace_syscall_fork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	dtrace_id_t id;
 	struct pt_regs *regs = (struct pt_regs *) arg0;
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+	/***********************************************/
+	/*   Later  kernels  dont pass pt_regs to the  */
+	/*   syscall.  And  the  stack  doesnt really  */
+	/*   resemble a normal syscall stack.	       */
+	/***********************************************/
+	regs = task_pt_regs(current);
+# endif
 	TRACE_BEFORE(__NR_fork, arg0, arg1, arg2, arg3, arg4, arg5);
 
 	ret = sys_fork_ptr(arg0, arg1, arg2, arg3, arg4, arg5);
@@ -1266,6 +1294,8 @@ dtrace_systrace_syscall_rt_sigreturn(uintptr_t regs, uintptr_t arg1, uintptr_t a
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 	long	ret;
 	dtrace_id_t id;
+
+	regs = (uintptr_t) task_pt_regs(current);
 
 	TRACE_BEFORE(__NR_rt_sigreturn, regs, arg1, arg2, arg3, arg4, arg5);
 
@@ -1357,6 +1387,15 @@ dtrace_systrace_syscall_vfork(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
 	dtrace_id_t id;
 	struct pt_regs *regs = (struct pt_regs *) arg0;
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0)
+	/***********************************************/
+	/*   Later  kernels  dont pass pt_regs to the  */
+	/*   syscall.  And  the  stack  doesnt really  */
+	/*   resemble a normal syscall stack.	       */
+	/***********************************************/
+	regs = task_pt_regs(current);
+# endif
+
 	TRACE_BEFORE(__NR_vfork, arg0, arg1, arg2, arg3, arg4, arg5);
 
 	ret = sys_vfork_ptr(arg0, arg1, arg2, arg3, arg4, arg5);
@@ -1381,6 +1420,7 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
     uintptr_t arg3, uintptr_t arg4, uintptr_t arg5) \
 {	long	ret; 					\
 	dtrace_id_t id;					\
+	struct pt_regs *regs = NULL;                    \
 							\
 	TRACE_BEFORE_IA32(NR_ia32_ ## name, arg0, arg1, arg2, arg3, arg4, arg5); \
 /*printk("ia32 %s before\n", #name);*/ \
@@ -1399,15 +1439,16 @@ dtrace_systrace_syscall_ ## name ## _ia32(uintptr_t arg0, uintptr_t arg1, uintpt
 #if defined(NR_ia32_clone)
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
 asmlinkage int64_t \
-dtrace_systrace_syscall_clone_ia32(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2,
+dtrace_systrace_syscall_clone_ia32(uintptr_t clone_flags, uintptr_t newsp, uintptr_t arg2,
     uintptr_t arg3, uintptr_t arg4)
 {	long	ret;
 	dtrace_id_t id;
 	long (*do_fork_ptr37)(unsigned long, unsigned long, unsigned long, int *, int *) = (void *) do_fork_ptr;
+	struct pt_regs *regs = NULL;
 
-	TRACE_BEFORE_IA32(NR_ia32_clone, arg0, arg1, arg2, arg3, arg4, 0);
+	TRACE_BEFORE_IA32(NR_ia32_clone, clone_flags, newsp, arg2, arg3, arg4, 0);
 
-	ret = do_fork_ptr37(arg0, arg1, 0, (int *) arg2, (int *) arg3);	
+	ret = do_fork_ptr37(clone_flags, newsp, 0, (int *) arg2, (int *) arg3);	
 
 	TRACE_AFTER_IA32(NR_ia32_clone, ret < 0 ? -1 : ret, (int64_t) ret, (int64_t) ret >> 32, 0, 0, 0);
 	return ret;
@@ -1463,11 +1504,11 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
 		dmutex_enter(&slock);
 	}
 
-//printk("ia32 %s before\n", syscallnames32[syscall]);
 	if (dtrace_here) {
-		printk("syscall=%d %s current=%p syscall=%ld\n", syscall, 
+		printk("syscall=%d %s current=%p probe=%d\n", syscall, 
 			syscall >= 0 && syscall < NSYSCALL ? syscallnames[syscall] : "dont-know", 
-			get_current(), linux_get_syscall());
+			get_current(), 
+			sy->stsy_entry);
 	}
 
 	sy->stsy_count++;
@@ -1475,7 +1516,6 @@ dtrace_systrace_syscall2(int syscall, systrace_sysent_t *sy,
         if ((id = sy->stsy_entry) != DTRACE_IDNONE) {
 		cpu_core_t *this_cpu = cpu_get_this();
 		this_cpu->cpuc_regs = pregs;
-
                 (*systrace_probe)(id, arg0, arg1, arg2, arg3, arg4, arg5);
 		cnt_syscall2++;
 	}
@@ -1704,17 +1744,19 @@ get_interposer(int sysnum, int enable)
 	  case __NR_clone:
 		return (void *) systrace_part1_sys_clone;
 	  case __NR_execve:
-	  	patch_enable(&patch_execve, enable);
-		return NULL;
+		return (void *) systrace_part1_sys_execve;
+//	  	patch_enable("execve", &patch_execve, enable);
+//		return NULL;
 	  case __NR_fork:
 		return (void *) systrace_part1_sys_fork;
 	  case __NR_iopl:
 		return (void *) systrace_part1_sys_iopl;
-//	  case __NR_sigaltstack:
-//		return (void *) systrace_part1_sys_sigaltstack;
+	  case __NR_sigaltstack:
+		return (void *) systrace_part1_sys_sigaltstack;
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
 	  case __NR_rt_sigreturn:
-	  	patch_enable(&patch_rt_sigreturn, enable);
-		return NULL;
+		return (void *) systrace_part1_sys_rt_sigreturn;
+# endif
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,25)
 	  /***********************************************/
 	  /*   This  went away in the later kernels, so	 */
@@ -1821,7 +1863,7 @@ HERE();
 /*   Code to enable or disable a patch structure.		      */
 /**********************************************************************/
 void
-patch_enable(patch_t *pp, int enable)
+patch_enable(const char *msg, patch_t *pp, int enable)
 {	unsigned char *codep;
 	int     i;
 	char	buf[128];
@@ -1888,8 +1930,7 @@ static int do_patch = TRUE;
 				printk("dtrace:patch: FAILED (size %d vs %d)\n",
 					last_s, pp->p_array[i]);
 			failed = TRUE;
-			if (do_patch)
-				return;
+			break;
 		}
 		if (codep[-last_s] != pp->p_array[++i]) {
 			if (dtrace_show_patches) {
@@ -1897,12 +1938,13 @@ static int do_patch = TRUE;
 					codep[-last_s], pp->p_array[i]);
 			}
 			failed = TRUE;
-			if (do_patch)
-				return;
+			break;
 		}
         }
-	if (failed)
+	if (failed) {
+		printk("dtrace:patch_enable:failed:%s\n", msg);
 		return;
+		}
 	codep = codep - last_s + pp->p_offset;
 	if (dtrace_show_patches)
 		printk("dtrace:patch: success @%p\n", codep);

@@ -1,3 +1,4 @@
+set auto-load safe-path /
 set confirm no
 set history expansion 1
 dir libctf

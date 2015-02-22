@@ -767,6 +767,14 @@ fbt_provide_function(struct modctl *mp, par_module_t *pmp,
 	pf_info_t	inf;
 int io_prov_sdt(pf_info_t *infp, uint8_t *instr, int size, int modrm);
 
+	/***********************************************/
+	/*   Ignore  these - they tend to result in a  */
+	/*   lot  of dups, and also tend to be in the  */
+	/*   same reusable and unmapped page.	       */
+	/***********************************************/
+	if (strncmp(name, "cleanup_module", 14) == 0)
+		return;
+
 	memset(&inf, 0, sizeof inf);
 	inf.mp = mp;
 	inf.pmp = pmp;

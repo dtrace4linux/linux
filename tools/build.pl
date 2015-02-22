@@ -82,6 +82,22 @@ sub main
 	die "Cannot create $build_dir/config.sh -- $!" if !$fh;
 
 	###############################################
+	#   See  if  we  can  get old_rsp which is a  #
+	#   per_cpu var and some kernels dont expose  #
+	#   it.					      #
+	###############################################
+	spawn("gcc -o $build_dir/kcore tools/kcore.c");
+	my $sudo = "$ENV{HOME}/bin/root";
+	$sudo = "sudo" if ! -x $sudo;
+	my $old_rsp = `$sudo $build_dir/kcore`;
+	chomp($old_rsp);
+#print "old_rsp=$old_rsp\n";
+	if ($old_rsp) {
+		$ENV{OLD_RSP} = "-Dold_rsp_val=0x$old_rsp";
+		print $fh "export OLD_RSP=-Dold_rsp_val=0x$old_rsp\n";
+	}
+
+	###############################################
 	#   Some precursors to check us out.	      #
 	###############################################
 	spawn("tools/check_dep.pl");

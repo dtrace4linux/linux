@@ -69,8 +69,8 @@ d:
 		this->arg2 = stringof(arg2);
 		cnt++;
 	}
-	syscall::: /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
-	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
+	syscall::: /timestamp - tstart > 15 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1ms /timestamp - tstart > 15 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################
@@ -91,6 +91,45 @@ d:
 	}
 	syscall::: /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
 	tick-1ms /timestamp - tstart > 5 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-5s { exit(0); }
+##################################################################
+name: systrace-stringof-bad5
+note:
+	Force GPF interrupts to fire and ensure we catch them.
+d:
+	BEGIN {
+		cnt = 0;
+		tstart = timestamp;
+	}
+	syscall::: {
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		this->arg0 = stringof(0x000f);
+		this->arg0 = stringof(0x00f0);
+		this->arg0 = stringof(0x0f00);
+		this->arg0 = stringof(0xf000);
+
+		this->arg0 = stringof(0x000f0000);
+		this->arg0 = stringof(0x00f00000);
+		this->arg0 = stringof(0x0f000000);
+		this->arg0 = stringof(0xf0000000);
+
+		this->arg0 = stringof(0x000f00000000);
+		this->arg0 = stringof(0x00f000000000);
+		this->arg0 = stringof(0x0f0000000000);
+		this->arg0 = stringof(0xf00000000000);
+
+		this->arg0 = stringof(0x000f000000000000);
+		this->arg0 = stringof(0x00f0000000000000);
+		this->arg0 = stringof(0x0f00000000000000);
+		this->arg0 = stringof(0xf000000000000000);
+
+		cnt++;
+	}
+	/*syscall::: /timestamp - tstart > 15 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1ms /timestamp - tstart > 15 * 1000 * 1000 * 1000 / {exit(0);}*/
 	tick-1s { printf("count so far: %d", cnt); }
 	tick-5s { exit(0); }
 ##################################################################

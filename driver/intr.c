@@ -199,6 +199,7 @@ int dtrace_int_dtrace_ret(void);
 #if defined(CONFIG_PARAVIRT) && defined(__amd64)
 int dtrace_int1_xen(void);
 int dtrace_int3_xen(void);
+int dtrace_int13_xen(void);
 int dtrace_page_fault_xen(void);
 #endif
 
@@ -608,7 +609,6 @@ dtrace_int13_handler(int type, struct pt_regs *regs)
         	DTRACE_CPUFLAG_SET(CPU_DTRACE_BADADDR);
 	        cpu_core[CPU->cpu_id].cpuc_dtrace_illval = read_cr2_register();
 		regs->r_pc += dtrace_instr_size((uchar_t *) regs->r_pc);
-//printk("int13 - gpf - %p\n", read_cr2_register());
 		return NOTIFY_DONE;
 		}
 
@@ -1395,15 +1395,16 @@ static	struct x86_descriptor desc1;
 		set_idt_entry(1, (unsigned long) dtrace_int1_xen); // single-step
 		set_idt_entry(3, (unsigned long) dtrace_int3_xen); // breakpoint
 		set_idt_entry(14, (unsigned long) dtrace_page_fault_xen);
+		set_idt_entry(13, (unsigned long) dtrace_int13_xen); //GPF
 	} else 
 #endif
 	{
 		set_idt_entry(1, (unsigned long) dtrace_int1); // single-step
 		set_idt_entry(3, (unsigned long) dtrace_int3); // breakpoint
 		set_idt_entry(14, (unsigned long) dtrace_page_fault);
+		set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
 	}
 //	set_idt_entry(11, (unsigned long) dtrace_int11); //segment_not_present
-//	set_idt_entry(13, (unsigned long) dtrace_int13); //GPF
 
 	set_idt_entry(T_DTRACE_RET, (unsigned long) dtrace_int_dtrace_ret);
 

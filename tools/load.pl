@@ -12,6 +12,7 @@
 # 20111028 PDF Add -panic switch so I can maybe figure out why we are dying.
 # 20120711 PDF Make /dev/fasttrap world read/writable.
 # 20120822 PDF Remove some unneeded symbols (arch linux fix)
+# 20141204 PDF Add -n support.
 
 # Simple script to load the driver and get it ready.
 
@@ -51,6 +52,7 @@ sub main
 		'mem_alloc',
 		'opcodes',
 		'opcodes2',
+		'n',
 		'panic',
 		'printk',
 		'unhandled',
@@ -280,6 +282,12 @@ sub main
 			my $addr = $syms{$rawsym};
 			$addr = join(" ", (split(" ", $syms{$rawsym}))[0..1]) . " $real_name";
 
+			if ($opts{n}) {
+				print "$addr\n";
+				$done = 1;
+				last;
+			}
+
 			my $fh = new FileHandle(">/dev/fbt");
 			if (!$fh) {
 				print "Cannot open /dev/fbt -- $!\n";
@@ -337,9 +345,13 @@ EOF
 	###############################################
 	#   Tell driver we have done the init.	      #
 	###############################################
-	$fh = new FileHandle(">/dev/fbt");
-	print "echo \"1 T END_SYMS\" >/dev/fbt\n" if $opts{v};
-	print $fh "1 T END_SYMS\n"; # sentinel
+	print "echo \"1 T END_SYMS\" >/dev/fbt\n" if $opts{v} || $opts{n};
+	if (!$opts{n}) {
+		$fh = new FileHandle(">/dev/fbt");
+		print $fh "1 T END_SYMS\n"; # sentinel
+	}
+
+	exit(0) if $opts{n};
 
 	###############################################
 	#   Keep a copy of probes to avoid polluting  #
@@ -411,7 +423,8 @@ sub mkdev
 sub spawn
 {	my $cmd = shift;
 
-	print time_string() . $cmd, "\n" if $opts{'v'};
+	print time_string() . $cmd, "\n" if $opts{v};
+	return 0 if $opts{n};
 	return system($cmd);
 }
 sub time_string
@@ -438,6 +451,7 @@ Switches:
    -fast      Dont do 'dtrace -l' after load to avoid kernel messages.
    -here      Enable tracing to /var/log/messages.
    -mem_alloc Trace memory allocs (kmem_alloc/kmem_zalloc/kmem_free).
+   -n         Dont update driver - just print out values.
    -opcodes   Make probes named after x86 instruction opcodes to help
               debugging.
    -opcodes2  Make probes named after first two bytes of opcode.

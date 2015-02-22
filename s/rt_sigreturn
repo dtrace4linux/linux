@@ -1,0 +1,2 @@
+sync
+root build/dtrace -n syscall::rt_sigreturn:'{printf("pid=%d %s", pid, execname);}'

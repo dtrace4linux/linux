@@ -96,17 +96,12 @@ typedef uint32_t ipaddr_t;
 # define 	hz	HZ
 
 /**********************************************************************/
-/*   Code for 3.8.0 kernels which do strict kuid_t type checking.     */
-/*   Actually  -  its  another  Linux  mess. Centos 6.4 has a 2.6.32  */
-/*   kernel but with later semantics.				      */
+/*   This  is  nearly  impossible  to  get right for each kernel. We  */
+/*   cheat,   because   the   struct   wrapper  always  has  just  a  */
+/*   uid_t/gid_t.						      */
 /**********************************************************************/
-#if defined(CONFIG_UIDGID_STRICT_TYPE_CHECKS) || LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-#	define	KUIDT_VALUE(v) v.val
-#	define	KGIDT_VALUE(v) v.val
-#else
-#	define	KUIDT_VALUE(v) v
-#	define	KGIDT_VALUE(v) v
-#endif
+# define	KUIDT_VALUE(v) *(uid_t *) &(v)
+# define	KGIDT_VALUE(v) *(gid_t *) &(v)
 
 /**********************************************************************/
 /*   File  based  on  code  from  FreeBSD  to  support  the  missing  */

@@ -136,6 +136,7 @@ taskqid_t taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags
 /**********************************************************************/
 /*   GPL prototypes.						      */
 /**********************************************************************/
+static int (*queue_delayed_work_on_ptr)(int cpu, struct workqueue_struct *wq, struct delayed_work *work, unsigned long delay);
 static int (*queue_delayed_work_ptr)(struct workqueue_struct *wq, struct delayed_work *work, unsigned long delay);
 static void (*destroy_workqueue_ptr)(struct workqueue_struct *wq);
 static void (*flush_workqueue_ptr)(struct workqueue_struct *wq);
@@ -225,11 +226,13 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 			}
 #endif
 		queue_delayed_work_ptr = get_proc_addr("queue_delayed_work");
+		queue_delayed_work_on_ptr = get_proc_addr("queue_delayed_work_on");
 		destroy_workqueue_ptr = get_proc_addr("destroy_workqueue");
 		flush_workqueue_ptr = get_proc_addr("flush_workqueue");
 		delayed_work_timer_fn_ptr = get_proc_addr("delayed_work_timer_fn");
 		lockdep_init_map_ptr = get_proc_addr("lockdep_init_map");
 
+		printk("queue_delayed_work_on_ptr=%p\n", queue_delayed_work_on_ptr);
 		printk("queue_delayed_work_ptr=%p\n", queue_delayed_work_ptr);
 		printk("destroy_workqueue_ptr=%p\n", destroy_workqueue_ptr);
 		printk("flush_workqueue_ptr=%p\n", flush_workqueue_ptr);
@@ -270,8 +273,19 @@ taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags, unsigned
 	INIT_DELAYED_WORK( &work->t_work, taskq_callback);
 	work->t_func = func;
 	work->t_arg = arg;
-	queue_delayed_work_ptr((struct workqueue_struct *) tq, 
-		&work->t_work, delay);
+	if (queue_delayed_work_on_ptr) {
+		/***********************************************/
+		/*   3.16 and above kernels have this.	       */
+		/***********************************************/
+		queue_delayed_work_on_ptr(WORK_CPU_UNBOUND, 
+			(struct workqueue_struct *) tq, 
+			&work->t_work, delay);
+	} else if (queue_delayed_work_ptr) {
+		queue_delayed_work_ptr((struct workqueue_struct *) tq, 
+			&work->t_work, delay);
+	} else {
+		dtrace_linux_panic("Cannot locate queue_delayed_work or queue_delayed_work_on - giving up\n");
+	}
 	return (taskqid_t) work;
 }
 void

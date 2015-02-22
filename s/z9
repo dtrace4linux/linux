@@ -1,0 +1,9 @@
+sync
+root build/dtrace -n '
+	BEGIN { tstart = timestamp; self->x = 0; }
+	syscall:::{self->x++;}
+	syscall::: /timestamp - tstart > 1000 * 1000 * 1000/ {
+	printf("%d", self->x);
+	tstart = timestamp;
+	}'
+

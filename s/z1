@@ -1,0 +1,1 @@
+root build/dtrace -n syscall::clone:

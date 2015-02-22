@@ -522,6 +522,14 @@ instr_provide_function(struct modctl *mp, par_module_t *pmp,
 	char	name_buf[128];
 	char	pred_buf[128];
 
+	/***********************************************/
+	/*   Ignore  these - they tend to result in a  */
+	/*   lot  of dups, and also tend to be in the  */
+	/*   same reusable and unmapped page.	       */
+	/***********************************************/
+	if (strncmp(name, "cleanup_module", 14) == 0)
+		return;
+
 # define UNHANDLED_FBT() if (do_print || dtrace_unhandled) { \
 		printk("instr:unhandled instr %s:%p %02x %02x %02x %02x\n", \
 			name, instr, instr[0], instr[1], instr[2], instr[3]); \

@@ -89,6 +89,7 @@ enum {
 	OFFSET_task_exit_notifier,
 	OFFSET_xtime,
 	OFFSET_ia32_sys_call_table,
+	OFFSET_old_rsp,
 	OFFSET_END_SYMS,
 	};
 static struct map {
@@ -106,6 +107,7 @@ static struct map {
 {"task_exit_notifier",     NULL},
 {"xtime",     		   NULL}, /* Needed for dtrace_gethrtime, if 2.6.9 */
 {"ia32_sys_call_table",    NULL}, /* On 64b kernel, the 32b syscall table. */
+{"old_rsp",    		   NULL}, /* This has moved to System.map in 3.7 or above */
 {"END_SYMS",               NULL}, /* This is a sentinel so we know we are done. */
 	{0}
 	};
@@ -244,6 +246,7 @@ extern unsigned long cnt_xcall5;
 extern unsigned long long cnt_xcall6;
 extern unsigned long long cnt_xcall7;
 extern unsigned long cnt_xcall8;
+extern unsigned long cnt_xcall_slave;
 extern unsigned long cnt_nmi1;
 extern unsigned long cnt_nmi2;
 extern unsigned long long cnt_timer1;
@@ -2850,6 +2853,7 @@ static int proc_dtrace_stats_show(struct seq_file *seq, void *v)
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_xcall6, "xcall6(ack_waits)"},
 		{TYPE_LONG_LONG, (unsigned long *) &cnt_xcall7, "xcall7(fast)"},
 		{TYPE_LONG, (unsigned long *) &cnt_xcall8, "xcall8"},
+		{TYPE_LONG, (unsigned long *) &cnt_xcall_slave, "xcall_slave"},
 		{TYPE_INT, (unsigned long *) &dtrace_shutdown, "shutdown"},
 		{0}
 		};

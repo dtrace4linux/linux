@@ -129,6 +129,14 @@
 	.endif
 .endm
 
+.macro do_swapgs xen
+	.if \xen == 1
+	  SWAPGS
+	.else
+	  swapgs
+	.endif
+.endm
+
 /**********************************************************************/
 /*   For  each  interrupt,  we define the handler twice - once for a  */
 /*   non-Xen  environment,  and the other for Xen. The difference is  */
@@ -259,13 +267,8 @@
 /**********************************************************************/
 .macro POP_REGS xen fault
 	testl %ebx, %ebx
-	jz 4f
-	.if \xen == 1
-	  SWAPGS
-	.else
-	  swapgs
-	.endif
-
+	jnz 4f
+	do_swapgs \xen
 4:
 	pop %r15
 	pop %r14
@@ -297,7 +300,7 @@
 /**********************************************************************/
 .macro PUSH_REGS xen fault
 	.if \fault == 0
-	push %rax // orig_eax - any value will do
+	push $-1 // orig_eax - any value will do
 	.endif
 
 	cld
@@ -324,19 +327,29 @@
 	/*   us,  after  the handler, that we need to  */
 	/*   restore GS or not. 		       */
 	/***********************************************/
-	xorl %ebx,%ebx
+	mov $1, %ebx
+# if 0
+	testl $3,0x88(%rsp)
+	je 5f
+	xor %ebx,%ebx
+	do_swapgs \xen
+
+# else
+	/***********************************************/
+	/*   We  want to do what the kernel does - as  */
+	/*   above,  but  its  unreliable because the  */
+	/*   area we are probing on the stack may not  */
+	/*   exist.  Why?  Not  sure  -  but we arent  */
+	/*   honoring  the  multiple stacks that 3.1x  */
+	/*   kernels are creating.		       */
+	/***********************************************/
 	mov    $MSR_GS_BASE,%ecx
-	rdmsr
+	rdmsr // -> RDX:RAX
 	test %edx,%edx
 	js 5f
-
-	.if \xen == 1
-	  SWAPGS
-	.else
-	  swapgs
-	.endif
-
-	incl %ebx
+	do_swapgs \xen
+	xor %ebx,%ebx
+#endif
 5:
 # if defined(pda_data_offset)
 	movq %gs:pda_data_offset,%rbp

@@ -5,6 +5,8 @@
 # Author : Paul Fox
 # Date: April 2011
 
+# 20141214 PDF Fix "dmesg" test not actually working.
+
 use strict;
 use warnings;
 
@@ -17,6 +19,7 @@ use POSIX;
 my $exit_code = 0;
 my $ctrl_c = 0;
 my $master_dmesg;
+my $oops;
 
 #######################################################################
 #   Command line switches.					      #
@@ -25,6 +28,20 @@ my %opts = (
 	count => 1,
 	loop => 1000,
 	);
+
+
+######################################################################
+#   Watch for a kernel panic - we should try and abort asap.	     #
+######################################################################
+sub check_oops
+{
+	my $oops = 0;
+	my $fh = new FileHandle("dmesg | ");
+	while (<$fh>) {
+		$oops++ if /Oops:/;
+	}
+	return $oops;
+}
 
 sub commify {
 	local $_ = shift;
@@ -139,9 +156,10 @@ sub do_tests
 			$fh = new FileHandle(">/tmp/dmesg.now");
 			print $fh $dm;
 			$fh->close();
-			system("diff /tmp/dmesg.orig /tmp/dmesg.now");
 
 			print "Warning: dmesg output changed...aborting tests so you can verify\n";
+			print "diff /tmp/dmesg.orig /tmp/dmesg.now\n";
+			system("diff /tmp/dmesg.orig /tmp/dmesg.now");
 			exit(1);
 		}
 
@@ -188,11 +206,15 @@ sub dump_stats
 ######################################################################
 sub get_dmesg
 {
-	my $fh = new FileHandle("dmesg | ");
+	my $fh = new FileHandle("dmesg |");
 	my $str = '';
-	while (<$fh>) {
-		$str .= $_;
+	my $str1;
+	while (1) {
+		my $n = sysread($fh, $str1, 64 * 1024);
+		last if !$n;
+		$str .= $str1;
 	}
+	return $str;
 }
 
 ######################################################################
@@ -224,7 +246,7 @@ sub main
 	new FileHandle(">.test.prompt");
 	if ($print_msg) {
 		print <<EOF;
-You are about to run a serious of tests which attempt to do reasonable
+You are about to run a series of tests which attempt to do reasonable
 coverage of dtrace in core areas. This deliberately involves forcing
 page faults and GPFs in the kernel, in a recoverable and safe way.
 

@@ -1,0 +1,20 @@
+sync
+root build/dtrace -n '
+	BEGIN {
+		cnt = 0;
+		tstart = timestamp;
+	}
+	syscall::: {
+		this->pid = pid;
+		this->ppid = ppid;
+		this->execname = execname;
+		this->arg0 = stringof(arg0);
+		this->arg1 = stringof(arg1);
+		this->arg2 = stringof(arg2);
+		cnt++;
+	}
+	syscall::: /timestamp - tstart > 500 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1ms /timestamp - tstart > 500 * 1000 * 1000 * 1000 / {exit(0);}
+	tick-1s { printf("count so far: %d", cnt); }
+	tick-500s { exit(0); }
+'

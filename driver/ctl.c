@@ -267,6 +267,15 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 		if (child == NULL)
 			return -ESRCH;
 		get_task_struct(child);
+# if 1
+		/***********************************************/
+		/*   Fed  up  trying  to  make the code below  */
+		/*   work  across  all  kernels  -  lets just  */
+		/*   disable it for now.		       */
+		/***********************************************/
+		uid1 = 0;
+		uid2 = 1; // force failure
+# else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 		uid2 = KUIDT_VALUE(child->cred->uid);
 #else
@@ -280,6 +289,7 @@ ctl_linux_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
 #else
 		uid1 = current->uid;
 #endif
+# endif
 		if (uid1 != uid2 && uid1 != 0)
 			return -EPERM;
 

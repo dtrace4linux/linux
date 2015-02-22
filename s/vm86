@@ -1,0 +1,2 @@
+sync
+root build/dtrace -n syscall::vm86:

@@ -72,7 +72,7 @@ obj-m := dtracedrv.o
 
 H	= dtrace_linux.h dtrace_proto.h
 EXTRA_AFLAGS += \
-	-I$(M)/../../linux $(OLD_RSP)
+	-I$(M)/../../linux
 
 # Add -gdwarf-2 because gcc-4.8 will cause mkctf.sh to fail due to
 # something libdwarf doesnt like.
@@ -83,7 +83,7 @@ EXTRA_CFLAGS += -g -gdwarf-2 \
 	-I$(M)/../../linux \
 	-I$(M)/../../common/ctf \
 	-I$(M)/../../uts/common \
-	-D_KERNEL -DCTF_OLD_VERSIONS $(PTR32) $(OLD_RSP)
+	-D_KERNEL -DCTF_OLD_VERSIONS $(PTR32)
 
 ######################################################################
 #   Handle  include  files  which  exist  or  moved  around amongst  #

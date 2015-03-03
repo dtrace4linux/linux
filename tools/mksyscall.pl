@@ -77,6 +77,7 @@ sub main
 				die "Cannot open $f: $!";
 			}
 			while (<$fh>) {
+				$_ =~ s/\/\*.*\*\///;
 				next if !/define\s+(__NR[A-Z_a-z0-9]+)\s+(.*)/;
 				my ($name, $val) = ($1, $2);
 				next if defined($calls{$name});

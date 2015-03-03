@@ -7,22 +7,28 @@ get it from the syscalls that we are intercepting.
 Paul Fox Feb 2015
 */
 
+#define _LARGEFILE64_SOURCE
 # include <stdio.h>
 # include <stdlib.h>
 # include <unistd.h>
 # include <string.h>
 # include <fcntl.h>
 
-int main(int argc, char **argv)
-{	int	fd, i, n;
-	unsigned long offset;
-	FILE	*fp;
-	unsigned char	buf[BUFSIZ];
-	unsigned char	*proc;
-	unsigned long ptr;
-	char	*name = "stub_execve";
-	int	debug = 0;
+static int	debug = 0;
 
+static int do_read(char *fname, unsigned long ptr, int remap);
+
+int main(int argc, char **argv)
+{	FILE	*fp;
+	unsigned char	buf[BUFSIZ];
+	unsigned long ptr;
+	int	ret;
+	char	*name = "stub_execve";
+
+//printf("18\n");
+//exit(0);
+	if (argc > 1 && strcmp(argv[1], "-d") == 0)
+		debug = 1;
 	snprintf(buf, sizeof buf,
 		"grep %s /proc/kallsyms",
 		name);
@@ -42,25 +48,58 @@ int main(int argc, char **argv)
 	if (debug)
 		printf("%s=0x%lx\n", name, ptr);
 
-	if ((fd = open64("/proc/kcore", O_RDONLY)) < 0) {
-		perror("/proc/kcore");
-		exit(1);
-	}
+	/***********************************************/
+	/*   Centos  5.6  /proc/kcore  is  broken and  */
+	/*   unusable. So we try our optional driver.  */
+	/***********************************************/
+	if (do_read("/proc/kcore", ptr, 1))
+		exit(0);
+
+	/***********************************************/
+	/*   Centos  5.6 wont let us seek to a kernel  */
+	/*   address,  so  truncate  the  number, and  */
+	/*   hack   it   back  in  in  the  kmem_read  */
+	/*   function.				       */
+	/***********************************************/
+
+	/***********************************************/
+	/*   Load the driver if we got this far.       */
+	/***********************************************/
+	snprintf(buf, sizeof buf, "/sbin/insmod build/driver-kmem/dtrace_kmem.ko");
+	system(buf);
+	ptr &= 0xffffffff;
+	ret = do_read("/proc/dtrace_kmem", ptr, 0);
+	system("/sbin/rmmod dtrace_kmem");
+	if (ret)
+		exit(0);
+	fprintf(stderr, "Failed to find offset\n");
+	exit(1);
+}
+
+static int do_read(char *fname, unsigned long ptr, int remap)
+{	int	fd, i, n;
+	unsigned char	buf[BUFSIZ];
+
+	if ((fd = open64(fname, O_RDONLY | O_LARGEFILE)) < 0)
+		return 0;
 
 	/***********************************************/
 	/*   Not sure why we have to do this - but we  */
 	/*   reflect  the  virtual addr to a physical  */
 	/*   one.				       */
 	/***********************************************/
-	ptr &= ~0xffff800000000000L;
+	if (remap)
+		ptr &= ~0xffff800000000000L;
 	if (lseek64(fd, ptr, SEEK_SET) == -1) {
 		perror("lseek");
-		exit(1);
+		return 0;
 	}
 
 	if ((n = read(fd, buf, sizeof buf)) != sizeof buf) {
-		fprintf(stderr, "Failed to read buffer from /proc/kcore\n");
-		exit(1);
+		close(fd);
+		if (debug)
+			fprintf(stderr, "Failed to read buffer from %s, n=%d\n", fname, n);
+		return 0;
 	}
 
 	for (i = 0; i < n; i++) {
@@ -71,6 +110,5 @@ int main(int argc, char **argv)
 			exit(0);
 		}
 	}
-	fprintf(stderr, "Failed to find offset\n");
-	exit(1);
+	return 0;
 }

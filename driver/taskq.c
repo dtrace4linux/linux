@@ -29,12 +29,17 @@
 /*   come under the CDDL.					      */
 /**********************************************************************/
 
+/**********************************************************************/
+/*   Dont  try  to fix the gcc redefinition warning unless you truly  */
+/*   know what you are doing.					      */
+/**********************************************************************/
 #define __alloc_workqueue_key local__alloc_workqueue_key
 #define lockdep_init_map local_lockdep_init_map
 
 #include <dtrace_linux.h>
 #include <sys/dtrace_impl.h>
 #include <dtrace_proto.h>
+#include "../port.h"
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -141,6 +146,7 @@ static int (*queue_delayed_work_ptr)(struct workqueue_struct *wq, struct delayed
 static void (*destroy_workqueue_ptr)(struct workqueue_struct *wq);
 static void (*flush_workqueue_ptr)(struct workqueue_struct *wq);
 static void (*delayed_work_timer_fn_ptr)(unsigned long __data);
+static int (*cancel_work_sync_ptr)(struct workqueue_struct *);
 
 /**********************************************************************/
 /*   Very  ugly  ..  different  number  of  args  for  3.3 and above  */
@@ -231,6 +237,7 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 		flush_workqueue_ptr = get_proc_addr("flush_workqueue");
 		delayed_work_timer_fn_ptr = get_proc_addr("delayed_work_timer_fn");
 		lockdep_init_map_ptr = get_proc_addr("lockdep_init_map");
+		cancel_work_sync_ptr = get_proc_addr("cancel_work_sync");
 
 		printk("queue_delayed_work_on_ptr=%p\n", queue_delayed_work_on_ptr);
 		printk("queue_delayed_work_ptr=%p\n", queue_delayed_work_ptr);
@@ -273,6 +280,7 @@ taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags, unsigned
 	INIT_DELAYED_WORK( &work->t_work, taskq_callback);
 	work->t_func = func;
 	work->t_arg = arg;
+# if HAVE_WORK_CPU_UNBOUND
 	if (queue_delayed_work_on_ptr) {
 		/***********************************************/
 		/*   3.16 and above kernels have this.	       */
@@ -280,7 +288,9 @@ taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags, unsigned
 		queue_delayed_work_on_ptr(WORK_CPU_UNBOUND, 
 			(struct workqueue_struct *) tq, 
 			&work->t_work, delay);
-	} else if (queue_delayed_work_ptr) {
+	} else 
+# endif
+	if (queue_delayed_work_ptr) {
 		queue_delayed_work_ptr((struct workqueue_struct *) tq, 
 			&work->t_work, delay);
 	} else {
@@ -314,7 +324,7 @@ timeout(void (*func)(void *), void *arg, unsigned long ticks)
 {static unsigned long id;
 	my_work_t *wp;
 
-printk("timeout(%p, %lu)\n", func, ticks);
+//printk("timeout(%p, %lu)\n", func, ticks);
 	id++;
 
 	wp = (my_work_t *) taskq_dispatch2(global_tq, func, arg, 0, ticks);
@@ -331,7 +341,7 @@ void
 untimeout(timeout_id_t id)
 {	my_work_t *wp;
 
-printk("untimeout: %p\n", id);
+//printk("untimeout: %p\n", id);
 	if (callo && callo->t_id == id) {
 		wp = callo;
 		callo = wp->t_next;
@@ -349,5 +359,9 @@ printk("untimeout: %p\n", id);
 		}
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0) /* random guess */
+	cancel_work_sync_ptr(&wp->t_work);
+#else
 	cancel_delayed_work_sync(&wp->t_work);
+#endif
 }

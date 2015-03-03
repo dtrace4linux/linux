@@ -25,8 +25,8 @@ sub main
 	die "Usage: mkdriver.pl [all | clean]\n" if !$cmd;
 
 	my $driver = "driver";
-	if ($cmd eq 'driver-2') {
-		$driver = "driver-2";
+	if ($cmd eq 'driver-2' || $cmd eq 'driver-kmem') {
+		$driver = $cmd;
 		$cmd = shift @ARGV;
 	}
 

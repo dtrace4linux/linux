@@ -1,0 +1,3 @@
+BUILD_KERNEL=${BUILD_KERNEL:-`uname -r`}
+build_dir=/lib/modules/$BUILD_KERNEL/build
+make -C $build_dir M=`pwd` $@

@@ -254,7 +254,13 @@ dtrace_interrupt_disable(void)
 dtrace_icookie_t
 dtrace_interrupt_get(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+	unsigned long flags;
+	raw_local_save_flags(flags);
+	return flags;
+#else
 	return native_save_fl();
+#endif
 }
 /**********************************************************************/
 /*   This   routine   restores   interrupts   previously   saved  by  */

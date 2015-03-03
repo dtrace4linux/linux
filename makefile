@@ -81,7 +81,14 @@ do_cmds:
 	cd cmd/ctfconvert ; $(MAKE) $(NOPWD)
 	cd cmd/instr ; $(MAKE) $(NOPWD)
 	cd usdt/c ; $(MAKE) $(NOPWD)
+
+######################################################################
+#   We  need  the  driver-kmem (/proc/dtrace_kmem) loaded before we  #
+#   can  build  the  real  driver  -  because very old kernels wont  #
+#   expose old_rsp value.					     #
+######################################################################
 kernel:
+	tools/mkdriver.pl driver-kmem all
 	tools/mkdriver.pl all
 	tools/mkdriver.pl driver-2 all
 	tools/mkctf.sh

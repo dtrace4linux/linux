@@ -19,6 +19,7 @@
 # 12-Feb-2013 PDF Attempt to speedup and optimise for ARM.
 # 04-May-2013 PDF Add autodetection of /usr/include/dwarf.h
 # 30-May-2013 PDF Better libelf HAVE_ELF_GETSHDRSTRNDX detection.
+# 22-Feb-2015 PDF Add detection of WORK_CPU_UNBOUND
 
 use strict;
 use warnings;
@@ -128,6 +129,25 @@ sub main
 	###############################################
 	$inc .= check_ptrace_h();
 
+	###############################################
+	#   Get old_rsp				      #
+	###############################################
+	my $old_rsp = `tools/sudo $ENV{BUILD_DIR}/kcore`;
+	chomp($old_rsp);
+	print "old_rsp=$old_rsp\n";
+	if ($old_rsp) {
+		$inc .= "# define OLD_RSP_VAL 0x$old_rsp\n";
+	}
+else {die "cannot find old_rsp\n";}
+	
+	###############################################
+	#   For taskq.c				      #
+	###############################################
+	if (have("system_unbound_workq", $kallsyms)) {
+		$inc .= "# define HAVE_WORK_CPU_UNBOUND 1\n";
+	} else {
+		$inc .= "# define HAVE_WORK_CPU_UNBOUND 0\n";
+	}
 	###############################################
 	#   Handle  differing  naming conventions of  #
 	#   the per-cpu data structures.	      #
@@ -323,9 +343,10 @@ sub check_dwarf_h
 	my $fh = new FileHandle(">/tmp/$ENV{USER}.dwarf.c");
 	print $fh <<EOF;
 void	dwarf_begin();
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	dwarf_begin();
+	return 0;
 }
 EOF
 	$fh->close();

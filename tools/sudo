@@ -1,0 +1,8 @@
+#! /bin/sh
+
+if [ -x $HOME/bin/setuid ]; then 
+	setuid root "$@"
+else 
+	sudo "$@"
+fi
+

@@ -1,2 +1,2 @@
 sync
-root build/dtrace -n syscall::iopl:
+root build/dtrace -n syscall::iopl:'{printf("pid=%d %s", pid, execname);}'

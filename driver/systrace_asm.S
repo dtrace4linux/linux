@@ -8,6 +8,15 @@
 
 #include <linux/linkage.h>
 #include <linux/version.h>
+#include "../port.h"
+
+# if defined(__amd64)
+	/***********************************************/
+	/*   We  do x86_64 here - the i386 code is in  */
+	/*   systrace.c.  Since  Linux  dropped  i386  */
+	/*   support, we hopefully dont need to worry  */
+	/*   about future i386 changes. Joy !	       */
+	/***********************************************/
 #include <asm/segment.h>
 #include <asm/cache.h>
 #include <asm/errno.h>
@@ -15,10 +24,6 @@
 #include <asm/asm-offsets.h>
 #include <asm/unistd.h>
 #include <asm/thread_info.h>
-#include <asm/paravirt.h>
-#include <asm/ftrace.h>
-#include <asm/percpu.h>
-#include <asm/asm.h>
 
 .macro FUNCTION name
 	.text
@@ -30,22 +35,14 @@
 /*   This  comes  from  the  build  script  (tools/kcore.c)  to find  */
 /*   old_rsp							      */
 /**********************************************************************/
-#if defined(old_rsp_val)
-old_rsp2: .quad old_rsp_val
-#	define	old_rsp_37 old_rsp2
+#if !defined(OLD_RSP_VAL)
+#	error "OLD_RSP_VAL is not defined - cannot continue"
 #endif
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 /**********************************************************************/
 /*   Only  do  this  for new kernerls. Older kernels seem to compile  */
 /*   and run fine.						      */
 /**********************************************************************/
-
-/**********************************************************************/
-/*   Where  old_rsp  is  in  my  kernel  - but we cannot use it in a  */
-/*   module. Not sure why, but we can get it indirectly.	      */
-/**********************************************************************/
-//#define old_rsp 0xbfc0
 
 	.macro fork_like func
 	/***********************************************/
@@ -63,12 +60,7 @@ old_rsp2: .quad old_rsp_val
 	mov    %r15,(%rsp)
 	push   %r11
 
-	/***********************************************/
-	/*   Do  an  indirect  fetch  of  the old_rsp  */
-	/*   variable in the %gs segment.	       */
-	/***********************************************/
-	movq old_rsp_37,%r11
-	movq  %gs:(%r11) ,%r11
+	movq  %gs:OLD_RSP_VAL,%r11
 
 	mov    %r11,0xa0(%rsp)	// RSP
 	movq   $__USER_DS,0xa8(%rsp)
@@ -81,15 +73,7 @@ old_rsp2: .quad old_rsp_val
 		// child does not get here
 
 	mov    0xa0(%rsp),%r11
-
-	/***********************************************/
-	/*   We  need  to  do  an  indirect  fetch of  */
-	/*   old_rsp in the %gs segment.	       */
-	/***********************************************/
-	push %rax
-	movq old_rsp_37,%rax
-	mov    %r11,%gs:(%rax)
-	pop %rax
+	mov    %r11,%gs:OLD_RSP_VAL
 
 	mov    0x98(%rsp),%r11
 	mov    %r11,0x38(%rsp)
@@ -97,36 +81,50 @@ old_rsp2: .quad old_rsp_val
 
 	.endm
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 	FUNCTION systrace_part1_sys_clone
 systrace_part1_sys_clone:
 	fork_like dtrace_systrace_syscall_clone
+# endif
 
 	FUNCTION systrace_part1_sys_execve
 systrace_part1_sys_execve:
 	add	$8,%rsp
 	sub	$0x30,%rsp
-	mov    %rbx,0x28(%rsp)
-	mov    %rbp,0x20(%rsp)
-	mov    %r12,0x18(%rsp)
-	mov    %r13,0x10(%rsp)
-	mov    %r14,0x8(%rsp)
-	mov    %r15,(%rsp)
-	mov old_rsp_37,%r11
-	mov    %gs:(%r11),%r11
-	mov    %r11,0x98(%rsp)
+	mov	%rbx,0x28(%rsp)
+	mov	%rbp,0x20(%rsp)
+	mov	%r12,0x18(%rsp)
+	mov	%r13,0x10(%rsp)
+	mov	%r14,0x8(%rsp)
+	mov	%r15,(%rsp)
+	mov	%gs:OLD_RSP_VAL,%r11
+	mov	%r11,0x98(%rsp)
 
-	movq   $__USER_DS,0xa0(%rsp)
-	movq   $__USER_CS,0x88(%rsp)
+	movq	$__USER_DS,0xa0(%rsp)
+	movq	$__USER_CS,0x88(%rsp)
 
 	movq   $-1,0x58(%rsp)
 	mov    0x30(%rsp),%r11
 	mov    %r11,0x90(%rsp)
 
+	// Linux 2.6.25 or earlier copies regs to %rcx
+	// Linux 3.4+ doesnt need this. Dont think it matters that we corrupt rcx
+//	mov %rsp,%rcx
+
+//call *sys_execve_ptr
 	call dtrace_systrace_syscall_execve
-#if 0
+
+	/***********************************************/
+	/*   Do  the syscall::execve:return here - do  */
+	/*   not   merge   the   functions  together,  */
+	/*   because of the stack sensitivity.	       */
+	/***********************************************/
+	mov $__NR_execve,%rdi
+	mov %rax,%rsi
+	call dtrace_systrace_return
+#if 1
 mov 0x98(%rsp),%r11
-mov old_rsp_37,%r13
-mov %r11,%gs:(%r13)
+mov %r11,%gs:OLD_RSP_VAL
 mov 0x90(%rsp),%r11
 mov %r11,0x30(%rsp)
 #endif
@@ -141,6 +139,7 @@ mov %r11,0x30(%rsp)
 	add    $0x30,%rsp
 	jmpq   *int_ret_from_sys_call_ptr
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 	FUNCTION systrace_part1_sys_fork
 systrace_part1_sys_fork:
 	fork_like dtrace_systrace_syscall_fork
@@ -151,13 +150,7 @@ systrace_part1_sys_vfork:
 
 	FUNCTION systrace_part1_sys_iopl
 systrace_part1_sys_iopl:
-	/***********************************************/
-	/*   Do  an  indirect  fetch  of  the old_rsp  */
-	/*   variable in the %gs segment.	       */
-	/***********************************************/
-	//movq %gs:0xbfc0,%r11
-	movq old_rsp_37,%r11
-	movq  %gs:(%r11) ,%r11
+	movq  %gs:OLD_RSP_VAL,%r11
 
 	mov    %r11,0x70(%rsp)	// RSP
 	movq   $__USER_DS,0x78(%rsp)
@@ -169,31 +162,18 @@ systrace_part1_sys_iopl:
 	call dtrace_systrace_syscall_iopl
 
 	mov    0x70(%rsp),%r11
-
-	/***********************************************/
-	/*   We  need  to  do  an  indirect  fetch of  */
-	/*   old_rsp in the %gs segment.	       */
-	/***********************************************/
-	push %rax
-	movq old_rsp_37,%rax
-	mov    %r11,%gs:(%rax)
-	pop %rax
-
+	mov    %r11,%gs:OLD_RSP_VAL
 	mov    0x68(%rsp),%r11
 	mov    %r11,0x8(%rsp)
 	retq
 
 	FUNCTION systrace_part1_sys_sigaltstack
 systrace_part1_sys_sigaltstack:
-	/***********************************************/
-	/*   Do  an  indirect  fetch  of  the old_rsp  */
-	/*   variable in the %gs segment.	       */
-	/***********************************************/
-	movq old_rsp_37,%rdx
-	movq  %gs:(%rdx),%rdx
+	movq  %gs:OLD_RSP_VAL,%rdx
 
 	call dtrace_systrace_syscall_sigaltstack
 	retq
+#endif
 
 	/***********************************************/
 	/*   rt_sigreturn  is  special  (according to  */
@@ -212,16 +192,19 @@ systrace_part1_sys_rt_sigreturn:
 	mov %r14,0x8(%rsp)
 	mov %r15,(%rsp)
 
-	movq	old_rsp_37,%r11
-	movq 	%gs:(%r11),%r11
+	mov %rsp,%rdi
+
+	movq 	%gs:OLD_RSP_VAL,%r11
 	mov	%r11,0x98(%rsp)
 
 	movq	$__USER_DS,0xa0(%rsp)
 	movq	$__USER_CS,0x88(%rsp)
 	movq	$-1,0x58(%rsp)
+mov 0x30(%rsp),%r11
+mov %r11,0x90(%rsp)
 	call dtrace_systrace_syscall_rt_sigreturn
-//	call *sys_rt_sigreturn_ptr
 	mov %rax,0x50(%rsp)
+	mov (%rsp),%r15
 	mov 8(%rsp),%r14
 	mov 0x10(%rsp),%r13
 	mov 0x18(%rsp),%r12
@@ -231,6 +214,5 @@ systrace_part1_sys_rt_sigreturn:
 
 	jmp *int_ret_from_sys_call_ptr
 
-
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0) */
+# endif /* defined(__amd64) */
 

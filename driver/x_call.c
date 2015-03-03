@@ -72,6 +72,10 @@ extern int ipi_vector;
 /*   Let  us  flip between the new and old code easily. The old code  */
 /*   will  deadlock  because the kernel smp_call_function calls dont  */
 /*   allow for interrupts to be disabled.			      */
+/*   The  XCALL_NEW  doesnt  work  reliably - at least on centos 5.6  */
+/*   (RH5.6) - we seem to lose inter-cpu calls.			      */
+/*   Well, XCALL_ORIG will hang on Centos 5.6, so we need to fix the  */
+/*   unreliability issues.					      */
 /**********************************************************************/
 # define	XCALL_MODE	XCALL_NEW
 # define	XCALL_ORIG	0
@@ -305,7 +309,6 @@ ack_wait(int c, int attempts)
 		/*   we  do  need to give up if its taken far  */
 		/*   too long.				       */
 		/***********************************************/
-//		if (cnt++ == 50 * 1000 * 1000UL) {
 		if (cnt++ == 1 * 1000 * 1000UL) {
 			cnt = 0;
 			cnt_xcall4++;
@@ -318,8 +321,6 @@ ack_wait(int c, int attempts)
 				cpumask_t mask;
 				cpus_clear(mask);
 				cpu_set(c, mask);
-//				nmi_masks[c] = 1;
-//				send_ipi_interrupt(&mask, 2); //NMI_VECTOR);
 			}
 
 			if (1) {
@@ -594,6 +595,8 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 		xen_send_ipi(mask, vector);
 		return;
 	}
+
+	{ /* Avoid compiler warning due to send_PIP_mask defn below. */
 # if defined(__arm__)
 	TODO();
 
@@ -652,6 +655,7 @@ send_ipi_interrupt(cpumask_t *mask, int vector)
 	}
 	x_apic->send_IPI_mask(mask, vector);
 # endif
+	}
 }
 /**********************************************************************/
 /*   Do  NOT  inline  this  function in any way. Doing so may affect  */

@@ -3,12 +3,24 @@ a very good suggestion, so that people dont have to figure out from my
 titbits in the blog (http://www.crtags.blogspot.com), what works and what
 doesnt work.
 
+20150303 PDF
+
+  o Fixes for 3.16 kernels and a rework of systrace code to support
+    new kernel conventions.
+  o The x_call.c/XCALL_NEW mode is in effect; XCALL_ORIG works better
+    but can crash/hang your kernel. XCALL_NEW will not deliver all
+    probes - easily verified with running one of the s/ scripts (eg
+    s/execve) - whether you get notification may depend which cpu the
+    target process runs on. This is not nice at all, and subject
+    of my next investigations why buffer flushing in the kernel is
+    not working.
+
 Working Features
 
   o Works on AS4/64 bit kernels, Ubuntu 8.xx - 14.xx (32-bit and 64-bit).
     Not every kernel version tested, but should build on at least 2.6.12
     onwards.
-  o Tested up to 3.13 kernels, but not proven/tested under later kernels.
+  o Tested up to 3.16 kernels, but not proven/tested under later kernels.
   o FBT Provider: fully functional, except argument types are not presently
     supported. You can access arg0, arg1, ... as values or pointers but
     no type info to support structure accessing. Should be safe to probe

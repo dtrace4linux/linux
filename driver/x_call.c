@@ -525,8 +525,10 @@ if(0)
 	/***********************************************/
 	/*   Now tell the other cpus to do some work.  */
 	/***********************************************/
-	if (cpus_todo)
+	if (cpus_todo) {
+//printk("sending ipi %x,todo=%d\n", *(long *) &mask, cpus_todo);
 		send_ipi_interrupt(&mask, ipi_vector);
+		}
 
 	/***********************************************/
 	/*   Check for ourselves.		       */
@@ -559,7 +561,6 @@ if(0)
 				cpu &= ~(1 << c);
 			}
 		}
-break;
 	}
 //	smp_mb();
 

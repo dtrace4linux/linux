@@ -6934,6 +6934,7 @@ HERE();
 				continue;
 			}
 HERE();
+//printk("store size=%d\n", size);
 
 			switch (size) {
 			case 0:
@@ -11122,6 +11123,7 @@ dtrace_buffer_switch(dtrace_buffer_t *buf)
 	ASSERT(!(buf->dtb_flags & DTRACEBUF_RING));
 
 	cookie = dtrace_interrupt_disable();
+dtrace_printf("buffersw\n");
 	buf->dtb_tomax = xamot;
 	buf->dtb_xamot = tomax;
 	buf->dtb_xamot_drops = buf->dtb_drops;
@@ -16783,7 +16785,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 		} else {
 			buf = &state->dts_aggbuffer[desc.dtbd_cpu];
 		}
-//printk("snap cpu=%d flags=%x\n", desc.dtbd_cpu, buf->dtb_flags);
+printk("snap cpu=%d flags=%x sz=%x\n", desc.dtbd_cpu, buf->dtb_flags, buf->dtb_offset);
 
 		if (buf->dtb_flags & (DTRACEBUF_RING | DTRACEBUF_FILL)) {
 			size_t sz = buf->dtb_offset;
@@ -16852,8 +16854,10 @@ HERE();
 		cached = buf->dtb_tomax;
 		ASSERT(!(buf->dtb_flags & DTRACEBUF_NOSWITCH));
 
+//dtrace_printf("xcall:switch %d\n", desc.dtbd_cpu);
 		dtrace_xcall(desc.dtbd_cpu,
 		    (dtrace_xcall_t)dtrace_buffer_switch, buf);
+//dtrace_printf("xcall:switch-end\n");
 
 		state->dts_errors += buf->dtb_xamot_errors;
 
@@ -17073,7 +17077,7 @@ dtrace_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	mutex_enter(&dtrace_provider_lock);
 	mutex_enter(&dtrace_lock);
 
-printk("dtrace_detach: dtrace_opens=%d helpers=%d\n", dtrace_opens, dtrace_helpers);
+//printk("dtrace_detach: dtrace_opens=%d helpers=%d\n", dtrace_opens, dtrace_helpers);
 # if linux
 	/***********************************************/
 	/*   Once   started,  we  cannot  prevent  an  */

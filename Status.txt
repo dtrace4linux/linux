@@ -3,6 +3,11 @@ a very good suggestion, so that people dont have to figure out from my
 titbits in the blog (http://www.crtags.blogspot.com), what works and what
 doesnt work.
 
+20150306 PDF
+
+  o Took out broken "break" which caused xcall to randomly not work,
+    and hence drop probe collection.
+
 20150303 PDF
 
   o Fixes for 3.16 kernels and a rework of systrace code to support

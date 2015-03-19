@@ -1217,7 +1217,8 @@ dtrace_systrace_syscall_execve(uintptr_t flags, uintptr_t stack_start,
 uintptr_t regs, uintptr_t stack_size, uintptr_t parent_tidptr, 
 uintptr_t child_tidptr)
 {	dtrace_id_t id;
-	struct pt_regs *regs = task_pt_regs(current);
+
+	regs = task_pt_regs(current);
 
 	TRACE_BEFORE(__NR_execve, flags, stack_start, regs, stack_size, parent_tidptr, child_tidptr);
 

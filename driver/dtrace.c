@@ -16785,7 +16785,7 @@ PRINT_CASE(DTRACEIOC_DOFGET);
 		} else {
 			buf = &state->dts_aggbuffer[desc.dtbd_cpu];
 		}
-printk("snap cpu=%d flags=%x sz=%x\n", desc.dtbd_cpu, buf->dtb_flags, buf->dtb_offset);
+//printk("snap cpu=%d flags=%x sz=%x\n", desc.dtbd_cpu, buf->dtb_flags, buf->dtb_offset);
 
 		if (buf->dtb_flags & (DTRACEBUF_RING | DTRACEBUF_FILL)) {
 			size_t sz = buf->dtb_offset;

@@ -24,18 +24,16 @@ cat <<EOF | tee $file
 == check for latest problem reports.
 ==
 == http://crtags.blogspot.com
-== http://www.crisp.demon.co.uk/blog/
+== http://www.crispeditor.co.uk/blog/
 ==
 == Latest downloads available from here:
 ==
-== ftp://crisp.dyndns-server.com/pub/release/website/dtrace
+== ftp://crispeditor.co.uk/pub/release/website/dtrace
 == ======================
 ==
 == Common problems:
 == 1. Run tools/get-deps.pl or get-deps-fedora.sh or get-deps-arch.sh
 ==    to ensure everything is needed or a build.
-== 2. Currently (Nov 2012) issues on Xen guests (Amazon EC2). Working
-==    to fix.
 (generating a make run - this may take a few moments...)
 EOF
 
@@ -61,5 +59,6 @@ grep model /proc/cpuinfo | sort -u
 echo =========================
 make all
 ) >$file 2>&1
+echo "File: $file - send to Crisp.Editor@gmail.com"
 touch .dtrace.nobug
 exit 1

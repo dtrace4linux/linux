@@ -16,7 +16,7 @@ download()
    if [ ! -e ${DISTRIBUTION} ]; then
        echo "\n==== Downloading DTrace for Linux ====\n"
        curl -O
-ftp://crisp.dyndns-server.com/pub/release/website/dtrace/${DISTRIBUTION}.tar.bz2
+ftp://crispeditor.co.uk/pub/release/website/dtrace/${DISTRIBUTION}.tar.bz2
        tar jxvf ${DISTRIBUTION}.tar.bz2
    fi
 }

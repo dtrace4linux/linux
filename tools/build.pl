@@ -92,7 +92,9 @@ sub main
 	#   Some precursors to check us out.	      #
 	###############################################
 	spawn("tools/check_dep.pl");
-	spawn("tools/mkport.pl");
+	if (spawn("tools/mkport.pl")) {
+		die "FATAL ERROR: build.pl aborting\n";
+	}
 	spawn("tools/libgcc.pl");
 
 	if ($uname_m =~ /x86.*64/) {
@@ -174,8 +176,14 @@ sub usage
 build.pl: dtrace build rule
 Usage: build.pl \$BUILD_DIR \$UNAME_M
 
+  Script to invoke the build. We use 'make' to run build.pl where
+  all the logic to ensure environment variables, flags, and autodetection
+  takes place.
+
 Switches:
 
+  -help             This text.
+  -i                Run 'make -i' so we can carry on even with errors.
 EOF
 
 	exit(1);

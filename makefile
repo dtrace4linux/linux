@@ -64,7 +64,9 @@ beta:
 	tools/mkrelease.pl -nocopy $$REL
 
 all:
-	BUILD_DIR=$(BUILD_DIR) tools/build.pl $(BUILD_DIR) $(UNAME_M)
+	BUILD_DIR=$(BUILD_DIR) \
+	tools/mkdriver.pl driver-kmem ; \
+	tools/build.pl $(BUILD_DIR) $(UNAME_M)
 cmds:
 	BUILD_DIR=$(BUILD_DIR) tools/build.pl -make do_cmds $(BUILD_DIR) $(UNAME_M)
 

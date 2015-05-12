@@ -137,9 +137,16 @@ sub main
 	print "old_rsp=$old_rsp\n";
 	if ($old_rsp) {
 		$inc .= "# define OLD_RSP_VAL 0x$old_rsp\n";
+	} else {
+		print STDERR <<EOF;
+We cannot find old_rsp or per_cpu__old_rsp in your kernel.
+Additionally, it looks like /proc/kcore is broken on your kernel,
+meaning we cannot poke to find this variable, which helps identify
+kernel thread offsets.
+EOF
+		die "FATAL ERROR: cannot find old_rsp\n";
 	}
-else {die "cannot find old_rsp\n";}
-	
+
 	###############################################
 	#   For taskq.c				      #
 	###############################################

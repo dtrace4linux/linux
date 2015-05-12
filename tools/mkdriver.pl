@@ -35,7 +35,7 @@ sub main
 	#   really  need  this  since  all  volatile  #
 	#   stuff is in the build.* dirs anyhow.      #
 	###############################################
-	if ($cmd eq 'clean') {
+	if ($cmd && $cmd eq 'clean') {
 		if (!defined($ENV{BUILD_DIR})) {
 			return system("rm -rf build*");
 		}

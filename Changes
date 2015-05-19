@@ -1,3 +1,9 @@
+Tue May 19 21:20:33 2015  fox
+
+     865* driver/prov_proc.c
+         Fix for 3.18/19 kernels (not sure I got the change right - 3.16
+	 is not affected, but 3.19 - Ubuntu 15.04 - is).
+        
 Tue Mar  3 22:33:03 2015  fox
 
      864* README

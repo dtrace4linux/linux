@@ -7,7 +7,7 @@
 /*--------------------------------------------------------------------*/
 /*  Description:  proc::: provider callbacks                          */
 /*--------------------------------------------------------------------*/
-/*  $Header: Last edited: 15-Feb-2015 1.2 $ 			      */
+/*  $Header: Last edited: 19-May-2015 1.3 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -42,8 +42,13 @@ psinfo_arg(int n, struct pt_regs *regs)
 	ps->pr_egid = current->egid;
 #endif
 	ps->pr_addr = current;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+	ps->pr_start.tv_sec = current->start_time / (1000 * 1000 * 1000);
+	ps->pr_start.tv_nsec = current->start_time % (1000 * 1000 * 1000);
+#else
 	ps->pr_start = current->start_time;
-	
+#endif	
 	return (uintptr_t) ps;
 }
 

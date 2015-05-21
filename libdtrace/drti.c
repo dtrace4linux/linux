@@ -198,7 +198,19 @@ dtrace_dof_init(void)
 #endif
 
 	dh.dofhp_dof = (uintptr_t)dof;
+#if defined(linux)
+	/***********************************************/
+	/*   Avoid  causing  a core dump, as reported  */
+	/*   by Martin Englund when compiling Ruby.    */
+	/***********************************************/
+	if (lmp == NULL) {
+		dprintf1(1, "drti: lmp is null - giving up");
+		return;
+	}
 	dh.dofhp_addr = elf->e_type == ET_DYN ? lmp->l_addr : 0;
+#else
+	dh.dofhp_addr = elf->e_type == ET_DYN ? lmp->l_addr : 0;
+#endif
 
 	if (lmid == 0) {
 		(void) snprintf(dh.dofhp_mod, sizeof (dh.dofhp_mod),

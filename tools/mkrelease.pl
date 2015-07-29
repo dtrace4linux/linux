@@ -111,7 +111,7 @@ sub main
 	rename("dtrace-$rel", "dtrace");
 
 	if (!$opts{nocopy}) {
-		spawn("rcp /tmp/dtrace-$rel.tar.bz2 minny:release/website/dtrace");
+		spawn("rcp /tmp/dtrace-$rel.tar.bz2 crispgw:release/website/dtrace");
 	}
 	spawn("ls -l /tmp/dtrace-$rel.tar.bz2");
 	spawn("mv /tmp/dtrace-$rel.tar.bz2 $ENV{HOME}/release/dtrace");

@@ -40,6 +40,7 @@ You  can  pay  by  visiting  the  link  below  and  clicking on
 "Donate", or use this reference for donations:
 
    paul.d.fox@gmail.com
+   [Paypal](https://www.paypal.com/cgi-bin/webscr?business=paul.d.fox@gmail.com&cmd=_xclick&currency_code=GBP&amount=40&item_name=DTrace)
 
 Licensing
 =========

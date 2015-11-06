@@ -304,8 +304,8 @@ static int64_t (*sys32_sigreturn_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t
 static int64_t (*sys_vfork_ptr)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
 char *int_ret_from_sys_call_ptr;
-static char *ptregscall_common_ptr;
-static char *ia32_ptregs_common_ptr;
+char *ptregscall_common_ptr;
+char *ia32_ptregs_common_ptr;
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 # define HAVE_SAVE_REST 1
 static char *save_rest_ptr;

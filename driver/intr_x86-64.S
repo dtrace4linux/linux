@@ -53,7 +53,7 @@
 
 #include <linux/linkage.h>
 #include <asm/segment.h>
-#include <asm/calling.h>
+/*#include <asm/calling.h>*/
 #include <asm/asm-offsets.h>
 #ifdef CONFIG_PARAVIRT
 #	include <asm/paravirt.h>

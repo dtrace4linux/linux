@@ -20,7 +20,7 @@
 #include <asm/segment.h>
 #include <asm/cache.h>
 #include <asm/errno.h>
-#include <asm/calling.h>
+/*#include <asm/calling.h>*/
 #include <asm/asm-offsets.h>
 #include <asm/unistd.h>
 #include <asm/thread_info.h>

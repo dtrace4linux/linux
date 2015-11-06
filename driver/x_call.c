@@ -50,6 +50,11 @@ typedef struct apic_ops apic_t;
 typedef struct apic apic_t;
 #endif
 
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+# define	cpus_clear(x) cpumask_clear(&(x))
+# define	cpu_set(c, mask)	cpumask_set_cpu(c, &(mask))
+#endif
+
 apic_t *hello_apic; /* Define this because apic.h is broken when facing a */
 			/* non-GPL driver. We get an undefined, so define it. */
 			/* We use dynamic lookup instead.		*/

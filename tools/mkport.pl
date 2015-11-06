@@ -134,6 +134,13 @@ sub main
 	###############################################
 	my $old_rsp = `tools/sudo $ENV{BUILD_DIR}/kcore`;
 	chomp($old_rsp);
+	###############################################
+	#   4.2   and  above  kernels  renamed  this  #
+	#   symbol.				      #
+	###############################################
+	if (!$old_rsp) {
+		$old_rsp = get_symbol("rsp_scratch");
+	}
 	print "old_rsp=$old_rsp\n";
 	if ($old_rsp) {
 		$inc .= "# define OLD_RSP_VAL 0x$old_rsp\n";
@@ -453,6 +460,14 @@ sub find_dump_trace_args
 		return "# define FUNC_DUMP_TRACE_ARGS " . (length($str) + 1) . "\n";
 	}
 	return "";
+}
+sub get_symbol
+{	my $name = shift;
+
+	my $sym = `tools/sudo grep -w $name /proc/kallsyms`;
+	return if !$sym;
+	$sym =~ s/ .*$//;
+	return $sym;
 }
 ######################################################################
 #   Grep a file to see if something is where we want it.	     #

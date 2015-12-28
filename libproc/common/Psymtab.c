@@ -371,6 +371,7 @@ map_iter(const rd_loadobj_t *lop, void *cd)
 
 #if defined(linux)
 	fptr->file_lname = strdup((char *) lop->rl_nameaddr);
+	fptr->file_lbase = basename(fptr->file_lname);
 /*printf("filename=%s\n", fptr->file_lname);*/
 #else
 	if (Pread_string(P, buf, sizeof (buf), lop->rl_nameaddr) > 0) {

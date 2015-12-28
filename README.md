@@ -1,6 +1,6 @@
 Linux port of DTrace
 
-July 2015
+Dec 2015
 Paul D. Fox
 paul.d.fox@gmail.com
 http://www.twitter.com/crispeditor
@@ -94,7 +94,7 @@ list may be incomplete depending on the version of your kernel/distro.
 	$ make install
 	$ make load           (need to be root or have sudo access)
 
-If the libdwarf package installed on the system is to old
+If the libdwarf package installed on the system is too old
 it still compiles without any problem, but you will get
 runtime errors from the io.d and/or sched.d files due to
 undefined kernel structure definitions.

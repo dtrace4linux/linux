@@ -11123,7 +11123,7 @@ dtrace_buffer_switch(dtrace_buffer_t *buf)
 	ASSERT(!(buf->dtb_flags & DTRACEBUF_RING));
 
 	cookie = dtrace_interrupt_disable();
-dtrace_printf("buffersw\n");
+//dtrace_printf("buffersw\n");
 	buf->dtb_tomax = xamot;
 	buf->dtb_xamot = tomax;
 	buf->dtb_xamot_drops = buf->dtb_drops;

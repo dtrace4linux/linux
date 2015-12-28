@@ -1,5 +1,21 @@
 Mon Dec 28 19:47:46 2015  fox
 
+     867* driver/dtrace.c
+          driver/dtrace_linux.c
+          driver/fasttrap_isa.c
+          Fixes for fasttrap (pid provider):
+
+	  dtrace -n pidXXXX:::entry
+
+	  will work but *WILL* cause any fork/cloned child to terminate
+	  with a SIGTRAP event because we dont latch onto the children
+	  and remove the embedded breakpoints. (Needs more R&D to determine
+	  how to do this in Linux).
+
+	  This should work, but if it fails, send me a dmesg output -
+	  the patching of the page tables may/will fail when allocating
+	  a private buffer - but this may depend on VM, Xen or real HW.
+
      866* README.md
           driver/intr_x86-64.S
           driver/systrace.c

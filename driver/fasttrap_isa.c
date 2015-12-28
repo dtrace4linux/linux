@@ -1002,6 +1002,7 @@ fasttrap_do_seg(fasttrap_tracepoint_t *tp, struct regs *rp, uintptr_t *addr)
 /**********************************************************************/
 /*   Temporary hack.						      */
 /**********************************************************************/
+/*
 #undef fasttrap_copyout
 int z = 0;
 int fff(void *a, void *b, int c, int line)
@@ -1013,6 +1014,7 @@ int fff(void *a, void *b, int c, int line)
 	return 0;
 }
 #define	fasttrap_copyout(a,b, c) fff(a, b, c, __LINE__)
+*/
 
 int
 fasttrap_pid_probe(struct regs *rp)
@@ -1601,6 +1603,10 @@ PRINT_CASE(FASTTRAP_T_COMMON);
 				up_write(&current->mm->mmap_sem);
 			}
 printk("private-alloc %p\n", p->p_private_page);
+			/***********************************************/
+			/*   Bad  news  if  we  cannot  allocate  the  */
+			/*   private page.			       */
+			/***********************************************/
 			addr = (uintptr_t) p->p_private_page;
 		}
 

@@ -1472,7 +1472,13 @@ static pte_t *(*lookup_address)(void *, int *);
 	}
 
         addr = (unsigned long) addr & ~(PAGESIZE-1);
-        kpte = lookup_address((void *) addr, &level);
+	/***********************************************/
+	/*   Avoid panic if we can help it.	       */
+	/***********************************************/
+        if ((kpte = lookup_address((void *) addr, &level)) == NULL) {
+		printk("mem_set_perms: %p - not found\n", addr);
+		return 0;
+		}
         old_pte = *kpte;
         new_prot = pte_pgprot(old_pte);
         pgprot_val(new_prot) |= _PAGE_RW;

@@ -157,7 +157,8 @@ EOF
 	###############################################
 	#   For taskq.c				      #
 	###############################################
-	if (have("system_unbound_workq", $kallsyms)) {
+	if (have("system_unbound_workq", $kallsyms) ||
+	    have("system_unbound_wq", $kallsyms)) {
 		$inc .= "# define HAVE_WORK_CPU_UNBOUND 1\n";
 	} else {
 		$inc .= "# define HAVE_WORK_CPU_UNBOUND 0\n";

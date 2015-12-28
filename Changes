@@ -1,3 +1,18 @@
+Mon Dec 28 19:47:46 2015  fox
+
+     866* README.md
+          driver/intr_x86-64.S
+          driver/systrace.c
+          driver/systrace_asm.S
+          driver/x_call.c
+          libdtrace/drti.c
+          libproc/common/Psymtab.c
+          tools/load.pl
+          tools/mkport.pl
+          tools/mkrelease.pl
+          Fix for system_unbound_workq vs system_unbound_wq.
+	  Fix silly in Psymtab.c leading to SIGSEGV.
+
 Tue May 19 21:20:33 2015  fox
 
      865* driver/prov_proc.c

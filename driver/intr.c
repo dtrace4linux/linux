@@ -7,7 +7,7 @@
 /*   								      */
 /*   License: CDDL						      */
 /*   								      */
-/*   $Header: Last edited: 12-Oct-2013 1.18 $ 			      */
+/*   $Header: Last edited: 11-Jan-2016 1.19 $ 			      */
 /**********************************************************************/
 
 #include <linux/mm.h>
@@ -48,7 +48,7 @@
 #define store_idt(ptr) asm volatile("sidt %0":"=m" (*ptr))
 #endif
 
-#if !defined(store_gdt) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if !defined(store_gdt) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	/***********************************************/
 	/*   Xen  removed  this - oh, so nice of you.  */
 	/*   Not! We want the GDT to debug dtrace, so  */

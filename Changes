@@ -1,3 +1,8 @@
+Mon Jan 11 21:17:16 2016  fox
+
+     868* driver/intr.c
+        Handle 3.10 (centos 7) kernels for store_gdt.
+
 Mon Dec 28 19:47:46 2015  fox
 
      867* driver/dtrace.c

@@ -191,31 +191,31 @@ a kernel build environment is available.
 INSTALLATION
 ============
 
-Run 'make' with no arguments to see the current options. You
-may need to run one of the tools/get-deps scripts for your OS
+Run `make` with no arguments to see the current options. You
+may need to run one of the `tools/get-deps` scripts for your OS
 flavor to ensure you have the tools and kernel build
 environment for your kernel.
 
-make all
-	to compile the drivers and user space commands. Check the file
-	Packages, for hints on what you need (not much, but libelf, kernel
-	source, flex/yacc -- bison will do).
+    make all
+        to compile the drivers and user space commands. Check the file
+        Packages, for hints on what you need (not much, but libelf, kernel
+        source, flex/yacc -- bison will do).
 
-make install
-	Copy dtrace binary and driver to correct install location.
+    make install
+        Copy dtrace binary and driver to correct install location.
 
-make load
-	To load the drivers, and then you can play with cmd/dtrace/dtrace.
+    make load
+        To load the drivers, and then you can play with cmd/dtrace/dtrace.
 
-make unl
-	to unload the drivers.
+    make unl
+        to unload the drivers.
 
-make test
-	To run the userland cmd/dtrace regression test
+    make test
+        To run the userland cmd/dtrace regression test
 
 To build the userland (command and object file etc) and the
 kernel module for different architectures, set the environment
-variable BUILD_ARCH appropriately and then use the make targets
+variable `BUILD_ARCH` appropriately and then use the make targets
 separately.
 
 This example is for building on a system with a 64-bit kernel,

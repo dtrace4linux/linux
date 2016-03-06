@@ -9,7 +9,7 @@ http://www.crispeditor.co.uk
 Blog - latest news and stuff about the dtrace project:
 
    http://crtags.blogspot.com/
-   http://www.crispeditorco.uk/blog/
+   http://www.crispeditor.co.uk/blog/
 
 Download dtrace tarballs for linux here:
 

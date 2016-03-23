@@ -42,6 +42,9 @@
 void *
 ctf_data_alloc(size_t size)
 {
+# if !defined(__GFP_WAIT)
+#	define	__GFP_WAIT __GFP_RECLAIM
+# endif
 	void *buf = kmalloc(size, GFP_KERNEL & ~__GFP_WAIT);
 
 	if (buf == NULL)

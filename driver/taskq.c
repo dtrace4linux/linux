@@ -272,6 +272,9 @@ taskq_dispatch2(taskq_t *tq, task_func_t func, void *arg, uint_t flags, unsigned
 	if (!taskq_enabled)
 		return 0;
 
+# if !defined(__GFP_WAIT)
+#	define	__GFP_WAIT __GFP_RECLAIM
+# endif
 	work = (my_work_t *)kmalloc(sizeof(my_work_t), GFP_KERNEL & ~__GFP_WAIT);
 	if (work == NULL) {
 		printk("taskq_dispatch: couldnt alloc work buffer\n");

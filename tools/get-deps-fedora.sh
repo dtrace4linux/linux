@@ -14,6 +14,7 @@ yum install \
 	kernel-devel \
 	libdwarf \
 	libdwarf-devel \
+	libdwarf-static \
 	libgcc.i686 \
 	make \
 	perl \

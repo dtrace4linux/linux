@@ -361,7 +361,11 @@ void	dwarf_begin();
 int main(int argc, char **argv)
 {
 	dwarf_begin();
+<<<<<<< HEAD
 	return 0;
+=======
+	dwarf_loclist();
+>>>>>>> 8ee119b297aa0b30d99ac5817b99d342bf7edab5
 }
 EOF
 	$fh->close();

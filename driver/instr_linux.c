@@ -292,8 +292,13 @@ instr_provide_module(void *arg, struct modctl *ctl)
 {	int	i;
 	struct module *mp = (struct module *) ctl;
 	char *modname = mp->name;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+	char	*str = mp->kallsyms->strtab;
+#else
 	char	*str = mp->strtab;
+#endif
 	char	*name;
+	unsigned nsyms;
     	par_module_t *pmp;
 
 	int	init;
@@ -312,14 +317,23 @@ instr_provide_module(void *arg, struct modctl *ctl)
 		return;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+	nsyms = mp->kallsyms->num_symtab;
+#else
+	nsyms = mp->num_symtab;
+#endif
 	if (dtrace_here) 
-		printk("%s(%d):modname=%s num_symtab=%u\n", __FILE__, __LINE__, modname, (unsigned) mp->num_symtab);
+		printk("%s(%d):modname=%s num_symtab=%u\n", __FILE__, __LINE__, modname, nsyms);
 	if (strcmp(modname, "dtracedrv") == 0)
 		return;
 
-	for (i = 1; i < mp->num_symtab; i++) {
+	for (i = 1; i < nsyms; i++) {
 		uint8_t *instr, *limit;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+		Elf_Sym *sym = (Elf_Sym *) &mp->kallsyms->symtab[i];
+#else
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
+#endif
 int dtrace_here = 0;
 if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 

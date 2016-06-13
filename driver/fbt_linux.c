@@ -388,10 +388,16 @@ fbt_provide_module(void *arg, struct modctl *ctl)
 {	int	i;
 	struct module *mp = (struct module *) ctl;
 	char *modname = mp->name;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+	char	*str = mp->kallsyms->strtab;
+#else
 	char	*str = mp->strtab;
+#endif
 	char	*name;
     	par_module_t *pmp;
 	int	ret;
+	unsigned nsyms;
 
 # if 0
 	struct module *mp = ctl->mod_mp;
@@ -459,12 +465,22 @@ TODO();
 		return;
 	}
 
-	if (dtrace_here) 
-		printk("%s(%d):modname=%s num_symtab=%u\n", dtrace_basename(__FILE__), __LINE__, modname, (unsigned) mp->num_symtab);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+	nsyms = mp->kallsyms->num_symtab;
+#else
+	nsyms = mp->num_symtab;
+#endif
 
-	for (i = 1; i < mp->num_symtab; i++) {
+	if (dtrace_here) 
+		printk("%s(%d):modname=%s num_symtab=%u\n", dtrace_basename(__FILE__), __LINE__, modname, nsyms);
+
+	for (i = 1; i < nsyms; i++) {
 		uint8_t *instr, *limit;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+		Elf_Sym *sym = (Elf_Sym *) &mp->kallsyms->symtab[i];
+#else
 		Elf_Sym *sym = (Elf_Sym *) &mp->symtab[i];
+#endif
 int dtrace_here = 0;
 if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 
@@ -577,11 +593,16 @@ if (strcmp(modname, "dummy") == 0) dtrace_here = 1;
 		/*   if  that  page is now used by some other  */
 		/*   driver.				       */
 		/***********************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+		if (within_module_init(instr, mp))
+			continue;
+#else
 		if (mp->module_init && mp->init_size &&
 		    instr >= (uint8_t *) mp->module_init && 
 		    instr < (uint8_t *) mp->module_init + mp->init_size) {
 		    	continue;
 		}
+#endif
 
 		/***********************************************/
 		/*   We  do have syms that appear to point to  */

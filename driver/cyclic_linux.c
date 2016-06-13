@@ -111,6 +111,9 @@ static int (*fn_hrtimer_init)(struct hrtimer *timer, clockid_t which_clock,
 static int (*fn_hrtimer_cancel)(struct hrtimer *);
 static int (*fn_hrtimer_start)(struct hrtimer *timer, ktime_t tim,
                          const enum hrtimer_mode mode);
+static int (*fn_hrtimer_start_range_ns)(struct hrtimer *timer, ktime_t tim,
+			unsigned long delta_ns,
+                         const enum hrtimer_mode mode);
 static u64 (*fn_hrtimer_forward)(struct hrtimer *timer, ktime_t now, ktime_t interval);
 
 #define	TMR_ALIVE       1
@@ -144,10 +147,10 @@ init_cyclic()
 	fn_hrtimer_cancel = get_proc_addr("hrtimer_cancel");
 	fn_hrtimer_init   = get_proc_addr("hrtimer_init");
 	fn_hrtimer_start  = get_proc_addr("hrtimer_start");
-	fn_hrtimer_start  = get_proc_addr("hrtimer_start");
+	fn_hrtimer_start_range_ns  = get_proc_addr("hrtimer_start_range_ns");
 	fn_hrtimer_forward = get_proc_addr("hrtimer_forward");
 
-	if (fn_hrtimer_start == NULL) {
+	if (fn_hrtimer_start == NULL && fn_hrtimer_start_range_ns == NULL) {
 		printk(KERN_WARNING "dtracedrv: Cannot locate hrtimer in this kernel\n");
 		return FALSE;
 	}
@@ -226,7 +229,10 @@ static void cyclic_tasklet_func(unsigned long arg)
 #else
 		ptr->expires = ktime_add_ns(ptr->expires, kt.tv64);
 #endif
-		fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+		if (fn_hrtimer_start)
+			fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+		else if (fn_hrtimer_start_range_ns)
+			fn_hrtimer_start(&cp->c_htp, kt, 0, HRTIMER_MODE_REL);
 # endif
 		cp->c_state = TMR_ALIVE;
 	}
@@ -331,7 +337,10 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 /*	cp->c_htp.cb_mode = HRTIMER_CB_SOFTIRQ;*/
 	cp->c_htp.function = be_callback;
 
-	fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+	if (fn_hrtimer_start)
+		fn_hrtimer_start(&cp->c_htp, kt, HRTIMER_MODE_REL);
+	else
+		fn_hrtimer_start_range_ns(&cp->c_htp, kt, 0, HRTIMER_MODE_REL);
 
 	return (cyclic_id_t) cp;
 }

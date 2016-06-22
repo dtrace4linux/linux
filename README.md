@@ -34,7 +34,7 @@ PayPal
 ======
 If  you want to make a donation for this software, feel free to
 do so. Nothing is asked of you - it is genuinely free software,
-but it can help guage interest and appreciation if you do.
+but it can help gauge interest and appreciation if you do.
 
 You  can  pay  by  visiting  the  link  below  and  clicking on
 "Donate", or use this reference for donations:

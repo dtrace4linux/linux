@@ -3,6 +3,10 @@ a very good suggestion, so that people dont have to figure out from my
 titbits in the blog (http://www.crtags.blogspot.com), what works and what
 doesnt work.
 
+20160818 PDF
+
+ o Verified it works on Ubuntu 16.04 - 4.4 kernel.
+
 20150306 PDF
 
   o Took out broken "break" which caused xcall to randomly not work,
@@ -22,7 +26,7 @@ doesnt work.
 
 Working Features
 
-  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 14.xx (32-bit and 64-bit).
+  o Works on AS4/64 bit kernels, Ubuntu 8.xx - 16.xx (32-bit and 64-bit).
     Not every kernel version tested, but should build on at least 2.6.12
     onwards.
   o Tested up to 3.16 kernels, but not proven/tested under later kernels.

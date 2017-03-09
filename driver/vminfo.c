@@ -109,18 +109,30 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(PGDEACTIVATE), "vminfo:::pgdeactivate");
 	sdt_add_locator(vm_event_addr(PGFAULT), "vminfo:::pgfault");
 	sdt_add_locator(vm_event_addr(PGMAJFAULT), "vminfo:::pgmajfault");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	sdt_add_locator(vm_event_addr(PGREFILL), "vminfo:::pgrefill");
+#else
 	sdt_add_locator(vm_event_addr(PGREFILL_NORMAL), "vminfo:::pgrefill");
 	sdt_add_locator(vm_event_addr(PGREFILL_MOVABLE), "vminfo:::pgrefill");
+#endif
 #  if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 	sdt_add_locator(vm_event_addr(PGSTEAL_NORMAL), "vminfo:::pgsteal");
 	sdt_add_locator(vm_event_addr(PGSTEAL_MOVABLE), "vminfo:::pgsteal");
 	sdt_add_locator(vm_event_addr(KSWAPD_STEAL), "vminfo:::kswapd_steal");
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	sdt_add_locator(vm_event_addr(PGSCAN_KSWAPD), "vminfo:::pgscan_kswapd");
+#else
 	sdt_add_locator(vm_event_addr(PGSCAN_KSWAPD_NORMAL), "vminfo:::pgscan_kswapd");
 	sdt_add_locator(vm_event_addr(PGSCAN_KSWAPD_MOVABLE), "vminfo:::pgscan_kswapd");
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	sdt_add_locator(vm_event_addr(PGSCAN_DIRECT), "vminfo:::pgscan_direct");
+#else
 	sdt_add_locator(vm_event_addr(PGSCAN_DIRECT_NORMAL), "vminfo:::pgscan_direct");
 	sdt_add_locator(vm_event_addr(PGSCAN_DIRECT_MOVABLE), "vminfo:::pgscan_direct");
+#endif
 
 #ifdef CONFIG_NUMA
 	sdt_add_locator(vm_event_addr(PGSCAN_ZONE_RECLAIM_FAILED), "vminfo:::pgscan_zone_reclaim_failed");
@@ -138,8 +150,13 @@ void vminfo_init(void)
 	/*sdt_add_locator(vm_event_addr(KSWAPD_SKIP_CONGESTION_WAIT), "vminfo:::kswapd_skip_congestion_wait");*/
 #endif
 	sdt_add_locator(vm_event_addr(PAGEOUTRUN), "vminfo:::pageoutrun");
-	sdt_add_locator(vm_event_addr(ALLOCSTALL), "vminfo:::allocstall");
 	sdt_add_locator(vm_event_addr(PGROTATED), "vminfo:::pgrotated");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	sdt_add_locator(vm_event_addr(ALLOCSTALL_NORMAL), "vminfo:::allocstall");
+	sdt_add_locator(vm_event_addr(ALLOCSTALL_MOVABLE), "vminfo:::allocstall");
+#else
+	sdt_add_locator(vm_event_addr(ALLOCSTALL), "vminfo:::allocstall");
+#endif
 
 #ifdef CONFIG_COMPACTION
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
@@ -173,7 +190,11 @@ void vminfo_init(void)
 	sdt_add_locator(vm_event_addr(THP_FAULT_FALLBACK), "vminfo:::thp_fault_fallback");
 	sdt_add_locator(vm_event_addr(THP_COLLAPSE_ALLOC), "vminfo:::thp_collapse_alloc");
 	sdt_add_locator(vm_event_addr(THP_COLLAPSE_ALLOC_FAILED), "vminfo:::thp_collapse_alloc_failed");
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	sdt_add_locator(vm_event_addr(THP_SPLIT_PAGE), "vminfo:::thp_split");
+    #else
 	sdt_add_locator(vm_event_addr(THP_SPLIT), "vminfo:::thp_split");
+    #endif
 # endif
 	dtrace_parse_kernel(PARSE_GS_INC, vminfo_instr_callback, 0);
 # endif /* if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) */

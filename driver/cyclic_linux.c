@@ -190,7 +190,11 @@ static void cyclic_tasklet_func(unsigned long arg)
 			break;
 
 		ptr = &cp->c_htp;
-		kt.tv64 = cp->c_time.cyt_interval;
+		#if(LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
+			kt.tv64 = cp->c_time.cyt_interval;
+		#else
+			kt = cp->c_time.cyt_interval;
+		#endif
 		/***********************************************/
 		/*   Invoke the callback.		       */
 		/***********************************************/
@@ -326,11 +330,15 @@ cyclic_add(cyc_handler_t *hdrl, cyc_time_t *t)
 	}
 
 	cnt_timer_add++;
-	kt.tv64 = t->cyt_interval;
+	#if(LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
+		kt.tv64 = t->cyt_interval;
+	#else
+		kt = t->cyt_interval;
+	#endif
 	cp->c_hdlr = *hdrl;
 	cp->c_time = *t;
-	cp->c_sec = kt.tv64 / (1000 * 1000 * 1000);
-	cp->c_nsec = kt.tv64 % (1000 * 1000 * 1000);
+	cp->c_sec = ktime_to_ns(kt) / (1000 * 1000 * 1000);
+	cp->c_nsec = ktime_to_ns(kt) % (1000 * 1000 * 1000);
 	cp->c_state = TMR_ALIVE;
 
 	fn_hrtimer_init(&cp->c_htp, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -471,4 +479,3 @@ cyclic_remove(cyclic_id_t id)
 	}
 }
 # endif
-

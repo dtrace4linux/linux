@@ -762,7 +762,7 @@ dtrace_linux_init(void)
 	}
 # if defined(__arm__)
 	ktime_get_ptr = (ktime_t (*)(void)) get_proc_addr("ktime_get");
-	# define rdtscll(t) t = ktime_get_ptr().tv64
+	# define rdtscll(t) t = ktime_to_ns(ktime_get_ptr())
 	# define __flush_tlb_all() local_flush_tlb_all()
 	# define _PAGE_NX 0
 	# define _PAGE_RW 0
@@ -3246,4 +3246,3 @@ static void __exit dtracedrv_exit(void)
 }
 module_init(dtracedrv_init);
 module_exit(dtracedrv_exit);
-

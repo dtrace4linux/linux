@@ -27,6 +27,7 @@
 
 
 #include <string.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <errno.h>
@@ -260,7 +261,7 @@ rd_errstr(int rderr)
 rd_err_e
 rd_event_addr(rd_agent_t *rdap, rd_event_e event, rd_notify_t *notify)
 {
-	printf("proc-stub:%s addr=%p\n", __func__, rdap->rda_addr);
+	printf("proc-stub:%s addr=%p\n", __func__, (void *) rdap->rda_addr);
 	notify->type = RD_NOTIFY_BPT;
         notify->u.bptaddr = rdap->rda_addr;
 

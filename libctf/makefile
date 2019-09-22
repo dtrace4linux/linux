@@ -5,6 +5,7 @@ CPPFLAGS += -I../common -I../common/ctf -I../uts/common/ \
 	-I../linux -DCTF_OLD_VERSIONS $(PTR32)
 CPPFLAGS += -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64
 BINDIR = ../$(BUILD_DIR)
+ARFLAGS=Urv 
 
 COMMON_OBJS = \
 	ctf_create.o \
@@ -36,47 +37,47 @@ $(BINDIR)/libctf.a: \
 
 $(BINDIR)/libctf.a(ctf_create.o): $(COMMON)/ctf_create.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_create.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_create.o
 	rm -f ctf_create.o
 
 $(BINDIR)/libctf.a(ctf_error.o): $(COMMON)/ctf_error.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_error.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_error.o
 	rm -f ctf_error.o
 
 $(BINDIR)/libctf.a(ctf_hash.o): $(COMMON)/ctf_hash.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_hash.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_hash.o
 	rm -f ctf_hash.o
 
 $(BINDIR)/libctf.a(ctf_labels.o): $(COMMON)/ctf_labels.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_labels.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_labels.o
 	rm -f ctf_labels.o
 
 $(BINDIR)/libctf.a(ctf_lookup.o): $(COMMON)/ctf_lookup.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_lookup.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_lookup.o
 	rm -f ctf_lookup.o
 
 $(BINDIR)/libctf.a(ctf_open.o): $(COMMON)/ctf_open.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_open.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_open.o
 	rm -f ctf_open.o
 
 $(BINDIR)/libctf.a(ctf_types.o): $(COMMON)/ctf_types.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_types.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_types.o
 	rm -f ctf_types.o
 
 $(BINDIR)/libctf.a(uncompress.o): uncompress.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a uncompress.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a uncompress.o
 	rm -f uncompress.o
 
 $(BINDIR)/libctf.a(ctf_util.o): $(COMMON)/ctf_util.c
 	$(CC) $(CPPFLAGS) -c $<
-	$(AR) rv $(BINDIR)/libctf.a ctf_util.o
+	$(AR) $(ARFLAGS) $(BINDIR)/libctf.a ctf_util.o
 	rm -f ctf_util.o
 
 clean:

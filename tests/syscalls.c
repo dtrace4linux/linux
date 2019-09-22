@@ -5,11 +5,25 @@
 /*   problems.							      */
 /**********************************************************************/
 # include <stdio.h>
+# include <unistd.h>
 # include <fcntl.h>
 # include <stdlib.h>
 # include <string.h>
 # include <signal.h>
 # include <errno.h>
+# include <unistd.h>
+# include <sys/types.h>
+# include <sys/stat.h>
+# include <sys/time.h>
+# include <sys/mman.h>
+# include <sys/ipc.h>
+# include <sys/sem.h>
+# include <sys/shm.h>
+# include <poll.h>
+# include <sys/uio.h>
+# include <sys/fsuid.h>
+# include <sched.h>
+# include <sys/file.h>
 /*# include <sys/vm86.h>*/
 
 static int cnt;
@@ -108,8 +122,8 @@ int main(int argc, char **argv)
 	x += getuid();
 	x += getgid();
 	x += setsid();
-	x += seteuid();
-	x += setegid();
+	x += seteuid(0);
+	x += setegid(0);
 	lseek(0, 0, -1);
 	kill(0, 0);
 	signal(99, 0);
@@ -118,36 +132,36 @@ int main(int argc, char **argv)
 //	*(int *) 0 = 0;
 	pipe(0);
 	munmap(0, 0);
-	mincore(0, 0);
-	shmget(0);
-	shmat(0);
+	mincore(0, 0, 0);
+	shmget(0, 0, 0);
+	shmat(0, 0, 0);
 
 	line = __LINE__;
-	poll(-1, 0, 0);
+	poll((void *) -1, 0, 0);
 	signal(SIGSEGV, SIG_IGN);
 //	ppoll(-1, -1, -1, 0);
 	signal(SIGSEGV, SIG_DFL);
 	sched_yield();
-	readv(-1, 0, 0, 0);
-	writev(-1, 0, 0, 0);
+	readv(-1, 0, 0);
+	writev(-1, 0, 0);
 	msync(0, 0, 0);
 	fsync(-1);
 	fdatasync(-1);
 	semget(0, 0, 0);
 	semctl(0, 0, 0);
-	uselib(NULL);
+//	uselib(NULL);
 	pivot_root(0, 0);
 	personality(-1);
 	setfsuid(-1);
 	flock(-1, 0);
-	shmdt(0, 0, 0);
+	shmdt(0);
 	times(0);
 	mremap(0, 0, 0, 0, 0);
 	madvise(0, 0, 0);
 	fchown(-1, 0, 0);
-	lchown(0, 0, 0);
-	setreuid();
-	setregid();
+	lchown("", 0, 0);
+	setreuid(0, 0);
+	setregid(0, 0);
 	link("/nonexistant", "/also-nonexistant");
 
 	do_slow();
@@ -156,11 +170,10 @@ int main(int argc, char **argv)
 	rename("/", "/");
 	mkdir("/junk/stuff////0", 0777);
 	geteuid();
-	getsid();
-	getpgid();
+	getsid(0);
+	getpgid(0);
 	getresuid();
 	getresgid();
-	getpgid();
 	ptrace(-1, 0, 0, 0);
 	semop(0, 0, 0);
 	capget(0, 0);
@@ -170,7 +183,7 @@ int main(int argc, char **argv)
 	settimeofday(0, 0);
 	dup(-1);
 	dup2(-1, -1);
-	shmctl(0, 0, 0, 0);
+	shmctl(0, 0, 0);
 	execve("/bin/nothing", "/bin/nothing", 0);
 	alarm(9999);
 	bind(0, 0, 0);
@@ -199,7 +212,7 @@ int main(int argc, char **argv)
 	sigprocmask(0, 0, 0);
 	x += open("/nothing", 0);
 	x += chdir("/nothing");
-	x += mknod("/nothing/nothing", 0);
+	x += mknod("/nothing/nothing", 0, 0);
 	x += ioctl();
 	execve("/nothing", NULL, NULL);
 	line = __LINE__;
@@ -213,7 +226,7 @@ int main(int argc, char **argv)
 	brk(0);
 	sbrk(0);
 	line = __LINE__;
-	mmap(0, 0, 0, 0, 0);
+	mmap(0, 0, 0, 0, 0, 0);
 	line = __LINE__;
 	uname(0);
 	line = __LINE__;
@@ -226,7 +239,7 @@ int main(int argc, char **argv)
 	umount(0, 0, 0);
 	swapon(0, 0);
 	swapoff(0);
-	sethostname(0);
+	sethostname(0, 0);
 	line = __LINE__;
 	time(NULL);
 	unlink("/nothing");

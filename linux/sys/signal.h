@@ -69,7 +69,9 @@
 #define SIGILL		 4
 #define SIGTRAP		 5
 #define SIGABRT		 6
+# if !defined(SIGIOT)
 #define SIGIOT		 6
+# endif
 #define SIGBUS		 7
 #define SIGFPE		 8
 #define SIGKILL		 9
@@ -95,7 +97,9 @@
 #define SIGVTALRM	26
 #define SIGPROF		27
 #define SIGWINCH	28
+# if !defined(SIGIO)
 #define SIGIO		29
+# endif
 #define SIGPOLL		SIGIO
 #define SIGCANCEL 36    /* reserved signal for thread cancellation */
 

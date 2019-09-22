@@ -459,7 +459,7 @@ proc_walk(proc_walk_f *func, void *arg, int flag)
 			continue;
 		/* PR_WALK_PROC case */
 		(void) snprintf(pidstr, sizeof (pidstr),
-		    "%s/%ld/psinfo", procfs_path, pid);
+		    "%s/%ld/psinfo", procfs_path, (long) pid);
 		fd = open(pidstr, O_RDONLY);
 		if (fd < 0)
 			continue;
@@ -475,7 +475,7 @@ proc_walk(proc_walk_f *func, void *arg, int flag)
 		}
 		/* PR_WALK_LWP case */
 		(void) snprintf(pidstr, sizeof (pidstr),
-		    "%s/%ld/lpsinfo", procfs_path, pid);
+		    "%s/%ld/lpsinfo", procfs_path, (long) pid);
 		fd = open(pidstr, O_RDONLY);
 		if (fd < 0)
 			continue;

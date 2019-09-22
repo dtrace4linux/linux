@@ -1,3 +1,4 @@
+ARFLAGS=Urv 
 CC=gcc -g $(BUILD_BITS)
 CPPFLAGS += -I../libproc/common \
 	-I../common/ctf \

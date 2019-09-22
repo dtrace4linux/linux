@@ -22,13 +22,13 @@ $(LIB): \
 $(LIB)(rd_elf32.o): rd_elf.c
 	$(CC) $(CPPFLAGS) -c rd_elf.c
 	mv rd_elf.o rd_elf32.o
-	ar rv $(LIB) rd_elf32.o
+	ar $(ARFLAGS) $(LIB) rd_elf32.o
 	rm -f rd_elf32.o
 
 $(LIB)(rd_elf64.o): rd_elf.c
 	$(CC) $(CPPFLAGS) -D_ELF64 -c rd_elf.c
 	mv rd_elf.o rd_elf64.o
-	ar rv $(LIB) rd_elf64.o
+	ar $(ARFLAGS) $(LIB) rd_elf64.o
 	rm -f rd_elf64.o
 clean:
 	-rm -f *.o *.a

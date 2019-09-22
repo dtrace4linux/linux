@@ -83,6 +83,9 @@ typedef struct {
 	shstrtab_t	pgc_shstrtab;
 } pgcore_t;
 
+void	bzero(void *, size_t);
+void bcopy(const void *src, void *dest, size_t n);
+
 static void
 shstrtab_init(shstrtab_t *s)
 {
